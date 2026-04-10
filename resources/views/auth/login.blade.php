@@ -1,30 +1,74 @@
 <x-layouts.guest title="Log In — Sync360">
-    <section class="auth-wrap" style="grid-template-columns: 1fr min(460px, 100%);">
-        <div class="hero-card auth-aside">
-            <span class="eyebrow"><span class="eyebrow-dot"></span> Welcome Back</span>
-            <h2 style="margin-top: 18px; font-size: clamp(2rem, 4vw, 3rem);">Your digital employee has been busy.</h2>
-            <p>
-                Log in to see what it's handled for your business &mdash; messages answered,
-                bookings confirmed, and quotes sent while you were away.
-            </p>
+    <section class="auth-wrap auth-wrap--login">
+        <div class="hero-card auth-aside auth-story">
+            <div>
+                <span class="eyebrow"><span class="eyebrow-dot"></span> Welcome back</span>
+                <h2>Your workspace kept the conversation moving while you were away.</h2>
+                <p>
+                    Jump back into the day with customer context, next actions, and a digital employee
+                    that has already been handling the busywork in the background.
+                </p>
+            </div>
+
+            <div class="auth-proof">
+                <span>Replies tracked</span>
+                <span>Bookings moving</span>
+                <span>Follow-ups queued</span>
+            </div>
+
+            <div class="auth-metric-grid">
+                <div class="auth-metric">
+                    <span>Inbox</span>
+                    <strong>Prioritised before you log in</strong>
+                </div>
+                <div class="auth-metric">
+                    <span>Customers</span>
+                    <strong>Warm replies, even after hours</strong>
+                </div>
+                <div class="auth-metric">
+                    <span>Team</span>
+                    <strong>Cleaner handoff every morning</strong>
+                </div>
+            </div>
+
+            <div class="auth-conversation">
+                <div class="auth-conversation-header">
+                    <strong>What your workspace feels like</strong>
+                    <span>Live context</span>
+                </div>
+                <div class="auth-bubble auth-bubble--user">
+                    "Can someone come by this afternoon for a quote?"
+                </div>
+                <div class="auth-bubble auth-bubble--ai">
+                    "Absolutely. I’ve offered two time windows and captured the job details for your team."
+                </div>
+                <div class="auth-bubble auth-bubble--user">
+                    "Perfect, book the 3:30 slot."
+                </div>
+            </div>
         </div>
 
         <div class="panel auth-card">
-            <h2 style="font-size: 1.7rem;">Log In</h2>
-            <p class="hint" style="margin-bottom: 22px;">Good to have you back.</p>
+            <header>
+                <span class="kicker">Secure access</span>
+                <h2>Log in to your Sync360 workspace</h2>
+                <p class="hint">Pick up where you left off and get back to the conversations that matter.</p>
+            </header>
 
             <form method="POST" action="{{ route('login.store') }}">
                 @csrf
 
-                <label>
-                    Email Address
-                    <input type="email" name="email" value="{{ old('email') }}" placeholder="you@yourbusiness.com" required>
-                </label>
+                <div class="field-single">
+                    <label>
+                        Email Address
+                        <input type="email" name="email" value="{{ old('email') }}" placeholder="you@yourbusiness.com" required>
+                    </label>
 
-                <label>
-                    Password
-                    <input type="password" name="password" placeholder="Your password" required>
-                </label>
+                    <label>
+                        Password
+                        <input type="password" name="password" placeholder="Your password" required>
+                    </label>
+                </div>
 
                 <label style="display: flex; align-items: center; gap: 10px; font-weight: 500; cursor: pointer;">
                     <input type="checkbox" name="remember" value="1" style="width: auto; accent-color: var(--accent);">
@@ -37,7 +81,7 @@
             </form>
 
             <p class="hint" style="margin-top: 18px; text-align: center;">
-                No account yet? <a href="{{ route('signup') }}" style="color: var(--accent-dark); font-weight: 700;">Start a free trial</a>.
+                No account yet? <a href="{{ route('signup') }}" style="color: var(--accent-dark); font-weight: 700;">Start your free trial</a>.
             </p>
         </div>
     </section>

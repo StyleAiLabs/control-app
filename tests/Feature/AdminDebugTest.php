@@ -1,0 +1,145 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Contracts\DockerComposeRunner;
+use App\Enums\ProvisioningJobStatus;
+use App\Enums\TenantProvisioningStatus;
+use App\Enums\TrialStatus;
+use App\Jobs\ProcessTenantProvisioning;
+use App\Models\ProvisioningJob;
+use App\Models\Tenant;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Queue;
+use Mockery;
+use Tests\TestCase;
+
+class AdminDebugTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_non_admin_users_cannot_access_admin_pages(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Standard User',
+            'email' => 'standard@example.com',
+            'password' => 'super-secret',
+            'is_admin' => false,
+        ]);
+
+        $this->actingAs($user);
+
+        $this->get('/admin')->assertForbidden();
+        $this->get('/admin/users')->assertForbidden();
+        $this->get('/admin/tenants')->assertForbidden();
+        $this->get('/admin/jobs')->assertForbidden();
+    }
+
+    public function test_admin_pages_list_users_tenants_jobs_and_allow_retry(): void
+    {
+        Queue::fake();
+
+        $admin = User::query()->create([
+            'name' => 'Debug Admin',
+            'email' => 'admin@example.com',
+            'password' => 'super-secret',
+            'is_admin' => true,
+        ]);
+
+        $user = User::query()->create([
+            'name' => 'Debug User',
+            'email' => 'debug@example.com',
+            'password' => 'super-secret',
+            'is_admin' => false,
+        ]);
+
+        $tenant = Tenant::query()->create([
+            'tenant_id' => 'tenant_02',
+            'slug' => 'debug-shop',
+            'business_name' => 'Debug Shop',
+            'industry' => 'Retail',
+            'skill_pack' => 'Client Support',
+            'user_id' => $user->id,
+            'trial_status' => TrialStatus::Active,
+            'provisioning_status' => TenantProvisioningStatus::Failed,
+            'assigned_port' => 4101,
+            'workspace_url' => 'http://localhost:4101',
+            'runtime_path' => '/tmp/debug-shop',
+        ]);
+
+        File::ensureDirectoryExists('/tmp/debug-shop');
+        File::put('/tmp/debug-shop/compose.yaml', 'services: {}');
+
+        $job = ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => 'provision_tenant',
+            'status' => ProvisioningJobStatus::Failed,
+            'error_message' => 'Provisioner exploded.',
+        ]);
+
+        $runner = Mockery::mock(DockerComposeRunner::class);
+        $runner->shouldReceive('isRunning')
+            ->once()
+            ->with('/tmp/debug-shop/compose.yaml', 'sync360-debug-shop')
+            ->andReturnTrue();
+        $runner->shouldReceive('start')
+            ->once()
+            ->with('/tmp/debug-shop/compose.yaml', 'sync360-debug-shop')
+            ->andReturnNull();
+        $runner->shouldReceive('stop')
+            ->once()
+            ->with('/tmp/debug-shop/compose.yaml', 'sync360-debug-shop')
+            ->andReturnNull();
+
+        $this->instance(DockerComposeRunner::class, $runner);
+
+        $this->actingAs($admin);
+
+        $this->get('/admin')
+            ->assertOk()
+            ->assertSee('Admin Overview');
+
+        $this->get('/admin/users')
+            ->assertOk()
+            ->assertSee('Debug Admin')
+            ->assertSee('debug@example.com');
+
+        $this->get('/admin/tenants')
+            ->assertOk()
+            ->assertSee('Debug Shop')
+            ->assertSee('Provisioner exploded.')
+            ->assertSee('running');
+
+        $this->get('/admin/jobs')
+            ->assertOk()
+            ->assertSee((string) $job->id)
+            ->assertSee('provision_tenant');
+
+        $this->post(route('admin.workspace.start', $tenant))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Workspace container start requested.');
+
+        $this->post(route('admin.workspace.stop', $tenant))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Workspace container stop requested.');
+
+        $response = $this->post(route('admin.retry', $tenant));
+
+        $response->assertRedirect();
+        $response->assertSessionHas('status', 'Provisioning retry queued.');
+        $this->assertDatabaseCount('provisioning_jobs', 2);
+
+        $retriedJob = ProvisioningJob::query()->latest('id')->first();
+
+        $this->assertSame(ProvisioningJobStatus::Queued, $retriedJob->status);
+
+        Queue::assertPushed(ProcessTenantProvisioning::class, function (ProcessTenantProvisioning $queuedJob) use ($tenant, $retriedJob): bool {
+            return $queuedJob->tenantId === $tenant->id
+                && $queuedJob->provisioningJobId === $retriedJob->id;
+        });
+
+        File::deleteDirectory('/tmp/debug-shop');
+    }
+}

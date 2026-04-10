@@ -1,29 +1,57 @@
 <x-layouts.guest title="Start Free Trial — Sync360">
     <section class="auth-wrap">
-        <div class="hero-card auth-aside">
-            <span class="eyebrow"><span class="eyebrow-dot"></span> Free Trial &middot; No credit card needed</span>
-            <h2 style="margin-top: 18px; font-size: clamp(2rem, 4vw, 3rem);">Meet your new digital employee.</h2>
-            <p>
-                Answer messages, book jobs, and send quotes &mdash; automatically.
-                Takes less than 2 minutes to set up. Cancel any time.
-            </p>
+        <div class="hero-card auth-aside auth-story">
+            <div>
+                <span class="eyebrow"><span class="eyebrow-dot"></span> Free trial · no credit card needed</span>
+                <h2>Set up the workspace that keeps enquiries moving for you.</h2>
+                <p>
+                    Give us a few details about your business and we will spin up a workspace that is tailored
+                    to your industry, your workflow, and the way customers already reach out.
+                </p>
+            </div>
+
+            <div class="auth-proof">
+                <span>Tailored to your industry</span>
+                <span>Ready in minutes</span>
+                <span>Built for busy operators</span>
+            </div>
+
             <div class="mini-grid">
                 <div class="mini-tile">
-                    <div class="hint">Tailored to your trade</div>
-                    <h3 style="margin-top: 10px;">Built for your industry</h3>
-                    <p>We load skills matched to how your business actually works.</p>
+                    <div class="hint">Industry fit</div>
+                    <h3>Start with the right context</h3>
+                    <p>We load a workspace that matches how your business actually sells, books, and follows up.</p>
                 </div>
                 <div class="mini-tile">
-                    <div class="hint">Ready in minutes</div>
-                    <h3 style="margin-top: 10px;">Up and running fast</h3>
-                    <p>Your digital employee starts setting up the moment you sign up.</p>
+                    <div class="hint">Fast launch</div>
+                    <h3>Go live without a long setup project</h3>
+                    <p>Your workspace starts provisioning as soon as you create the account.</p>
+                </div>
+            </div>
+
+            <div class="auth-conversation">
+                <div class="auth-conversation-header">
+                    <strong>The experience you are creating</strong>
+                    <span>Customer preview</span>
+                </div>
+                <div class="auth-bubble auth-bubble--user">
+                    "Do you have any appointments left this week?"
+                </div>
+                <div class="auth-bubble auth-bubble--ai">
+                    "Yes. I can offer Thursday afternoon or Friday morning. Which suits you best?"
+                </div>
+                <div class="auth-bubble auth-bubble--user">
+                    "Friday morning works. Please lock it in."
                 </div>
             </div>
         </div>
 
         <div class="panel auth-card">
-            <h2 style="font-size: 1.7rem;">Start Free Trial</h2>
-            <p class="hint" style="margin-bottom: 22px;">Tell us a bit about your business to get started.</p>
+            <header>
+                <span class="kicker">Create workspace</span>
+                <h2>Start your free trial</h2>
+                <p class="hint">Tell us a bit about your business and we will get your workspace ready.</p>
+            </header>
 
             <form method="POST" action="{{ route('signup.store') }}">
                 @csrf

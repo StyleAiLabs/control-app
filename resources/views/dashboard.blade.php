@@ -2,8 +2,8 @@
     <div class="topbar">
         <div>
             <span class="eyebrow">Dashboard</span>
-            <h2>{{ $tenant->business_name }}</h2>
-            <p>Here's what's happening with your digital employee today.</p>
+            <h2>Welcome back, {{ $firstName }}.</h2>
+            <p>{{ $tenant->business_name }} is {{ strtolower($provisioningContent['label']) }} today.</p>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             @if ($tenant->provisioning_status->value === 'ready')
@@ -17,34 +17,13 @@
     <section class="stats" style="margin-bottom: 20px;">
         <div class="stat">
             <div class="hint">Trial</div>
-            <strong>
-                @switch($tenant->trial_status->value)
-                    @case('trial_active')   Active @break
-                    @case('trial_expired')  Expired @break
-                    @default                {{ ucfirst(str_replace('_', ' ', $tenant->trial_status->value)) }}
-                @endswitch
-            </strong>
-            <p>{{ $tenant->trial_status->value === 'trial_active' ? 'Your free trial is running.' : 'Your trial has ended.' }}</p>
+            <strong>{{ $trialContent['label'] }}</strong>
+            <p>{{ $trialContent['description'] }}</p>
         </div>
         <div class="stat">
-            <div class="hint">Status</div>
-            <strong>
-                @switch($tenant->provisioning_status->value)
-                    @case('pending')        Setting Up @break
-                    @case('provisioning')   Getting Ready @break
-                    @case('ready')          Live @break
-                    @case('failed')         Needs Attention @break
-                    @default                {{ ucfirst($tenant->provisioning_status->value) }}
-                @endswitch
-            </strong>
-            <p>
-                @switch($tenant->provisioning_status->value)
-                    @case('pending')        In the setup queue. @break
-                    @case('provisioning')   Being configured now. @break
-                    @case('ready')          Your digital employee is live. @break
-                    @case('failed')         Something needs fixing. @break
-                    @default &nbsp; @endswitch
-            </p>
+            <div class="hint">Workspace</div>
+            <strong>{{ $provisioningContent['label'] }}</strong>
+            <p>{{ $provisioningContent['description'] }}</p>
         </div>
         <div class="stat">
             <div class="hint">Skill Pack</div>
@@ -77,7 +56,7 @@
                 <div class="meta-item">
                     <small>Trial Status</small>
                     <span class="badge {{ $tenant->trial_status->value }}">
-                        {{ $tenant->trial_status->value === 'trial_active' ? 'Active' : 'Expired' }}
+                        {{ $trialContent['label'] }}
                     </span>
                 </div>
             </div>
@@ -87,21 +66,19 @@
             <span class="eyebrow">Digital Employee Status</span>
             <div style="margin-top: 18px; display: grid; gap: 14px;">
                 <div>
-                    <small class="hint">Setup progress</small><br>
+                    <small class="hint">Current status</small><br>
                     <span class="badge {{ $tenant->provisioning_status->value }}" style="margin-top: 6px; display: inline-flex;">
-                        @switch($tenant->provisioning_status->value)
-                            @case('pending')      Setting Up @break
-                            @case('provisioning') Getting Ready @break
-                            @case('ready')        Live @break
-                            @case('failed')       Needs Attention @break
-                            @default              {{ ucfirst($tenant->provisioning_status->value) }}
-                        @endswitch
+                        {{ $provisioningContent['label'] }}
                     </span>
+                </div>
+                <div>
+                    <small class="hint">What this means</small>
+                    <div style="margin-top: 6px; font-weight: 600;">{{ $provisioningContent['description'] }}</div>
                 </div>
                 @if ($tenant->provisioning_status->value === 'ready')
                     <div>
-                        <small class="hint">Your digital employee</small>
-                        <div style="margin-top: 6px; font-weight: 600;">Ready to handle messages, bookings, and quotes.</div>
+                        <small class="hint">Recommended next step</small>
+                        <div style="margin-top: 6px; font-weight: 600;">Open the workspace and start tailoring it to how {{ $tenant->business_name }} works.</div>
                     </div>
                     <a href="{{ route('tenant.workspace-ready') }}" class="button button--primary" style="align-self: start;">
                         Open Your Dashboard &rarr;
@@ -112,7 +89,7 @@
                     </div>
                 @else
                     <div class="note">
-                        We're still getting everything ready for you. This usually takes under a minute.
+                        We're still getting everything ready for you. This usually takes under a minute, and you do not need to refresh manually.
                         <a href="{{ route('tenant.setup') }}" style="font-weight: 700; color: var(--accent-dark);">Watch setup progress &rarr;</a>
                     </div>
                 @endif
