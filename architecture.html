@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenClaw SaaS — System Architecture</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; }
+
+  .header {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+    color: white; padding: 40px 48px 32px;
+  }
+  .header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .header p { margin-top: 8px; color: #94a3b8; font-size: 15px; }
+  .badge { display: inline-block; background: #e43f5a; color: white; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; margin-left: 12px; vertical-align: middle; letter-spacing: 0.5px; }
+
+  .content { max-width: 1140px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  /* ── STATUS LEGEND ── */
+  .legend { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 32px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .dot-built   { background: #16a34a; }
+  .dot-partial { background: #d97706; }
+  .dot-todo    { background: #9ca3af; }
+  .dot-future  { background: #7c3aed; }
+
+  /* ── STATUS BADGES ── */
+  .status { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 20px; vertical-align: middle; margin-left: 6px; }
+  .status-built   { background: #dcfce7; color: #15803d; }
+  .status-partial { background: #fef9c3; color: #a16207; }
+  .status-todo    { background: #f3f4f6; color: #6b7280; }
+  .status-future  { background: #f3e8ff; color: #7e22ce; }
+
+  /* Section headings */
+  .section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #64748b; margin-bottom: 16px; margin-top: 48px; display: flex; align-items: center; gap: 10px; }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
+
+  /* Info / warning boxes */
+  .info-box  { background: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 0 8px 8px 0; padding: 16px 20px; margin-bottom: 28px; font-size: 14px; line-height: 1.6; color: #1e40af; }
+  .info-box strong { display: block; margin-bottom: 4px; font-size: 15px; }
+  .warn-box  { background: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 0 8px 8px 0; padding: 16px 20px; margin: 20px 0; font-size: 14px; line-height: 1.6; color: #92400e; }
+  .good-box  { background: #f0fdf4; border-left: 4px solid #22c55e; border-radius: 0 8px 8px 0; padding: 16px 20px; margin: 20px 0; font-size: 14px; line-height: 1.6; color: #14532d; }
+
+  /* ── ARCHITECTURE DIAGRAM ── */
+  .arch-diagram { display: flex; flex-direction: column; gap: 6px; }
+  .layer { border-radius: 12px; padding: 20px 24px; display: grid; gap: 12px; position: relative; }
+  .layer-label { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; position: absolute; top: -11px; left: 20px; padding: 2px 10px; border-radius: 20px; }
+
+  /* Layer colours */
+  .layer-users    { background: #f0fdf4; border: 2px solid #86efac; }
+  .layer-users .layer-label    { background: #16a34a; color: white; }
+  .layer-frontend { background: #eff6ff; border: 2px solid #93c5fd; }
+  .layer-frontend .layer-label { background: #2563eb; color: white; }
+  .layer-control  { background: #faf5ff; border: 2px solid #c4b5fd; }
+  .layer-control .layer-label  { background: #7c3aed; color: white; }
+  .layer-tenants  { background: #fff7ed; border: 2px solid #fdba74; }
+  .layer-tenants .layer-label  { background: #ea580c; color: white; }
+  .layer-shared   { background: #f0f9ff; border: 2px solid #7dd3fc; }
+  .layer-shared .layer-label   { background: #0284c7; color: white; }
+  .layer-external { background: #fdf4ff; border: 2px solid #e879f9; }
+  .layer-external .layer-label { background: #a21caf; color: white; }
+  .layer-skills   { background: #f0fdf4; border: 2px solid #4ade80; }
+  .layer-skills .layer-label   { background: #15803d; color: white; }
+
+  /* Boxes inside layers */
+  .boxes { display: flex; flex-wrap: wrap; gap: 10px; }
+  .box { background: white; border-radius: 8px; padding: 12px 16px; flex: 1; min-width: 160px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); display: flex; flex-direction: column; gap: 4px; position: relative; }
+  .box-title { font-size: 13px; font-weight: 700; color: #1e293b; }
+  .box-desc  { font-size: 11px; color: #64748b; line-height: 1.4; }
+  .box-file  { font-size: 10px; color: #94a3b8; font-family: monospace; margin-top: 4px; }
+
+  /* Built/todo borders on boxes */
+  .box-built   { border-top: 3px solid #16a34a; }
+  .box-partial { border-top: 3px solid #d97706; }
+  .box-todo    { border-top: 3px solid #9ca3af; border-style: dashed; }
+
+  /* Arrow between layers */
+  .arrow { text-align: center; font-size: 22px; color: #94a3b8; line-height: 1; padding: 2px 0; }
+
+  /* ── TENANT CONTAINERS ── */
+  .tenant-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-top: 8px; }
+  .tenant-card { background: white; border: 2px solid #fdba74; border-radius: 10px; padding: 14px; font-size: 12px; }
+  .tenant-card-title { font-weight: 700; color: #ea580c; font-size: 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .tenant-card ul { list-style: none; padding: 0; }
+  .tenant-card ul li { color: #475569; padding: 3px 0; border-bottom: 1px solid #f1f5f9; font-size: 11px; }
+  .tenant-card ul li:last-child { border-bottom: none; }
+  .tenant-card ul li::before { content: '▸ '; color: #fdba74; }
+
+  /* ── PROVISIONING FLOW ── */
+  .flow { display: flex; flex-direction: column; gap: 0; }
+  .flow-step { display: flex; align-items: flex-start; gap: 20px; padding: 16px 0; border-bottom: 1px dashed #e2e8f0; }
+  .flow-step:last-child { border-bottom: none; }
+  .flow-num { min-width: 36px; height: 36px; border-radius: 50%; background: #1a1a2e; color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; }
+  .flow-num.built   { background: #16a34a; }
+  .flow-num.partial { background: #d97706; }
+  .flow-num.todo    { background: #9ca3af; }
+  .flow-body { flex: 1; }
+  .flow-title { font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+  .flow-detail { font-size: 13px; color: #475569; line-height: 1.5; }
+  .flow-tech { display: inline-block; background: #f1f5f9; border-radius: 4px; font-size: 11px; font-weight: 600; color: #475569; padding: 2px 8px; margin-top: 6px; font-family: monospace; }
+  .flow-file { display: inline-block; background: #dcfce7; border-radius: 4px; font-size: 11px; font-weight: 600; color: #15803d; padding: 2px 8px; margin-top: 4px; margin-left: 4px; font-family: monospace; }
+
+  /* ── TWO COLUMN ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* ── STACK CARDS ── */
+  .stack-card { background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); overflow: hidden; }
+  .stack-header { padding: 16px 20px; font-size: 15px; font-weight: 700; color: white; }
+  .stack-header.current { background: #0284c7; }
+  .stack-header.next    { background: #d97706; }
+  .stack-header.future  { background: #7c3aed; }
+  .stack-header .sub { font-size: 12px; font-weight: 400; opacity: 0.85; margin-top: 2px; }
+  .stack-body { padding: 16px 20px; }
+  .stack-row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; gap: 8px; }
+  .stack-row:last-child { border-bottom: none; }
+  .stack-row-label { color: #64748b; flex-shrink: 0; }
+  .stack-row-value { font-weight: 600; color: #1e293b; text-align: right; font-family: monospace; font-size: 12px; }
+
+  /* ── GAPS TABLE ── */
+  .gaps { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .gaps th { background: #1a1a2e; color: white; padding: 12px 16px; font-size: 12px; font-weight: 700; text-align: left; letter-spacing: 0.3px; }
+  .gaps td { padding: 12px 16px; font-size: 13px; border-bottom: 1px solid #f1f5f9; vertical-align: top; line-height: 1.5; }
+  .gaps tr:last-child td { border-bottom: none; }
+  .gaps tr:nth-child(even) { background: #f8fafc; }
+  .priority-high { color: #dc2626; font-weight: 700; }
+  .priority-med  { color: #d97706; font-weight: 700; }
+  .priority-low  { color: #64748b; font-weight: 600; }
+
+  /* ── CODE BLOCK ── */
+  .code-block { background: #1e293b; color: #e2e8f0; border-radius: 10px; padding: 20px; font-family: monospace; font-size: 12px; line-height: 1.8; overflow-x: auto; }
+  .code-block .comment { color: #64748b; }
+  .code-block .key    { color: #7dd3fc; }
+  .code-block .value  { color: #86efac; }
+  .code-block .dir    { color: #fde68a; }
+
+  /* Limit cap warning */
+  .cap-bar { background: white; border-radius: 12px; padding: 20px 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .cap-bar h4 { font-size: 14px; font-weight: 700; margin-bottom: 12px; color: #ea580c; }
+  .port-track { background: #f1f5f9; border-radius: 8px; height: 28px; position: relative; overflow: hidden; }
+  .port-used  { background: linear-gradient(90deg, #16a34a, #22c55e); height: 100%; width: 5%; border-radius: 8px; display: flex; align-items: center; padding-left: 10px; font-size: 11px; font-weight: 700; color: white; }
+  .port-labels { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: #94a3b8; }
+  .port-warning { margin-top: 10px; font-size: 12px; color: #92400e; background: #fffbeb; padding: 8px 12px; border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>OpenClaw SaaS — System Architecture <span class="badge">v2.0 — As Built</span></h1>
+  <p>Laravel 13 · PostgreSQL · Redis · Docker Compose · Multi-tenant provisioning</p>
+</div>
+
+<div class="content">
+
+  <!-- LEGEND -->
+  <div class="legend">
+    <div class="legend-item"><div class="dot dot-built"></div> Already built & working</div>
+    <div class="legend-item"><div class="dot dot-partial"></div> Partially built</div>
+    <div class="legend-item"><div class="dot dot-todo"></div> Not yet built (needed soon)</div>
+    <div class="legend-item"><div class="dot dot-future"></div> Future / Phase 2</div>
+  </div>
+
+  <div class="good-box">
+    <strong>You're further along than most SaaS MVPs at this stage.</strong>
+    The core provisioning engine — the hardest part — is already working. Sign-up → queue job → Docker container → workspace URL is fully implemented. The gaps are mostly product-layer concerns: billing, the LLM proxy, and the skill selector UI.
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="section-title">Full System Architecture — Current State</div>
+
+  <div class="arch-diagram">
+
+    <!-- USERS -->
+    <div class="layer layer-users" style="padding-top: 28px;">
+      <div class="layer-label">Your Customers</div>
+      <div class="boxes">
+        <div class="box box-built">
+          <div class="box-title">👤 Business Owner <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Signs up via landing page, completes registration form. Redirected to provisioning status page while container spins up.</div>
+          <div class="box-file">landing.blade.php → auth/signup.blade.php</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">💳 Billing Portal <span class="status status-todo">NOT BUILT</span></div>
+          <div class="box-desc">Stripe checkout and subscription management not yet connected. Currently no payment wall on sign-up.</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">💬 Customer's End-Users <span class="status status-todo">NOT BUILT</span></div>
+          <div class="box-desc">The messaging channel connection (WhatsApp / email setup wizard) is not yet in the customer dashboard.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow">↕</div>
+
+    <!-- FRONTEND -->
+    <div class="layer layer-frontend" style="padding-top: 28px;">
+      <div class="layer-label">Layer 1 — Customer-Facing Web App (Laravel + Blade + Tailwind 4)</div>
+      <div class="boxes">
+        <div class="box box-built">
+          <div class="box-title">🌐 Landing Page <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">"Start Free Trial" CTA. Session-based auth. Custom login/register — not Breeze/Jetstream.</div>
+          <div class="box-file">landing.blade.php · auth/login · auth/signup</div>
+        </div>
+        <div class="box box-partial">
+          <div class="box-title">📋 User Dashboard <span class="status status-partial">PARTIAL</span></div>
+          <div class="box-desc">Shows tenant provisioning status and workspace URL once ready. No usage stats, no skill management UI yet.</div>
+          <div class="box-file">dashboard.blade.php · workspace/show.blade.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">⏳ Provisioning Status Page <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Real-time polling of /tenant/status JSON endpoint. Progresses through states: Pending → Provisioning → Ready.</div>
+          <div class="box-file">tenant/setup.blade.php · tenant/workspace-ready.blade.php</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">🧩 Skill Selector UI <span class="status status-todo">NOT BUILT</span></div>
+          <div class="box-desc">No UI yet for customers to browse and toggle skills on/off. Tenant schema has skill_pack column ready.</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">🔧 Admin Panel <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Local-only admin: view users, tenants (with workspace state), jobs, retry failures, start/stop containers.</div>
+          <div class="box-file">admin/*.blade.php · EnsureAdminUser middleware</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow">↕</div>
+
+    <!-- CONTROL PLANE -->
+    <div class="layer layer-control" style="padding-top: 28px;">
+      <div class="layer-label">Layer 2 — Control Plane / Backend (Laravel 13, PHP 8.3+)</div>
+      <div class="boxes">
+        <div class="box box-built">
+          <div class="box-title">🔧 Provisioning Service <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">ProcessTenantProvisioning job fires on signup. OpenClawProvisioner runs docker-compose, polls /readyz, updates tenant status.</div>
+          <div class="box-file">Jobs/ProcessTenantProvisioning.php · Services/OpenClawProvisioner.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">🗂️ Tenant Manager <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Tenant model with ULID, slug, industry, skill_pack, provisioning_status, assigned_port, workspace_url, runtime_path.</div>
+          <div class="box-file">Models/Tenant.php · Enums/TenantProvisioningStatus.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">⚙️ Runtime Service <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Allocates a port (4100–4199), creates runtime directory structure, writes .env and metadata.json into each tenant container.</div>
+          <div class="box-file">Services/TenantRuntimeService.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">📬 Job Queue (Redis) <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Redis-backed Laravel queue. Dedicated worker container processes jobs async. ProvisioningJob model tracks status + errors.</div>
+          <div class="box-file">Models/ProvisioningJob.php · Enums/ProvisioningJobStatus.php</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">💰 Billing (Stripe) <span class="status status-todo">NOT BUILT</span></div>
+          <div class="box-desc">No Stripe integration. Signup currently creates tenants without a payment step. Critical before any public launch.</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">📦 Skill Deployer <span class="status status-todo">NOT BUILT</span></div>
+          <div class="box-desc">skill_pack column exists on Tenant but no service to fetch skills from a registry and push them into a running container.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow">↕</div>
+
+    <!-- SHARED INFRA -->
+    <div class="layer layer-shared" style="padding-top: 28px;">
+      <div class="layer-label">Layer 3 — Shared Infrastructure (Docker Compose)</div>
+      <div class="boxes">
+        <div class="box box-built">
+          <div class="box-title">🐘 PostgreSQL 17 <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Tables: users, tenants, provisioning_jobs, servers (unused), jobs, cache. Health-checked. Migrations auto-run on startup.</div>
+          <div class="box-file">docker-compose.yml → postgres service</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">⚡ Redis 7 <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Queue broker for provisioning jobs. Also used for cache and sessions.</div>
+          <div class="box-file">docker-compose.yml → redis service</div>
+        </div>
+        <div class="box box-partial">
+          <div class="box-title">🔀 Routing / Proxy <span class="status status-partial">PARTIAL</span></div>
+          <div class="box-desc">Currently port-based routing only (port 4100–4199). No Nginx reverse proxy with subdomain routing yet. Tenants accessed directly by port.</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">📈 Monitoring <span class="status status-todo">NOT BUILT</span></div>
+          <div class="box-desc">No alerting or metrics dashboard yet. Admin panel provides basic visibility but no automated alerts on container failures.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow">↕</div>
+
+    <!-- TENANT CONTAINERS -->
+    <div class="layer layer-tenants" style="padding-top: 28px;">
+      <div class="layer-label">Layer 4 — Tenant Containers (One per customer · ports 4100–4199)</div>
+      <p style="font-size:13px; color:#78350f; margin-bottom:12px;">
+        Each tenant gets an isolated Docker container. The provisioner creates a <code style="background:#fef3c7; padding:1px 4px; border-radius:3px;">runtime/tenants/{id}/</code> directory with config, data, logs, and workspace folders, then starts the container pointing to that directory.
+      </p>
+      <div class="tenant-grid">
+        <div class="tenant-card">
+          <div class="tenant-card-title"><span>📁</span> runtime/{tenant-id}/</div>
+          <ul>
+            <li>config/ — .env + metadata.json</li>
+            <li>data/ — persistent tenant data</li>
+            <li>logs/ — container logs</li>
+            <li>workspace/ — OpenClaw workspace</li>
+          </ul>
+        </div>
+        <div class="tenant-card">
+          <div class="tenant-card-title"><span>🔑</span> metadata.json</div>
+          <ul>
+            <li>tenant_id (ULID)</li>
+            <li>business_name, slug</li>
+            <li>industry, skill_pack</li>
+            <li>assigned_port</li>
+            <li>workspace_url</li>
+          </ul>
+        </div>
+        <div class="tenant-card">
+          <div class="tenant-card-title"><span>⚡</span> Container lifecycle</div>
+          <ul>
+            <li>Started by OpenClawProvisioner</li>
+            <li>Readiness: polls /readyz endpoint</li>
+            <li>Admin: start/stop via panel</li>
+            <li>Status in DB: Pending→Provisioning→Ready</li>
+          </ul>
+        </div>
+        <div class="tenant-card">
+          <div class="tenant-card-title"><span>⚠️</span> Current limit: 100 tenants</div>
+          <ul>
+            <li>Ports 4100–4199 = 100 slots</li>
+            <li>All on single Docker host</li>
+            <li>Port range configurable in sync360.php</li>
+            <li>Nginx routing needed before launch</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- PORT CAPACITY BAR -->
+      <div class="cap-bar" style="margin-top: 16px;">
+        <h4>⚡ Current Port Capacity: 100 tenant slots (ports 4100–4199)</h4>
+        <div class="port-track">
+          <div class="port-used">0–5 tenants</div>
+        </div>
+        <div class="port-labels">
+          <span>Port 4100 (first tenant)</span>
+          <span style="color:#d97706; font-weight:600;">~50 tenants = consider second server</span>
+          <span>Port 4199 (100th tenant)</span>
+        </div>
+        <div class="port-warning">⚠ 100-slot ceiling is a hard limit of the current port-based routing approach. Add Nginx subdomain routing + multi-server support before you hit ~70 tenants.</div>
+      </div>
+    </div>
+
+    <div class="arrow">↕</div>
+
+    <!-- SKILL REGISTRY -->
+    <div class="layer layer-skills" style="padding-top: 28px;">
+      <div class="layer-label">Layer 5 — Skill Registry (YOUR MOAT — not yet built)</div>
+      <div class="boxes">
+        <div class="box box-todo">
+          <div class="box-title">📧 Email Triage Skill <span class="status status-todo">NOT PACKAGED</span></div>
+          <div class="box-desc">You've proven this on your own VPS. Needs to be packaged as a versioned, deployable skill bundle.</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">📅 Booking Skill <span class="status status-todo">NOT PACKAGED</span></div>
+          <div class="box-desc">Proven on your own VPS. Needs packaging + Cal.com / Google Calendar config hooks.</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">📄 Quote & Invoice Skill <span class="status status-todo">NOT PACKAGED</span></div>
+          <div class="box-desc">Proven on your own VPS. Needs packaging. schema: tenant has skill_pack column waiting for this.</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">🗂️ Skill Registry Service <span class="status status-todo">NOT BUILT</span></div>
+          <div class="box-desc">A Git repo or S3 bucket holding versioned skill bundles. The Skill Deployer service reads from here and pushes into containers.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow">↕</div>
+
+    <!-- EXTERNAL -->
+    <div class="layer layer-external" style="padding-top: 28px;">
+      <div class="layer-label">Layer 6 — External Services</div>
+      <div class="boxes">
+        <div class="box box-todo">
+          <div class="box-title">🤖 LLM Proxy (LiteLLM) <span class="status status-todo">NOT BUILT</span></div>
+          <div class="box-desc">Critical gap. Without this you can't track per-tenant LLM costs, can't enforce plan limits, can't switch models. Build this before launch.</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">💳 Stripe <span class="status status-todo">NOT CONNECTED</span></div>
+          <div class="box-desc">Referenced in services config but not wired. Webhook handler to trigger provisioning on payment not yet built.</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">💬 Messaging Platforms <span class="status status-todo">NOT CONNECTED</span></div>
+          <div class="box-desc">WhatsApp Business API, email (IMAP/SMTP). Channel connection wizard for customers not yet built.</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">📅 Calendar Integrations <span class="status status-todo">NOT CONNECTED</span></div>
+          <div class="box-desc">Google Calendar / Cal.com needed by the Booking skill. Not yet integrated.</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /arch-diagram -->
+
+
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="section-title">Actual Provisioning Flow — What Currently Happens</div>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-num built">1</div>
+      <div class="flow-body">
+        <div class="flow-title">Customer fills out signup form</div>
+        <div class="flow-detail">Provides name, email, password, phone, business name, industry. RegisterController creates a User record and a Tenant record (status: Pending), then queues a ProcessTenantProvisioning job.</div>
+        <span class="flow-tech">POST /signup</span>
+        <span class="flow-file">Http/Controllers/Auth/RegisterController.php</span>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num built">2</div>
+      <div class="flow-body">
+        <div class="flow-title">User is redirected to provisioning status page</div>
+        <div class="flow-detail">The setup page polls GET /tenant/status every few seconds. It displays the current status (Pending → Provisioning → Ready) with a progress UI while the background job runs.</div>
+        <span class="flow-tech">GET /tenant/setup → polls GET /tenant/status (JSON)</span>
+        <span class="flow-file">tenant/setup.blade.php · TenantSetupController.php</span>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num built">3</div>
+      <div class="flow-body">
+        <div class="flow-title">Redis queue worker picks up the job</div>
+        <div class="flow-detail">The dedicated worker container (start-worker.sh) is always running and listening on the Redis queue. It picks up ProcessTenantProvisioning and executes it asynchronously.</div>
+        <span class="flow-tech">Redis queue → worker container → ProcessTenantProvisioning</span>
+        <span class="flow-file">Jobs/ProcessTenantProvisioning.php · docker/start-worker.sh</span>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num built">4</div>
+      <div class="flow-body">
+        <div class="flow-title">TenantRuntimeService allocates a port and creates directory structure</div>
+        <div class="flow-detail">Scans ports 4100–4199, finds the first unused one, assigns it to this tenant. Creates: runtime/tenants/{id}/config/, /data/, /logs/, /workspace/. Writes .env and metadata.json into /config/.</div>
+        <span class="flow-tech">Port range: 4100–4199 · runtime/tenants/{ulid}/</span>
+        <span class="flow-file">Services/TenantRuntimeService.php</span>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num built">5</div>
+      <div class="flow-body">
+        <div class="flow-title">OpenClawProvisioner starts the Docker container</div>
+        <div class="flow-detail">Uses Symfony Process to run docker-compose with the tenant's config. Mounts the runtime directory. Polls the /readyz endpoint on the assigned port until it responds 200. Updates tenant status to Ready with the workspace URL.</div>
+        <span class="flow-tech">docker-compose → polls http://localhost:{port}/readyz</span>
+        <span class="flow-file">Services/OpenClawProvisioner.php · Contracts/TenantProvisioner.php</span>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num built">6</div>
+      <div class="flow-body">
+        <div class="flow-title">Tenant marked Ready — customer sees workspace URL</div>
+        <div class="flow-detail">DB updated: provisioning_status = Ready, workspace_url = http://localhost:{port}. The polling page detects the Ready status and redirects to workspace-ready page showing the URL.</div>
+        <span class="flow-tech">tenant.provisioning_status = Ready · tenant.workspace_url</span>
+        <span class="flow-file">tenant/workspace-ready.blade.php</span>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num todo">7</div>
+      <div class="flow-body">
+        <div class="flow-title">⚠ MISSING: Stripe payment gate</div>
+        <div class="flow-detail">Currently sign-up creates tenants for free. Before launch, a Stripe checkout step must be inserted between registration and provisioning. The Stripe webhook (payment_intent.succeeded) should trigger provisioning instead of the sign-up form directly.</div>
+        <span class="flow-tech">Stripe → webhook → POST /webhooks/stripe → queue provisioning job</span>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num todo">8</div>
+      <div class="flow-body">
+        <div class="flow-title">⚠ MISSING: Skill loading into container</div>
+        <div class="flow-detail">The tenant's skill_pack is stored in the DB but no service yet loads those skills into the running container. This needs a Skill Deployer that fetches skill bundles from a registry and pushes them into the container after provisioning.</div>
+        <span class="flow-tech">Skill Registry → Skill Deployer → container</span>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num todo">9</div>
+      <div class="flow-body">
+        <div class="flow-title">⚠ MISSING: Channel connection (WhatsApp / email)</div>
+        <div class="flow-detail">After the container is ready, the customer needs to connect their messaging channel. No onboarding wizard exists yet to guide them through WhatsApp Business API setup or email IMAP credentials.</div>
+        <span class="flow-tech">Customer dashboard → channel connection wizard</span>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="section-title">Current Technology Stack</div>
+
+  <div class="two-col">
+    <div class="stack-card">
+      <div class="stack-header current">✅ What's In The Stack Now</div>
+      <div class="stack-body">
+        <div class="stack-row"><span class="stack-row-label">Backend framework</span><span class="stack-row-value">Laravel 13 (PHP 8.3+)</span></div>
+        <div class="stack-row"><span class="stack-row-label">Frontend</span><span class="stack-row-value">Blade + Tailwind CSS 4 + Vite</span></div>
+        <div class="stack-row"><span class="stack-row-label">Database</span><span class="stack-row-value">PostgreSQL 17 (alpine)</span></div>
+        <div class="stack-row"><span class="stack-row-label">Queue / cache</span><span class="stack-row-value">Redis 7 (alpine)</span></div>
+        <div class="stack-row"><span class="stack-row-label">Containers</span><span class="stack-row-value">Docker Compose</span></div>
+        <div class="stack-row"><span class="stack-row-label">Container runner</span><span class="stack-row-value">Symfony Process (in PHP)</span></div>
+        <div class="stack-row"><span class="stack-row-label">Auth</span><span class="stack-row-value">Custom session auth (no Breeze)</span></div>
+        <div class="stack-row"><span class="stack-row-label">Tenant IDs</span><span class="stack-row-value">ULID</span></div>
+        <div class="stack-row"><span class="stack-row-label">Testing</span><span class="stack-row-value">PHPUnit + Mockery</span></div>
+        <div class="stack-row"><span class="stack-row-label">Admin seeded user</span><span class="stack-row-value">admin@sync360.local / admin12345</span></div>
+      </div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-header next">🔜 What Needs Adding (Phase 1 Completion)</div>
+      <div class="stack-body">
+        <div class="stack-row"><span class="stack-row-label">Billing</span><span class="stack-row-value">Stripe (cashier or direct API)</span></div>
+        <div class="stack-row"><span class="stack-row-label">LLM proxy</span><span class="stack-row-value">LiteLLM (self-hosted)</span></div>
+        <div class="stack-row"><span class="stack-row-label">Subdomain routing</span><span class="stack-row-value">Nginx Proxy Manager</span></div>
+        <div class="stack-row"><span class="stack-row-label">Skill registry</span><span class="stack-row-value">Git repo or S3 bucket</span></div>
+        <div class="stack-row"><span class="stack-row-label">Skill deployer</span><span class="stack-row-value">New Laravel service class</span></div>
+        <div class="stack-row"><span class="stack-row-label">Channel setup UI</span><span class="stack-row-value">Blade onboarding wizard</span></div>
+        <div class="stack-row"><span class="stack-row-label">Skill selector UI</span><span class="stack-row-value">Blade component in dashboard</span></div>
+        <div class="stack-row"><span class="stack-row-label">Usage metering</span><span class="stack-row-value">Log LLM calls via LiteLLM API</span></div>
+        <div class="stack-row"><span class="stack-row-label">Uptime alerts</span><span class="stack-row-value">Uptime Robot (free tier)</span></div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="section-title">Gaps — Prioritised Build Order</div>
+
+  <table class="gaps">
+    <thead>
+      <tr>
+        <th>Priority</th>
+        <th>Gap</th>
+        <th>Why It Matters</th>
+        <th>Suggested Approach</th>
+        <th>Effort</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="priority-high">P0 — Before Launch</span></td>
+        <td>Stripe billing gate</td>
+        <td>Currently anyone can sign up and get a container for free</td>
+        <td>Add Stripe Checkout step at signup. Move provisioning trigger to <code>payment_intent.succeeded</code> webhook.</td>
+        <td>2–3 days</td>
+      </tr>
+      <tr>
+        <td><span class="priority-high">P0 — Before Launch</span></td>
+        <td>LLM proxy (LiteLLM)</td>
+        <td>Without it, LLM costs are invisible per tenant and uncontrollable</td>
+        <td>Add LiteLLM as a 5th Docker Compose service. Point all tenant containers to it instead of Claude directly. Enable per-tenant API keys.</td>
+        <td>1–2 days</td>
+      </tr>
+      <tr>
+        <td><span class="priority-high">P0 — Before Launch</span></td>
+        <td>Skill packaging</td>
+        <td>Customers get an empty OpenClaw container — no value without skills loaded</td>
+        <td>Package each proven skill (email triage, booking, invoice) as a folder in a Git repo. Write SkillDeployerService that copies/mounts the right skills on provisioning.</td>
+        <td>3–5 days</td>
+      </tr>
+      <tr>
+        <td><span class="priority-med">P1 — Shortly After</span></td>
+        <td>Channel connection wizard</td>
+        <td>Customers can't use OpenClaw without connecting WhatsApp or email</td>
+        <td>Blade step-by-step onboarding wizard. Store credentials in tenant config/. WhatsApp: Business API token. Email: IMAP/SMTP credentials.</td>
+        <td>2–3 days</td>
+      </tr>
+      <tr>
+        <td><span class="priority-med">P1 — Shortly After</span></td>
+        <td>Nginx subdomain routing</td>
+        <td>Port-based URLs (localhost:4103) are not customer-friendly or scalable</td>
+        <td>Add Nginx Proxy Manager to docker-compose.yml. Route tenant-{slug}.yourdomain.com → container port. Auto SSL via Let's Encrypt.</td>
+        <td>1 day</td>
+      </tr>
+      <tr>
+        <td><span class="priority-med">P1 — Shortly After</span></td>
+        <td>Skill selector UI</td>
+        <td>Customers can't change their skills post sign-up</td>
+        <td>Blade component in dashboard. Toggle switches per skill. Calls SkillDeployerService when changed.</td>
+        <td>1–2 days</td>
+      </tr>
+      <tr>
+        <td><span class="priority-low">P2 — Scale</span></td>
+        <td>Multi-server / Kubernetes</td>
+        <td>Hard 100-tenant ceiling on single-server port approach</td>
+        <td>Move to K3s when approaching ~70 tenants. Traefik replaces Nginx. Shared cluster replaces per-server Docker Compose.</td>
+        <td>1–2 weeks</td>
+      </tr>
+      <tr>
+        <td><span class="priority-low">P2 — Scale</span></td>
+        <td>Usage metering dashboard</td>
+        <td>Visibility into per-tenant LLM costs and feature usage</td>
+        <td>LiteLLM exposes usage metrics API. Pull into admin panel. Trigger overage alerts per plan.</td>
+        <td>2–3 days</td>
+      </tr>
+      <tr>
+        <td><span class="priority-low">P2 — Scale</span></td>
+        <td>Monitoring &amp; alerts</td>
+        <td>No automated alerts if a tenant container crashes</td>
+        <td>Uptime Robot (free) for basic health checks. Add Grafana + Prometheus when on Kubernetes.</td>
+        <td>Half day</td>
+      </tr>
+    </tbody>
+  </table>
+
+
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="section-title">Actual Directory Structure (As Built)</div>
+
+  <div class="code-block">
+<span class="dir">openclaw-saas/</span>
+├── <span class="dir">app/</span>
+│   ├── <span class="dir">Contracts/</span>
+│   │   ├── <span class="key">DockerComposeRunner.php</span>     <span class="comment">interface — wraps docker-compose CLI calls</span>
+│   │   └── <span class="key">TenantProvisioner.php</span>        <span class="comment">interface — swap OpenClaw ↔ Local provisioner</span>
+│   ├── <span class="dir">Enums/</span>
+│   │   ├── <span class="key">ProvisioningJobStatus.php</span>    <span class="comment">Queued, Running, Completed, Failed</span>
+│   │   ├── <span class="key">TenantProvisioningStatus.php</span> <span class="comment">Pending, Provisioning, Ready, Failed</span>
+│   │   └── <span class="key">TrialStatus.php</span>              <span class="comment">Active, Expired</span>
+│   ├── <span class="dir">Http/Controllers/</span>
+│   │   ├── <span class="dir">Auth/</span>
+│   │   │   ├── <span class="key">LoginController.php</span>         <span class="comment">session login</span>
+│   │   │   └── <span class="key">RegisterController.php</span>      <span class="comment">signup → creates User + Tenant + queues job</span>
+│   │   ├── <span class="key">AdminController.php</span>           <span class="comment">debug panel: users, tenants, jobs, retry</span>
+│   │   ├── <span class="key">DashboardController.php</span>       <span class="comment">redirects based on tenant status</span>
+│   │   └── <span class="key">TenantSetupController.php</span>     <span class="comment">provisioning UI + /tenant/status JSON poll</span>
+│   ├── <span class="dir">Jobs/</span>
+│   │   └── <span class="key">ProcessTenantProvisioning.php</span> <span class="comment">queued job — orchestrates full provisioning</span>
+│   ├── <span class="dir">Models/</span>
+│   │   ├── <span class="key">User.php</span>                       <span class="comment">+ is_admin flag</span>
+│   │   ├── <span class="key">Tenant.php</span>                     <span class="comment">ULID, slug, industry, skill_pack, port, url</span>
+│   │   ├── <span class="key">ProvisioningJob.php</span>            <span class="comment">tracks job status + errors</span>
+│   │   └── <span class="key">Server.php</span>                     <span class="comment">unused scaffolding (multi-server, future)</span>
+│   └── <span class="dir">Services/</span>
+│       ├── <span class="key">OpenClawProvisioner.php</span>        <span class="comment">production: runs docker-compose, polls /readyz</span>
+│       ├── <span class="key">LocalTenantProvisioningService.php</span> <span class="comment">test fallback: simulated provisioning</span>
+│       ├── <span class="key">LocalDockerComposeRunner.php</span>   <span class="comment">wraps Symfony Process for docker-compose</span>
+│       └── <span class="key">TenantRuntimeService.php</span>       <span class="comment">port allocation (4100–4199), dir + config gen</span>
+├── <span class="dir">config/</span>
+│   └── <span class="key">sync360.php</span>                        <span class="comment">all custom config: paths, port range, provisioner driver, openclaw image</span>
+├── <span class="dir">database/migrations/</span>               <span class="comment">users, tenants, provisioning_jobs, servers, jobs, cache</span>
+├── <span class="dir">docker/</span>
+│   ├── <span class="key">start-app.sh</span>                       <span class="comment">setup dirs → migrate → php artisan serve</span>
+│   └── <span class="key">start-worker.sh</span>                    <span class="comment">setup dirs → php artisan queue:work</span>
+├── <span class="dir">resources/views/</span>
+│   ├── <span class="key">landing.blade.php</span>                  <span class="comment">public landing page</span>
+│   ├── <span class="key">dashboard.blade.php</span>                <span class="comment">tenant status + workspace URL</span>
+│   ├── <span class="dir">auth/</span>                               <span class="comment">login.blade.php, signup.blade.php</span>
+│   ├── <span class="dir">tenant/</span>                             <span class="comment">setup.blade.php, workspace-ready.blade.php</span>
+│   ├── <span class="dir">workspace/</span>                          <span class="comment">show.blade.php (placeholder)</span>
+│   ├── <span class="dir">admin/</span>                              <span class="comment">index, users, tenants, jobs .blade.php</span>
+│   └── <span class="dir">components/layouts/</span>                <span class="comment">guest.blade.php, app.blade.php</span>
+├── <span class="dir">routes/web.php</span>                         <span class="comment">all routes: public, auth, tenant, admin</span>
+├── <span class="dir">runtime/tenants/</span>                       <span class="comment">.gitignored — generated per-tenant workspaces</span>
+├── <span class="dir">templates/tenant/</span>                      <span class="comment">template scaffold copied per new tenant</span>
+├── <span class="dir">tests/Feature/</span>
+│   ├── <span class="key">SignupFlowTest.php</span>
+│   ├── <span class="key">ProvisioningFlowTest.php</span>
+│   ├── <span class="key">OpenClawProvisionerTest.php</span>
+│   └── <span class="key">AdminDebugTest.php</span>
+├── <span class="key">docker-compose.yml</span>                     <span class="comment">services: app (8000), worker, postgres (5432), redis (6379)</span>
+├── <span class="key">Dockerfile</span>                              <span class="comment">PHP 8.4-cli + Docker Compose + psycopg2</span>
+└── <span class="key">PLAN.md</span>                                 <span class="comment">original architecture plan</span>
+  </div>
+
+
+  <!-- RECOMMENDED NEXT STEP -->
+  <div style="margin-top: 48px; padding: 24px; background: #1a1a2e; border-radius: 12px; color: #94a3b8; font-size: 13px; line-height: 1.8;">
+    <span style="color: white; font-weight: 700; font-size: 16px; display: block; margin-bottom: 12px;">🎯 Recommended Next 3 Sprints</span>
+    <span style="color: #e43f5a; font-weight: 700;">Sprint 1 (this week):</span> Package your 3 proven skills (email triage, booking, invoice) into skill bundles. Write SkillDeployerService. Test that a provisioned container loads the right skills based on skill_pack.<br><br>
+    <span style="color: #f59e0b; font-weight: 700;">Sprint 2 (next week):</span> Add LiteLLM as a Docker Compose service. Point tenant containers at it. Add Stripe Checkout to the signup flow — move provisioning trigger to the webhook.<br><br>
+    <span style="color: #4ade80; font-weight: 700;">Sprint 3 (week after):</span> Build the channel connection wizard (WhatsApp / email). Add Nginx subdomain routing so tenants get a real URL. Onboard your first 2–3 paying beta customers.<br><br>
+    <span style="color: #60a5fa; font-weight: 700;">Hold off on:</span> Kubernetes, multi-server, monitoring dashboards, and the skill marketplace UI — these are real but premature. Validate with paying customers first, then invest in scale infrastructure.
+  </div>
+
+</div><!-- /content -->
+</body>
+</html>

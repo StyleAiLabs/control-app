@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UI Redesign Plan — Sync360 Brand Alignment</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; }
+
+  .header { background: linear-gradient(135deg, #1A1A1A 0%, #2a1a0e 100%); color: white; padding: 40px 48px 32px; }
+  .header h1 { font-size: 28px; font-weight: 700; }
+  .header p { margin-top: 8px; color: #94a3b8; font-size: 15px; }
+  .badge { display: inline-block; background: #FF6B35; color: white; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; margin-left: 12px; vertical-align: middle; }
+
+  .content { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  .section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #64748b; margin-bottom: 16px; margin-top: 48px; display: flex; align-items: center; gap: 10px; }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
+
+  .alert-box { border-left: 4px solid #FF6B35; background: #fff7f4; border-radius: 0 8px 8px 0; padding: 16px 20px; margin-bottom: 28px; font-size: 14px; line-height: 1.6; color: #7c2d12; }
+  .alert-box strong { display: block; margin-bottom: 4px; font-size: 15px; }
+
+  /* COLOUR SWATCH */
+  .swatch-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .swatch { border-radius: 10px; padding: 14px 18px; min-width: 160px; flex: 1; }
+  .swatch-name { font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+  .swatch-hex  { font-size: 11px; font-family: monospace; opacity: 0.85; }
+
+  /* BEFORE / AFTER */
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 8px; }
+  @media (max-width: 700px) { .compare { grid-template-columns: 1fr; } }
+  .compare-card { background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+  .compare-header { padding: 10px 16px; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; }
+  .compare-header.before { background: #fee2e2; color: #991b1b; }
+  .compare-header.after  { background: #dcfce7; color: #15803d; }
+  .compare-body { padding: 16px; font-size: 13px; line-height: 1.6; color: #374151; }
+  .compare-body code { background: #f1f5f9; border-radius: 4px; padding: 2px 6px; font-size: 11px; font-family: monospace; color: #0f172a; }
+  .compare-body .tag { display: inline-block; background: #f1f5f9; border-radius: 4px; padding: 2px 7px; font-size: 11px; color: #475569; margin: 2px 2px 0 0; }
+  .compare-body .tag.new { background: #dcfce7; color: #15803d; }
+
+  /* COMPONENT CARDS */
+  .comp-card { background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); margin-bottom: 20px; overflow: hidden; }
+  .comp-header { display: flex; align-items: center; gap: 14px; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; }
+  .comp-num { width: 32px; height: 32px; border-radius: 50%; background: #1A1A1A; color: white; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+  .comp-title { font-size: 16px; font-weight: 700; }
+  .comp-file { font-size: 11px; font-family: monospace; color: #64748b; margin-top: 2px; }
+  .comp-body { padding: 20px; }
+  .comp-body p { font-size: 14px; color: #374151; line-height: 1.6; margin-bottom: 12px; }
+
+  /* ISSUE LIST */
+  .issue-list { list-style: none; padding: 0; display: grid; gap: 10px; }
+  .issue-list li { display: flex; gap: 12px; align-items: flex-start; font-size: 13px; line-height: 1.5; }
+  .issue-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .issue-text strong { display: block; color: #1e293b; font-size: 13px; }
+  .issue-text span { color: #64748b; }
+
+  /* COPY BLOCKS */
+  .copy-block { background: #f8fafc; border-radius: 8px; padding: 14px 16px; margin: 10px 0; font-size: 13px; border-left: 3px solid #e2e8f0; }
+  .copy-block.bad  { border-left-color: #fca5a5; background: #fff5f5; }
+  .copy-block.good { border-left-color: #86efac; background: #f0fdf4; }
+  .copy-label { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+  .copy-label.bad  { color: #dc2626; }
+  .copy-label.good { color: #16a34a; }
+
+  /* SPEC TABLE */
+  .spec-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .spec-table th { background: #1A1A1A; color: white; padding: 10px 14px; text-align: left; font-size: 11px; letter-spacing: 0.5px; }
+  .spec-table td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: top; line-height: 1.5; }
+  .spec-table tr:nth-child(even) { background: #f8fafc; }
+  .spec-table tr:last-child td { border-bottom: none; }
+  .spec-table code { background: #f1f5f9; border-radius: 3px; padding: 1px 5px; font-family: monospace; font-size: 11px; color: #0f172a; }
+
+  /* PRIORITY */
+  .p0 { color: #dc2626; font-weight: 700; }
+  .p1 { color: #d97706; font-weight: 700; }
+  .p2 { color: #16a34a; font-weight: 700; }
+
+  /* DESIGN TOKEN GRID */
+  .token-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .token-card { background: white; border-radius: 8px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .token-card .name { font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 6px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .token-card .value { font-family: monospace; font-size: 13px; font-weight: 700; color: #1e293b; }
+  .token-card .preview { height: 24px; border-radius: 4px; margin-top: 8px; }
+
+  /* SPRINT PLAN */
+  .sprint { background: white; border-radius: 10px; padding: 20px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .sprint-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .sprint-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .sprint h4 { font-size: 15px; font-weight: 700; }
+  .sprint-files { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .sprint-files code { background: #f1f5f9; border-radius: 4px; padding: 3px 8px; font-size: 11px; font-family: monospace; color: #374151; }
+  .sprint p { font-size: 13px; color: #475569; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>UI Redesign Plan <span class="badge">Sync360 Brand Alignment</span></h1>
+  <p>Design critique + component-by-component spec for updating all 13 Blade templates</p>
+</div>
+
+<div class="content">
+
+  <div class="alert-box">
+    <strong>Core Problem: This UI speaks to developers, not customers.</strong>
+    Every screen contains internal MVP language — "Local-first tenant provisioning MVP", "Blade-first control plane", "Flow Proof", "Session auth is intentionally simple for this MVP". The colours are green (#0f8c6f) — the Sync360 brand is orange (#FF6B35). The font is IBM Plex Sans — Sync360 uses DM Sans. Before a single customer sees this, the whole UI needs to be reframed from internal prototype to premium product.
+  </div>
+
+
+  <!-- ════════════════════════════════════ -->
+  <div class="section-title">The Sync360 Design System — What to Align To</div>
+
+  <div class="swatch-row">
+    <div class="swatch" style="background:#1A1A1A; color:white;">
+      <div class="swatch-name">Brand Dark (Primary BG)</div>
+      <div class="swatch-hex">#1A1A1A</div>
+    </div>
+    <div class="swatch" style="background:#FF6B35; color:white;">
+      <div class="swatch-name">Brand Orange (Primary CTA)</div>
+      <div class="swatch-hex">#FF6B35</div>
+    </div>
+    <div class="swatch" style="background:#10B981; color:white;">
+      <div class="swatch-name">Brand Green (Success)</div>
+      <div class="swatch-hex">#10B981</div>
+    </div>
+    <div class="swatch" style="background:#ffffff; color:#1A1A1A; border:1px solid #e2e8f0;">
+      <div class="swatch-name">White (Panels, Cards)</div>
+      <div class="swatch-hex">#FFFFFF</div>
+    </div>
+    <div class="swatch" style="background:#6B7280; color:white;">
+      <div class="swatch-name">Muted Text</div>
+      <div class="swatch-hex">#6B7280</div>
+    </div>
+  </div>
+
+  <div class="token-grid" style="margin-top: 16px;">
+    <div class="token-card">
+      <div class="name">Primary Font</div>
+      <div class="value">DM Sans</div>
+      <div style="font-size:12px; color:#94a3b8; margin-top:4px;">weights: 400, 500, 700</div>
+    </div>
+    <div class="token-card">
+      <div class="name">Mono / Labels</div>
+      <div class="value">Space Mono</div>
+      <div style="font-size:12px; color:#94a3b8; margin-top:4px;">for numbers, status pills</div>
+    </div>
+    <div class="token-card">
+      <div class="name">Border Radius — Cards</div>
+      <div class="value">rounded-xl (12px)</div>
+    </div>
+    <div class="token-card">
+      <div class="name">Border Radius — Pills</div>
+      <div class="value">rounded-full (999px)</div>
+    </div>
+    <div class="token-card">
+      <div class="name">CTA Button</div>
+      <div class="value">#FF6B35 + hover: translateY(-2px)</div>
+    </div>
+    <div class="token-card">
+      <div class="name">Dark Panel BG</div>
+      <div class="value">#1A1A1A or #0f1f19</div>
+    </div>
+    <div class="token-card">
+      <div class="name">Card Shadow</div>
+      <div class="value">0 18px 60px rgba(0,0,0,0.08)</div>
+    </div>
+    <div class="token-card">
+      <div class="name">Brand Tone</div>
+      <div class="value">Direct, casual, confident</div>
+      <div style="font-size:12px; color:#94a3b8; margin-top:4px;">speak to business owners, not devs</div>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════ -->
+  <div class="section-title">Design Critique — Overall Assessment</div>
+
+  <div class="compare">
+    <div class="compare-card">
+      <div class="compare-header before">❌ What Exists Now</div>
+      <div class="compare-body">
+        <div class="tag">Green accent #0f8c6f</div>
+        <div class="tag">IBM Plex Sans font</div>
+        <div class="tag">Green gradient buttons</div>
+        <div class="tag">Green-tinted background</div>
+        <div class="tag">Developer-speak copy</div>
+        <div class="tag">"MVP" mentioned 6+ times</div>
+        <div class="tag">Stats: "Blade / Redis / Local FS"</div>
+        <div class="tag">Raw DB values shown to customers</div>
+        <div class="tag">No brand identity on nav</div>
+      </div>
+    </div>
+    <div class="compare-card">
+      <div class="compare-header after">✅ What It Should Be</div>
+      <div class="compare-body">
+        <div class="tag new">Orange accent #FF6B35</div>
+        <div class="tag new">DM Sans + Space Mono</div>
+        <div class="tag new">Orange CTA buttons</div>
+        <div class="tag new">Clean white / dark Sync360 BG</div>
+        <div class="tag new">Customer-first copy</div>
+        <div class="tag new">Zero mentions of "MVP"</div>
+        <div class="tag new">Stats: customer value metrics</div>
+        <div class="tag new">Human-readable status labels</div>
+        <div class="tag new">Sync360 logo + brand presence</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════ -->
+  <div class="section-title">Component-by-Component Redesign Spec</div>
+
+
+  <!-- 1. GUEST LAYOUT -->
+  <div class="comp-card">
+    <div class="comp-header">
+      <div class="comp-num">1</div>
+      <div>
+        <div class="comp-title">Guest Layout (Base for landing, login, signup)</div>
+        <div class="comp-file">resources/views/components/layouts/guest.blade.php</div>
+      </div>
+      <span style="margin-left:auto; background:#fee2e2; color:#dc2626; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;">CRITICAL</span>
+    </div>
+    <div class="comp-body">
+      <ul class="issue-list">
+        <li><span class="issue-icon">🎨</span><div class="issue-text"><strong>Wrong primary colour throughout</strong><span>All CSS vars use <code>--accent: #0f8c6f</code> (green). Must change to <code>--accent: #FF6B35</code> (orange). Every button, link, focus ring, eyebrow badge turns orange.</span></div></li>
+        <li><span class="issue-icon">🔤</span><div class="issue-text"><strong>Wrong font</strong><span>Uses <code>IBM Plex Sans</code>. Must change to <code>DM Sans</code> from Google Fonts. Add <code>Space Mono</code> for monospace labels.</span></div></li>
+        <li><span class="issue-icon">🌈</span><div class="issue-text"><strong>Background tint is wrong green</strong><span>The radial gradient uses <code>rgba(15, 140, 111, 0.14)</code> — a green tint. Replace with a very subtle warm/neutral tint or plain white.</span></div></li>
+        <li><span class="issue-icon">🧭</span><div class="issue-text"><strong>Nav brand label is internal dev text</strong><span>"Sync360 Control App / Local-first tenant provisioning MVP" must become the actual Sync360 logo + wordmark.</span></div></li>
+        <li><span class="issue-icon">💡</span><div class="issue-text"><strong>Button gradients are green</strong><span>Primary button uses <code>linear-gradient(135deg, #0f8c6f, #0a5e4c)</code>. Replace with solid <code>#FF6B35</code> with a slightly darker hover state (<code>#e55a25</code>). Matches Sync360's flat-colour CTA style.</span></div></li>
+      </ul>
+      <table class="spec-table" style="margin-top: 16px;">
+        <thead><tr><th>CSS Variable</th><th>Current Value</th><th>New Value</th></tr></thead>
+        <tbody>
+          <tr><td><code>--accent</code></td><td><code>#0f8c6f</code></td><td><code>#FF6B35</code></td></tr>
+          <tr><td><code>--accent-dark</code></td><td><code>#0a5e4c</code></td><td><code>#e55a25</code></td></tr>
+          <tr><td><code>font-family</code></td><td><code>"IBM Plex Sans"</code></td><td><code>"DM Sans", sans-serif</code></td></tr>
+          <tr><td>Gradient background tint</td><td><code>rgba(15,140,111,0.14)</code></td><td><code>rgba(255,107,53,0.04)</code> (very subtle)</td></tr>
+          <tr><td>Button background</td><td><code>linear-gradient(green→dark)</code></td><td><code>#FF6B35</code> solid + hover <code>#e55a25</code></td></tr>
+          <tr><td>Button shadow</td><td><code>rgba(15,94,76,0.18)</code></td><td><code>rgba(255,107,53,0.30)</code></td></tr>
+          <tr><td>Eyebrow badge bg</td><td><code>rgba(15,140,111,0.10)</code></td><td><code>rgba(255,107,53,0.10)</code></td></tr>
+          <tr><td>Eyebrow badge text</td><td><code>var(--accent-dark)</code></td><td><code>#c43d12</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+
+  <!-- 2. APP LAYOUT -->
+  <div class="comp-card">
+    <div class="comp-header">
+      <div class="comp-num">2</div>
+      <div>
+        <div class="comp-title">App Layout (Authenticated sidebar shell)</div>
+        <div class="comp-file">resources/views/components/layouts/app.blade.php</div>
+      </div>
+      <span style="margin-left:auto; background:#fee2e2; color:#dc2626; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;">CRITICAL</span>
+    </div>
+    <div class="comp-body">
+      <ul class="issue-list">
+        <li><span class="issue-icon">🎨</span><div class="issue-text"><strong>Same wrong-colour CSS vars</strong><span>Same <code>#0f8c6f</code> / IBM Plex Sans issues as guest layout. Apply same token changes.</span></div></li>
+        <li><span class="issue-icon">🧭</span><div class="issue-text"><strong>Sidebar brand text is developer description</strong><span>"Sync360 Control App / Blade-first control plane MVP for local tenant signup and provisioning" — must become a clean brand name + short customer tagline.</span></div></li>
+        <li><span class="issue-icon">✨</span><div class="issue-text"><strong>Active nav highlight should be orange, not white opacity</strong><span>Current: <code>background: rgba(255,255,255,0.1)</code>. Upgrade: add a left-border orange accent <code>border-left: 3px solid #FF6B35</code> and slightly brighter background on active state.</span></div></li>
+        <li><span class="issue-icon">🔘</span><div class="issue-text"><strong>Logout button inherits wrong green gradient</strong><span>In authenticated sidebar, logout button uses the default <code>button</code> style with green gradient. Should be a small ghost/secondary style in the sidebar context.</span></div></li>
+      </ul>
+      <div class="copy-block bad">
+        <div class="copy-label bad">REMOVE — sidebar brand description</div>
+        "Blade-first control plane MVP for local tenant signup and provisioning."
+      </div>
+      <div class="copy-block good">
+        <div class="copy-label good">REPLACE WITH</div>
+        "Your AI-powered digital employee." <em style="color:#64748b;">(or simply omit the sub-description)</em>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 3. LANDING PAGE -->
+  <div class="comp-card">
+    <div class="comp-header">
+      <div class="comp-num">3</div>
+      <div>
+        <div class="comp-title">Landing Page — The most critical customer-facing screen</div>
+        <div class="comp-file">resources/views/landing.blade.php</div>
+      </div>
+      <span style="margin-left:auto; background:#fee2e2; color:#dc2626; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;">CRITICAL</span>
+    </div>
+    <div class="comp-body">
+      <p>This page currently describes the internal prototype to a developer audience. Every element — the headline, the stats, the visual panel — needs to be rewritten for a service business owner audience, matching the tone of sync360.co.nz/digital-employee.</p>
+      <ul class="issue-list">
+        <li><span class="issue-icon">📣</span><div class="issue-text"><strong>Headline describes tech, not customer outcome</strong><span>"Sign up once. Queue provisioning. Land in a ready workspace." — this means nothing to a plumber. Replace with an outcome-led headline.</span></div></li>
+        <li><span class="issue-icon">📊</span><div class="issue-text"><strong>Hero stats expose internal tech stack</strong><span>Stat cards show "Blade / Redis / Local FS" — internal infrastructure. Customers care about outcomes.</span></div></li>
+        <li><span class="issue-icon">🖼️</span><div class="issue-text"><strong>Visual panel is a dev architecture diagram</strong><span>"Flow Proof: Marketing page → Signup → Provisioning job → Ready state" — this is internal documentation masquerading as product UI.</span></div></li>
+        <li><span class="issue-icon">🧱</span><div class="issue-text"><strong>Mini-tiles describe system properties, not customer benefits</strong><span>"Status tracked: Pending, provisioning, ready, failed." / "Swappable: Ready for remote Docker, SSH, or OpenClaw handoff later." — technical scaffolding, not product benefits.</span></div></li>
+      </ul>
+
+      <div class="compare" style="margin-top: 16px;">
+        <div class="compare-card">
+          <div class="compare-header before">❌ Current Eyebrow Badge</div>
+          <div class="compare-body">"Tenant provisioning MVP"</div>
+        </div>
+        <div class="compare-card">
+          <div class="compare-header after">✅ Replace With</div>
+          <div class="compare-body">"AI Digital Employee · Free Trial"</div>
+        </div>
+      </div>
+
+      <div class="compare">
+        <div class="compare-card">
+          <div class="compare-header before">❌ Current Headline</div>
+          <div class="compare-body">"Sign up once. Queue provisioning. Land in a ready workspace."</div>
+        </div>
+        <div class="compare-card">
+          <div class="compare-header after">✅ Replace With</div>
+          <div class="compare-body">"Your business runs. Even when you don't." <em style="color:#64748b; font-size:12px;">(matches Sync360 tone — direct, benefit-first)</em></div>
+        </div>
+      </div>
+
+      <div class="compare">
+        <div class="compare-card">
+          <div class="compare-header before">❌ Current Sub-copy</div>
+          <div class="compare-body">"Sync360 Control App validates the exact flow the future multi-tenant AI platform needs: visitor conversion, account creation, tenant records, queued provisioning, worker execution..."</div>
+        </div>
+        <div class="compare-card">
+          <div class="compare-header after">✅ Replace With</div>
+          <div class="compare-body">"Answer enquiries, book jobs, send quotes, and follow up on invoices — automatically. Your Sync360 digital employee works 24/7 so you don't have to."</div>
+        </div>
+      </div>
+
+      <div class="compare">
+        <div class="compare-card">
+          <div class="compare-header before">❌ Current Stats (tech metrics)</div>
+          <div class="compare-body">Frontend: Blade · Queue: Redis · Runtime: Local FS</div>
+        </div>
+        <div class="compare-card">
+          <div class="compare-header after">✅ Replace With (customer value)</div>
+          <div class="compare-body">Set up in minutes · Works on WhatsApp & email · Handles booking, quotes & invoices</div>
+        </div>
+      </div>
+
+      <div class="compare">
+        <div class="compare-card">
+          <div class="compare-header before">❌ Visual Panel "Flow Proof"</div>
+          <div class="compare-body">"Marketing page → Signup → Provisioning job → Ready state. The MVP focuses on the exact handoff sequence..."</div>
+        </div>
+        <div class="compare-card">
+          <div class="compare-header after">✅ Replace With</div>
+          <div class="compare-body">A live demo preview panel: show what the AI employee looks like in action — e.g. a simulated WhatsApp thread where it books a job, or a status card showing "3 bookings made today · 2 quotes sent · 1 invoice followed up"</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 4. SIGNUP -->
+  <div class="comp-card">
+    <div class="comp-header">
+      <div class="comp-num">4</div>
+      <div>
+        <div class="comp-title">Sign Up Page</div>
+        <div class="comp-file">resources/views/auth/signup.blade.php</div>
+      </div>
+      <span style="margin-left:auto; background:#fef9c3; color:#a16207; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;">HIGH</span>
+    </div>
+    <div class="comp-body">
+      <ul class="issue-list">
+        <li><span class="issue-icon">📣</span><div class="issue-text"><strong>Aside copy is internal metadata</strong><span>"This signup form creates the user account, provisions the tenant record, queues the provisioning job..." — developer documentation. Replace with benefit copy.</span></div></li>
+        <li><span class="issue-icon">🧱</span><div class="issue-text"><strong>Mini-tiles describe DB fields, not value</strong><span>"Business profile: Industry + skill pack — Capture the minimum tenant metadata we need for provisioning." Replace with motivational benefit language.</span></div></li>
+        <li><span class="issue-icon">📋</span><div class="issue-text"><strong>Form hint below heading reveals MVP status</strong><span>"Everything here maps directly into the MVP data model." Remove entirely.</span></div></li>
+        <li><span class="issue-icon">🔘</span><div class="issue-text"><strong>Submit button copy is robotic</strong><span>"Create Account And Start Provisioning" — this is internal jargon. Replace with "Get Started Free" or "Set Up My Digital Employee".</span></div></li>
+      </ul>
+
+      <div class="compare">
+        <div class="compare-card">
+          <div class="compare-header before">❌ Current aside headline</div>
+          <div class="compare-body">"Create your Sync360 workspace."</div>
+        </div>
+        <div class="compare-card">
+          <div class="compare-header after">✅ Replace With</div>
+          <div class="compare-body">"Meet your new digital employee." <em style="color:#64748b; font-size:12px;">(warm, benefit-first, matches Sync360 positioning)</em></div>
+        </div>
+      </div>
+
+      <div class="compare">
+        <div class="compare-card">
+          <div class="compare-header before">❌ Aside sub-copy</div>
+          <div class="compare-body">"This signup form creates the user account, provisions the tenant record, queues the provisioning job, and moves you directly into the setup progress screen."</div>
+        </div>
+        <div class="compare-card">
+          <div class="compare-header after">✅ Replace With</div>
+          <div class="compare-body">"Answer messages, book jobs, and send quotes — automatically. Takes less than 2 minutes to set up. No credit card required."</div>
+        </div>
+      </div>
+
+      <div class="compare">
+        <div class="compare-card">
+          <div class="compare-header before">❌ Mini-tile copy</div>
+          <div class="compare-body">"Business profile: Industry + skill pack. Capture the minimum tenant metadata we need for provisioning." / "Provisioning trigger: Queued automatically. Signup creates a provisioning job record and dispatches the worker job."</div>
+        </div>
+        <div class="compare-card">
+          <div class="compare-header after">✅ Replace With</div>
+          <div class="compare-body">"Tailored to your trade: We set up skills matched to your industry." / "Ready in minutes: Your digital employee starts setting up the moment you sign up."</div>
+        </div>
+      </div>
+
+      <div class="compare">
+        <div class="compare-card">
+          <div class="compare-header before">❌ Submit button</div>
+          <div class="compare-body">"Create Account And Start Provisioning"</div>
+        </div>
+        <div class="compare-card">
+          <div class="compare-header after">✅ Replace With</div>
+          <div class="compare-body">"Set Up My Digital Employee →"</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 5. LOGIN -->
+  <div class="comp-card">
+    <div class="comp-header">
+      <div class="comp-num">5</div>
+      <div>
+        <div class="comp-title">Login Page</div>
+        <div class="comp-file">resources/views/auth/login.blade.php</div>
+      </div>
+      <span style="margin-left:auto; background:#fef9c3; color:#a16207; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;">MEDIUM</span>
+    </div>
+    <div class="comp-body">
+      <ul class="issue-list">
+        <li><span class="issue-icon">📋</span><div class="issue-text"><strong>Hint text exposes internal scope</strong><span>"Session auth is intentionally simple for this MVP." — Remove. Customers don't need to know this.</span></div></li>
+        <li><span class="issue-icon">📣</span><div class="issue-text"><strong>Aside copy is purely functional</strong><span>"Sign back in to inspect provisioning progress, view your generated workspace URL, or use the local admin/debug tools." — Should feel warm and welcoming, not technical.</span></div></li>
+      </ul>
+
+      <div class="compare">
+        <div class="compare-card">
+          <div class="compare-header before">❌ Login hint</div>
+          <div class="compare-body">"Session auth is intentionally simple for this MVP."</div>
+        </div>
+        <div class="compare-card">
+          <div class="compare-header after">✅ Remove entirely</div>
+          <div class="compare-body">No hint needed here. Clean login form only.</div>
+        </div>
+      </div>
+
+      <div class="compare">
+        <div class="compare-card">
+          <div class="compare-header before">❌ Aside sub-copy</div>
+          <div class="compare-body">"Sign back in to inspect provisioning progress, view your generated workspace URL, or use the local admin/debug tools."</div>
+        </div>
+        <div class="compare-card">
+          <div class="compare-header after">✅ Replace With</div>
+          <div class="compare-body">"Your digital employee has been busy. Log in to see what it's done for your business today."</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 6. DASHBOARD -->
+  <div class="comp-card">
+    <div class="comp-header">
+      <div class="comp-num">6</div>
+      <div>
+        <div class="comp-title">User Dashboard</div>
+        <div class="comp-file">resources/views/dashboard.blade.php</div>
+      </div>
+      <span style="margin-left:auto; background:#fef9c3; color:#a16207; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;">HIGH</span>
+    </div>
+    <div class="comp-body">
+      <ul class="issue-list">
+        <li><span class="issue-icon">🔢</span><div class="issue-text"><strong>Stats show raw DB values</strong><span>Stat cards show <code>trial_status.value</code>, <code>provisioning_status.value</code>, raw port number, and raw workspace URL. Customers should see human-friendly labels.</span></div></li>
+        <li><span class="issue-icon">📋</span><div class="issue-text"><strong>Sub-heading is a dev description</strong><span>"Your local-first tenant control summary." — Replace with a personalised welcome message.</span></div></li>
+        <li><span class="issue-icon">📐</span><div class="issue-text"><strong>Tenant Summary meta-items show system internals</strong><span>Tenant ID (ULID), slug, runtime path — these mean nothing to a customer. Replace with business-facing info.</span></div></li>
+      </ul>
+
+      <table class="spec-table" style="margin-top: 14px;">
+        <thead><tr><th>Current Field</th><th>Problem</th><th>Replace With</th></tr></thead>
+        <tbody>
+          <tr><td>Sub-heading: "Your local-first tenant control summary."</td><td>Dev jargon</td><td>"Good morning, {name}. Here's what your digital employee is up to."</td></tr>
+          <tr><td>Stat: Trial Status <code>trial_active</code></td><td>Raw enum value</td><td>Label: "Free Trial" with days remaining indicator</td></tr>
+          <tr><td>Stat: Provisioning <code>ready</code></td><td>Raw enum value</td><td>Label: "Active" with a green dot</td></tr>
+          <tr><td>Stat: Assigned Port <code>4103</code></td><td>Internal detail</td><td>Replace with: "Skills Active: {skill_pack name}"</td></tr>
+          <tr><td>Stat: Workspace URL <code>http://localhost:4103</code></td><td>Dev-only URL</td><td>Replace with: "Industry: {industry}" or a "Connect Channel" prompt</td></tr>
+          <tr><td>Meta: Tenant ID (ULID)</td><td>Internal ID</td><td>Remove from customer view; keep in admin only</td></tr>
+          <tr><td>Meta: Slug</td><td>Internal reference</td><td>Replace with: "Account Name"</td></tr>
+          <tr><td>Meta: Runtime path</td><td>Server filesystem path</td><td>Remove entirely from customer view</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+
+  <!-- 7. SETUP / PROVISIONING -->
+  <div class="comp-card">
+    <div class="comp-header">
+      <div class="comp-num">7</div>
+      <div>
+        <div class="comp-title">Provisioning / Setup Page</div>
+        <div class="comp-file">resources/views/tenant/setup.blade.php</div>
+      </div>
+      <span style="margin-left:auto; background:#fef9c3; color:#a16207; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;">HIGH</span>
+    </div>
+    <div class="comp-body">
+      <p>This is a high-emotion moment — the customer just signed up and is waiting. The current screen is cold and technical. It should feel exciting and reassuring, like something good is being built for them.</p>
+      <ul class="issue-list">
+        <li><span class="issue-icon">🤖</span><div class="issue-text"><strong>Progress messages are system logs, not human communication</strong><span>"Provisioning is running now. The OpenClaw gateway container is starting and the readiness endpoint is being checked." — Customers don't know what OpenClaw or a readiness endpoint is.</span></div></li>
+        <li><span class="issue-icon">🎭</span><div class="issue-text"><strong>Zero emotional engagement during the wait</strong><span>This is the moment to build excitement. Show what's being set up, what the customer will be able to do, what comes next.</span></div></li>
+        <li><span class="issue-icon">📋</span><div class="issue-text"><strong>Tenant Details panel shows system metadata</strong><span>Shows "Workspace URL: Generating..." and "Skill Pack: Operations Core" in a dry meta-item grid. This panel should reinforce the product value, not display DB fields.</span></div></li>
+      </ul>
+
+      <table class="spec-table" style="margin-top: 14px;">
+        <thead><tr><th>Status</th><th>Current Message</th><th>Human-Friendly Replacement</th></tr></thead>
+        <tbody>
+          <tr><td><code>pending</code></td><td>"Your tenant is queued and waiting for the worker to begin provisioning."</td><td>"We're getting everything ready for you. This only takes a minute."</td></tr>
+          <tr><td><code>provisioning</code></td><td>"Provisioning is running now. The OpenClaw gateway container is starting and the readiness endpoint is being checked."</td><td>"Your digital employee is coming online. We're loading your skills and connecting the systems."</td></tr>
+          <tr><td><code>failed</code></td><td>"Provisioning failed. You can inspect the error details in the local admin/debug area and retry."</td><td>"Something didn't quite work. Our team has been notified. Try again or contact us at support@sync360.co.nz."</td></tr>
+        </tbody>
+      </table>
+
+      <div style="margin-top: 12px; padding: 12px 16px; background: #eff6ff; border-radius: 8px; font-size: 13px; color: #1e40af;">
+        💡 <strong>Enhancement suggestion:</strong> During the wait, show an animated checklist of what's being set up: "✓ Creating your workspace · ✓ Loading {skill_pack} skills · ⟳ Connecting your AI engine..." — this builds anticipation and makes the wait feel productive.
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 8. WORKSPACE READY -->
+  <div class="comp-card">
+    <div class="comp-header">
+      <div class="comp-num">8</div>
+      <div>
+        <div class="comp-title">Workspace Ready Page — The "aha" moment</div>
+        <div class="comp-file">resources/views/tenant/workspace-ready.blade.php</div>
+      </div>
+      <span style="margin-left:auto; background:#fef9c3; color:#a16207; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;">HIGH</span>
+    </div>
+    <div class="comp-body">
+      <p>This is the product's most important emotional moment — the customer's digital employee is live. The current screen is a dry data dump. It should feel like a celebration with clear next steps.</p>
+      <ul class="issue-list">
+        <li><span class="issue-icon">🎉</span><div class="issue-text"><strong>No celebration moment</strong><span>The heading is "{business_name} is live." — fine, but there's no warmth, no excitement, no "well done" energy.</span></div></li>
+        <li><span class="issue-icon">🗺️</span><div class="issue-text"><strong>No clear next steps</strong><span>The customer sees two panels of raw system data (assigned port, runtime path, placeholder workspace route) and three buttons with no clear primary action. What should they do first?</span></div></li>
+        <li><span class="issue-icon">🔗</span><div class="issue-text"><strong>Primary CTA points to a broken URL</strong><span>"Open OpenClaw" opens <code>http://localhost:4103</code> — a dev-only URL that won't work once the product is on a real server. This needs to resolve to a real public-facing URL before customers see it.</span></div></li>
+        <li><span class="issue-icon">📋</span><div class="issue-text"><strong>Both panels show internal system details</strong><span>Runtime path, placeholder workspace route, raw port number — none of this is customer-relevant.</span></div></li>
+      </ul>
+
+      <div class="compare">
+        <div class="compare-card">
+          <div class="compare-header before">❌ Current structure</div>
+          <div class="compare-body">Panel 1: Provisioning Outcome (status badge, trial badge, port, URL)<br><br>Panel 2: Runtime Details (runtime path, skill pack, placeholder route)</div>
+        </div>
+        <div class="compare-card">
+          <div class="compare-header after">✅ Replace With</div>
+          <div class="compare-body"><strong>Hero celebration area:</strong> "🎉 Your digital employee is ready, {name}!" with an orange CTA.<br><br><strong>Next Steps panel:</strong> "Step 1: Connect WhatsApp · Step 2: Connect email · Step 3: Test a message"<br><br><strong>Your Plan panel:</strong> Industry, Skill Pack, what the AI employee can do for them</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 9. ADMIN PAGES -->
+  <div class="comp-card">
+    <div class="comp-header">
+      <div class="comp-num">9</div>
+      <div>
+        <div class="comp-title">Admin Pages (index, users, tenants, jobs)</div>
+        <div class="comp-file">resources/views/admin/*.blade.php</div>
+      </div>
+      <span style="margin-left:auto; background:#dcfce7; color:#15803d; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;">LOW</span>
+    </div>
+    <div class="comp-body">
+      <p>Admin pages are internal tools — customers never see them. Priority is lower, but they should still use the Sync360 colour system for consistency.</p>
+      <ul class="issue-list">
+        <li><span class="issue-icon">🎨</span><div class="issue-text"><strong>Green accent colours persist</strong><span>Apply same CSS token changes (orange accent). Low urgency — admin sees it, not customers.</span></div></li>
+        <li><span class="issue-icon">✅</span><div class="issue-text"><strong>Functionality is good</strong><span>The admin tables, badge system, start/stop controls, and retry logic are well-structured. Keep the layout, just update colours and font.</span></div></li>
+      </ul>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════ -->
+  <div class="section-title">Implementation Sprint Plan</div>
+
+  <div class="sprint">
+    <div class="sprint-header">
+      <div class="sprint-dot" style="background: #dc2626;"></div>
+      <h4>Sprint 1 — Brand Token Fix (2–3 hours) · Highest impact, lowest risk</h4>
+    </div>
+    <p>Change the CSS variables in both layout files. This single change propagates across all 13 templates instantly — buttons, links, focus rings, badges, eyebrows all flip from green to orange.</p>
+    <div class="sprint-files">
+      <code>layouts/guest.blade.php</code>
+      <code>layouts/app.blade.php</code>
+    </div>
+    <div style="margin-top:10px; font-size:12px; color:#64748b;">Changes: <code>--accent: #0f8c6f → #FF6B35</code> · <code>--accent-dark: #0a5e4c → #e55a25</code> · <code>font-family: IBM Plex Sans → DM Sans</code> · Add Google Fonts import for DM Sans + Space Mono · Fix button gradient → solid orange · Fix background tint → warm neutral</div>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-header">
+      <div class="sprint-dot" style="background: #d97706;"></div>
+      <h4>Sprint 2 — Copy Rewrite (3–4 hours) · Transforms customer perception</h4>
+    </div>
+    <p>Rewrite all customer-facing copy to remove MVP/developer language and replace with Sync360's direct, benefit-led tone. No code changes — pure content.</p>
+    <div class="sprint-files">
+      <code>landing.blade.php</code>
+      <code>auth/signup.blade.php</code>
+      <code>auth/login.blade.php</code>
+      <code>dashboard.blade.php</code>
+      <code>tenant/setup.blade.php</code>
+      <code>tenant/workspace-ready.blade.php</code>
+    </div>
+    <div style="margin-top:10px; font-size:12px; color:#64748b;">Changes: All headlines, sub-copy, stat labels, progress messages, mini-tile content, form hints. Remove every reference to "MVP", "tenant record", "provisioning job", "worker", "Docker", internal paths.</div>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-header">
+      <div class="sprint-dot" style="background: #2563eb;"></div>
+      <h4>Sprint 3 — Dashboard Data (2–3 hours) · Makes it feel like a real product</h4>
+    </div>
+    <p>Replace raw DB field values with human-friendly labels and remove internal system details from customer-facing views.</p>
+    <div class="sprint-files">
+      <code>dashboard.blade.php</code>
+      <code>tenant/workspace-ready.blade.php</code>
+    </div>
+    <div style="margin-top:10px; font-size:12px; color:#64748b;">Changes: Hide Tenant ID, runtime path, raw port from customer view. Map enum values to human labels. Add personalised greeting. Add "next steps" section to workspace-ready page.</div>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-header">
+      <div class="sprint-dot" style="background: #7c3aed;"></div>
+      <h4>Sprint 4 — Landing Page Enhancement (4–6 hours) · Full brand expression</h4>
+    </div>
+    <p>Rebuild the landing page hero section with Sync360's dark-background / orange-accent aesthetic. Replace tech stats with customer benefit stats. Replace dev-diagram visual with a product preview mockup.</p>
+    <div class="sprint-files">
+      <code>landing.blade.php</code>
+      <code>layouts/guest.blade.php</code>
+    </div>
+    <div style="margin-top:10px; font-size:12px; color:#64748b;">Changes: Dark hero background (#1A1A1A), large DM Sans headline, orange CTA, outcome-led stat cards, fake product preview visual (WhatsApp-style conversation showing AI in action), Sync360 logo/wordmark.</div>
+  </div>
+
+
+  <!-- ════════════════════════════════════ -->
+  <div class="section-title">What Works Well — Keep These</div>
+
+  <div style="background: white; border-radius: 12px; padding: 20px 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.07);">
+    <ul class="issue-list">
+      <li><span class="issue-icon">✅</span><div class="issue-text"><strong>Overall layout structure is solid</strong><span>The two-column hero, sidebar app shell, stat grid, two-panel detail layout — these are all well-structured and just need colour + copy updates, not structural changes.</span></div></li>
+      <li><span class="issue-icon">✅</span><div class="issue-text"><strong>Badge/status system is well-designed</strong><span>The colour-coded status badges (pending/provisioning/ready/failed) map perfectly to real states. Keep the system, just update the colour palette.</span></div></li>
+      <li><span class="issue-icon">✅</span><div class="issue-text"><strong>Progress bar animation is a nice touch</strong><span>The pulsing progress bar during provisioning is premium-feeling. Keep it, just update from green gradient to orange.</span></div></li>
+      <li><span class="issue-icon">✅</span><div class="issue-text"><strong>Polling mechanism is smooth</strong><span>The 3-second status poll with in-page updates is seamless UX. No changes needed to the JavaScript logic.</span></div></li>
+      <li><span class="issue-icon">✅</span><div class="issue-text"><strong>Responsive grid patterns are correct</strong><span>The media query breakpoints and grid collapse logic are well implemented. Keep as-is.</span></div></li>
+      <li><span class="issue-icon">✅</span><div class="issue-text"><strong>Card / panel visual style is premium</strong><span>The rounded corners, subtle shadows, and clean card borders are already close to Sync360's style. Minor adjustments only needed.</span></div></li>
+      <li><span class="issue-icon">✅</span><div class="issue-text"><strong>Dark sidebar in app layout matches Sync360</strong><span>The <code>#0f1f19</code> sidebar dark background is consistent with Sync360's dark UI style. Keep the dark sidebar, just update the active state accent to orange.</span></div></li>
+    </ul>
+  </div>
+
+
+  <div style="margin-top: 48px; padding: 24px; background: #1A1A1A; border-radius: 12px; color: #94a3b8; font-size: 13px; line-height: 1.8;">
+    <span style="color: white; font-weight: 700; font-size: 16px; display: block; margin-bottom: 8px;">🎯 Summary: Biggest Bang for Effort</span>
+    <span style="color: #FF6B35; font-weight: 700;">1 hour:</span> Change <code>--accent</code> and font in both layout files → entire app flips brand colour instantly.<br>
+    <span style="color: #fbbf24; font-weight: 700;">3 hours:</span> Rewrite landing page copy → goes from "developer prototype" to "real product".<br>
+    <span style="color: #86efac; font-weight: 700;">1 hour:</span> Remove "MVP" language and internal paths from all views → feels customer-safe.<br>
+    <span style="color: #93c5fd; font-weight: 700;">After those 5 hours:</span> This looks and feels like a Sync360 product. The deeper structural enhancements (dark hero, product mockup, next-steps onboarding) can follow in a second pass.
+  </div>
+
+</div>
+</body>
+</html>
