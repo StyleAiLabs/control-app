@@ -205,6 +205,7 @@ Current default behavior:
 - select an active client server
 - create `users`, `tenants`, and `provisioning_jobs`
 - allocate the next free port for the assigned server
+- generate a tenant-scoped LiteLLM virtual key before OpenClaw startup
 - generate tenant runtime files in `runtime/tenants/<slug>/`
 - write tenant `.env`
 - write `metadata.json`
@@ -214,6 +215,32 @@ Current default behavior:
 - if `SYNC360_INFRASTRUCTURE_DRIVER=ssh`, copy runtime to the remote server and run Docker Compose remotely over SSH
 - poll the readiness endpoint
 - mark the tenant `ready`
+
+### LiteLLM Tenant Keys
+
+OpenClaw provisioning now creates one dedicated LiteLLM virtual key per tenant before the workspace container starts.
+
+Required env values:
+
+- `LITELLM_BASE_URL`
+- `LITELLM_MASTER_KEY`
+
+Optional plan defaults:
+
+- `LITELLM_DEFAULT_PLAN_NAME`
+- `LITELLM_DEFAULT_MAX_BUDGET`
+- `LITELLM_DEFAULT_BUDGET_DURATION`
+- `LITELLM_TRIAL_MAX_BUDGET`
+
+Current behavior:
+
+- provisioning aborts if LiteLLM key generation fails
+- the generated key is stored encrypted on the tenant record
+- the tenant runtime receives:
+  - `OPENAI_API_KEY`
+  - `OPENAI_BASE_URL`
+- plan updates and suspension are handled through LiteLLM `key/update`
+- cancellation-ready cleanup is handled through LiteLLM `key/delete`
 
 ### Provisioners
 
