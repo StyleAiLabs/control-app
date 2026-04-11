@@ -18,7 +18,8 @@ It currently validates this end-to-end flow:
 6. The tenant becomes `ready`.
 7. The user sees a workspace-ready screen with a generated workspace URL.
 8. The app can send a workspace-created email with login details after successful provisioning.
-9. A super admin can inspect tenants, jobs, workspace state, and trigger safe control-plane deployments.
+9. The app provisions a dedicated LiteLLM virtual key for each OpenClaw tenant before container startup.
+10. A super admin can inspect tenants, jobs, workspace state, and trigger safe control-plane deployments.
 
 ## 2. Deployment Shapes
 
@@ -153,7 +154,8 @@ Responsibilities:
 - workspace-ready state
 - placeholder workspace route
 - super admin debug area
-- super-admin control-plane deploy trigger and deploy status view
+- super-admin control-plane deploy trigger
+- super-admin live deploy status view with latest commit metadata and recent log tail
 
 ### 5.2 Queue Layer
 
@@ -173,6 +175,7 @@ Implementations:
 
 - `App\Services\OpenClawProvisioner`
 - `App\Services\LocalTenantProvisioningService`
+- `App\Services\LiteLlmTenantKeyService`
 
 ### 5.4 Infrastructure Layer
 
@@ -199,7 +202,9 @@ That path is intentionally separate from tenant provisioning:
 
 - it targets the primary control server, not a client VPS
 - it triggers a detached host-side deploy script over SSH
-- it reads back a deploy status file and recent log tail for the super-admin UI
+- it reads back a deploy status file, latest deployed git commit metadata, and recent log tail for the super-admin UI
+- it exposes a lightweight authenticated status endpoint that the admin page polls every few seconds for realtime updates
+- it hardens deploy status reads so admin pages keep working even when deploy secrets are missing or partially configured
 - it is intentionally separated from the tenant provisioning runner contract so the control plane does not need direct self-Docker control inside Laravel
 
 ## 6. Route Architecture
@@ -227,6 +232,7 @@ Defined in [routes/web.php](/Users/gayanhewage/Projects/openclaw-saas/routes/web
 - `/admin/users`
 - `/admin/tenants`
 - `/admin/jobs`
+- `GET /admin/deploy/control-app/status`
 - `POST /admin/deploy/control-app`
 - `POST /admin/jobs/{tenant}/retry`
 - `POST /admin/tenants/{tenant}/workspace/start`
@@ -298,6 +304,12 @@ Important fields:
 - `assigned_port`
 - `workspace_url`
 - `runtime_path`
+- `litellm_virtual_key`
+- `litellm_key_alias`
+- `litellm_plan_name`
+- `litellm_max_budget`
+- `litellm_budget_duration`
+- `litellm_last_synced_at`
 
 ### 8.3 ProvisioningJobs
 
@@ -483,26 +495,29 @@ Current provisioning sequence:
 2. Mark provisioning job `running`.
 3. Allocate a free port for the assigned server.
 4. Generate workspace URL.
-5. Generate local runtime staging files.
-6. Compute remote runtime path for the assigned server.
-7. Write `config/openclaw.json`.
-8. Write `compose.yaml` using the remote runtime bind path.
-9. Write a tenant-specific `workspace.caddy` site fragment when wildcard-domain routing is configured.
-10. Persist `assigned_port`, `runtime_path`, and `workspace_url`.
-11. Stop any stale remote tenant runtime and remove any stale tenant Caddy file.
-12. Sync local runtime staging to the assigned server over SSH when using SSH infrastructure.
-13. Install the tenant Caddy site file on the client VPS and reload Caddy.
-14. Start the OpenClaw container on the target host.
-15. Poll the loopback readiness endpoint on the client VPS.
-16. Poll the public HTTPS workspace hostname.
-17. Mark tenant `ready`.
-18. Mark provisioning job `completed`.
-19. Trigger the workspace-created email service after successful provisioning.
+5. Generate or reuse the tenant's dedicated LiteLLM virtual key.
+6. Persist the encrypted LiteLLM key plus plan and budget metadata on the tenant record.
+7. Generate local runtime staging files, including `OPENAI_API_KEY` and `OPENAI_BASE_URL`.
+8. Compute remote runtime path for the assigned server.
+9. Write `config/openclaw.json`.
+10. Write `compose.yaml` using the remote runtime bind path and tenant-scoped LiteLLM environment.
+11. Write a tenant-specific `workspace.caddy` site fragment when wildcard-domain routing is configured.
+12. Persist `assigned_port`, `runtime_path`, and `workspace_url`.
+13. Stop any stale remote tenant runtime and remove any stale tenant Caddy file.
+14. Sync local runtime staging to the assigned server over SSH when using SSH infrastructure.
+15. Install the tenant Caddy site file on the client VPS and reload Caddy.
+16. Start the OpenClaw container on the target host.
+17. Poll the loopback readiness endpoint on the client VPS.
+18. Poll the public HTTPS workspace hostname.
+19. Mark tenant `ready`.
+20. Mark provisioning job `completed`.
+21. Trigger the workspace-created email service after successful provisioning.
 
 On failure:
 
 - stale runtime is cleaned up as best effort
 - stale tenant Caddy site files are removed as best effort
+- tenant startup is aborted if LiteLLM key generation fails
 - tenant becomes `failed`
 - provisioning job becomes `failed`
 - `error_message` is stored
@@ -541,6 +556,56 @@ Operational behavior:
 - email is skipped entirely if Brevo is not enabled or not configured
 - the sender address should be a verified Brevo sender
 - retry provisioning can carry forward the encrypted credentials so a tenant still receives the email after a retry succeeds
+
+### 12.6 LiteLLM Virtual Key Provisioning
+
+- [app/Services/LiteLlmTenantKeyService.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/LiteLlmTenantKeyService.php)
+
+Purpose:
+
+- create one dedicated LiteLLM virtual key per tenant
+- inject that key into the OpenClaw runtime before container startup
+- prevent OpenClaw instances from starting without tenant-scoped API credentials
+- support later budget updates, suspension, and deletion without sharing keys across tenants
+
+Configuration:
+
+- `LITELLM_BASE_URL`
+- `LITELLM_MASTER_KEY`
+- `LITELLM_DEFAULT_PLAN_NAME`
+- `LITELLM_DEFAULT_MAX_BUDGET`
+- `LITELLM_DEFAULT_BUDGET_DURATION`
+- `LITELLM_TRIAL_MAX_BUDGET`
+
+Operational behavior:
+
+- the service calls `POST /key/generate` on LiteLLM before OpenClaw runtime preparation
+- the generated tenant key is stored on the tenant record with Laravel encrypted casting
+- the generated runtime `.env` file receives `OPENAI_API_KEY` and `OPENAI_BASE_URL`
+- the tenant `compose.yaml` also receives `OPENAI_API_KEY` and `OPENAI_BASE_URL` so the OpenClaw container uses the tenant key at runtime
+- if LiteLLM key generation fails, provisioning aborts immediately and the tenant instance is not started
+- plan changes use `POST /key/update`
+- suspension uses `POST /key/update` with `max_budget=0` and `budget_duration=null`
+- cancellation-ready cleanup uses `POST /key/delete`
+
+## 12.7 Control-Plane Deploy Status Flow
+
+The control-plane deploy feature now has a dedicated status loop for the super-admin interface.
+
+Implemented behavior:
+
+- the admin panel triggers a detached host-side deploy script over SSH
+- the host-side script writes a status file and append-only deploy log on the control server
+- the Laravel app reads those files over SSH through `ControlAppDeploymentService`
+- the service also reads the latest deployed git commit short SHA and latest commit subject from the control-app repository on the primary server
+- the admin page polls `GET /admin/deploy/control-app/status` every few seconds
+- the UI updates deploy state, started/finished timestamps, message, latest commit, and recent log tail without a full page refresh
+
+Shell hardening now includes:
+
+- remote deploy commands are sent directly to SSH without an extra nested `sh -lc` wrapper
+- deploy status probe statements are separated with semicolons for portable remote shell parsing
+- misconfigured deploy secrets or unreachable SSH targets surface as a readable failed/unreachable state instead of taking `/admin` down with a `500`
 
 ## 13. Infrastructure Runner Architecture
 

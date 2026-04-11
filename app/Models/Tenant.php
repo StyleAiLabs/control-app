@@ -29,6 +29,12 @@ class Tenant extends Model
         'assigned_port',
         'workspace_url',
         'runtime_path',
+        'litellm_virtual_key',
+        'litellm_key_alias',
+        'litellm_plan_name',
+        'litellm_max_budget',
+        'litellm_budget_duration',
+        'litellm_last_synced_at',
     ];
 
     protected function casts(): array
@@ -37,6 +43,9 @@ class Tenant extends Model
             'trial_status' => TrialStatus::class,
             'provisioning_status' => TenantProvisioningStatus::class,
             'assigned_port' => 'integer',
+            'litellm_virtual_key' => 'encrypted',
+            'litellm_max_budget' => 'decimal:2',
+            'litellm_last_synced_at' => 'datetime',
         ];
     }
 

@@ -44,6 +44,17 @@ return [
         'public_readiness_timeout_seconds' => (int) env('SYNC360_WORKSPACE_PUBLIC_READY_TIMEOUT_SECONDS', 120),
         'public_readiness_poll_interval_ms' => (int) env('SYNC360_WORKSPACE_PUBLIC_READY_POLL_INTERVAL_MS', 1500),
     ],
+    'litellm' => [
+        'default_plan_name' => env('LITELLM_DEFAULT_PLAN_NAME', 'trial'),
+        'default_budget' => (float) env('LITELLM_DEFAULT_MAX_BUDGET', 25),
+        'default_budget_duration' => env('LITELLM_DEFAULT_BUDGET_DURATION', 'monthly'),
+        'plan_budgets' => [
+            'trial' => (float) env('LITELLM_TRIAL_MAX_BUDGET', env('LITELLM_DEFAULT_MAX_BUDGET', 25)),
+            'starter' => (float) env('LITELLM_STARTER_MAX_BUDGET', env('LITELLM_DEFAULT_MAX_BUDGET', 25)),
+            'growth' => (float) env('LITELLM_GROWTH_MAX_BUDGET', env('LITELLM_DEFAULT_MAX_BUDGET', 25)),
+            'enterprise' => (float) env('LITELLM_ENTERPRISE_MAX_BUDGET', env('LITELLM_DEFAULT_MAX_BUDGET', 25)),
+        ],
+    ],
     'control_app_deploy' => [
         'enabled' => (bool) env('SYNC360_CONTROL_DEPLOY_ENABLED', false),
         'ssh_host' => env('SYNC360_CONTROL_DEPLOY_SSH_HOST'),

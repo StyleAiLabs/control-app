@@ -20,6 +20,7 @@ class OpenClawProvisioner implements TenantProvisioner
         private readonly TenantRuntimeService $runtime,
         private readonly DockerComposeRunner $dockerCompose,
         private readonly Filesystem $files,
+        private readonly LiteLlmTenantKeyService $liteLlmKeys,
     ) {
     }
 
@@ -45,17 +46,27 @@ class OpenClawProvisioner implements TenantProvisioner
         $assignedPort = $tenant->assigned_port ?? $this->runtime->allocatePort($tenant);
         $workspaceUrl = $this->runtime->workspaceUrl($tenant, $assignedPort);
         $gatewayToken = Str::random(40);
+        $liteLlmKey = $this->liteLlmKeys->ensureTenantKey($tenant);
 
         $localRuntimePath = $this->runtime->prepareRuntime($tenant, $provisioningJob, $assignedPort, [
             'PROVISIONING_DRIVER' => 'openclaw',
             'OPENCLAW_GATEWAY_PORT' => (string) config('sync360.openclaw.gateway_port', 18789),
             'OPENCLAW_GATEWAY_TOKEN' => $gatewayToken,
+            'OPENAI_API_KEY' => $liteLlmKey['key'],
+            'OPENAI_BASE_URL' => $liteLlmKey['base_url'],
         ], [
             'provisioning_driver' => 'openclaw',
             'openclaw' => [
                 'image' => config('sync360.openclaw.image'),
                 'gateway_port' => (int) config('sync360.openclaw.gateway_port', 18789),
                 'readiness_path' => config('sync360.openclaw.readiness_path'),
+            ],
+            'litellm' => [
+                'key_alias' => $liteLlmKey['alias'],
+                'plan_name' => $liteLlmKey['plan_name'],
+                'max_budget' => $liteLlmKey['max_budget'],
+                'budget_duration' => $liteLlmKey['budget_duration'],
+                'base_url' => $liteLlmKey['base_url'],
             ],
         ]);
         $remoteRuntimePath = $this->runtime->remoteRuntimePath($tenant);
@@ -64,7 +75,7 @@ class OpenClawProvisioner implements TenantProvisioner
         $projectName = $this->projectName($tenant);
 
         $this->writeOpenClawConfig($localRuntimePath, $tenant, $assignedPort, $gatewayToken);
-        $this->writeComposeFile($tenant, $localRuntimePath, $remoteRuntimePath, $assignedPort, $gatewayToken);
+        $this->writeComposeFile($tenant, $localRuntimePath, $remoteRuntimePath, $assignedPort, $gatewayToken, $liteLlmKey['key'], $liteLlmKey['base_url']);
         $caddyConfig = $this->shouldManageCaddy($tenant)
             ? $this->writeCaddyConfig($tenant, $localRuntimePath, $assignedPort)
             : null;
@@ -153,7 +164,15 @@ class OpenClawProvisioner implements TenantProvisioner
         return $caddyConfig;
     }
 
-    private function writeComposeFile(Tenant $tenant, string $localRuntimePath, string $remoteRuntimePath, int $assignedPort, string $gatewayToken): void
+    private function writeComposeFile(
+        Tenant $tenant,
+        string $localRuntimePath,
+        string $remoteRuntimePath,
+        int $assignedPort,
+        string $gatewayToken,
+        string $liteLlmKey,
+        string $liteLlmBaseUrl,
+    ): void
     {
         $composeFile = $localRuntimePath.DIRECTORY_SEPARATOR.(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
         $containerHome = rtrim((string) config('sync360.openclaw.container_home', '/home/node/.openclaw'), '/');
@@ -188,6 +207,8 @@ class OpenClawProvisioner implements TenantProvisioner
             sprintf('      OPENCLAW_STATE_DIR: %s', $this->yamlQuote($stateDir)),
             sprintf('      OPENCLAW_CONFIG_PATH: %s', $this->yamlQuote($configPath)),
             sprintf('      OPENCLAW_GATEWAY_TOKEN: %s', $this->yamlQuote($gatewayToken)),
+            sprintf('      OPENAI_API_KEY: %s', $this->yamlQuote($liteLlmKey)),
+            sprintf('      OPENAI_BASE_URL: %s', $this->yamlQuote($liteLlmBaseUrl)),
             '',
         ]);
 

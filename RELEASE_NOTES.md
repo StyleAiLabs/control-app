@@ -13,6 +13,8 @@ Status: In progress
 Summary:
 - Added Brevo-based workspace-ready email delivery
 - Added a super-admin-safe control-app deploy trigger for the primary server
+- Hardened the control-app deploy status and remote shell handling for production
+- Added realtime deploy status polling and latest deployed commit visibility in the super-admin UI
 - Updated documentation and production env examples for both features
 
 Notable changes:
@@ -26,12 +28,18 @@ Notable changes:
 - Brevo failures are logged without marking an already-ready tenant as failed
 - Added [ControlAppDeploymentService](/Users/gayanhewage/Projects/openclaw-saas/app/Services/ControlAppDeploymentService.php) for safe super-admin-triggered control-plane deployments
 - Added host-side deploy script [run-control-app-deploy.sh](/Users/gayanhewage/Projects/openclaw-saas/deploy/scripts/run-control-app-deploy.sh)
-- Added `/admin` deploy controls and status/log visibility in [admin/index.blade.php](/Users/gayanhewage/Projects/openclaw-saas/resources/views/admin/index.blade.php)
+- Added `/admin` deploy controls, live status polling, latest commit visibility, and status/log visibility in [admin/index.blade.php](/Users/gayanhewage/Projects/openclaw-saas/resources/views/admin/index.blade.php)
+- Added deploy status JSON endpoint in [routes/web.php](/Users/gayanhewage/Projects/openclaw-saas/routes/web.php) and [AdminController.php](/Users/gayanhewage/Projects/openclaw-saas/app/Http/Controllers/AdminController.php)
+- Hardened deploy status reads so `/admin` stays available when deploy secrets are missing or misconfigured
+- Fixed remote deploy shell execution by removing the extra `sh -lc` wrapping in [ControlAppDeploymentService.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/ControlAppDeploymentService.php)
+- Fixed the deploy status probe command to use proper statement separators for the remote shell
 - Added deploy-related env config in [.env.example](/Users/gayanhewage/Projects/openclaw-saas/.env.example), [.env.production.example](/Users/gayanhewage/Projects/openclaw-saas/.env.production.example), and [config/sync360.php](/Users/gayanhewage/Projects/openclaw-saas/config/sync360.php)
 - Updated [README.md](/Users/gayanhewage/Projects/openclaw-saas/README.md) and [ARCHITECTURE.md](/Users/gayanhewage/Projects/openclaw-saas/ARCHITECTURE.md)
 
 Verification:
 - `php artisan test` passes with `16 passed` and `171 assertions`
+- `php artisan test --filter=AdminDebugTest --stop-on-failure` passes
+- `php artisan test --filter=ControlAppDeploymentServiceTest --stop-on-failure` passes
 - `sh -n deploy/scripts/run-control-app-deploy.sh` passes
 - PHP syntax checks pass for the new deploy and email services
 - Live Brevo test emails were accepted for delivery to `gayan.c@outlook.com`
@@ -40,9 +48,7 @@ Operational notes:
 - Local sender is now configured as `hello@sync360.co.nz`
 - Super-admin deploy requires the primary server env values for `SYNC360_CONTROL_DEPLOY_*`
 - The `/admin` deploy panel now degrades gracefully when deploy SSH secrets are missing or misconfigured in production, instead of throwing a 500
-- Fixed the control-app deploy SSH command construction so remote deploy commands are no longer double-escaped through an extra `sh -lc` wrapper
-- Fixed the deploy status probe command to separate remote shell statements with semicolons so production status checks no longer fail on `fi printf` parsing
-- Added live polling and latest-commit visibility to the super-admin control app deploy panel so deployment state updates without a page refresh
+- The deploy card now polls automatically, shows the latest deployed commit SHA and subject, and keeps status/log output fresh without a page reload
 
 ## 2026-04-11 - Production Deployment Packaging
 

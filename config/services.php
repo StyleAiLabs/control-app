@@ -43,4 +43,9 @@ return [
         'sender_name' => env('BREVO_SENDER_NAME', env('MAIL_FROM_NAME', env('APP_NAME', 'Sync360 Control App'))),
     ],
 
+    'litellm' => [
+        'base_url' => env('LITELLM_BASE_URL', 'https://litellm.stylesoftware.co.nz'),
+        'master_key' => env('LITELLM_MASTER_KEY'),
+    ],
+
 ];
