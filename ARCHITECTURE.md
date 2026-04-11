@@ -205,6 +205,7 @@ That path is intentionally separate from tenant provisioning:
 - it reads back a deploy status file, latest deployed git commit metadata, and recent log tail for the super-admin UI
 - it exposes a lightweight authenticated status endpoint that the admin page polls every few seconds for realtime updates
 - it hardens deploy status reads so admin pages keep working even when deploy secrets are missing or partially configured
+- it treats the host-side deploy status file as the authoritative record of the commit that was actually fetched and deployed, rather than inferring that commit later from a fresh git lookup
 - it is intentionally separated from the tenant provisioning runner contract so the control plane does not need direct self-Docker control inside Laravel
 
 ## 6. Route Architecture
@@ -596,8 +597,9 @@ Implemented behavior:
 
 - the admin panel triggers a detached host-side deploy script over SSH
 - the host-side script writes a status file and append-only deploy log on the control server
+- that status file records the branch, timestamps, message, and the exact fetched-and-deployed commit SHA and subject after `git pull`
 - the Laravel app reads those files over SSH through `ControlAppDeploymentService`
-- the service also reads the latest deployed git commit short SHA and latest commit subject from the control-app repository on the primary server
+- the service prefers the status-file commit metadata and only falls back to a direct git lookup when the status file does not exist yet
 - the admin page polls `GET /admin/deploy/control-app/status` every few seconds
 - the UI updates deploy state, started/finished timestamps, message, latest commit, and recent log tail without a full page refresh
 

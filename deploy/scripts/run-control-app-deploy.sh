@@ -18,6 +18,14 @@ timestamp() {
   date -u +"%Y-%m-%dT%H:%M:%SZ"
 }
 
+current_commit_short() {
+  git -C "$REPO_PATH" rev-parse --short HEAD 2>/dev/null || true
+}
+
+current_commit_subject() {
+  git -C "$REPO_PATH" log -1 --pretty=%s 2>/dev/null || true
+}
+
 write_status() {
   cat > "$STATUS_FILE" <<EOF
 state=$1
@@ -27,6 +35,8 @@ started_at=${2:-}
 finished_at=${3:-}
 pid=$$
 message=${4:-}
+latest_commit_short=$(current_commit_short)
+latest_commit_subject=$(current_commit_subject)
 EOF
 }
 
@@ -40,6 +50,7 @@ write_status "running" "$STARTED_AT" "" "Deployment started."
   git fetch --all --prune
   git checkout "$BRANCH"
   git pull --ff-only origin "$BRANCH"
+  write_status "running" "$STARTED_AT" "" "Latest code fetched. Rebuilding control app."
   docker compose -f "$COMPOSE_FILE" up --build -d
   docker compose -f "$COMPOSE_FILE" exec -T app php artisan migrate --force
   docker compose -f "$COMPOSE_FILE" exec -T app php artisan optimize:clear

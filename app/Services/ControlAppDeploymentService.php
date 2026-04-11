@@ -244,7 +244,7 @@ class ControlAppDeploymentService
     {
         return implode('; ', [
             'if [ -f '.escapeshellarg($this->statusFile()).' ]; then cat '.escapeshellarg($this->statusFile()).'; fi',
-            'if [ -d '.escapeshellarg($this->repoPath().'/.git').' ]; then printf "latest_commit_short=%s\n" "$(git -C '.escapeshellarg($this->repoPath()).' rev-parse --short HEAD 2>/dev/null || true)"; printf "latest_commit_subject=%s\n" "$(git -C '.escapeshellarg($this->repoPath()).' log -1 --pretty=%s 2>/dev/null || true)"; fi',
+            'if [ ! -f '.escapeshellarg($this->statusFile()).' ] && [ -d '.escapeshellarg($this->repoPath().'/.git').' ]; then printf "latest_commit_short=%s\n" "$(git -C '.escapeshellarg($this->repoPath()).' rev-parse --short HEAD 2>/dev/null || true)"; printf "latest_commit_subject=%s\n" "$(git -C '.escapeshellarg($this->repoPath()).' log -1 --pretty=%s 2>/dev/null || true)"; fi',
             'printf "\\n__SYNC360_DEPLOY_LOG__\\n"',
             'if [ -f '.escapeshellarg($this->logFile()).' ]; then tail -n '.(int) config('sync360.control_app_deploy.log_tail_lines', 20).' '.escapeshellarg($this->logFile()).'; fi',
         ]);
