@@ -601,6 +601,7 @@ Implemented behavior:
 - the Laravel app reads those files over SSH through `ControlAppDeploymentService`
 - the service prefers the status-file commit metadata and only falls back to a direct git lookup when the status file does not exist yet
 - the service also compares the deployed commit with the current `origin/<branch>` tip on the primary server repository to determine whether production is already up to date
+- before rebuilding containers, the host deploy script now resolves the target remote branch head, fast-forwards the checked-out branch to `FETCH_HEAD`, and aborts if the resulting local HEAD does not equal the intended remote commit
 - the admin page polls `GET /admin/deploy/control-app/status` every few seconds
 - the UI updates deploy state, started/finished timestamps, message, latest commit, up-to-date state, and recent log tail without a full page refresh
 

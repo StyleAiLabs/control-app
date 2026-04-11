@@ -30,6 +30,10 @@ current_commit_subject() {
   git -C "$REPO_PATH" log -1 --pretty=%s 2>/dev/null || true
 }
 
+remote_branch_head_full() {
+  git -C "$REPO_PATH" ls-remote --heads origin "$BRANCH" 2>/dev/null | awk 'NR==1 {print $1}'
+}
+
 write_status() {
   cat > "$STATUS_FILE" <<EOF
 state=$1
@@ -52,10 +56,21 @@ write_status "running" "$STARTED_AT" "" "Deployment started."
   echo ""
   echo "[$(timestamp)] Starting control app deployment for branch [$BRANCH]"
   cd "$REPO_PATH"
-  git fetch --all --prune
+  TARGET_REMOTE_HEAD="$(remote_branch_head_full)"
+  if [ -z "$TARGET_REMOTE_HEAD" ]; then
+    echo "[$(timestamp)] Unable to resolve target remote head for branch [$BRANCH]."
+    exit 1
+  fi
+  echo "[$(timestamp)] Target remote head: $TARGET_REMOTE_HEAD"
+  git fetch --prune origin "$BRANCH"
   git checkout "$BRANCH"
-  git pull --ff-only origin "$BRANCH"
-  write_status "running" "$STARTED_AT" "" "Latest code fetched. Rebuilding control app."
+  git merge --ff-only FETCH_HEAD
+  CURRENT_LOCAL_HEAD="$(current_commit_full)"
+  if [ "$CURRENT_LOCAL_HEAD" != "$TARGET_REMOTE_HEAD" ]; then
+    echo "[$(timestamp)] Deploy verification failed. Expected $TARGET_REMOTE_HEAD but local HEAD is $CURRENT_LOCAL_HEAD."
+    exit 1
+  fi
+  write_status "running" "$STARTED_AT" "" "Latest code fetched and verified. Rebuilding control app."
   docker compose -f "$COMPOSE_FILE" up --build -d
   docker compose -f "$COMPOSE_FILE" exec -T app php artisan migrate --force
   docker compose -f "$COMPOSE_FILE" exec -T app php artisan optimize:clear
