@@ -40,13 +40,16 @@ class ControlAppDeploymentService
 
         $status['configured'] = true;
 
-        $command = implode(' ', [
-            'if [ -f '.escapeshellarg($this->statusFile()).' ]; then cat '.escapeshellarg($this->statusFile()).'; fi',
-            'printf "\\n__SYNC360_DEPLOY_LOG__\\n"',
-            'if [ -f '.escapeshellarg($this->logFile()).' ]; then tail -n '.(int) config('sync360.control_app_deploy.log_tail_lines', 20).' '.escapeshellarg($this->logFile()).'; fi',
-        ]);
+        $command = $this->buildStatusCommand();
 
-        $process = $this->runRemoteCommand($command, throwOnFailure: false);
+        try {
+            $process = $this->runRemoteCommand($command, throwOnFailure: false);
+        } catch (\Throwable $exception) {
+            $status['state'] = 'failed';
+            $status['message'] = $exception->getMessage();
+
+            return $status;
+        }
 
         if (! $process->isSuccessful()) {
             $status['state'] = 'unreachable';
@@ -201,15 +204,7 @@ class ControlAppDeploymentService
 
     private function runRemoteCommand(string $remoteCommand, bool $throwOnFailure = true): Process
     {
-        $command = [
-            ...$this->authPrefix(),
-            (string) config('sync360.infrastructure.ssh_bin', 'ssh'),
-            ...$this->sshOptions(),
-            '-p',
-            (string) config('sync360.control_app_deploy.ssh_port', 22),
-            $this->target(),
-            sprintf('sh -lc %s', escapeshellarg($remoteCommand)),
-        ];
+        $command = $this->buildRemoteSshCommand($remoteCommand);
 
         $process = new Process($command, timeout: (int) config('sync360.control_app_deploy.timeout_seconds', 30));
         $process->run();
@@ -219,5 +214,30 @@ class ControlAppDeploymentService
         }
 
         return $process;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function buildRemoteSshCommand(string $remoteCommand): array
+    {
+        return [
+            ...$this->authPrefix(),
+            (string) config('sync360.infrastructure.ssh_bin', 'ssh'),
+            ...$this->sshOptions(),
+            '-p',
+            (string) config('sync360.control_app_deploy.ssh_port', 22),
+            $this->target(),
+            $remoteCommand,
+        ];
+    }
+
+    private function buildStatusCommand(): string
+    {
+        return implode('; ', [
+            'if [ -f '.escapeshellarg($this->statusFile()).' ]; then cat '.escapeshellarg($this->statusFile()).'; fi',
+            'printf "\\n__SYNC360_DEPLOY_LOG__\\n"',
+            'if [ -f '.escapeshellarg($this->logFile()).' ]; then tail -n '.(int) config('sync360.control_app_deploy.log_tail_lines', 20).' '.escapeshellarg($this->logFile()).'; fi',
+        ]);
     }
 }

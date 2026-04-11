@@ -39,6 +39,9 @@ Verification:
 Operational notes:
 - Local sender is now configured as `hello@sync360.co.nz`
 - Super-admin deploy requires the primary server env values for `SYNC360_CONTROL_DEPLOY_*`
+- The `/admin` deploy panel now degrades gracefully when deploy SSH secrets are missing or misconfigured in production, instead of throwing a 500
+- Fixed the control-app deploy SSH command construction so remote deploy commands are no longer double-escaped through an extra `sh -lc` wrapper
+- Fixed the deploy status probe command to separate remote shell statements with semicolons so production status checks no longer fail on `fi printf` parsing
 
 ## 2026-04-11 - Production Deployment Packaging
 

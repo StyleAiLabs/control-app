@@ -12,6 +12,7 @@ use App\Models\Server;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\ControlAppDeploymentService;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Mockery;
@@ -165,5 +166,35 @@ class AdminDebugTest extends TestCase
         $this->post(route('admin.deploy.control-app'))
             ->assertRedirect()
             ->assertSessionHas('status', 'Control app deploy started. Remote process id: 12345');
+    }
+
+    public function test_admin_page_stays_available_when_control_app_deploy_status_is_misconfigured(): void
+    {
+        $admin = User::query()->create([
+            'name' => 'Debug Admin',
+            'email' => 'admin@example.com',
+            'password' => 'super-secret',
+            'is_admin' => true,
+        ]);
+
+        Config::set('sync360.control_app_deploy.enabled', true);
+        Config::set('sync360.control_app_deploy.ssh_host', '161.97.74.128');
+        Config::set('sync360.control_app_deploy.ssh_user', 'deploy');
+        Config::set('sync360.control_app_deploy.branch', 'codex/control-app-prod-deploy');
+        Config::set('sync360.control_app_deploy.repo_path', '/root/sync360/control-app');
+        Config::set('sync360.control_app_deploy.compose_file', 'docker-compose.prod.yml');
+        Config::set('sync360.control_app_deploy.script_path', '/root/sync360/control-app/deploy/scripts/run-control-app-deploy.sh');
+        Config::set('sync360.control_app_deploy.status_file', '/root/sync360/control-app/storage/logs/control-app-deploy.status');
+        Config::set('sync360.control_app_deploy.log_file', '/root/sync360/control-app/storage/logs/control-app-deploy.log');
+        Config::set('sync360.control_app_deploy.ssh_auth_mode', 'password');
+        Config::set('sync360.control_app_deploy.ssh_password_env_key', 'SYNC360_MISSING_PASSWORD');
+
+        $this->actingAs($admin);
+
+        $this->get('/admin')
+            ->assertOk()
+            ->assertSee('Control App Deploy')
+            ->assertSee('failed')
+            ->assertSee('SYNC360_MISSING_PASSWORD');
     }
 }
