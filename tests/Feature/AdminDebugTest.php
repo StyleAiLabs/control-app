@@ -108,8 +108,12 @@ class AdminDebugTest extends TestCase
                 'started_at' => null,
                 'finished_at' => null,
                 'message' => 'Ready to deploy.',
+                'latest_commit_full' => '41dd63341dd63341dd63341dd63341dd63341dd',
                 'latest_commit_short' => '41dd633',
                 'latest_commit_subject' => 'Fix control app deploy shell commands',
+                'branch_head_commit_full' => 'cb8c399cb8c399cb8c399cb8c399cb8c399cb8c',
+                'branch_head_commit_short' => 'cb8c399',
+                'is_up_to_date' => false,
                 'log_tail' => '',
             ]);
         $deployService->shouldReceive('status')
@@ -125,8 +129,12 @@ class AdminDebugTest extends TestCase
                 'started_at' => '2026-04-11T07:09:46Z',
                 'finished_at' => null,
                 'message' => 'Deployment started.',
+                'latest_commit_full' => 'cb8c399cb8c399cb8c399cb8c399cb8c399cb8c',
                 'latest_commit_short' => '41dd633',
                 'latest_commit_subject' => 'Fix control app deploy shell commands',
+                'branch_head_commit_full' => 'cb8c399cb8c399cb8c399cb8c399cb8c399cb8c',
+                'branch_head_commit_short' => 'cb8c399',
+                'is_up_to_date' => true,
                 'log_tail' => 'Starting control app deployment...',
             ]);
         $deployService->shouldReceive('trigger')
@@ -144,7 +152,8 @@ class AdminDebugTest extends TestCase
             ->assertSee('Control App Deploy')
             ->assertSee('codex/control-app-prod-deploy')
             ->assertSee('deploy@161.97.74.128')
-            ->assertSee('Fix control app deploy shell commands');
+            ->assertSee('Fix control app deploy shell commands')
+            ->assertSee('Fetch Latest And Deploy');
 
         $this->get(route('admin.deploy.control-app.status'))
             ->assertOk()
@@ -153,6 +162,7 @@ class AdminDebugTest extends TestCase
                 'latest_commit_short' => '41dd633',
                 'latest_commit_subject' => 'Fix control app deploy shell commands',
                 'state' => 'running',
+                'is_up_to_date' => true,
             ]);
 
         $this->get('/admin/users')
@@ -227,5 +237,46 @@ class AdminDebugTest extends TestCase
             ->assertSee('Control App Deploy')
             ->assertSee('failed')
             ->assertSee('SYNC360_MISSING_PASSWORD');
+    }
+
+    public function test_admin_page_shows_up_to_date_when_deployed_commit_matches_branch_tip(): void
+    {
+        $admin = User::query()->create([
+            'name' => 'Deploy Admin',
+            'email' => 'deploy-admin@example.com',
+            'password' => 'super-secret',
+            'is_admin' => true,
+        ]);
+
+        $deployService = Mockery::mock(ControlAppDeploymentService::class);
+        $deployService->shouldReceive('status')
+            ->once()
+            ->andReturn([
+                'enabled' => true,
+                'configured' => true,
+                'host' => '161.97.74.128',
+                'user' => 'serveradmin',
+                'primary_server' => 'serveradmin@161.97.74.128',
+                'branch' => 'codex/control-app-prod-deploy',
+                'state' => 'succeeded',
+                'started_at' => '2026-04-11T09:25:18Z',
+                'finished_at' => '2026-04-11T09:25:55Z',
+                'message' => 'Deployment completed successfully.',
+                'latest_commit_full' => 'cb8c399954dfb41963b8c5a2625ab06c7d326021',
+                'latest_commit_short' => 'cb8c399',
+                'latest_commit_subject' => 'Fix deployed commit status tracking',
+                'branch_head_commit_full' => 'cb8c399954dfb41963b8c5a2625ab06c7d326021',
+                'branch_head_commit_short' => 'cb8c399',
+                'is_up_to_date' => true,
+                'log_tail' => 'Control app deployment completed successfully.',
+            ]);
+
+        $this->instance(ControlAppDeploymentService::class, $deployService);
+        $this->actingAs($admin);
+
+        $this->get('/admin')
+            ->assertOk()
+            ->assertSee('>Up-to-date</button>', false)
+            ->assertDontSee('>Fetch Latest And Deploy</button>', false);
     }
 }

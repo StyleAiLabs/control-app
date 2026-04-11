@@ -22,6 +22,10 @@ current_commit_short() {
   git -C "$REPO_PATH" rev-parse --short HEAD 2>/dev/null || true
 }
 
+current_commit_full() {
+  git -C "$REPO_PATH" rev-parse HEAD 2>/dev/null || true
+}
+
 current_commit_subject() {
   git -C "$REPO_PATH" log -1 --pretty=%s 2>/dev/null || true
 }
@@ -35,6 +39,7 @@ started_at=${2:-}
 finished_at=${3:-}
 pid=$$
 message=${4:-}
+latest_commit_full=$(current_commit_full)
 latest_commit_short=$(current_commit_short)
 latest_commit_subject=$(current_commit_subject)
 EOF

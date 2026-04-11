@@ -59,8 +59,12 @@ class ControlAppDeploymentServiceTest extends TestCase
         $command = $method->invoke($service);
 
         $this->assertStringContainsString('; printf "\\n__SYNC360_DEPLOY_LOG__\\n";', $command);
+        $this->assertStringContainsString('latest_commit_full=', $command);
         $this->assertStringContainsString('latest_commit_short=', $command);
         $this->assertStringContainsString('latest_commit_subject=', $command);
+        $this->assertStringContainsString('branch_head_commit_full=', $command);
+        $this->assertStringContainsString('branch_head_commit_short=', $command);
+        $this->assertStringContainsString("ls-remote --heads origin 'codex/control-app-prod-deploy'", $command);
         $this->assertStringContainsString("if [ ! -f '/opt/sync360/control-app/storage/logs/control-app-deploy.status' ] && [ -d '/opt/sync360/control-app/.git' ]; then", $command);
         $this->assertStringContainsString("; if [ -f '/opt/sync360/control-app/storage/logs/control-app-deploy.log' ]; then tail -n 20 '/opt/sync360/control-app/storage/logs/control-app-deploy.log'; fi", $command);
         $this->assertStringNotContainsString(' fi printf ', $command);

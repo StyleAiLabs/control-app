@@ -65,9 +65,13 @@
                 <p>Fetch the latest deployment branch on the primary server and rebuild the control app safely through the host deploy script.</p>
             </div>
             <div>
-                <form method="POST" action="{{ route('admin.deploy.control-app') }}" class="inline">
+                <form method="POST" action="{{ route('admin.deploy.control-app') }}" class="inline" data-deploy-form>
                     @csrf
-                    <button type="submit" {{ !($controlAppDeployStatus['enabled'] ?? false) ? 'disabled' : '' }}>Fetch Latest And Deploy</button>
+                    <button
+                        type="submit"
+                        data-deploy-trigger
+                        {{ !($controlAppDeployStatus['enabled'] ?? false) || ($controlAppDeployStatus['is_up_to_date'] ?? false) ? 'disabled' : '' }}
+                    >{{ ($controlAppDeployStatus['is_up_to_date'] ?? false) ? 'Up-to-date' : 'Fetch Latest And Deploy' }}</button>
                 </form>
             </div>
         </div>
@@ -142,6 +146,8 @@
             const messageField = panel.querySelector('[data-deploy-message]');
             const logWrap = panel.querySelector('[data-deploy-log-wrap]');
             const logField = panel.querySelector('[data-deploy-field="log_tail"]');
+            const deployForm = panel.querySelector('[data-deploy-form]');
+            const deployTrigger = panel.querySelector('[data-deploy-trigger]');
             const textFields = ['primary_server', 'branch', 'started_at', 'finished_at', 'latest_commit_short', 'latest_commit_subject'];
 
             const badgeClassForState = (state) => {
@@ -152,6 +158,20 @@
             };
 
             const normalize = (value) => value === null || value === undefined || value === '' ? '—' : value;
+            const shouldDisableDeploy = (payload) => {
+                if (!payload.enabled) return true;
+                if ((payload.state ?? '') === 'running') return true;
+
+                return Boolean(payload.is_up_to_date);
+            };
+
+            const deployLabelFor = (payload) => {
+                if ((payload.state ?? '') === 'running') return 'Deploying...';
+                if (payload.is_up_to_date) return 'Up-to-date';
+                if (!payload.enabled) return 'Deploy Disabled';
+
+                return 'Fetch Latest And Deploy';
+            };
 
             const updatePanel = (payload) => {
                 const state = payload.state ?? 'not_configured';
@@ -182,6 +202,11 @@
                     const logTail = payload.log_tail ?? '';
                     logField.textContent = logTail;
                     logWrap.style.display = logTail ? '' : 'none';
+                }
+
+                if (deployForm && deployTrigger) {
+                    deployTrigger.textContent = deployLabelFor(payload);
+                    deployTrigger.disabled = shouldDisableDeploy(payload);
                 }
             };
 

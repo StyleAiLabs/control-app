@@ -600,13 +600,15 @@ Implemented behavior:
 - that status file records the branch, timestamps, message, and the exact fetched-and-deployed commit SHA and subject after `git pull`
 - the Laravel app reads those files over SSH through `ControlAppDeploymentService`
 - the service prefers the status-file commit metadata and only falls back to a direct git lookup when the status file does not exist yet
+- the service also compares the deployed commit with the current `origin/<branch>` tip on the primary server repository to determine whether production is already up to date
 - the admin page polls `GET /admin/deploy/control-app/status` every few seconds
-- the UI updates deploy state, started/finished timestamps, message, latest commit, and recent log tail without a full page refresh
+- the UI updates deploy state, started/finished timestamps, message, latest commit, up-to-date state, and recent log tail without a full page refresh
 
 Shell hardening now includes:
 
 - remote deploy commands are sent directly to SSH without an extra nested `sh -lc` wrapper
 - deploy status probe statements are separated with semicolons for portable remote shell parsing
+- deploy UI actions are derived from the deployed-vs-branch commit comparison: `Up-to-date` when hashes match, otherwise `Fetch Latest And Deploy`
 - misconfigured deploy secrets or unreachable SSH targets surface as a readable failed/unreachable state instead of taking `/admin` down with a `500`
 
 ## 13. Infrastructure Runner Architecture

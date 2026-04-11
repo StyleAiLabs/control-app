@@ -36,8 +36,12 @@ class ControlAppDeploymentService
             'finished_at' => null,
             'message' => null,
             'pid' => null,
+            'latest_commit_full' => null,
             'latest_commit_short' => null,
             'latest_commit_subject' => null,
+            'branch_head_commit_full' => null,
+            'branch_head_commit_short' => null,
+            'is_up_to_date' => false,
             'log_tail' => '',
         ];
 
@@ -84,6 +88,7 @@ class ControlAppDeploymentService
         $status['log_tail'] = trim($rawLog);
         $status['state'] = (string) ($status['state'] ?? 'idle');
         $status['primary_server'] = trim(sprintf('%s@%s', $status['user'] ?? '—', $status['host'] ?? '—'), '@');
+        $status['is_up_to_date'] = $this->resolveUpToDateState($status);
 
         return $status;
     }
@@ -242,11 +247,35 @@ class ControlAppDeploymentService
 
     private function buildStatusCommand(): string
     {
+        $repoPath = escapeshellarg($this->repoPath());
+        $statusFile = escapeshellarg($this->statusFile());
+        $logFile = escapeshellarg($this->logFile());
+        $branch = escapeshellarg((string) config('sync360.control_app_deploy.branch', ''));
+
         return implode('; ', [
-            'if [ -f '.escapeshellarg($this->statusFile()).' ]; then cat '.escapeshellarg($this->statusFile()).'; fi',
-            'if [ ! -f '.escapeshellarg($this->statusFile()).' ] && [ -d '.escapeshellarg($this->repoPath().'/.git').' ]; then printf "latest_commit_short=%s\n" "$(git -C '.escapeshellarg($this->repoPath()).' rev-parse --short HEAD 2>/dev/null || true)"; printf "latest_commit_subject=%s\n" "$(git -C '.escapeshellarg($this->repoPath()).' log -1 --pretty=%s 2>/dev/null || true)"; fi',
+            'if [ -f '.$statusFile.' ]; then cat '.$statusFile.'; fi',
+            'if [ ! -f '.$statusFile.' ] && [ -d '.escapeshellarg($this->repoPath().'/.git').' ]; then printf "latest_commit_full=%s\n" "$(git -C '.$repoPath.' rev-parse HEAD 2>/dev/null || true)"; printf "latest_commit_short=%s\n" "$(git -C '.$repoPath.' rev-parse --short HEAD 2>/dev/null || true)"; printf "latest_commit_subject=%s\n" "$(git -C '.$repoPath.' log -1 --pretty=%s 2>/dev/null || true)"; fi',
+            'if [ -d '.escapeshellarg($this->repoPath().'/.git').' ]; then branch_head_commit_full="$(git -C '.$repoPath.' ls-remote --heads origin '.$branch.' 2>/dev/null | awk \'NR==1 {print $1}\')"; printf "branch_head_commit_full=%s\n" "$branch_head_commit_full"; printf "branch_head_commit_short=%s\n" "$(printf "%s" "$branch_head_commit_full" | cut -c1-7)"; fi',
             'printf "\\n__SYNC360_DEPLOY_LOG__\\n"',
-            'if [ -f '.escapeshellarg($this->logFile()).' ]; then tail -n '.(int) config('sync360.control_app_deploy.log_tail_lines', 20).' '.escapeshellarg($this->logFile()).'; fi',
+            'if [ -f '.$logFile.' ]; then tail -n '.(int) config('sync360.control_app_deploy.log_tail_lines', 20).' '.$logFile.'; fi',
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $status
+     */
+    private function resolveUpToDateState(array $status): bool
+    {
+        $deployedFull = trim((string) ($status['latest_commit_full'] ?? ''));
+        $branchFull = trim((string) ($status['branch_head_commit_full'] ?? ''));
+
+        if ($deployedFull !== '' && $branchFull !== '') {
+            return hash_equals($deployedFull, $branchFull);
+        }
+
+        $deployedShort = trim((string) ($status['latest_commit_short'] ?? ''));
+        $branchShort = trim((string) ($status['branch_head_commit_short'] ?? ''));
+
+        return $deployedShort !== '' && $branchShort !== '' && hash_equals($deployedShort, $branchShort);
     }
 }
