@@ -11,6 +11,9 @@ RUN apt-get update \
         libpq-dev \
         libsqlite3-dev \
         netcat-openbsd \
+        openssh-client \
+        rsync \
+        sshpass \
     && docker-php-ext-install pdo_pgsql pdo_sqlite \
     && pecl install redis \
     && docker-php-ext-enable redis \

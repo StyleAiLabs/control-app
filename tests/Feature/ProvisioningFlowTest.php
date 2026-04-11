@@ -8,6 +8,7 @@ use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
 use App\Jobs\ProcessTenantProvisioning;
 use App\Models\ProvisioningJob;
+use App\Models\Server;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -31,7 +32,7 @@ class ProvisioningFlowTest extends TestCase
         $this->assertSame(TenantProvisioningStatus::Ready, $tenant->provisioning_status);
         $this->assertSame(ProvisioningJobStatus::Completed, $job->status);
         $this->assertSame(4100, $tenant->assigned_port);
-        $this->assertSame('http://localhost:4100', $tenant->workspace_url);
+        $this->assertSame('https://acme-plumbing.workspace.test', $tenant->workspace_url);
         $this->assertNotNull($tenant->runtime_path);
 
         $this->assertFileExists($tenant->runtime_path.'/.env');
@@ -46,12 +47,12 @@ class ProvisioningFlowTest extends TestCase
             ->assertOk()
             ->assertJson([
                 'provisioning_status' => 'ready',
-                'workspace_url' => 'http://localhost:4100',
+                'workspace_url' => 'https://acme-plumbing.workspace.test',
             ]);
 
         $this->get('/tenant/workspace-ready')
             ->assertOk()
-            ->assertSee('http://localhost:4100')
+            ->assertSee('https://acme-plumbing.workspace.test')
             ->assertSee('your workspace is ready.', escape: false)
             ->assertDontSee('Assigned Port')
             ->assertDontSee($tenant->runtime_path);
@@ -106,6 +107,7 @@ class ProvisioningFlowTest extends TestCase
             'industry' => 'Trades',
             'skill_pack' => 'Operations Core',
             'user_id' => $user->id,
+            'server_id' => Server::query()->firstOrFail()->id,
             'trial_status' => TrialStatus::Active,
             'provisioning_status' => TenantProvisioningStatus::Pending,
         ]);

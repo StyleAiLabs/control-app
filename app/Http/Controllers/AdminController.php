@@ -54,7 +54,7 @@ class AdminController extends Controller
     public function tenants(): View
     {
         $tenants = Tenant::query()
-            ->with(['user', 'provisioningJobs' => fn ($query) => $query->latest('id')])
+            ->with(['user', 'server', 'provisioningJobs' => fn ($query) => $query->latest('id')])
             ->orderByDesc('id')
             ->get();
 
@@ -108,7 +108,7 @@ class AdminController extends Controller
     {
         try {
             [$composeFile, $projectName] = $this->workspaceFilesFor($tenant);
-            $this->dockerCompose->start($composeFile, $projectName);
+            $this->dockerCompose->start($tenant->server, $composeFile, $projectName);
         } catch (Throwable $exception) {
             return back()->with('status', $exception->getMessage());
         }
@@ -120,7 +120,7 @@ class AdminController extends Controller
     {
         try {
             [$composeFile, $projectName] = $this->workspaceFilesFor($tenant);
-            $this->dockerCompose->stop($composeFile, $projectName);
+            $this->dockerCompose->stop($tenant->server, $composeFile, $projectName);
         } catch (Throwable $exception) {
             return back()->with('status', $exception->getMessage());
         }
@@ -140,7 +140,7 @@ class AdminController extends Controller
             return 'missing_config';
         }
 
-        return $this->dockerCompose->isRunning($composeFile, $projectName)
+        return $this->dockerCompose->isRunning($tenant->server, $composeFile, $projectName)
             ? 'running'
             : 'stopped';
     }
@@ -154,11 +154,11 @@ class AdminController extends Controller
             throw new RuntimeException('This tenant does not have a provisioned runtime yet.');
         }
 
-        $composeFile = rtrim($tenant->runtime_path, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
-
-        if (! is_file($composeFile)) {
-            throw new RuntimeException('This tenant is missing its workspace compose file.');
+        if (! $tenant->server) {
+            throw new RuntimeException('This tenant does not have an assigned client VPS.');
         }
+
+        $composeFile = rtrim($tenant->runtime_path, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
 
         $projectName = Str::limit('sync360-'.$tenant->slug, 63, '');
 

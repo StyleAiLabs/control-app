@@ -23,6 +23,7 @@ class Tenant extends Model
         'industry',
         'skill_pack',
         'user_id',
+        'server_id',
         'trial_status',
         'provisioning_status',
         'assigned_port',
@@ -47,6 +48,11 @@ class Tenant extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function server(): BelongsTo
+    {
+        return $this->belongsTo(Server::class);
     }
 
     public function provisioningJobs(): HasMany

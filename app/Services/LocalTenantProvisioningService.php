@@ -39,7 +39,7 @@ class LocalTenantProvisioningService implements TenantProvisioner
         ], [
             'provisioning_driver' => 'local',
         ]);
-        $workspaceUrl = $this->runtime->workspaceUrl($assignedPort);
+        $workspaceUrl = $this->runtime->workspaceUrl($tenant, $assignedPort);
 
         $tenant->forceFill([
             'assigned_port' => $assignedPort,

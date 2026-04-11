@@ -25,6 +25,12 @@ class OpenClawProvisioner implements TenantProvisioner
 
     public function provision(Tenant $tenant, ProvisioningJob $provisioningJob): void
     {
+        $tenant->loadMissing('server');
+
+        if (! $tenant->server) {
+            throw new RuntimeException('Tenant does not have an assigned client VPS.');
+        }
+
         $tenant->forceFill([
             'provisioning_status' => TenantProvisioningStatus::Provisioning,
         ])->save();
@@ -37,10 +43,10 @@ class OpenClawProvisioner implements TenantProvisioner
         ])->save();
 
         $assignedPort = $tenant->assigned_port ?? $this->runtime->allocatePort($tenant);
-        $workspaceUrl = $this->runtime->workspaceUrl($assignedPort);
+        $workspaceUrl = $this->runtime->workspaceUrl($tenant, $assignedPort);
         $gatewayToken = Str::random(40);
 
-        $runtimePath = $this->runtime->prepareRuntime($tenant, $provisioningJob, $assignedPort, [
+        $localRuntimePath = $this->runtime->prepareRuntime($tenant, $provisioningJob, $assignedPort, [
             'PROVISIONING_DRIVER' => 'openclaw',
             'OPENCLAW_GATEWAY_PORT' => (string) config('sync360.openclaw.gateway_port', 18789),
             'OPENCLAW_GATEWAY_TOKEN' => $gatewayToken,
@@ -52,33 +58,40 @@ class OpenClawProvisioner implements TenantProvisioner
                 'readiness_path' => config('sync360.openclaw.readiness_path'),
             ],
         ]);
+        $remoteRuntimePath = $this->runtime->remoteRuntimePath($tenant);
 
-        $composeFile = $runtimePath.DIRECTORY_SEPARATOR.(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
+        $composeFile = $remoteRuntimePath.DIRECTORY_SEPARATOR.(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
         $projectName = $this->projectName($tenant);
 
-        $this->writeOpenClawConfig($runtimePath, $assignedPort, $gatewayToken);
-        $this->writeComposeFile($tenant, $runtimePath, $composeFile, $assignedPort, $gatewayToken);
+        $this->writeOpenClawConfig($localRuntimePath, $tenant, $assignedPort, $gatewayToken);
+        $this->writeComposeFile($tenant, $localRuntimePath, $remoteRuntimePath, $assignedPort, $gatewayToken);
+        $caddyConfig = $this->shouldManageCaddy($tenant)
+            ? $this->writeCaddyConfig($tenant, $localRuntimePath, $assignedPort)
+            : null;
 
         $tenant->forceFill([
             'assigned_port' => $assignedPort,
-            'runtime_path' => $runtimePath,
+            'runtime_path' => $remoteRuntimePath,
             'workspace_url' => $workspaceUrl,
             'provisioning_status' => TenantProvisioningStatus::Provisioning,
         ])->save();
 
         try {
-            $this->stopFailedRuntime($composeFile, $projectName);
-            $this->dockerCompose->up($composeFile, $projectName);
-            $this->waitForReadiness($assignedPort);
+            $this->cleanupFailedRuntime($tenant, $composeFile, $projectName, reloadProxy: false);
+            $this->dockerCompose->syncRuntime($tenant->server, $localRuntimePath, $remoteRuntimePath);
+            $this->installCaddyConfig($tenant, $caddyConfig);
+            $this->dockerCompose->up($tenant->server, $composeFile, $projectName);
+            $this->waitForReadiness($tenant, $assignedPort);
+            $this->waitForPublicWorkspace($tenant);
         } catch (Throwable $exception) {
-            $this->stopFailedRuntime($composeFile, $projectName);
+            $this->cleanupFailedRuntime($tenant, $composeFile, $projectName, reloadProxy: true);
 
             throw $exception;
         }
 
         $tenant->forceFill([
             'assigned_port' => $assignedPort,
-            'runtime_path' => $runtimePath,
+            'runtime_path' => $remoteRuntimePath,
             'workspace_url' => $workspaceUrl,
             'provisioning_status' => TenantProvisioningStatus::Ready,
         ])->save();
@@ -90,9 +103,10 @@ class OpenClawProvisioner implements TenantProvisioner
         ])->save();
     }
 
-    private function writeOpenClawConfig(string $runtimePath, int $assignedPort, string $gatewayToken): void
+    private function writeOpenClawConfig(string $runtimePath, Tenant $tenant, int $assignedPort, string $gatewayToken): void
     {
         $configPath = $runtimePath.DIRECTORY_SEPARATOR.'config'.DIRECTORY_SEPARATOR.'openclaw.json';
+        $workspaceUrl = $this->runtime->workspaceUrl($tenant, $assignedPort);
 
         $this->files->put(
             $configPath,
@@ -108,7 +122,8 @@ class OpenClawProvisioner implements TenantProvisioner
                         'enabled' => true,
                         'allowInsecureAuth' => true,
                         'allowedOrigins' => [
-                            sprintf('http://localhost:%d', $assignedPort),
+                            $workspaceUrl,
+                            sprintf('http://%s:%d', $tenant->server?->host ?: '127.0.0.1', $assignedPort),
                             sprintf('http://127.0.0.1:%d', $assignedPort),
                         ],
                     ],
@@ -117,9 +132,30 @@ class OpenClawProvisioner implements TenantProvisioner
         );
     }
 
-    private function writeComposeFile(Tenant $tenant, string $runtimePath, string $composeFile, int $assignedPort, string $gatewayToken): void
+    private function writeCaddyConfig(Tenant $tenant, string $runtimePath, int $assignedPort): string
     {
-        $hostRuntimePath = $this->runtime->hostPath($runtimePath);
+        $host = $this->runtime->workspaceHost($tenant);
+
+        if (! $host) {
+            throw new RuntimeException('A tenant hostname is required before generating a Caddy site.');
+        }
+
+        $caddyConfig = implode(PHP_EOL, [
+            sprintf('%s {', $host),
+            sprintf('    reverse_proxy 127.0.0.1:%d', $assignedPort),
+            '}',
+            '',
+        ]);
+
+        $configPath = $runtimePath.DIRECTORY_SEPARATOR.'config'.DIRECTORY_SEPARATOR.'workspace.caddy';
+        $this->files->put($configPath, $caddyConfig);
+
+        return $caddyConfig;
+    }
+
+    private function writeComposeFile(Tenant $tenant, string $localRuntimePath, string $remoteRuntimePath, int $assignedPort, string $gatewayToken): void
+    {
+        $composeFile = $localRuntimePath.DIRECTORY_SEPARATOR.(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
         $containerHome = rtrim((string) config('sync360.openclaw.container_home', '/home/node/.openclaw'), '/');
         $gatewayPort = (int) config('sync360.openclaw.gateway_port', 18789);
         $serviceName = (string) config('sync360.openclaw.service_name', 'openclaw-gateway');
@@ -145,7 +181,7 @@ class OpenClawProvisioner implements TenantProvisioner
             sprintf('      - "127.0.0.1:%d:%d"', $assignedPort, $gatewayPort),
             '    volumes:',
             '      - type: bind',
-            sprintf('        source: %s', $this->yamlQuote($hostRuntimePath)),
+            sprintf('        source: %s', $this->yamlQuote($remoteRuntimePath)),
             sprintf('        target: %s', $this->yamlQuote($containerHome)),
             '    environment:',
             sprintf('      OPENCLAW_HOME: %s', $this->yamlQuote($containerHome)),
@@ -158,25 +194,32 @@ class OpenClawProvisioner implements TenantProvisioner
         $this->files->put($composeFile, $compose);
     }
 
-    private function waitForReadiness(int $assignedPort): void
+    private function waitForReadiness(Tenant $tenant, int $assignedPort): void
     {
         $readinessPath = '/'.ltrim((string) config('sync360.openclaw.readiness_path', '/readyz'), '/');
-        $probeHost = (string) config('sync360.openclaw.readiness_probe_host', 'host.docker.internal');
-        $readinessUrl = sprintf('http://%s:%d%s', $probeHost, $assignedPort, $readinessPath);
+        $readinessUrl = sprintf('http://127.0.0.1:%d%s', $assignedPort, $readinessPath);
         $timeoutSeconds = max(1, (int) config('sync360.openclaw.readiness_timeout_seconds', 45));
         $pollIntervalMs = max(100, (int) config('sync360.openclaw.readiness_poll_interval_ms', 1000));
-        $deadline = microtime(true) + $timeoutSeconds;
+        $this->dockerCompose->waitForHttpReady($tenant->server, $readinessUrl, $timeoutSeconds, $pollIntervalMs);
+    }
+
+    private function waitForPublicWorkspace(Tenant $tenant): void
+    {
+        $readinessPath = '/'.ltrim((string) config('sync360.openclaw.readiness_path', '/readyz'), '/');
+        $publicReadinessUrl = rtrim((string) $tenant->workspace_url, '/').$readinessPath;
+        $deadline = microtime(true) + max(1, (int) config('sync360.workspace_proxy.public_readiness_timeout_seconds', 120));
+        $pollIntervalMs = max(100, (int) config('sync360.workspace_proxy.public_readiness_poll_interval_ms', 1500));
         $lastError = null;
 
         do {
             try {
-                $response = Http::timeout(3)->acceptJson()->get($readinessUrl);
+                $response = Http::timeout(5)->acceptJson()->get($publicReadinessUrl);
 
                 if ($response->successful()) {
                     return;
                 }
 
-                $lastError = sprintf('HTTP %d from %s', $response->status(), $readinessUrl);
+                $lastError = sprintf('HTTP %d from %s', $response->status(), $publicReadinessUrl);
             } catch (Throwable $exception) {
                 $lastError = $exception->getMessage();
             }
@@ -185,19 +228,65 @@ class OpenClawProvisioner implements TenantProvisioner
         } while (microtime(true) < $deadline);
 
         throw new RuntimeException(sprintf(
-            'OpenClaw readiness check failed for [%s]. %s',
-            $readinessUrl,
-            $lastError ? 'Last error: '.$lastError : 'The gateway never reported ready.',
+            'Public workspace readiness check failed for [%s]. %s',
+            $publicReadinessUrl,
+            $lastError ? 'Last error: '.$lastError : 'The workspace never became reachable over HTTPS.',
         ));
     }
 
-    private function stopFailedRuntime(string $composeFile, string $projectName): void
+    private function installCaddyConfig(Tenant $tenant, ?string $caddyConfig): void
+    {
+        if (! $caddyConfig || ! $this->shouldManageCaddy($tenant)) {
+            return;
+        }
+
+        $this->dockerCompose->putFile(
+            $tenant->server,
+            $this->runtime->caddySitePath($tenant),
+            $caddyConfig,
+            sudo: true,
+        );
+
+        $this->reloadCaddy($tenant);
+    }
+
+    private function reloadCaddy(Tenant $tenant): void
+    {
+        $reloadCommand = trim((string) ($tenant->server?->caddy_reload_command ?: ''));
+
+        if ($reloadCommand === '') {
+            throw new RuntimeException('Tenant server Caddy reload command is not configured.');
+        }
+
+        $this->dockerCompose->runCommand($tenant->server, $reloadCommand, sudo: true);
+    }
+
+    private function cleanupFailedRuntime(Tenant $tenant, string $composeFile, string $projectName, bool $reloadProxy): void
     {
         try {
-            $this->dockerCompose->down($composeFile, $projectName);
+            $this->dockerCompose->down($tenant->server, $composeFile, $projectName);
         } catch (Throwable) {
             // A failed cleanup should not hide the original provisioning error.
         }
+
+        if (! $this->shouldManageCaddy($tenant)) {
+            return;
+        }
+
+        try {
+            $this->dockerCompose->removeFile($tenant->server, $this->runtime->caddySitePath($tenant), sudo: true);
+
+            if ($reloadProxy) {
+                $this->reloadCaddy($tenant);
+            }
+        } catch (Throwable) {
+            // Best-effort reverse proxy cleanup.
+        }
+    }
+
+    private function shouldManageCaddy(Tenant $tenant): bool
+    {
+        return (bool) ($tenant->server?->workspace_base_domain && $tenant->server?->caddy_sites_path && $tenant->server?->caddy_reload_command);
     }
 
     private function projectName(Tenant $tenant): string

@@ -19,18 +19,25 @@ class TenantRuntimeService
 
     public function allocatePort(Tenant $tenant): int
     {
+        $server = $tenant->server;
+
+        if (! $server) {
+            throw new RuntimeException('Tenant does not have an assigned client VPS.');
+        }
+
         $start = (int) config('sync360.port_range.start', 4100);
         $end = (int) config('sync360.port_range.end', 4199);
 
         $usedPorts = Tenant::query()
             ->whereKeyNot($tenant->getKey())
+            ->where('server_id', $tenant->server_id)
             ->whereNotNull('assigned_port')
             ->pluck('assigned_port')
             ->map(fn (mixed $port): int => (int) $port)
             ->all();
 
         for ($port = $start; $port <= $end; $port++) {
-            if (! in_array($port, $usedPorts, true) && ! $this->dockerCompose->isHostPortInUse($port)) {
+            if (! in_array($port, $usedPorts, true) && ! $this->dockerCompose->isHostPortInUse($server, $port)) {
                 return $port;
             }
         }
@@ -38,9 +45,70 @@ class TenantRuntimeService
         throw new RuntimeException(sprintf('No available ports remain in the configured range %d-%d.', $start, $end));
     }
 
-    public function workspaceUrl(int $assignedPort): string
+    public function workspaceUrl(Tenant $tenant, int $assignedPort): string
     {
-        return sprintf('http://localhost:%d', $assignedPort);
+        $scheme = $this->workspaceScheme($tenant);
+        $workspaceHost = $this->workspaceHost($tenant);
+
+        if ($workspaceHost !== null) {
+            return sprintf('%s://%s', $scheme, $workspaceHost);
+        }
+
+        $server = $tenant->server;
+
+        if (! $server) {
+            throw new RuntimeException('Tenant does not have an assigned client VPS.');
+        }
+
+        return sprintf('%s://%s:%d', $scheme, $server->host, $assignedPort);
+    }
+
+    public function workspaceScheme(Tenant $tenant): string
+    {
+        $server = $tenant->server;
+
+        if (! $server) {
+            throw new RuntimeException('Tenant does not have an assigned client VPS.');
+        }
+
+        return $server->workspace_scheme ?: 'http';
+    }
+
+    public function workspaceHost(Tenant $tenant): ?string
+    {
+        $server = $tenant->server;
+
+        if (! $server) {
+            throw new RuntimeException('Tenant does not have an assigned client VPS.');
+        }
+
+        if ($server->workspace_base_domain) {
+            return sprintf('%s.%s', $tenant->slug, $server->workspace_base_domain);
+        }
+
+        return null;
+    }
+
+    public function remoteRuntimePath(Tenant $tenant): string
+    {
+        $server = $tenant->server;
+
+        if (! $server || ! $server->runtime_root) {
+            throw new RuntimeException('Tenant server runtime root is not configured.');
+        }
+
+        return rtrim($server->runtime_root, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'tenants'.DIRECTORY_SEPARATOR.$tenant->slug;
+    }
+
+    public function caddySitePath(Tenant $tenant): string
+    {
+        $server = $tenant->server;
+
+        if (! $server || ! $server->caddy_sites_path) {
+            throw new RuntimeException('Tenant server Caddy sites path is not configured.');
+        }
+
+        return rtrim($server->caddy_sites_path, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.$tenant->slug.'.caddy';
     }
 
     /**
@@ -76,7 +144,7 @@ class TenantRuntimeService
             $this->files->ensureDirectoryExists($runtimePath.DIRECTORY_SEPARATOR.$directory);
         }
 
-        $workspaceUrl = $this->workspaceUrl($assignedPort);
+        $workspaceUrl = $this->workspaceUrl($tenant, $assignedPort);
 
         $envValues = array_merge([
             'TENANT_ID' => $tenant->tenant_id,
@@ -109,28 +177,18 @@ class TenantRuntimeService
                     'contact_name' => $tenant->user?->name,
                     'email' => $tenant->user?->email,
                 ],
+                'server' => $tenant->server ? [
+                    'id' => $tenant->server->id,
+                    'name' => $tenant->server->name,
+                    'host' => $tenant->server->host,
+                    'ssh_host' => $tenant->server->ssh_host,
+                    'runtime_root' => $tenant->server->runtime_root,
+                ] : null,
                 'job_payload' => $provisioningJob->payload_json ?? [],
             ], $extraMetadata), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL,
         );
 
         return $runtimePath;
-    }
-
-    public function hostPath(string $path): string
-    {
-        $normalizedPath = $this->normalizePath($path);
-        $appRoot = rtrim(base_path(), DIRECTORY_SEPARATOR);
-        $hostRoot = rtrim($this->normalizeHostProjectRoot((string) config('sync360.host_project_root')), DIRECTORY_SEPARATOR);
-
-        if ($hostRoot === $appRoot) {
-            return $normalizedPath;
-        }
-
-        if (str_starts_with($normalizedPath, $appRoot)) {
-            return $hostRoot.substr($normalizedPath, strlen($appRoot));
-        }
-
-        return $normalizedPath;
     }
 
     /**
@@ -158,19 +216,6 @@ class TenantRuntimeService
     {
         if ($path === '') {
             throw new RuntimeException('Provisioning path configuration cannot be empty.');
-        }
-
-        if (str_starts_with($path, DIRECTORY_SEPARATOR)) {
-            return $path;
-        }
-
-        return base_path($path);
-    }
-
-    private function normalizeHostProjectRoot(string $path): string
-    {
-        if ($path === '') {
-            return base_path();
         }
 
         if (str_starts_with($path, DIRECTORY_SEPARATOR)) {

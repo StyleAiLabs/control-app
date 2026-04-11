@@ -1,160 +1,180 @@
 # Sync360 Control App Architecture
 
-This document describes the current architecture of the Sync360 Control App as it exists today in this repository.
+This document describes the current as-built architecture of the Sync360 Control App on the `codex/vps-ready-architecture` branch.
 
-It is intentionally focused on the implemented system, not the desired future production platform.
+It focuses on the implemented system, including the new VPS-ready provisioning model.
 
 ## 1. Purpose
 
-Sync360 Control App is a Laravel-based control-plane MVP for a future multi-tenant AI service platform.
+Sync360 Control App is a Laravel-based control plane for a future multi-tenant AI service platform.
 
-The current application proves this workflow end to end:
+It currently validates this end-to-end flow:
 
 1. A visitor lands on the marketing site.
 2. The visitor signs up for a free trial.
 3. The app creates a user, tenant, and provisioning job.
-4. A queue worker provisions a tenant runtime asynchronously.
-5. The tenant is marked ready when provisioning succeeds.
-6. The user sees a workspace-ready experience with a generated workspace URL.
-7. A super admin can inspect tenants, jobs, and workspace state from the local admin area.
+4. The app assigns the tenant to a client server.
+5. A queue worker provisions the tenant asynchronously.
+6. The tenant becomes `ready`.
+7. The user sees a workspace-ready screen with a generated workspace URL.
+8. A super admin can inspect tenants, jobs, and workspace state.
 
-The codebase currently supports both:
+## 2. Deployment Shapes
 
-- a simple fake local provisioner for tests and fallback scenarios
-- a Stage 2 OpenClaw provisioner that launches one OpenClaw gateway container per tenant
+The codebase now supports two infrastructure shapes.
 
-## 2. Current Deployment Model
+### 2.1 Local Development Shape
 
-The system is currently designed and validated for local development on a single machine using Docker Compose.
+Used for local development and iterative design work.
 
-Current local runtime services:
+Services:
 
-- `app`: Laravel web application
-- `worker`: Laravel queue worker
-- `postgres`: primary database
-- `redis`: queue backend
+- `app`
+- `worker`
+- `postgres`
+- `redis`
 
-In Stage 2, the `worker` service also controls the host Docker daemon through `/var/run/docker.sock` and starts one tenant-specific OpenClaw container per provisioned tenant.
+In this mode:
 
-This means the current system behaves like a local control plane and local tenant host combined into one environment.
+- the Laravel app and worker run locally in Docker Compose
+- the worker can talk to the local Docker host
+- tenant OpenClaw containers run on the same machine
 
-It is not yet a true remote multi-server architecture.
+### 2.2 VPS-Ready Shape
+
+Used for the intended primary-server plus client-VPS deployment model.
+
+In this mode:
+
+- Laravel app and queue worker run on the primary control server
+- each tenant is assigned to a `Server` record
+- tenant runtime files are generated on the control server
+- runtime files are copied to the assigned client VPS over SSH
+- Docker Compose is executed remotely on that client VPS over SSH
+- readiness is probed remotely against the client VPS loopback interface
+- workspace URLs are generated from the assigned server configuration
+
+### 2.3 Current Deployment Architecture
+
+The deployment architecture now has a validated first-production shape:
+
+- control plane URL: `app.sync360.co.nz`
+- planned control plane host: `161.97.74.128`
+- first client runtime VPS: `89.116.28.191`
+- tenant hostname pattern: `https://<tenant-slug>.workspace.sync360.co.nz`
+- wildcard DNS: `*.workspace.sync360.co.nz -> 89.116.28.191`
+
+The flow currently proven in production-like form is:
+
+- the Laravel control app runs locally
+- a tenant is assigned to the seeded `sync360-client-vps-1` server record
+- provisioning uses password-auth SSH to connect as `deploy@89.116.28.191`
+- runtime files are staged locally, copied to the client VPS, and started there with remote Docker Compose
+- Caddy on the client VPS serves the tenant hostname over HTTPS
+- the worker marks the tenant `ready` only after both remote loopback readiness and public hostname readiness succeed
+
+This same architecture is intended to be reused after the control app is moved from local development to `161.97.74.128`.
 
 ## 3. High-Level Architecture
 
 ```mermaid
 flowchart LR
-    V["Visitor / User"] --> W["Laravel Web App<br/>app service"]
-    W --> DB["PostgreSQL"]
-    W --> R["Redis"]
-    W --> Q["Queue Job Record + Dispatch"]
-    Q --> WK["Queue Worker<br/>worker service"]
-    WK --> DB
-    WK --> FS["Runtime Filesystem<br/>runtime/tenants/<slug>"]
-    WK --> DC["Host Docker Daemon"]
-    DC --> OC["Per-tenant OpenClaw Container"]
-    WK --> HC["Readiness Check"]
-    HC --> OC
-    W --> A["Admin / Debug UI"]
+    U["Visitor / User"] --> WEB["Laravel Web App"]
+    WEB --> DB["PostgreSQL"]
+    WEB --> REDIS["Redis"]
+    WEB --> JOB["Provisioning Job Record + Dispatch"]
+    JOB --> WORKER["Queue Worker"]
+    WORKER --> DB
+    WORKER --> STAGE["Local Runtime Staging<br/>runtime/tenants/<slug>"]
+    WORKER --> SSH["SSH / SCP"]
+    SSH --> VPS["Assigned Client VPS"]
+    VPS --> OC["Per-tenant OpenClaw Container"]
+    WORKER --> READY["Remote Readiness Check<br/>127.0.0.1:<port>/readyz"]
+    READY --> OC
+    WEB --> ADMIN["Admin / Debug UI"]
 ```
 
-## 4. Repository Structure
-
-Important top-level areas:
+## 4. Core Repository Areas
 
 - `app/`
-  - controllers, models, jobs, enums, services, contracts, middleware
+  - controllers, jobs, models, services, contracts, middleware, enums
 - `config/`
-  - environment-driven app configuration including tenant provisioning settings
+  - application and provisioning configuration
 - `database/migrations/`
-  - schema definitions for users, tenants, jobs, servers, and admin flag
+  - schema changes for users, tenants, jobs, servers, and admin support
 - `resources/views/`
-  - Blade templates for landing page, auth, dashboard, tenant setup, ready screens, admin pages, and workspace placeholder
+  - Blade templates for public, auth, tenant, workspace, and admin pages
 - `routes/web.php`
-  - all web routes
+  - full route map
 - `runtime/tenants/`
-  - generated tenant runtime directories
+  - local runtime staging output
 - `templates/tenant/`
-  - source template used to scaffold tenant runtime folders
+  - template copied into tenant runtime staging directories
 - `docker-compose.yml`
-  - local runtime topology
-- `Dockerfile`
-  - PHP image used for both `app` and `worker`
-- `docker/start-app.sh`
-  - startup flow for the web app container
-- `docker/start-worker.sh`
-  - startup flow for the queue worker container
+  - local development stack
 
 ## 5. Application Layers
 
 ### 5.1 Web Layer
 
-The web layer is handled by Laravel controllers and Blade views.
+Handled by Laravel controllers and Blade views.
 
-Primary responsibilities:
+Responsibilities:
 
-- marketing and public routes
+- landing page
 - signup and login
-- authenticated customer dashboard
-- tenant setup progress polling
-- workspace-ready screen
-- internal placeholder workspace
-- admin and debug pages
+- customer dashboard
+- tenant setup and status polling
+- workspace-ready state
+- placeholder workspace route
+- super admin debug area
 
-### 5.2 Domain Layer
+### 5.2 Queue Layer
 
-The domain logic is intentionally lightweight and centered around:
+Handled by Laravel queues backed by Redis.
 
-- `User`
-- `Tenant`
-- `ProvisioningJob`
-- `Server`
+Responsibilities:
 
-Provisioning behavior is abstracted behind contracts and services rather than being embedded in controllers.
+- async tenant provisioning
+- status transitions
+- failure handling
 
-### 5.3 Queue Layer
+### 5.3 Provisioning Layer
 
-Provisioning happens asynchronously through Laravel queues backed by Redis.
+Handled through the `TenantProvisioner` contract.
 
-Web requests only create records and dispatch jobs.
-The worker owns actual provisioning execution and failure handling.
-
-### 5.4 Runtime Provisioning Layer
-
-Tenant provisioning logic is isolated behind the `TenantProvisioner` contract.
-
-Current provisioner implementations:
+Implementations:
 
 - `App\Services\OpenClawProvisioner`
 - `App\Services\LocalTenantProvisioningService`
 
-Shared runtime scaffolding is handled by:
+### 5.4 Infrastructure Layer
 
-- `App\Services\TenantRuntimeService`
+Handled through the `DockerComposeRunner` contract.
 
-### 5.5 Docker Control Layer
-
-Docker runtime commands are abstracted behind:
-
-- `App\Contracts\DockerComposeRunner`
-
-Current implementation:
+Implementations:
 
 - `App\Services\LocalDockerComposeRunner`
+- `App\Services\SshDockerComposeRunner`
 
-This is a key seam for future replacement with SSH-based or remote orchestration.
+This layer now owns:
+
+- runtime sync for remote servers
+- Docker Compose start/stop/up/down
+- remote port probing
+- readiness polling
 
 ## 6. Route Architecture
 
 Defined in [routes/web.php](/Users/gayanhewage/Projects/openclaw-saas/routes/web.php).
 
-### 6.1 Public Routes
+### Public Routes
 
 - `/`
 - `/signup`
 - `/login`
 
-### 6.2 Authenticated Customer Routes
+### Authenticated Customer Routes
 
 - `POST /logout`
 - `/dashboard`
@@ -163,15 +183,7 @@ Defined in [routes/web.php](/Users/gayanhewage/Projects/openclaw-saas/routes/web
 - `/tenant/workspace-ready`
 - `/workspace/{tenant:slug}`
 
-### 6.3 Admin Routes
-
-Protected by:
-
-- `auth`
-- `local.only`
-- `admin`
-
-Admin routes:
+### Admin Routes
 
 - `/admin`
 - `/admin/users`
@@ -181,39 +193,39 @@ Admin routes:
 - `POST /admin/tenants/{tenant}/workspace/start`
 - `POST /admin/tenants/{tenant}/workspace/stop`
 
-## 7. Authentication Model
+Admin routes are protected by:
 
-Authentication is custom but intentionally minimal.
+- `auth`
+- `admin`
+- optional `local.only`, controlled by config
+
+## 7. Authentication And Admin Model
+
+Authentication is intentionally small and session-based.
 
 Implemented behavior:
 
-- session-based login
-- session persistence
+- register
+- login
 - logout
-- guest-only signup and login pages
-- authenticated customer routes
-- super-admin flag on users
+- session persistence
+- guest-only auth pages
+- admin-only access to operational routes
 
-Primary files:
+Admin control:
 
-- [app/Http/Controllers/Auth/LoginController.php](/Users/gayanhewage/Projects/openclaw-saas/app/Http/Controllers/Auth/LoginController.php)
-- [app/Http/Controllers/Auth/RegisterController.php](/Users/gayanhewage/Projects/openclaw-saas/app/Http/Controllers/Auth/RegisterController.php)
-- [app/Http/Middleware/EnsureAdminUser.php](/Users/gayanhewage/Projects/openclaw-saas/app/Http/Middleware/EnsureAdminUser.php)
-
-Admin behavior:
-
-- `users.is_admin` controls super-admin access
+- `users.is_admin` gates super-admin access
 - super admins without a tenant are redirected to `/admin`
-- non-admin users are blocked from admin routes with `403`
+- non-admins receive `403`
 
 ## 8. Data Model
 
 ### 8.1 Users
 
-Primary responsibility:
+Purpose:
 
 - authentication identity
-- account owner for a tenant
+- owner of a tenant
 - optional super admin
 
 Important fields:
@@ -224,13 +236,12 @@ Important fields:
 - `password`
 - `phone`
 - `is_admin`
-- timestamps
 
 ### 8.2 Tenants
 
-Primary responsibility:
+Purpose:
 
-- represent a customer workspace being provisioned and operated
+- represent a provisioned customer workspace
 
 Important fields:
 
@@ -241,24 +252,18 @@ Important fields:
 - `industry`
 - `skill_pack`
 - `user_id`
+- `server_id`
 - `trial_status`
 - `provisioning_status`
 - `assigned_port`
 - `workspace_url`
 - `runtime_path`
-- timestamps
-
-Important behaviors:
-
-- one user owns one tenant in the MVP
-- `tenant_id` is the external identifier
-- `slug` is used in runtime paths and placeholder workspace routes
 
 ### 8.3 ProvisioningJobs
 
-Primary responsibility:
+Purpose:
 
-- record all tenant provisioning attempts and outcomes
+- record each provisioning attempt and its result
 
 Important fields:
 
@@ -270,60 +275,66 @@ Important fields:
 - `error_message`
 - `started_at`
 - `completed_at`
-- timestamps
 
 ### 8.4 Servers
 
-Primary responsibility:
+Purpose:
 
-- future use for server targeting
+- describe where tenant workspaces are deployed
 
-Current behavior:
+Important fields:
 
-- one default local record is seeded
-- not yet used to assign tenants to specific infrastructure
+- `id`
+- `name`
+- `host`
+- `ssh_host`
+- `ssh_port`
+- `ssh_user`
+- `ssh_private_key_path`
+- `ssh_auth_mode`
+- `ssh_password_env_key`
+- `sudo_password_env_key`
+- `status`
+- `max_clients`
+- `current_clients`
+- `runtime_root`
+- `workspace_scheme`
+- `workspace_base_domain`
+- `docker_compose_bin`
+- `caddy_sites_path`
+- `caddy_reload_command`
 
 ### 8.5 Relationships
 
 - `User` has one `Tenant`
 - `Tenant` belongs to `User`
+- `Tenant` belongs to `Server`
 - `Tenant` has many `ProvisioningJob`
 - `ProvisioningJob` belongs to `Tenant`
+- `Server` has many `Tenant`
 
-## 9. Enums and Status Modeling
+## 9. Status Enums
 
-### 9.1 Tenant Provisioning Status
-
-Defined in [app/Enums/TenantProvisioningStatus.php](/Users/gayanhewage/Projects/openclaw-saas/app/Enums/TenantProvisioningStatus.php).
-
-Values:
+### Tenant Provisioning Status
 
 - `pending`
 - `provisioning`
 - `ready`
 - `failed`
 
-### 9.2 Trial Status
-
-Defined in [app/Enums/TrialStatus.php](/Users/gayanhewage/Projects/openclaw-saas/app/Enums/TrialStatus.php).
-
-Values:
+### Trial Status
 
 - `trial_active`
 - `trial_expired`
 
-### 9.3 Provisioning Job Status
-
-Defined in [app/Enums/ProvisioningJobStatus.php](/Users/gayanhewage/Projects/openclaw-saas/app/Enums/ProvisioningJobStatus.php).
-
-Values:
+### Provisioning Job Status
 
 - `queued`
 - `running`
 - `completed`
 - `failed`
 
-## 10. Signup and Tenant Creation Flow
+## 10. Signup And Tenant Creation Flow
 
 Signup is handled in [app/Http/Controllers/Auth/RegisterController.php](/Users/gayanhewage/Projects/openclaw-saas/app/Http/Controllers/Auth/RegisterController.php).
 
@@ -340,58 +351,53 @@ Form fields:
 
 On successful signup:
 
-1. Validate request.
-2. Start a DB transaction.
+1. Validate the request.
+2. Select an active server using `ServerPlacementService`.
 3. Create the `User`.
-4. Create the `Tenant`.
-5. Set `trial_status = trial_active`.
-6. Set `provisioning_status = pending`.
-7. Create a `ProvisioningJob` with `job_type = provision_tenant` and `status = queued`.
-8. Commit transaction.
-9. Log the user in.
-10. Dispatch `ProcessTenantProvisioning`.
-11. Redirect to `/tenant/setup`.
+4. Create the `Tenant` with `server_id`.
+5. Create a queued `ProvisioningJob`.
+6. Increment the selected server’s `current_clients`.
+7. Log the user in.
+8. Dispatch `ProcessTenantProvisioning`.
+9. Redirect to `/tenant/setup`.
 
-## 11. Queue and Job Flow
+If no client VPS is available, signup fails cleanly with a validation-style error instead of a `500`.
 
-The queue entrypoint is:
+## 11. Queue Flow
+
+Entry job:
 
 - [app/Jobs/ProcessTenantProvisioning.php](/Users/gayanhewage/Projects/openclaw-saas/app/Jobs/ProcessTenantProvisioning.php)
 
-The job does not directly implement infrastructure logic.
-Instead it:
+Responsibilities:
 
-1. Loads the tenant and provisioning job records.
-2. Resolves the active `TenantProvisioner`.
-3. Calls `provision($tenant, $provisioningJob)`.
-4. Marks the tenant and job failed if an exception escapes.
-
-This separation keeps web requests small and makes provisioning swappable.
+- load tenant and provisioning job
+- resolve the active `TenantProvisioner`
+- call `provision($tenant, $provisioningJob)`
+- mark tenant and job failed if provisioning throws
 
 ## 12. Provisioning Architecture
 
 ### 12.1 Contract
 
-Provisioning is abstracted by:
-
 - [app/Contracts/TenantProvisioner.php](/Users/gayanhewage/Projects/openclaw-saas/app/Contracts/TenantProvisioner.php)
 
-### 12.2 Runtime Service
+### 12.2 Runtime Preparation
 
-Shared runtime preparation is handled by:
+Shared runtime work is handled by:
 
 - [app/Services/TenantRuntimeService.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/TenantRuntimeService.php)
 
 Responsibilities:
 
-- allocate the next free tenant port
-- compute current workspace URL
-- prepare tenant runtime path
-- copy the tenant template
+- allocate next free port for the assigned server
+- generate server-aware workspace URL
+- create local runtime staging path
+- copy template files
 - create required directories
 - write tenant `.env`
-- write tenant `metadata.json`
-- translate container paths to host paths for Docker bind mounts
+- write `metadata.json`
+- compute remote runtime path from the assigned server
 
 ### 12.3 Local Fake Provisioner
 
@@ -400,86 +406,99 @@ Responsibilities:
 Purpose:
 
 - lightweight fake provisioning
-- primarily used for tests or simple fallback scenarios
-
-Behavior:
-
-- marks job running
-- sleeps for configured fake delay
-- allocates port
-- prepares runtime files
-- marks tenant ready
-- marks job completed
+- used in tests or local simplified scenarios
 
 ### 12.4 OpenClaw Provisioner
 
 - [app/Services/OpenClawProvisioner.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/OpenClawProvisioner.php)
 
-Purpose:
+Current provisioning sequence:
 
-- launch one OpenClaw gateway container per tenant
-
-Behavior:
-
-1. Mark tenant as `provisioning`.
-2. Mark job as `running`.
-3. Allocate or reuse `assigned_port`.
+1. Mark tenant `provisioning`.
+2. Mark provisioning job `running`.
+3. Allocate a free port for the assigned server.
 4. Generate workspace URL.
-5. Generate tenant runtime.
-6. Write `config/openclaw.json`.
-7. Write tenant `compose.yaml`.
-8. Persist `assigned_port`, `runtime_path`, and `workspace_url`.
-9. Stop any stale runtime for the tenant.
-10. Start the tenant runtime through Docker Compose.
-11. Poll readiness endpoint.
-12. Mark tenant `ready`.
-13. Mark job `completed`.
+5. Generate local runtime staging files.
+6. Compute remote runtime path for the assigned server.
+7. Write `config/openclaw.json`.
+8. Write `compose.yaml` using the remote runtime bind path.
+9. Write a tenant-specific `workspace.caddy` site fragment when wildcard-domain routing is configured.
+10. Persist `assigned_port`, `runtime_path`, and `workspace_url`.
+11. Stop any stale remote tenant runtime and remove any stale tenant Caddy file.
+12. Sync local runtime staging to the assigned server over SSH when using SSH infrastructure.
+13. Install the tenant Caddy site file on the client VPS and reload Caddy.
+14. Start the OpenClaw container on the target host.
+15. Poll the loopback readiness endpoint on the client VPS.
+16. Poll the public HTTPS workspace hostname.
+17. Mark tenant `ready`.
+18. Mark provisioning job `completed`.
 
 On failure:
 
-- attempt cleanup with `docker-compose down`
-- rethrow to the queue job
-- queue job marks tenant `failed`
-- queue job marks provisioning job `failed`
-- store error message
+- stale runtime is cleaned up as best effort
+- stale tenant Caddy site files are removed as best effort
+- tenant becomes `failed`
+- provisioning job becomes `failed`
+- `error_message` is stored
 
-## 13. Docker Runtime Control
+## 13. Infrastructure Runner Architecture
 
-The Docker control seam is:
+### 13.1 Contract
 
 - [app/Contracts/DockerComposeRunner.php](/Users/gayanhewage/Projects/openclaw-saas/app/Contracts/DockerComposeRunner.php)
 
-Current implementation:
+Responsibilities:
+
+- sync runtime files to a target server
+- run Docker Compose commands
+- probe server port usage
+- check readiness
+
+### 13.2 Local Runner
 
 - [app/Services/LocalDockerComposeRunner.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/LocalDockerComposeRunner.php)
 
-Supported operations:
+Used when:
 
-- `up`
-- `down`
-- `start`
-- `stop`
-- `isRunning`
-- `isHostPortInUse`
+- `SYNC360_INFRASTRUCTURE_DRIVER=local`
 
-Current implementation details:
+Behavior:
 
-- uses `docker-compose`
-- executes locally from the Laravel environment
-- assumes access to the Docker socket
-- probes ports using a configured host
+- no runtime sync step
+- uses local Docker Compose
+- checks readiness locally
 
-This is explicitly local-host oriented and is not yet remote-server orchestration.
+### 13.3 SSH Runner
 
-## 14. Runtime Filesystem Layout
+- [app/Services/SshDockerComposeRunner.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/SshDockerComposeRunner.php)
 
-Each tenant runtime is generated under:
+Used when:
+
+- `SYNC360_INFRASTRUCTURE_DRIVER=ssh`
+
+Behavior:
+
+- creates remote runtime directory over SSH
+- copies runtime staging to the assigned client VPS over SCP
+- supports both key-based auth and temporary password-based auth via `sshpass`
+- resolves SSH and sudo passwords from env-only secret keys referenced by the `Server` record
+- uploads or removes remote files such as tenant Caddy site configs
+- runs privileged remote commands through `sudo -S` when needed
+- runs Docker Compose remotely over SSH
+- probes ports remotely using `ss`
+- checks readiness remotely using `curl`
+
+## 14. Runtime Filesystem Model
+
+### 14.1 Local Staging Path
+
+Generated under:
 
 ```text
 runtime/tenants/<tenant-slug>/
 ```
 
-The runtime contains:
+Contents:
 
 ```text
 .env
@@ -492,296 +511,340 @@ logs/
 workspace/
 ```
 
-Template source:
+### 14.2 Remote Runtime Path
+
+Derived from the assigned server:
 
 ```text
-templates/tenant/
+<server.runtime_root>/tenants/<tenant-slug>/
 ```
 
-Runtime generation is destructive and recreates the tenant runtime path on reprovision.
+The database `runtime_path` now stores the remote runtime path, not the local staging path.
+
+### 14.3 Client VPS Filesystem Roles
+
+For the validated client-VPS shape on `89.116.28.191`:
+
+- tenant runtimes live under `/srv/sync360/runtime/tenants/<slug>/`
+- tenant Caddy site files live under `/etc/caddy/sites/<slug>.caddy`
+- Caddy imports `/etc/caddy/sites/*.caddy` from the main Caddyfile
+
+This means the provisioning system owns both:
+
+- the tenant runtime directory
+- the reverse-proxy route definition for the tenant hostname
 
 ## 15. Workspace URL Model
 
-Current workspace URLs are generated from the assigned port:
+Workspace URLs are generated from the assigned `Server`.
+
+Rules:
 
 ```text
-http://localhost:<assigned_port>
+if workspace_base_domain is present:
+  <scheme>://<tenant-slug>.<workspace_base_domain>
+
+otherwise:
+  <scheme>://<server.host>:<assigned_port>
 ```
 
-This is suitable for local architecture validation only.
+This supports:
 
-The customer-facing app also exposes an internal placeholder route:
+- wildcard subdomain routing such as `tenant.workspace.sync360.co.nz`
+- host-and-port routing during infrastructure testing
+
+In the current validated deployment model:
+
+- `workspace_scheme = https`
+- `workspace_base_domain = workspace.sync360.co.nz`
+- URLs therefore resolve to `https://<tenant-slug>.workspace.sync360.co.nz`
+
+The internal placeholder route still exists:
 
 ```text
 /workspace/{tenant:slug}
 ```
 
-That route allows a fully clickable local MVP even when the true public tenant runtime model is not yet implemented.
+## 16. Admin And Operational Controls
 
-## 16. Admin and Super Admin Architecture
-
-Admin functionality is handled in:
+Handled in:
 
 - [app/Http/Controllers/AdminController.php](/Users/gayanhewage/Projects/openclaw-saas/app/Http/Controllers/AdminController.php)
 
-Current admin capabilities:
+Capabilities:
 
-- dashboard overview
-- list users
-- list tenants
-- list provisioning jobs
-- inspect latest provisioning state
-- see assigned ports
-- see workspace URLs
-- see runtime paths
-- see error messages
-- retry tenant provisioning
-- start a provisioned workspace
-- stop a provisioned workspace
+- admin overview
+- users list
+- tenants list
+- jobs list
+- retry failed provisioning
+- start remote tenant workspace
+- stop remote tenant workspace
+- inspect workspace state
+- inspect client VPS assignment
+- inspect runtime paths and workspace URLs
+- inspect provisioning errors
 
-Admin dashboard metrics include:
+## 17. Configuration Surface
 
-- total users
-- total tenants
-- queued jobs
-- running jobs
-- completed jobs
-- failed jobs
-- pending tenants
-- ready tenants
-- failed tenants
+Primary configuration file:
 
-Current access model:
+- [config/sync360.php](/Users/gayanhewage/Projects/openclaw-saas/config/sync360.php)
 
-- authenticated user required
-- must be local environment
-- must have `is_admin = true`
+Important groups:
 
-## 17. Current UI Architecture
+- `admin_local_only`
+- `infrastructure.driver`
+- SSH timeout settings
+- SSH/SCP/sshpass binary settings
+- local runtime root
+- template root
+- port range
+- provisioning driver
+- OpenClaw image and compose config
+- public workspace readiness polling
 
-The UI is Blade-first.
+Default environment values live in:
 
-Key view areas:
+- [.env.example](/Users/gayanhewage/Projects/openclaw-saas/.env.example)
 
-- public landing page
-- login and signup flows
-- customer dashboard
-- tenant setup/progress page with polling
-- workspace-ready page
-- placeholder workspace view
-- admin views
+Important deployment env keys now include:
 
-Important layouts:
+- `SYNC360_INFRASTRUCTURE_DRIVER=ssh`
+- `SYNC360_CLIENT_VPS_SSH_PASSWORD`
+- `SYNC360_CLIENT_VPS_SUDO_PASSWORD`
+- `SYNC360_DEFAULT_SERVER_SSH_AUTH_MODE=password`
+- `SYNC360_DEFAULT_SERVER_SSH_PASSWORD_ENV_KEY`
+- `SYNC360_DEFAULT_SERVER_SUDO_PASSWORD_ENV_KEY`
+- `SYNC360_DEFAULT_SERVER_CADDY_SITES_PATH`
+- `SYNC360_DEFAULT_SERVER_CADDY_RELOAD_COMMAND`
 
-- guest layout for public/auth pages
-- app/admin layouts for authenticated areas
+These secrets are intentionally env-only and are not stored in git or in the database.
 
-Recent UI work includes:
+## 18. Docker Compose Development Stack
 
-- Sprint 3 customer-facing dashboard cleanup
-- Sprint 4 landing redesign
-- login/signup visual cleanup
-- workspace-style hero product preview
+Defined in [docker-compose.yml](/Users/gayanhewage/Projects/openclaw-saas/docker-compose.yml).
 
-## 18. Docker Compose Topology
+Local services:
 
-Current local Docker topology is defined in [docker-compose.yml](/Users/gayanhewage/Projects/openclaw-saas/docker-compose.yml).
+- `app`
+- `worker`
+- `postgres`
+- `redis`
 
-### 18.1 app
+The local stack still mounts the Docker socket so local infrastructure mode continues to work in development.
 
-Responsibilities:
+## 19. Client VPS Bootstrap Flow
 
-- serve Laravel web app
-- run migrations and seed startup dependencies when needed
-- expose app on port `8000`
-- mount project source
-- mount Docker socket for admin workspace start/stop controls
+The app now includes a one-time bootstrap command for preparing a fresh client VPS:
 
-### 18.2 worker
+- command: `php artisan sync360:bootstrap-client-vps {serverSelector?}`
 
-Responsibilities:
+Current bootstrap responsibilities:
 
-- run `php artisan queue:work redis`
-- execute tenant provisioning jobs
-- mount project source
-- mount Docker socket for tenant runtime orchestration
+- install Caddy using the official apt repository when it is missing
+- create `/srv/sync360/runtime` and `/srv/sync360/runtime/tenants`
+- create `/etc/caddy/sites`
+- ensure the `deploy` user can work with the runtime directories
+- add `import /etc/caddy/sites/*.caddy` to the main Caddyfile if needed
+- enable and reload Caddy
+- verify remote `docker compose` availability
 
-### 18.3 postgres
+This command is part of the deployment architecture because provisioning assumes the target server already has:
 
-Responsibilities:
-
-- persistent relational storage
-
-### 18.4 redis
-
-Responsibilities:
-
-- queue transport
-
-## 19. Service Boot Process
-
-Container startup scripts perform environment bootstrap tasks such as:
-
-- waiting for database and Redis
-- installing PHP dependencies if needed
-- running migrations
-- seeding initial records
-- starting the appropriate service role
-
-This keeps first-run setup simple in local development.
+- Docker installed
+- Caddy installed and enabled
+- the runtime root available
+- tenant site import support enabled in Caddy
 
 ## 20. Seed Data
 
-Current seed behavior includes:
+Seeding creates:
 
-- default `Server` record for local development
-- default super admin user
+- the default super admin user
+- the default server record based on environment variables
 
-Default super admin credentials:
+Default admin:
 
 - email: `admin@sync360.local`
 - password: `admin12345`
 
-## 21. Configuration Surface
-
-Provisioning behavior is controlled in [config/sync360.php](/Users/gayanhewage/Projects/openclaw-saas/config/sync360.php).
-
-Important configuration groups:
-
-- host project root mapping
-- host port probe settings
-- tenant runtime root
-- tenant template root
-- tenant port range
-- active provisioning driver
-- fake delay
-- OpenClaw image and service names
-- compose filename
-- OpenClaw internal port
-- readiness path
-- readiness probe host
-- readiness timeout
-- compose command timeout
-
-Local defaults live in [.env.example](/Users/gayanhewage/Projects/openclaw-saas/.env.example).
-
-## 22. Request and Provisioning Sequence
+## 21. Request And Provisioning Sequence
 
 ```mermaid
 sequenceDiagram
-    participant U as User
+    participant USER as User
     participant WEB as Laravel Web App
     participant DB as PostgreSQL
-    participant REDIS as Redis Queue
+    participant REDIS as Redis
     participant WORKER as Queue Worker
+    participant SERVER as ServerPlacementService
     participant RT as TenantRuntimeService
-    participant DOCKER as Docker Compose Runner
-    participant OC as OpenClaw Container
+    participant RUNNER as Infrastructure Runner
+    participant VPS as Client VPS
+    participant CADDY as Caddy
+    participant OC as OpenClaw
 
-    U->>WEB: Submit signup form
+    USER->>WEB: Submit signup form
+    WEB->>SERVER: Select active client VPS
     WEB->>DB: Create user
-    WEB->>DB: Create tenant
+    WEB->>DB: Create tenant with server_id
     WEB->>DB: Create provisioning job
+    WEB->>DB: Increment server current_clients
     WEB->>REDIS: Dispatch provisioning job
-    WEB-->>U: Redirect to /tenant/setup
+    WEB-->>USER: Redirect to /tenant/setup
 
     WORKER->>DB: Load tenant and provisioning job
-    WORKER->>RT: Allocate port and prepare runtime
-    RT->>DB: Persist runtime metadata via tenant updates
-    WORKER->>DOCKER: docker-compose down
-    WORKER->>DOCKER: docker-compose up -d
-    DOCKER->>OC: Start per-tenant OpenClaw container
-    WORKER->>OC: Poll readiness endpoint
+    WORKER->>RT: Allocate port and prepare local runtime staging
+    RT-->>WORKER: Local staging path + remote runtime path + workspace URL
+    WORKER->>RUNNER: Remove stale tenant runtime and stale Caddy site
+    WORKER->>RUNNER: Sync runtime to assigned server
+    WORKER->>RUNNER: Install tenant Caddy site
+    WORKER->>RUNNER: Reload Caddy
+    RUNNER->>CADDY: Publish https://<slug>.workspace.sync360.co.nz
+    WORKER->>RUNNER: Remote docker compose up
+    RUNNER->>VPS: Start tenant runtime
+    VPS->>OC: Launch OpenClaw container
+    WORKER->>RUNNER: Probe http://127.0.0.1:<port>/readyz remotely
+    WORKER->>CADDY: Probe public HTTPS hostname
     WORKER->>DB: Mark tenant ready
     WORKER->>DB: Mark provisioning job completed
-    U->>WEB: Poll /tenant/status
-    WEB-->>U: Ready response and workspace URL
 ```
+
+## 22. Deployment Topology
+
+### 22.1 Control Plane
+
+Intended production endpoint:
+
+- `https://app.sync360.co.nz`
+
+Intended production host:
+
+- `161.97.74.128`
+
+Responsibilities:
+
+- Laravel web app
+- queue worker
+- PostgreSQL
+- Redis
+- tenant signup and admin/debug UI
+- tenant placement and remote provisioning orchestration
+
+### 22.2 Client Runtime Plane
+
+Validated first runtime host:
+
+- `89.116.28.191`
+
+Responsibilities:
+
+- tenant runtime directory root
+- per-tenant OpenClaw containers
+- Caddy reverse proxy
+- public HTTPS termination for `*.workspace.sync360.co.nz`
+
+### 22.3 Trust And Secret Model
+
+Current validated access model:
+
+- remote access user: `deploy`
+- transport: password-auth SSH
+- privilege escalation: passworded `sudo`
+- password lookup: env-only secrets on the control-plane worker
+
+This is explicitly temporary. The next hardening step is:
+
+- replace password auth with SSH keys
+- update the `Server` record to use `ssh_auth_mode=key`
+- remove password env keys from the worker environment
 
 ## 23. Test Coverage
 
-Current test suite covers:
+Current feature coverage includes:
 
 - landing page CTA rendering
-- signup creation of user, tenant, and provisioning job
+- signup creation of user, tenant, server assignment, and job
 - duplicate email validation
+- graceful signup failure when no client VPS is available
 - local provisioning success
 - OpenClaw provisioning success
+- OpenClaw readiness failure handling
 - runtime file generation
-- provisioning failure path
-- OpenClaw readiness failure path
-- setup/ready state behavior
-- admin retry flow
 - admin access restrictions
+- admin retry flow
 - admin workspace controls
+ - password-auth SSH runner behavior
+ - public hostname readiness failure handling
 
-## 24. Key Architectural Strengths
+## 24. Architectural Strengths
 
 - standard Laravel structure
-- simple and understandable control-plane flow
-- provisioning isolated behind contracts
-- runtime generation isolated in a dedicated service
-- queue-based async provisioning
-- support for both fake and real runtime provisioning paths
-- admin visibility into provisioning and runtime state
-- good seam for future remote orchestration work
+- queue-driven provisioning
+- clean separation between web, provisioning, and infrastructure concerns
+- server-aware tenant placement
+- local and SSH infrastructure modes behind one contract
+- staging runtime generation isolated in one service
+- OpenClaw provisioning isolated behind one provisioner
+- admin visibility into provisioning and workspace state
+ - validated remote deployment path to a real client VPS
 
 ## 25. Current Architectural Limits
 
-The current architecture is still local-first and has important limitations.
+The app is now VPS-ready at the control-plane level, but some operational concerns are still external or intentionally lightweight.
 
-### 25.1 Not Yet VPS-Ready
+### 25.1 DNS Automation Is External
 
-The current implementation still assumes:
+The app now automates tenant Caddy route installation and reloads on the client VPS, but it still does not automate:
 
-- local Docker daemon access from Laravel containers
-- `docker-compose` running on the same machine
-- `localhost`-based tenant URLs
-- local bind-mounted runtime paths
-- readiness probing via local-style host assumptions
+- wildcard DNS creation
+- DNS record updates across providers
 
-### 25.2 DNS and Reverse Proxy Not Implemented
+Caddy can obtain and serve TLS automatically once DNS is already pointing to the client VPS.
 
-There is no built-in support yet for:
+### 25.2 Server Scheduling Is Basic
 
-- wildcard tenant subdomains
-- server-aware workspace URL generation
-- per-server reverse proxy routing
-- TLS automation
-- remote DNS management
+Current server selection is intentionally simple:
 
-### 25.3 Servers Table Not Operational Yet
+- active server only
+- least-loaded by `current_clients`
+- hard capacity check against `max_clients`
 
-The `servers` table exists, but it is not yet part of tenant scheduling or placement logic.
+It does not yet support:
 
-### 25.4 Security Model Is MVP-Level
+- health-based failover
+- draining or maintenance windows
+- regional placement
+- auto-rebalancing
 
-Current admin and auth behavior is suitable for local development and staged internal testing, not final production hardening.
+### 25.3 Password Auth Is Temporary
 
-## 26. Planned Evolution Path
+The current validated deployment uses password-auth SSH plus `sudo -S`.
 
-The existing seams suggest this likely next step:
+That is appropriate for controlled staged testing, but not the final hardened production posture.
 
-1. Keep Laravel control app on a primary server.
-2. Add remote server targeting through `servers`.
-3. Introduce a remote Docker or SSH runner implementation.
-4. Generate real public workspace URLs instead of `localhost`.
-5. Route tenant traffic by hostname instead of raw ports.
-6. Use a wildcard subdomain and reverse proxy for tenant workspaces.
+The next security step is key-based SSH with restricted sudo policy.
 
-This future work should replace the infrastructure control layer without forcing a major rewrite of the web application itself.
+### 25.4 Long First Pulls Are Expected
 
-## 27. Summary
+The first OpenClaw deployment to a fresh client VPS can take several minutes because the `ghcr.io/openclaw/openclaw:latest` image is large.
+
+The runner now uses the longer OpenClaw compose timeout to accommodate that first pull.
+
+## 26. Summary
 
 Today’s Sync360 Control App is:
 
 - a Laravel control-plane MVP
-- local-first
 - queue-driven
 - Blade-based
-- Redis-backed for async provisioning
 - PostgreSQL-backed for state
-- capable of launching one OpenClaw gateway container per tenant on the local host
-- equipped with an admin surface for inspection and local operational control
+- Redis-backed for async provisioning
+- capable of assigning tenants to client VPS servers
+- capable of provisioning OpenClaw containers locally or remotely over SSH
+- capable of generating server-aware workspace URLs
+- equipped with super-admin inspection and workspace control tools
+- able to bootstrap and provision the first client VPS deployment architecture
 
-It is a solid prototype architecture for validating the tenant signup-to-provisioning loop, while still needing a dedicated remote orchestration layer before serious VPS deployment.
+It is now ready for the intended primary-server plus client-VPS deployment architecture at the application layer, with DNS automation, SSH key hardening, and broader production hardening left as the next operational steps.

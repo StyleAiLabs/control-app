@@ -7,6 +7,7 @@ use App\Contracts\TenantProvisioner;
 use App\Services\LocalDockerComposeRunner;
 use App\Services\LocalTenantProvisioningService;
 use App\Services\OpenClawProvisioner;
+use App\Services\SshDockerComposeRunner;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
 
@@ -17,7 +18,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(DockerComposeRunner::class, LocalDockerComposeRunner::class);
+        $this->app->singleton(DockerComposeRunner::class, function ($app) {
+            return match (config('sync360.infrastructure.driver', 'local')) {
+                'local' => $app->make(LocalDockerComposeRunner::class),
+                'ssh' => $app->make(SshDockerComposeRunner::class),
+                default => throw new InvalidArgumentException('Unsupported infrastructure driver configured.'),
+            };
+        });
 
         $this->app->bind(TenantProvisioner::class, function ($app) {
             return match (config('sync360.provisioning.driver', 'openclaw')) {

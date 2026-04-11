@@ -10,14 +10,20 @@ use App\Jobs\ProcessTenantProvisioning;
 use App\Models\ProvisioningJob;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\ServerPlacementService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class RegisterController extends Controller
 {
+    public function __construct(private readonly ServerPlacementService $serverPlacement)
+    {
+    }
+
     public function create()
     {
         if (Auth::check()) {
@@ -43,37 +49,48 @@ class RegisterController extends Controller
         $tenant = null;
         $provisioningJob = null;
 
-        DB::transaction(function () use ($validated, &$user, &$tenant, &$provisioningJob): void {
-            $user = User::query()->create([
-                'name' => $validated['contact_name'],
-                'email' => $validated['email'],
-                'phone' => $validated['phone'] ?? null,
-                'password' => $validated['password'],
-            ]);
+        try {
+            DB::transaction(function () use ($validated, &$user, &$tenant, &$provisioningJob): void {
+                $server = $this->serverPlacement->selectServer();
 
-            $tenant = Tenant::query()->create([
-                'tenant_id' => (string) Str::ulid(),
-                'slug' => $this->generateSlug($validated['business_name']),
-                'business_name' => $validated['business_name'],
-                'industry' => $validated['industry'],
-                'skill_pack' => $validated['skill_pack'],
-                'user_id' => $user->id,
-                'trial_status' => TrialStatus::Active,
-                'provisioning_status' => TenantProvisioningStatus::Pending,
-            ]);
-
-            $provisioningJob = ProvisioningJob::query()->create([
-                'tenant_id' => $tenant->id,
-                'job_type' => 'provision_tenant',
-                'status' => ProvisioningJobStatus::Queued,
-                'payload_json' => [
-                    'contact_name' => $validated['contact_name'],
+                $user = User::query()->create([
+                    'name' => $validated['contact_name'],
                     'email' => $validated['email'],
+                    'phone' => $validated['phone'] ?? null,
+                    'password' => $validated['password'],
+                ]);
+
+                $tenant = Tenant::query()->create([
+                    'tenant_id' => (string) Str::ulid(),
+                    'slug' => $this->generateSlug($validated['business_name']),
+                    'business_name' => $validated['business_name'],
                     'industry' => $validated['industry'],
                     'skill_pack' => $validated['skill_pack'],
-                ],
-            ]);
-        });
+                    'user_id' => $user->id,
+                    'server_id' => $server->id,
+                    'trial_status' => TrialStatus::Active,
+                    'provisioning_status' => TenantProvisioningStatus::Pending,
+                ]);
+
+                $provisioningJob = ProvisioningJob::query()->create([
+                    'tenant_id' => $tenant->id,
+                    'job_type' => 'provision_tenant',
+                    'status' => ProvisioningJobStatus::Queued,
+                    'payload_json' => [
+                        'contact_name' => $validated['contact_name'],
+                        'email' => $validated['email'],
+                        'industry' => $validated['industry'],
+                        'skill_pack' => $validated['skill_pack'],
+                    ],
+                ]);
+
+                $server->increment('current_clients');
+            });
+        } catch (RuntimeException $exception) {
+            return back()
+                ->withInput()
+                ->withErrors(['signup' => $exception->getMessage()]);
+        }
 
         Auth::login($user);
         $request->session()->regenerate();

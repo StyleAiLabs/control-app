@@ -13,6 +13,7 @@
                 <tr>
                     <th>Business</th>
                     <th>User</th>
+                    <th>Client VPS</th>
                     <th>Status</th>
                     <th>Workspace</th>
                     <th>Port</th>
@@ -36,6 +37,10 @@
                         <td>
                             {{ $tenant->user?->name }}<br>
                             <span class="hint">{{ $tenant->user?->email }}</span>
+                        </td>
+                        <td>
+                            {{ $tenant->server?->name ?? 'Unassigned' }}<br>
+                            <span class="hint">{{ $tenant->server?->host ?? '—' }}</span>
                         </td>
                         <td><span class="badge {{ $tenant->provisioning_status->value }}">{{ $tenant->provisioning_status->value }}</span></td>
                         <td><span class="badge {{ $workspaceState === 'running' ? 'ready' : ($workspaceState === 'stopped' ? 'pending' : 'failed') }}">{{ str_replace('_', ' ', $workspaceState) }}</span></td>
@@ -62,7 +67,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="9">No tenants found yet.</td>
+                        <td colspan="10">No tenants found yet.</td>
                     </tr>
                 @endforelse
             </tbody>

@@ -15,7 +15,9 @@ class EnsureLocalEnvironment
      */
     public function handle(Request $request, Closure $next): Response
     {
-        abort_unless(app()->environment(['local', 'testing']), 404);
+        if ((bool) config('sync360.admin_local_only', false)) {
+            abort_unless(app()->environment(['local', 'testing']), 404);
+        }
 
         return $next($request);
     }

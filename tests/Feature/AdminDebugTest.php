@@ -8,10 +8,10 @@ use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
 use App\Jobs\ProcessTenantProvisioning;
 use App\Models\ProvisioningJob;
+use App\Models\Server;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 use Mockery;
 use Tests\TestCase;
@@ -62,15 +62,13 @@ class AdminDebugTest extends TestCase
             'industry' => 'Retail',
             'skill_pack' => 'Client Support',
             'user_id' => $user->id,
+            'server_id' => Server::query()->firstOrFail()->id,
             'trial_status' => TrialStatus::Active,
             'provisioning_status' => TenantProvisioningStatus::Failed,
             'assigned_port' => 4101,
-            'workspace_url' => 'http://localhost:4101',
-            'runtime_path' => '/tmp/debug-shop',
+            'workspace_url' => 'https://debug-shop.workspace.test',
+            'runtime_path' => '/srv/sync360/runtime/tenants/debug-shop',
         ]);
-
-        File::ensureDirectoryExists('/tmp/debug-shop');
-        File::put('/tmp/debug-shop/compose.yaml', 'services: {}');
 
         $job = ProvisioningJob::query()->create([
             'tenant_id' => $tenant->id,
@@ -82,15 +80,15 @@ class AdminDebugTest extends TestCase
         $runner = Mockery::mock(DockerComposeRunner::class);
         $runner->shouldReceive('isRunning')
             ->once()
-            ->with('/tmp/debug-shop/compose.yaml', 'sync360-debug-shop')
+            ->withArgs(fn (Server $server, string $composeFile, string $projectName): bool => $server->name === 'test-vps' && $composeFile === '/srv/sync360/runtime/tenants/debug-shop/compose.yaml' && $projectName === 'sync360-debug-shop')
             ->andReturnTrue();
         $runner->shouldReceive('start')
             ->once()
-            ->with('/tmp/debug-shop/compose.yaml', 'sync360-debug-shop')
+            ->withArgs(fn (Server $server, string $composeFile, string $projectName): bool => $server->name === 'test-vps' && $composeFile === '/srv/sync360/runtime/tenants/debug-shop/compose.yaml' && $projectName === 'sync360-debug-shop')
             ->andReturnNull();
         $runner->shouldReceive('stop')
             ->once()
-            ->with('/tmp/debug-shop/compose.yaml', 'sync360-debug-shop')
+            ->withArgs(fn (Server $server, string $composeFile, string $projectName): bool => $server->name === 'test-vps' && $composeFile === '/srv/sync360/runtime/tenants/debug-shop/compose.yaml' && $projectName === 'sync360-debug-shop')
             ->andReturnNull();
 
         $this->instance(DockerComposeRunner::class, $runner);
@@ -139,7 +137,5 @@ class AdminDebugTest extends TestCase
             return $queuedJob->tenantId === $tenant->id
                 && $queuedJob->provisioningJobId === $retriedJob->id;
         });
-
-        File::deleteDirectory('/tmp/debug-shop');
     }
 }

@@ -8,6 +8,7 @@ use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
 use App\Jobs\ProcessTenantProvisioning;
 use App\Models\ProvisioningJob;
+use App\Models\Server;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -23,18 +24,49 @@ class OpenClawProvisionerTest extends TestCase
     public function test_openclaw_provisioning_writes_runtime_and_marks_tenant_ready(): void
     {
         config()->set('sync360.provisioning.driver', 'openclaw');
-
         Http::fake([
-            'http://localhost:4100/readyz' => Http::response(['status' => 'ok'], 200),
+            'https://acme-plumbing.workspace.test/readyz' => Http::response(['ok' => true], 200),
         ]);
 
         $runner = Mockery::mock(DockerComposeRunner::class);
-        $runner->shouldReceive('isHostPortInUse')->once()->with(4100)->andReturnFalse();
+        $runner->shouldReceive('isHostPortInUse')
+            ->once()
+            ->withArgs(fn (Server $server, int $port): bool => $server->name === 'test-vps' && $port === 4100)
+            ->andReturnFalse();
+        $runner->shouldReceive('down')
+            ->once()
+            ->withArgs(fn (Server $server, string $composeFile, string $projectName): bool => $server->name === 'test-vps' && $composeFile === '/srv/sync360/runtime/tenants/acme-plumbing/compose.yaml' && $projectName === 'sync360-acme-plumbing')
+            ->andReturnNull();
+        $runner->shouldReceive('syncRuntime')
+            ->once()
+            ->withArgs(fn (Server $server, string $localRuntimePath, string $remoteRuntimePath): bool => $server->name === 'test-vps' && str_contains($localRuntimePath, '/runtime/acme-plumbing') && $remoteRuntimePath === '/srv/sync360/runtime/tenants/acme-plumbing')
+            ->andReturnNull();
+        $runner->shouldReceive('putFile')
+            ->once()
+            ->withArgs(function (Server $server, string $remotePath, string $contents, bool $sudo): bool {
+                return $server->name === 'test-vps'
+                    && $remotePath === '/etc/caddy/sites/acme-plumbing.caddy'
+                    && str_contains($contents, 'acme-plumbing.workspace.test')
+                    && str_contains($contents, 'reverse_proxy 127.0.0.1:4100')
+                    && $sudo === true;
+            })
+            ->andReturnNull();
+        $runner->shouldReceive('runCommand')
+            ->once()
+            ->withArgs(fn (Server $server, string $command, bool $sudo): bool => $server->name === 'test-vps' && $command === 'systemctl reload caddy' && $sudo === true)
+            ->andReturnNull();
         $runner->shouldReceive('up')
             ->once()
-            ->withArgs(fn (string $composeFile, string $projectName): bool => str_ends_with($composeFile, '/compose.yaml') && $projectName === 'sync360-acme-plumbing')
+            ->withArgs(fn (Server $server, string $composeFile, string $projectName): bool => $server->name === 'test-vps' && $composeFile === '/srv/sync360/runtime/tenants/acme-plumbing/compose.yaml' && $projectName === 'sync360-acme-plumbing')
             ->andReturnNull();
-        $runner->shouldReceive('down')->once()->andReturnNull();
+        $runner->shouldReceive('waitForHttpReady')
+            ->once()
+            ->withArgs(fn (Server $server, string $url, int $timeoutSeconds, int $pollIntervalMs): bool => $server->name === 'test-vps' && $url === 'http://127.0.0.1:4100/readyz' && $timeoutSeconds === 1 && $pollIntervalMs === 100)
+            ->andReturnNull();
+        $runner->shouldReceive('removeFile')
+            ->once()
+            ->withArgs(fn (Server $server, string $remotePath, bool $sudo): bool => $server->name === 'test-vps' && $remotePath === '/etc/caddy/sites/acme-plumbing.caddy' && $sudo === true)
+            ->andReturnNull();
         $runner->shouldReceive('isRunning')->never();
         $runner->shouldReceive('start')->never();
         $runner->shouldReceive('stop')->never();
@@ -50,30 +82,37 @@ class OpenClawProvisionerTest extends TestCase
 
         $this->assertSame(TenantProvisioningStatus::Ready, $tenant->provisioning_status);
         $this->assertSame(ProvisioningJobStatus::Completed, $job->status);
-        $this->assertSame('http://localhost:4100', $tenant->workspace_url);
+        $this->assertSame('https://acme-plumbing.workspace.test', $tenant->workspace_url);
         $this->assertSame(4100, $tenant->assigned_port);
-        $this->assertNotNull($tenant->runtime_path);
-        $this->assertFileExists($tenant->runtime_path.'/.env');
-        $this->assertFileExists($tenant->runtime_path.'/config/openclaw.json');
-        $this->assertFileExists($tenant->runtime_path.'/compose.yaml');
+        $this->assertSame('/srv/sync360/runtime/tenants/acme-plumbing', $tenant->runtime_path);
+        $localRuntimePath = $this->testProvisioningBase.'/runtime/acme-plumbing';
+        $this->assertFileExists($localRuntimePath.'/.env');
+        $this->assertFileExists($localRuntimePath.'/config/openclaw.json');
+        $this->assertFileExists($localRuntimePath.'/config/workspace.caddy');
+        $this->assertFileExists($localRuntimePath.'/compose.yaml');
 
-        $this->assertStringContainsString('PROVISIONING_DRIVER=openclaw', (string) file_get_contents($tenant->runtime_path.'/.env'));
-        $this->assertStringContainsString('"mode": "local"', (string) file_get_contents($tenant->runtime_path.'/config/openclaw.json'));
-        $this->assertStringContainsString('ghcr.io/openclaw/openclaw:latest', (string) file_get_contents($tenant->runtime_path.'/compose.yaml'));
+        $this->assertStringContainsString('PROVISIONING_DRIVER=openclaw', (string) file_get_contents($localRuntimePath.'/.env'));
+        $this->assertStringContainsString('"mode": "local"', (string) file_get_contents($localRuntimePath.'/config/openclaw.json'));
+        $this->assertStringContainsString('acme-plumbing.workspace.test', (string) file_get_contents($localRuntimePath.'/config/workspace.caddy'));
+        $this->assertStringContainsString('ghcr.io/openclaw/openclaw:latest', (string) file_get_contents($localRuntimePath.'/compose.yaml'));
+        $this->assertStringContainsString('/srv/sync360/runtime/tenants/acme-plumbing', (string) file_get_contents($localRuntimePath.'/compose.yaml'));
     }
 
     public function test_openclaw_readiness_failure_marks_tenant_and_job_as_failed(): void
     {
         config()->set('sync360.provisioning.driver', 'openclaw');
 
-        Http::fake([
-            'http://localhost:4100/readyz' => Http::response(['status' => 'booting'], 503),
-        ]);
-
         $runner = Mockery::mock(DockerComposeRunner::class);
-        $runner->shouldReceive('isHostPortInUse')->once()->with(4100)->andReturnFalse();
-        $runner->shouldReceive('up')->once()->andReturnNull();
+        $runner->shouldReceive('isHostPortInUse')->once()->andReturnFalse();
         $runner->shouldReceive('down')->twice()->andReturnNull();
+        $runner->shouldReceive('syncRuntime')->once()->andReturnNull();
+        $runner->shouldReceive('putFile')->once()->andReturnNull();
+        $runner->shouldReceive('runCommand')->twice()->andReturnNull();
+        $runner->shouldReceive('up')->once()->andReturnNull();
+        $runner->shouldReceive('waitForHttpReady')
+            ->once()
+            ->andThrow(new RuntimeException('OpenClaw readiness check failed for [http://127.0.0.1:4100/readyz]. Last error: curl failed'));
+        $runner->shouldReceive('removeFile')->twice()->andReturnNull();
         $runner->shouldReceive('isRunning')->never();
         $runner->shouldReceive('start')->never();
         $runner->shouldReceive('stop')->never();
@@ -98,6 +137,46 @@ class OpenClawProvisionerTest extends TestCase
         $this->assertStringContainsString('OpenClaw readiness check failed', $job->error_message);
     }
 
+    public function test_public_workspace_failure_marks_tenant_and_job_as_failed(): void
+    {
+        config()->set('sync360.provisioning.driver', 'openclaw');
+        Http::fake([
+            'https://acme-plumbing.workspace.test/readyz' => Http::response('bad gateway', 502),
+        ]);
+
+        $runner = Mockery::mock(DockerComposeRunner::class);
+        $runner->shouldReceive('isHostPortInUse')->once()->andReturnFalse();
+        $runner->shouldReceive('down')->twice()->andReturnNull();
+        $runner->shouldReceive('syncRuntime')->once()->andReturnNull();
+        $runner->shouldReceive('putFile')->once()->andReturnNull();
+        $runner->shouldReceive('runCommand')->twice()->andReturnNull();
+        $runner->shouldReceive('up')->once()->andReturnNull();
+        $runner->shouldReceive('waitForHttpReady')->once()->andReturnNull();
+        $runner->shouldReceive('removeFile')->twice()->andReturnNull();
+        $runner->shouldReceive('isRunning')->never();
+        $runner->shouldReceive('start')->never();
+        $runner->shouldReceive('stop')->never();
+
+        $this->instance(DockerComposeRunner::class, $runner);
+
+        [, $tenant, $job] = $this->seedTenantAndJob();
+
+        try {
+            ProcessTenantProvisioning::dispatchSync($tenant->id, $job->id);
+            $this->fail('Provisioning should have thrown when the public hostname never became healthy.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('Public workspace readiness check failed', $exception->getMessage());
+        }
+
+        $tenant->refresh();
+        $job->refresh();
+
+        $this->assertSame(TenantProvisioningStatus::Failed, $tenant->provisioning_status);
+        $this->assertSame(ProvisioningJobStatus::Failed, $job->status);
+        $this->assertNotNull($job->error_message);
+        $this->assertStringContainsString('Public workspace readiness check failed', $job->error_message);
+    }
+
     private function seedTenantAndJob(): array
     {
         $user = User::query()->create([
@@ -113,6 +192,7 @@ class OpenClawProvisionerTest extends TestCase
             'industry' => 'Trades',
             'skill_pack' => 'Operations Core',
             'user_id' => $user->id,
+            'server_id' => Server::query()->firstOrFail()->id,
             'trial_status' => TrialStatus::Active,
             'provisioning_status' => TenantProvisioningStatus::Pending,
         ]);
