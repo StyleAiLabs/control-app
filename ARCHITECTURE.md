@@ -17,7 +17,8 @@ It currently validates this end-to-end flow:
 5. A queue worker provisions the tenant asynchronously.
 6. The tenant becomes `ready`.
 7. The user sees a workspace-ready screen with a generated workspace URL.
-8. A super admin can inspect tenants, jobs, and workspace state.
+8. The app can send a workspace-created email with login details after successful provisioning.
+9. A super admin can inspect tenants, jobs, workspace state, and trigger safe control-plane deployments.
 
 ## 2. Deployment Shapes
 
@@ -93,6 +94,7 @@ The intended deployment shape is:
 - Apache on the host terminates TLS for `app.sync360.co.nz`
 - Apache reverse proxies to the app container on `127.0.0.1:8000`
 - the worker still provisions client workspaces remotely over SSH using the current temporary password-auth model
+- the super-admin UI can trigger a safe host-side deploy script over SSH to update the control plane itself
 
 ## 3. High-Level Architecture
 
@@ -151,6 +153,7 @@ Responsibilities:
 - workspace-ready state
 - placeholder workspace route
 - super admin debug area
+- super-admin control-plane deploy trigger and deploy status view
 
 ### 5.2 Queue Layer
 
@@ -187,6 +190,18 @@ This layer now owns:
 - remote port probing
 - readiness polling
 
+The repository also now includes a separate control-plane deployment path:
+
+- `App\Services\ControlAppDeploymentService`
+- host-side script [deploy/scripts/run-control-app-deploy.sh](/Users/gayanhewage/Projects/openclaw-saas/deploy/scripts/run-control-app-deploy.sh)
+
+That path is intentionally separate from tenant provisioning:
+
+- it targets the primary control server, not a client VPS
+- it triggers a detached host-side deploy script over SSH
+- it reads back a deploy status file and recent log tail for the super-admin UI
+- it is intentionally separated from the tenant provisioning runner contract so the control plane does not need direct self-Docker control inside Laravel
+
 ## 6. Route Architecture
 
 Defined in [routes/web.php](/Users/gayanhewage/Projects/openclaw-saas/routes/web.php).
@@ -212,6 +227,7 @@ Defined in [routes/web.php](/Users/gayanhewage/Projects/openclaw-saas/routes/web
 - `/admin/users`
 - `/admin/tenants`
 - `/admin/jobs`
+- `POST /admin/deploy/control-app`
 - `POST /admin/jobs/{tenant}/retry`
 - `POST /admin/tenants/{tenant}/workspace/start`
 - `POST /admin/tenants/{tenant}/workspace/stop`
@@ -288,6 +304,7 @@ Important fields:
 Purpose:
 
 - record each provisioning attempt and its result
+- temporarily carry encrypted workspace-ready email credentials until a successful email send
 
 Important fields:
 
@@ -299,6 +316,13 @@ Important fields:
 - `error_message`
 - `started_at`
 - `completed_at`
+
+`payload_json` is also used for transient provisioning metadata such as:
+
+- signup context
+- retry context
+- encrypted initial password for the workspace-created email
+- workspace-ready email sent timestamp
 
 ### 8.4 Servers
 
@@ -393,10 +417,11 @@ On successful signup:
 3. Create the `User`.
 4. Create the `Tenant` with `server_id`.
 5. Create a queued `ProvisioningJob`.
-6. Increment the selected server’s `current_clients`.
-7. Log the user in.
-8. Dispatch `ProcessTenantProvisioning`.
-9. Redirect to `/tenant/setup`.
+6. Store workspace-ready email metadata in the job payload, including the login email and encrypted initial password.
+7. Increment the selected server’s `current_clients`.
+8. Log the user in.
+9. Dispatch `ProcessTenantProvisioning`.
+10. Redirect to `/tenant/setup`.
 
 If no client VPS is available, signup fails cleanly with a validation-style error instead of a `500`.
 
@@ -411,7 +436,10 @@ Responsibilities:
 - load tenant and provisioning job
 - resolve the active `TenantProvisioner`
 - call `provision($tenant, $provisioningJob)`
+- send the workspace-created email after successful provisioning when Brevo is enabled
 - mark tenant and job failed if provisioning throws
+
+The queue job does not mark a ready tenant as failed if the post-provisioning email send fails. Email failures are logged separately so provisioning success remains authoritative.
 
 ## 12. Provisioning Architecture
 
@@ -469,6 +497,7 @@ Current provisioning sequence:
 16. Poll the public HTTPS workspace hostname.
 17. Mark tenant `ready`.
 18. Mark provisioning job `completed`.
+19. Trigger the workspace-created email service after successful provisioning.
 
 On failure:
 
@@ -477,6 +506,41 @@ On failure:
 - tenant becomes `failed`
 - provisioning job becomes `failed`
 - `error_message` is stored
+
+Email-specific behavior:
+
+- the workspace-created email is sent only after the tenant is already ready
+- the initial password is stored encrypted in the provisioning job payload
+- after a successful send, the encrypted password is removed from the payload and a sent timestamp is stored
+- if the email provider call fails, the tenant remains `ready` and the failure is logged
+
+### 12.5 Workspace-Created Email
+
+- [app/Services/WorkspaceReadyEmailService.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/WorkspaceReadyEmailService.php)
+
+Purpose:
+
+- send the customer-facing confirmation that the workspace has been created
+- include workspace link, username, and initial password
+- keep initial credentials encrypted at rest until the email is sent successfully
+
+Current provider:
+
+- Brevo transactional email API via `POST /v3/smtp/email`
+
+Configuration:
+
+- `BREVO_ENABLED`
+- `BREVO_API_KEY`
+- `BREVO_BASE_URL`
+- `BREVO_SENDER_EMAIL` or `MAIL_FROM_ADDRESS`
+- `BREVO_SENDER_NAME` or `MAIL_FROM_NAME`
+
+Operational behavior:
+
+- email is skipped entirely if Brevo is not enabled or not configured
+- the sender address should be a verified Brevo sender
+- retry provisioning can carry forward the encrypted credentials so a tenant still receives the email after a retry succeeds
 
 ## 13. Infrastructure Runner Architecture
 

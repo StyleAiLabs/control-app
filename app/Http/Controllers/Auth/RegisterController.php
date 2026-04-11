@@ -11,6 +11,7 @@ use App\Models\ProvisioningJob;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\ServerPlacementService;
+use App\Services\WorkspaceReadyEmailService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,9 +21,10 @@ use RuntimeException;
 
 class RegisterController extends Controller
 {
-    public function __construct(private readonly ServerPlacementService $serverPlacement)
-    {
-    }
+    public function __construct(
+        private readonly ServerPlacementService $serverPlacement,
+        private readonly WorkspaceReadyEmailService $workspaceReadyEmail,
+    ) {}
 
     public function create()
     {
@@ -76,12 +78,12 @@ class RegisterController extends Controller
                     'tenant_id' => $tenant->id,
                     'job_type' => 'provision_tenant',
                     'status' => ProvisioningJobStatus::Queued,
-                    'payload_json' => [
+                    'payload_json' => $this->workspaceReadyEmail->withProvisioningCredentials([
                         'contact_name' => $validated['contact_name'],
                         'email' => $validated['email'],
                         'industry' => $validated['industry'],
                         'skill_pack' => $validated['skill_pack'],
-                    ],
+                    ], $validated['email'], $validated['password']),
                 ]);
 
                 $server->increment('current_clients');

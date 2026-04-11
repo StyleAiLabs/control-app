@@ -9,6 +9,8 @@ use App\Jobs\ProcessTenantProvisioning;
 use App\Models\ProvisioningJob;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\ControlAppDeploymentService;
+use App\Services\WorkspaceReadyEmailService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Str;
@@ -17,9 +19,11 @@ use Throwable;
 
 class AdminController extends Controller
 {
-    public function __construct(private readonly DockerComposeRunner $dockerCompose)
-    {
-    }
+    public function __construct(
+        private readonly DockerComposeRunner $dockerCompose,
+        private readonly ControlAppDeploymentService $controlAppDeployment,
+        private readonly WorkspaceReadyEmailService $workspaceReadyEmail,
+    ) {}
 
     public function index(): View
     {
@@ -37,6 +41,7 @@ class AdminController extends Controller
                 'ready' => Tenant::query()->where('provisioning_status', 'ready')->count(),
                 'failed' => Tenant::query()->where('provisioning_status', 'failed')->count(),
             ],
+            'controlAppDeployStatus' => $this->controlAppDeployment->status(),
         ]);
     }
 
@@ -82,6 +87,8 @@ class AdminController extends Controller
 
     public function retry(Tenant $tenant): RedirectResponse
     {
+        $previousJob = $tenant->provisioningJobs()->latest('id')->first();
+
         $tenant->forceFill([
             'provisioning_status' => TenantProvisioningStatus::Pending,
             'assigned_port' => null,
@@ -93,10 +100,10 @@ class AdminController extends Controller
             'tenant_id' => $tenant->id,
             'job_type' => 'provision_tenant',
             'status' => ProvisioningJobStatus::Queued,
-            'payload_json' => [
+            'payload_json' => $this->workspaceReadyEmail->carryForwardCredentials([
                 'retried_from_admin' => true,
                 'requested_at' => now()->toIso8601String(),
-            ],
+            ], $previousJob, $tenant->user?->email),
         ]);
 
         ProcessTenantProvisioning::dispatch($tenant->id, $job->id)->afterCommit();
@@ -126,6 +133,17 @@ class AdminController extends Controller
         }
 
         return back()->with('status', 'Workspace container stop requested.');
+    }
+
+    public function triggerControlAppDeploy(): RedirectResponse
+    {
+        try {
+            $pid = $this->controlAppDeployment->trigger();
+        } catch (Throwable $exception) {
+            return back()->with('status', $exception->getMessage());
+        }
+
+        return back()->with('status', sprintf('Control app deploy started. Remote process id: %s', $pid));
     }
 
     private function workspaceStateFor(Tenant $tenant): string

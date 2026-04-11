@@ -7,6 +7,7 @@ use App\Enums\ProvisioningJobStatus;
 use App\Enums\TenantProvisioningStatus;
 use App\Models\ProvisioningJob;
 use App\Models\Tenant;
+use App\Services\WorkspaceReadyEmailService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
@@ -30,13 +31,14 @@ class ProcessTenantProvisioning implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(TenantProvisioner $provisioner): void
+    public function handle(TenantProvisioner $provisioner, WorkspaceReadyEmailService $workspaceReadyEmail): void
     {
         $tenant = Tenant::query()->findOrFail($this->tenantId);
         $provisioningJob = ProvisioningJob::query()->findOrFail($this->provisioningJobId);
 
         try {
             $provisioner->provision($tenant, $provisioningJob);
+            $workspaceReadyEmail->sendWorkspaceReadyEmail($tenant->fresh('user'), $provisioningJob->fresh());
         } catch (Throwable $exception) {
             $this->markAsFailed($tenant, $provisioningJob, $exception);
 

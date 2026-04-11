@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    'brevo' => [
+        'enabled' => (bool) env('BREVO_ENABLED', false),
+        'base_url' => env('BREVO_BASE_URL', 'https://api.brevo.com/v3'),
+        'key' => env('BREVO_API_KEY'),
+        'sender_email' => env('BREVO_SENDER_EMAIL', env('MAIL_FROM_ADDRESS')),
+        'sender_name' => env('BREVO_SENDER_NAME', env('MAIL_FROM_NAME', env('APP_NAME', 'Sync360 Control App'))),
+    ],
+
 ];

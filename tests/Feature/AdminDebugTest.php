@@ -11,6 +11,7 @@ use App\Models\ProvisioningJob;
 use App\Models\Server;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\ControlAppDeploymentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Mockery;
@@ -35,6 +36,7 @@ class AdminDebugTest extends TestCase
         $this->get('/admin/users')->assertForbidden();
         $this->get('/admin/tenants')->assertForbidden();
         $this->get('/admin/jobs')->assertForbidden();
+        $this->post('/admin/deploy/control-app')->assertForbidden();
     }
 
     public function test_admin_pages_list_users_tenants_jobs_and_allow_retry(): void
@@ -91,13 +93,35 @@ class AdminDebugTest extends TestCase
             ->withArgs(fn (Server $server, string $composeFile, string $projectName): bool => $server->name === 'test-vps' && $composeFile === '/srv/sync360/runtime/tenants/debug-shop/compose.yaml' && $projectName === 'sync360-debug-shop')
             ->andReturnNull();
 
+        $deployService = Mockery::mock(ControlAppDeploymentService::class);
+        $deployService->shouldReceive('status')
+            ->once()
+            ->andReturn([
+                'enabled' => true,
+                'configured' => true,
+                'host' => '161.97.74.128',
+                'user' => 'deploy',
+                'branch' => 'codex/control-app-prod-deploy',
+                'state' => 'idle',
+                'started_at' => null,
+                'finished_at' => null,
+                'message' => 'Ready to deploy.',
+                'log_tail' => '',
+            ]);
+        $deployService->shouldReceive('trigger')
+            ->once()
+            ->andReturn('12345');
+
         $this->instance(DockerComposeRunner::class, $runner);
+        $this->instance(ControlAppDeploymentService::class, $deployService);
 
         $this->actingAs($admin);
 
         $this->get('/admin')
             ->assertOk()
-            ->assertSee('Admin Overview');
+            ->assertSee('Admin Overview')
+            ->assertSee('Control App Deploy')
+            ->assertSee('codex/control-app-prod-deploy');
 
         $this->get('/admin/users')
             ->assertOk()
@@ -137,5 +161,9 @@ class AdminDebugTest extends TestCase
             return $queuedJob->tenantId === $tenant->id
                 && $queuedJob->provisioningJobId === $retriedJob->id;
         });
+
+        $this->post(route('admin.deploy.control-app'))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Control app deploy started. Remote process id: 12345');
     }
 }

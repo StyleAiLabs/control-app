@@ -10,6 +10,7 @@ use App\Models\ProvisioningJob;
 use App\Models\Server;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\WorkspaceReadyEmailService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -61,6 +62,8 @@ class SignupFlowTest extends TestCase
         $this->assertSame(TenantProvisioningStatus::Pending, $tenant->provisioning_status);
         $this->assertSame(ProvisioningJobStatus::Queued, $job->status);
         $this->assertSame(1, Server::query()->firstOrFail()->current_clients);
+        $this->assertSame('alice@example.com', $job->payload_json[WorkspaceReadyEmailService::PAYLOAD_LOGIN_EMAIL] ?? null);
+        $this->assertIsString($job->payload_json[WorkspaceReadyEmailService::PAYLOAD_PASSWORD_ENCRYPTED] ?? null);
 
         Queue::assertPushed(ProcessTenantProvisioning::class, function (ProcessTenantProvisioning $queuedJob) use ($tenant, $job): bool {
             return $queuedJob->tenantId === $tenant->id

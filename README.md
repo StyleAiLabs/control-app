@@ -122,6 +122,41 @@ docker compose -f docker-compose.prod.yml exec app php artisan sync360:bootstrap
   - `SYNC360_CLIENT_VPS_SUDO_PASSWORD`
 - the production stack only binds Laravel to `127.0.0.1:8000`, so Apache remains the public entrypoint.
 
+### Super Admin Deploy Button
+
+The admin overview can now trigger a safe control-app deployment on the primary server.
+
+This works by:
+
+- SSHing from Laravel to the primary server
+- starting the host-side script [deploy/scripts/run-control-app-deploy.sh](/Users/gayanhewage/Projects/openclaw-saas/deploy/scripts/run-control-app-deploy.sh)
+- letting that script run `git fetch`, `git pull`, and `docker compose -f docker-compose.prod.yml up --build -d`
+- reading back the last deploy state and recent log output inside `/admin`
+
+Required env values:
+
+- `SYNC360_CONTROL_DEPLOY_ENABLED`
+- `SYNC360_CONTROL_DEPLOY_SSH_HOST`
+- `SYNC360_CONTROL_DEPLOY_SSH_PORT`
+- `SYNC360_CONTROL_DEPLOY_SSH_USER`
+- `SYNC360_CONTROL_DEPLOY_SSH_AUTH_MODE`
+- `SYNC360_CONTROL_DEPLOY_SSH_PASSWORD_ENV_KEY`
+- `SYNC360_CONTROL_SERVER_SSH_PASSWORD`
+- `SYNC360_CONTROL_DEPLOY_REPO_PATH`
+- `SYNC360_CONTROL_DEPLOY_BRANCH`
+- `SYNC360_CONTROL_DEPLOY_COMPOSE_FILE`
+- `SYNC360_CONTROL_DEPLOY_SCRIPT_PATH`
+- `SYNC360_CONTROL_DEPLOY_STATUS_FILE`
+- `SYNC360_CONTROL_DEPLOY_LOG_FILE`
+
+The deploy user on the primary server should:
+
+- own the repo checkout
+- be able to run `git pull`
+- have Docker access without sudo
+
+This is intentionally safer than letting the web app control its own Docker daemon directly.
+
 ## Local Setup
 
 1. Copy the environment file:
@@ -252,10 +287,39 @@ If you do not have wildcard DNS and reverse proxying ready yet, the app can stil
 - `SYNC360_SCP_TIMEOUT_SECONDS=120`
 - `SYNC360_CLIENT_VPS_SSH_PASSWORD`
 - `SYNC360_CLIENT_VPS_SUDO_PASSWORD`
+- `SYNC360_CONTROL_DEPLOY_ENABLED`
+- `SYNC360_CONTROL_DEPLOY_SSH_HOST`
+- `SYNC360_CONTROL_DEPLOY_SSH_PORT`
+- `SYNC360_CONTROL_DEPLOY_SSH_USER`
+- `SYNC360_CONTROL_DEPLOY_SSH_AUTH_MODE`
+- `SYNC360_CONTROL_DEPLOY_SSH_PASSWORD_ENV_KEY`
+- `SYNC360_CONTROL_SERVER_SSH_PASSWORD`
+- `SYNC360_CONTROL_DEPLOY_REPO_PATH`
+- `SYNC360_CONTROL_DEPLOY_BRANCH`
+- `SYNC360_CONTROL_DEPLOY_COMPOSE_FILE`
+- `SYNC360_CONTROL_DEPLOY_SCRIPT_PATH`
+- `SYNC360_CONTROL_DEPLOY_STATUS_FILE`
+- `SYNC360_CONTROL_DEPLOY_LOG_FILE`
 - `SYNC360_SUPER_ADMIN_NAME`
 - `SYNC360_SUPER_ADMIN_EMAIL`
 - `SYNC360_SUPER_ADMIN_PASSWORD`
 - `SYNC360_RESET_SUPER_ADMIN_PASSWORD`
+
+### Workspace Ready Email
+
+- `BREVO_ENABLED=true`
+- `BREVO_API_KEY`
+- `BREVO_BASE_URL=https://api.brevo.com/v3`
+- `BREVO_SENDER_EMAIL` or `MAIL_FROM_ADDRESS`
+- `BREVO_SENDER_NAME` or `MAIL_FROM_NAME`
+
+When Brevo is enabled, Sync360 sends a workspace-ready confirmation email after successful provisioning. That email includes:
+
+- login username
+- the initial password chosen at signup
+- the tenant workspace link
+
+The password is stored encrypted in the provisioning job payload only until the email is sent successfully, then it is removed.
 
 ### Tenant Provisioning
 
@@ -390,6 +454,7 @@ Current coverage includes:
 - admin access restrictions
 - admin workspace controls
 - seeded super-admin password preservation and explicit reset behavior
+- super-admin control-app deploy trigger and status view
 
 ## Scope Notes
 

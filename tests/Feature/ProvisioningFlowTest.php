@@ -11,7 +11,10 @@ use App\Models\ProvisioningJob;
 use App\Models\Server;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\WorkspaceReadyEmailService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Mockery;
 use RuntimeException;
 use Tests\TestCase;
@@ -92,6 +95,67 @@ class ProvisioningFlowTest extends TestCase
         $this->assertSame('Runtime folder creation failed.', $job->error_message);
     }
 
+    public function test_provisioning_success_sends_workspace_ready_email_and_scrubs_stored_password(): void
+    {
+        config()->set('services.brevo.enabled', true);
+        config()->set('services.brevo.key', 'test-brevo-key');
+        config()->set('services.brevo.sender_email', 'hello@sync360.test');
+        config()->set('services.brevo.sender_name', 'Sync360');
+
+        Http::fake([
+            'https://api.brevo.com/v3/smtp/email' => Http::response(['messageId' => 'brevo-123'], 201),
+        ]);
+
+        [, $tenant, $job] = $this->seedTenantAndJob();
+
+        ProcessTenantProvisioning::dispatchSync($tenant->id, $job->id);
+
+        $job->refresh();
+
+        Http::assertSent(function ($request): bool {
+            $data = $request->data();
+
+            return $request->url() === 'https://api.brevo.com/v3/smtp/email'
+                && $request->hasHeader('api-key', 'test-brevo-key')
+                && ($data['to'][0]['email'] ?? null) === 'alice@example.com'
+                && str_contains((string) ($data['htmlContent'] ?? ''), 'Username:')
+                && str_contains((string) ($data['htmlContent'] ?? ''), 'Password:')
+                && str_contains((string) ($data['htmlContent'] ?? ''), 'https://acme-plumbing.workspace.test');
+        });
+
+        $this->assertSame('alice@example.com', $job->payload_json['workspace_login_email'] ?? null);
+        $this->assertArrayNotHasKey('workspace_password_encrypted', $job->payload_json ?? []);
+        $this->assertArrayHasKey('workspace_ready_email_sent_at', $job->payload_json ?? []);
+    }
+
+    public function test_brevo_failure_does_not_mark_provisioning_as_failed(): void
+    {
+        config()->set('services.brevo.enabled', true);
+        config()->set('services.brevo.key', 'test-brevo-key');
+        config()->set('services.brevo.sender_email', 'hello@sync360.test');
+        config()->set('services.brevo.sender_name', 'Sync360');
+
+        Http::fake([
+            'https://api.brevo.com/v3/smtp/email' => Http::response(['message' => 'forbidden'], 403),
+        ]);
+
+        Log::shouldReceive('warning')
+            ->once()
+            ->withArgs(fn (string $message, array $context): bool => str_contains($message, 'workspace ready email') && ($context['tenant_id'] ?? null) > 0);
+
+        [, $tenant, $job] = $this->seedTenantAndJob();
+
+        ProcessTenantProvisioning::dispatchSync($tenant->id, $job->id);
+
+        $tenant->refresh();
+        $job->refresh();
+
+        $this->assertSame(TenantProvisioningStatus::Ready, $tenant->provisioning_status);
+        $this->assertSame(ProvisioningJobStatus::Completed, $job->status);
+        $this->assertIsString($job->payload_json['workspace_password_encrypted'] ?? null);
+        $this->assertArrayNotHasKey('workspace_ready_email_sent_at', $job->payload_json ?? []);
+    }
+
     private function seedTenantAndJob(): array
     {
         $user = User::query()->create([
@@ -116,7 +180,9 @@ class ProvisioningFlowTest extends TestCase
             'tenant_id' => $tenant->id,
             'job_type' => 'provision_tenant',
             'status' => ProvisioningJobStatus::Queued,
-            'payload_json' => ['requested_from' => 'test'],
+            'payload_json' => app(WorkspaceReadyEmailService::class)->withProvisioningCredentials([
+                'requested_from' => 'test',
+            ], 'alice@example.com', 'super-secret'),
         ]);
 
         return [$user, $tenant, $job];
