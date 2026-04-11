@@ -24,6 +24,11 @@ class ControlAppDeploymentService
             'host' => (string) config('sync360.control_app_deploy.ssh_host', ''),
             'user' => (string) config('sync360.control_app_deploy.ssh_user', ''),
             'branch' => (string) config('sync360.control_app_deploy.branch', ''),
+            'primary_server' => sprintf(
+                '%s@%s',
+                (string) config('sync360.control_app_deploy.ssh_user', '—'),
+                (string) config('sync360.control_app_deploy.ssh_host', '—'),
+            ),
             'repo_path' => (string) config('sync360.control_app_deploy.repo_path', ''),
             'script_path' => (string) config('sync360.control_app_deploy.script_path', ''),
             'state' => 'not_configured',
@@ -31,6 +36,8 @@ class ControlAppDeploymentService
             'finished_at' => null,
             'message' => null,
             'pid' => null,
+            'latest_commit_short' => null,
+            'latest_commit_subject' => null,
             'log_tail' => '',
         ];
 
@@ -76,6 +83,7 @@ class ControlAppDeploymentService
 
         $status['log_tail'] = trim($rawLog);
         $status['state'] = (string) ($status['state'] ?? 'idle');
+        $status['primary_server'] = trim(sprintf('%s@%s', $status['user'] ?? '—', $status['host'] ?? '—'), '@');
 
         return $status;
     }
@@ -236,6 +244,7 @@ class ControlAppDeploymentService
     {
         return implode('; ', [
             'if [ -f '.escapeshellarg($this->statusFile()).' ]; then cat '.escapeshellarg($this->statusFile()).'; fi',
+            'if [ -d '.escapeshellarg($this->repoPath().'/.git').' ]; then printf "latest_commit_short=%s\n" "$(git -C '.escapeshellarg($this->repoPath()).' rev-parse --short HEAD 2>/dev/null || true)"; printf "latest_commit_subject=%s\n" "$(git -C '.escapeshellarg($this->repoPath()).' log -1 --pretty=%s 2>/dev/null || true)"; fi',
             'printf "\\n__SYNC360_DEPLOY_LOG__\\n"',
             'if [ -f '.escapeshellarg($this->logFile()).' ]; then tail -n '.(int) config('sync360.control_app_deploy.log_tail_lines', 20).' '.escapeshellarg($this->logFile()).'; fi',
         ]);

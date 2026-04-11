@@ -30,6 +30,7 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/users', [AdminController::class, 'users'])->name('users');
         Route::get('/tenants', [AdminController::class, 'tenants'])->name('tenants');
         Route::get('/jobs', [AdminController::class, 'jobs'])->name('jobs');
+        Route::get('/deploy/control-app/status', [AdminController::class, 'controlAppDeployStatus'])->name('deploy.control-app.status');
         Route::post('/deploy/control-app', [AdminController::class, 'triggerControlAppDeploy'])->name('deploy.control-app');
         Route::post('/jobs/{tenant}/retry', [AdminController::class, 'retry'])->name('retry');
         Route::post('/tenants/{tenant}/workspace/start', [AdminController::class, 'startWorkspace'])->name('workspace.start');

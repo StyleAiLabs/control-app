@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\ControlAppDeploymentService;
 use App\Services\WorkspaceReadyEmailService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -144,6 +145,11 @@ class AdminController extends Controller
         }
 
         return back()->with('status', sprintf('Control app deploy started. Remote process id: %s', $pid));
+    }
+
+    public function controlAppDeployStatus(): JsonResponse
+    {
+        return response()->json($this->controlAppDeployment->status());
     }
 
     private function workspaceStateFor(Tenant $tenant): string

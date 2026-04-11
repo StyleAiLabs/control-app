@@ -57,7 +57,7 @@
         </div>
     </section>
 
-    <section class="panel" style="margin-top: 20px;">
+    <section class="panel" style="margin-top: 20px;" data-control-app-deploy data-status-url="{{ route('admin.deploy.control-app.status') }}">
         <div class="topbar" style="margin-bottom: 18px;">
             <div>
                 <span class="eyebrow">Control App Deploy</span>
@@ -76,45 +76,135 @@
             <div class="meta-item">
                 <small>Deploy State</small>
                 <div>
-                    <span class="badge {{ match($controlAppDeployStatus['state'] ?? 'not_configured') {
+                    <span
+                        data-deploy-field="state"
+                        class="badge {{ match($controlAppDeployStatus['state'] ?? 'not_configured') {
                         'running' => 'running',
                         'succeeded' => 'ready',
                         'failed', 'unreachable' => 'failed',
                         default => 'pending',
-                    } }}">{{ str_replace('_', ' ', $controlAppDeployStatus['state'] ?? 'not_configured') }}</span>
+                    } }}"
+                    >{{ str_replace('_', ' ', $controlAppDeployStatus['state'] ?? 'not_configured') }}</span>
                 </div>
             </div>
             <div class="meta-item">
                 <small>Enabled</small>
-                <strong>{{ ($controlAppDeployStatus['enabled'] ?? false) ? 'Yes' : 'No' }}</strong>
+                <strong data-deploy-field="enabled">{{ ($controlAppDeployStatus['enabled'] ?? false) ? 'Yes' : 'No' }}</strong>
             </div>
             <div class="meta-item">
                 <small>Primary Server</small>
-                <strong>{{ $controlAppDeployStatus['user'] ?? '—' }}@{{ $controlAppDeployStatus['host'] ?? '—' }}</strong>
+                <strong data-deploy-field="primary_server">{{ $controlAppDeployStatus['primary_server'] ?? (($controlAppDeployStatus['user'] ?? '—').'@'.($controlAppDeployStatus['host'] ?? '—')) }}</strong>
             </div>
             <div class="meta-item">
                 <small>Branch</small>
-                <strong>{{ $controlAppDeployStatus['branch'] ?? '—' }}</strong>
+                <strong data-deploy-field="branch">{{ $controlAppDeployStatus['branch'] ?? '—' }}</strong>
             </div>
             <div class="meta-item">
                 <small>Started</small>
-                <strong>{{ $controlAppDeployStatus['started_at'] ?? '—' }}</strong>
+                <strong data-deploy-field="started_at">{{ $controlAppDeployStatus['started_at'] ?? '—' }}</strong>
             </div>
             <div class="meta-item">
                 <small>Finished</small>
-                <strong>{{ $controlAppDeployStatus['finished_at'] ?? '—' }}</strong>
+                <strong data-deploy-field="finished_at">{{ $controlAppDeployStatus['finished_at'] ?? '—' }}</strong>
+            </div>
+            <div class="meta-item">
+                <small>Latest Commit</small>
+                <strong data-deploy-field="latest_commit_short">{{ $controlAppDeployStatus['latest_commit_short'] ?? '—' }}</strong>
+            </div>
+            <div class="meta-item">
+                <small>Commit Message</small>
+                <strong data-deploy-field="latest_commit_subject">{{ $controlAppDeployStatus['latest_commit_subject'] ?? '—' }}</strong>
             </div>
         </div>
 
-        @if (!empty($controlAppDeployStatus['message']))
-            <div class="note" style="margin-top: 16px;">{{ $controlAppDeployStatus['message'] }}</div>
-        @endif
+        <div
+            data-deploy-message
+            class="note"
+            style="margin-top: 16px;{{ empty($controlAppDeployStatus['message']) ? ' display: none;' : '' }}"
+        >{{ $controlAppDeployStatus['message'] ?? '' }}</div>
 
-        @if (!empty($controlAppDeployStatus['log_tail']))
-            <div class="meta-item" style="margin-top: 16px;">
-                <small>Last Deploy Log</small>
-                <pre style="margin: 0; white-space: pre-wrap; font-family: 'Space Mono', monospace; font-size: 0.78rem; color: #374151;">{{ $controlAppDeployStatus['log_tail'] }}</pre>
-            </div>
-        @endif
+        <div data-deploy-log-wrap class="meta-item" style="margin-top: 16px;{{ empty($controlAppDeployStatus['log_tail']) ? ' display: none;' : '' }}">
+            <small>Last Deploy Log</small>
+            <pre data-deploy-field="log_tail" style="margin: 0; white-space: pre-wrap; font-family: 'Space Mono', monospace; font-size: 0.78rem; color: #374151;">{{ $controlAppDeployStatus['log_tail'] ?? '' }}</pre>
+        </div>
     </section>
+
+    <script>
+        (() => {
+            const panel = document.querySelector('[data-control-app-deploy]');
+            if (!panel) return;
+
+            const statusUrl = panel.getAttribute('data-status-url');
+            if (!statusUrl) return;
+
+            const stateBadge = panel.querySelector('[data-deploy-field="state"]');
+            const enabledField = panel.querySelector('[data-deploy-field="enabled"]');
+            const messageField = panel.querySelector('[data-deploy-message]');
+            const logWrap = panel.querySelector('[data-deploy-log-wrap]');
+            const logField = panel.querySelector('[data-deploy-field="log_tail"]');
+            const textFields = ['primary_server', 'branch', 'started_at', 'finished_at', 'latest_commit_short', 'latest_commit_subject'];
+
+            const badgeClassForState = (state) => {
+                if (state === 'running') return 'running';
+                if (state === 'succeeded') return 'ready';
+                if (state === 'failed' || state === 'unreachable') return 'failed';
+                return 'pending';
+            };
+
+            const normalize = (value) => value === null || value === undefined || value === '' ? '—' : value;
+
+            const updatePanel = (payload) => {
+                const state = payload.state ?? 'not_configured';
+
+                if (stateBadge) {
+                    stateBadge.textContent = String(state).replaceAll('_', ' ');
+                    stateBadge.className = `badge ${badgeClassForState(state)}`;
+                }
+
+                if (enabledField) {
+                    enabledField.textContent = payload.enabled ? 'Yes' : 'No';
+                }
+
+                textFields.forEach((field) => {
+                    const element = panel.querySelector(`[data-deploy-field="${field}"]`);
+                    if (element) {
+                        element.textContent = normalize(payload[field]);
+                    }
+                });
+
+                if (messageField) {
+                    const message = payload.message ?? '';
+                    messageField.textContent = message;
+                    messageField.style.display = message ? '' : 'none';
+                }
+
+                if (logWrap && logField) {
+                    const logTail = payload.log_tail ?? '';
+                    logField.textContent = logTail;
+                    logWrap.style.display = logTail ? '' : 'none';
+                }
+            };
+
+            const poll = async () => {
+                try {
+                    const response = await fetch(statusUrl, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                        },
+                        credentials: 'same-origin',
+                    });
+
+                    if (!response.ok) return;
+
+                    updatePanel(await response.json());
+                } catch (error) {
+                    console.debug('Deploy status refresh failed.', error);
+                }
+            };
+
+            poll();
+            window.setInterval(poll, 5000);
+        })();
+    </script>
 </x-layouts.app>

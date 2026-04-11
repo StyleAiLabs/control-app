@@ -102,12 +102,32 @@ class AdminDebugTest extends TestCase
                 'configured' => true,
                 'host' => '161.97.74.128',
                 'user' => 'deploy',
+                'primary_server' => 'deploy@161.97.74.128',
                 'branch' => 'codex/control-app-prod-deploy',
                 'state' => 'idle',
                 'started_at' => null,
                 'finished_at' => null,
                 'message' => 'Ready to deploy.',
+                'latest_commit_short' => '41dd633',
+                'latest_commit_subject' => 'Fix control app deploy shell commands',
                 'log_tail' => '',
+            ]);
+        $deployService->shouldReceive('status')
+            ->once()
+            ->andReturn([
+                'enabled' => true,
+                'configured' => true,
+                'host' => '161.97.74.128',
+                'user' => 'deploy',
+                'primary_server' => 'deploy@161.97.74.128',
+                'branch' => 'codex/control-app-prod-deploy',
+                'state' => 'running',
+                'started_at' => '2026-04-11T07:09:46Z',
+                'finished_at' => null,
+                'message' => 'Deployment started.',
+                'latest_commit_short' => '41dd633',
+                'latest_commit_subject' => 'Fix control app deploy shell commands',
+                'log_tail' => 'Starting control app deployment...',
             ]);
         $deployService->shouldReceive('trigger')
             ->once()
@@ -122,7 +142,18 @@ class AdminDebugTest extends TestCase
             ->assertOk()
             ->assertSee('Admin Overview')
             ->assertSee('Control App Deploy')
-            ->assertSee('codex/control-app-prod-deploy');
+            ->assertSee('codex/control-app-prod-deploy')
+            ->assertSee('deploy@161.97.74.128')
+            ->assertSee('Fix control app deploy shell commands');
+
+        $this->get(route('admin.deploy.control-app.status'))
+            ->assertOk()
+            ->assertJson([
+                'primary_server' => 'deploy@161.97.74.128',
+                'latest_commit_short' => '41dd633',
+                'latest_commit_subject' => 'Fix control app deploy shell commands',
+                'state' => 'running',
+            ]);
 
         $this->get('/admin/users')
             ->assertOk()

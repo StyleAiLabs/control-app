@@ -46,6 +46,7 @@ class ControlAppDeploymentServiceTest extends TestCase
 
     public function test_status_command_uses_statement_separators_for_remote_shell_parsing(): void
     {
+        Config::set('sync360.control_app_deploy.repo_path', '/opt/sync360/control-app');
         Config::set('sync360.control_app_deploy.status_file', '/opt/sync360/control-app/storage/logs/control-app-deploy.status');
         Config::set('sync360.control_app_deploy.log_file', '/opt/sync360/control-app/storage/logs/control-app-deploy.log');
         Config::set('sync360.control_app_deploy.log_tail_lines', 20);
@@ -58,6 +59,8 @@ class ControlAppDeploymentServiceTest extends TestCase
         $command = $method->invoke($service);
 
         $this->assertStringContainsString('; printf "\\n__SYNC360_DEPLOY_LOG__\\n";', $command);
+        $this->assertStringContainsString('latest_commit_short=', $command);
+        $this->assertStringContainsString('latest_commit_subject=', $command);
         $this->assertStringContainsString("; if [ -f '/opt/sync360/control-app/storage/logs/control-app-deploy.log' ]; then tail -n 20 '/opt/sync360/control-app/storage/logs/control-app-deploy.log'; fi", $command);
         $this->assertStringNotContainsString(' fi printf ', $command);
     }
