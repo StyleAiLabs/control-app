@@ -103,23 +103,7 @@ class ControlAppDeploymentService
             throw new RuntimeException('Control app deployment is not fully configured.');
         }
 
-        $exports = [
-            'SYNC360_CONTROL_DEPLOY_REPO_PATH' => $this->repoPath(),
-            'SYNC360_CONTROL_DEPLOY_BRANCH' => (string) config('sync360.control_app_deploy.branch'),
-            'SYNC360_CONTROL_DEPLOY_COMPOSE_FILE' => (string) config('sync360.control_app_deploy.compose_file'),
-            'SYNC360_CONTROL_DEPLOY_STATUS_FILE' => $this->statusFile(),
-            'SYNC360_CONTROL_DEPLOY_LOG_FILE' => $this->logFile(),
-        ];
-
-        $assignments = collect($exports)
-            ->map(fn (string $value, string $key): string => sprintf('%s=%s', $key, escapeshellarg($value)))
-            ->implode(' ');
-
-        $command = sprintf(
-            '%s nohup /bin/sh %s >/dev/null 2>&1 < /dev/null & echo $!',
-            $assignments,
-            escapeshellarg((string) config('sync360.control_app_deploy.script_path')),
-        );
+        $command = $this->buildTriggerCommand();
 
         $process = $this->runRemoteCommand($command);
         $pid = trim($process->getOutput());
@@ -259,6 +243,47 @@ class ControlAppDeploymentService
             'printf "\\n__SYNC360_DEPLOY_LOG__\\n"',
             'if [ -f '.$logFile.' ]; then tail -n '.(int) config('sync360.control_app_deploy.log_tail_lines', 20).' '.$logFile.'; fi',
         ]);
+    }
+
+    private function buildTriggerCommand(): string
+    {
+        $exports = [
+            'SYNC360_CONTROL_DEPLOY_REPO_PATH' => $this->repoPath(),
+            'SYNC360_CONTROL_DEPLOY_BRANCH' => (string) config('sync360.control_app_deploy.branch'),
+            'SYNC360_CONTROL_DEPLOY_COMPOSE_FILE' => (string) config('sync360.control_app_deploy.compose_file'),
+            'SYNC360_CONTROL_DEPLOY_STATUS_FILE' => $this->statusFile(),
+            'SYNC360_CONTROL_DEPLOY_LOG_FILE' => $this->logFile(),
+        ];
+
+        $envArguments = collect($exports)
+            ->flatMap(fn (string $value, string $key): array => [$key.'='.escapeshellarg($value)])
+            ->implode(' ');
+
+        $repoPath = escapeshellarg($this->repoPath());
+        $branch = escapeshellarg((string) config('sync360.control_app_deploy.branch', ''));
+        $scriptPath = escapeshellarg($this->repoRelativeScriptPath());
+
+        return implode(' && ', [
+            'cd '.$repoPath,
+            'git fetch --prune origin '.$branch,
+            sprintf(
+                '(git show FETCH_HEAD:%s | env %s /bin/sh) >/dev/null 2>&1 < /dev/null & echo $!',
+                $scriptPath,
+                $envArguments,
+            ),
+        ]);
+    }
+
+    private function repoRelativeScriptPath(): string
+    {
+        $scriptPath = (string) config('sync360.control_app_deploy.script_path', '');
+        $repoPath = $this->repoPath();
+
+        if ($repoPath !== '' && str_starts_with($scriptPath, $repoPath.'/')) {
+            return ltrim(substr($scriptPath, strlen($repoPath)), '/');
+        }
+
+        return ltrim($scriptPath, '/');
     }
 
     /**
