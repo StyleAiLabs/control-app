@@ -1,0 +1,15 @@
+.git
+.github
+.env
+.env.local
+.env.production
+.env.testing
+vendor
+node_modules
+runtime/tenants
+storage/logs
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/testing/*
+storage/framework/views/*
+bootstrap/cache/*.php

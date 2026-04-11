@@ -13,14 +13,34 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        User::query()->updateOrCreate([
-            'email' => 'admin@sync360.local',
-        ], [
-            'name' => 'Sync360 Super Admin',
-            'phone' => null,
-            'is_admin' => true,
-            'password' => 'admin12345',
-        ]);
+        $adminEmail = env('SYNC360_SUPER_ADMIN_EMAIL', 'admin@sync360.local');
+        $adminName = env('SYNC360_SUPER_ADMIN_NAME', 'Sync360 Super Admin');
+        $adminPassword = env('SYNC360_SUPER_ADMIN_PASSWORD', 'admin12345');
+        $resetAdminPassword = filter_var(env('SYNC360_RESET_SUPER_ADMIN_PASSWORD', false), FILTER_VALIDATE_BOOL);
+
+        $admin = User::query()->where('email', $adminEmail)->first();
+
+        if ($admin) {
+            $admin->forceFill([
+                'name' => $adminName,
+                'phone' => $admin->phone,
+                'is_admin' => true,
+            ]);
+
+            if ($resetAdminPassword) {
+                $admin->password = $adminPassword;
+            }
+
+            $admin->save();
+        } else {
+            User::query()->create([
+                'name' => $adminName,
+                'email' => $adminEmail,
+                'phone' => null,
+                'is_admin' => true,
+                'password' => $adminPassword,
+            ]);
+        }
 
         Server::query()->updateOrCreate([
             'name' => env('SYNC360_DEFAULT_SERVER_NAME', 'sync360-client-vps-1'),

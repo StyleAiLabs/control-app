@@ -1,6 +1,6 @@
 # Sync360 Control App Architecture
 
-This document describes the current as-built architecture of the Sync360 Control App on the `codex/vps-ready-architecture` branch.
+This document describes the current as-built architecture of the Sync360 Control App on the `codex/control-app-prod-deploy` branch.
 
 It focuses on the implemented system, including the new VPS-ready provisioning model.
 
@@ -75,6 +75,25 @@ The flow currently proven in production-like form is:
 
 This same architecture is intended to be reused after the control app is moved from local development to `161.97.74.128`.
 
+### 2.4 Production Control-Plane Packaging
+
+The repository now also includes a production deployment package for the control app itself.
+
+That package consists of:
+
+- [docker-compose.prod.yml](/Users/gayanhewage/Projects/openclaw-saas/docker-compose.prod.yml)
+- a production image target in [Dockerfile](/Users/gayanhewage/Projects/openclaw-saas/Dockerfile)
+- [docker/start-prod-app.sh](/Users/gayanhewage/Projects/openclaw-saas/docker/start-prod-app.sh)
+- [docker/start-prod-worker.sh](/Users/gayanhewage/Projects/openclaw-saas/docker/start-prod-worker.sh)
+- [deploy/apache/app.sync360.co.nz.conf](/Users/gayanhewage/Projects/openclaw-saas/deploy/apache/app.sync360.co.nz.conf)
+
+The intended deployment shape is:
+
+- `161.97.74.128` runs the Dockerized control plane
+- Apache on the host terminates TLS for `app.sync360.co.nz`
+- Apache reverse proxies to the app container on `127.0.0.1:8000`
+- the worker still provisions client workspaces remotely over SSH using the current temporary password-auth model
+
 ## 3. High-Level Architecture
 
 ```mermaid
@@ -112,6 +131,10 @@ flowchart LR
   - template copied into tenant runtime staging directories
 - `docker-compose.yml`
   - local development stack
+- `docker-compose.prod.yml`
+  - production control-plane stack
+- `deploy/apache/`
+  - Apache reverse proxy template for `app.sync360.co.nz`
 
 ## 5. Application Layers
 
@@ -211,6 +234,7 @@ Implemented behavior:
 - session persistence
 - guest-only auth pages
 - admin-only access to operational routes
+- trusted reverse-proxy support through the `TRUSTED_PROXIES` environment variable
 
 Admin control:
 
@@ -303,6 +327,19 @@ Important fields:
 - `docker_compose_bin`
 - `caddy_sites_path`
 - `caddy_reload_command`
+
+The seeded super admin is now environment-driven:
+
+- `SYNC360_SUPER_ADMIN_NAME`
+- `SYNC360_SUPER_ADMIN_EMAIL`
+- `SYNC360_SUPER_ADMIN_PASSWORD`
+- `SYNC360_RESET_SUPER_ADMIN_PASSWORD`
+
+Behavior:
+
+- first seed creates the super admin
+- later seeds preserve the existing password by default
+- password reset only happens when `SYNC360_RESET_SUPER_ADMIN_PASSWORD=true`
 
 ### 8.5 Relationships
 

@@ -57,6 +57,71 @@ This makes the control app ready for:
 - `app.sync360.co.nz` on a primary app server
 - one or more separate client VPS servers for tenant runtimes
 
+## Production Deployment On The Primary Server
+
+The recommended production shape for the control app is:
+
+- [docker-compose.prod.yml](/Users/gayanhewage/Projects/openclaw-saas/docker-compose.prod.yml) for the Dockerized control-plane stack
+- host-level Apache on `161.97.74.128` terminating TLS for `app.sync360.co.nz`
+- Apache reverse proxying to the app container on `127.0.0.1:8000`
+- the queue worker using the current password-auth SSH flow to provision the client VPS
+
+This fits the existing LAMP host without turning the Laravel app back into a host-level PHP deployment.
+
+### Production Files
+
+- [docker-compose.prod.yml](/Users/gayanhewage/Projects/openclaw-saas/docker-compose.prod.yml)
+- [.env.production.example](/Users/gayanhewage/Projects/openclaw-saas/.env.production.example)
+- [docker/start-prod-app.sh](/Users/gayanhewage/Projects/openclaw-saas/docker/start-prod-app.sh)
+- [docker/start-prod-worker.sh](/Users/gayanhewage/Projects/openclaw-saas/docker/start-prod-worker.sh)
+- [deploy/apache/app.sync360.co.nz.conf](/Users/gayanhewage/Projects/openclaw-saas/deploy/apache/app.sync360.co.nz.conf)
+
+### Production Boot Flow
+
+1. Copy the production env file:
+
+```bash
+cp .env.production.example .env
+```
+
+2. Generate an app key:
+
+```bash
+docker compose -f docker-compose.prod.yml run --rm app php artisan key:generate --show
+```
+
+3. Put the generated value into `APP_KEY` in `.env`.
+
+4. Start the production stack:
+
+```bash
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+5. Enable Apache proxy modules on the host:
+
+```bash
+sudo a2enmod proxy proxy_http headers rewrite ssl
+```
+
+6. Install [deploy/apache/app.sync360.co.nz.conf](/Users/gayanhewage/Projects/openclaw-saas/deploy/apache/app.sync360.co.nz.conf), enable the site, and reload Apache.
+
+7. Bootstrap the client VPS once from the running app container:
+
+```bash
+docker compose -f docker-compose.prod.yml exec app php artisan sync360:bootstrap-client-vps
+```
+
+### Production Notes
+
+- `SYNC360_RUN_SEED=true` is safe for first boot and ongoing restarts.
+- existing super-admin passwords are preserved by default.
+- set `SYNC360_RESET_SUPER_ADMIN_PASSWORD=true` only when you intentionally want to rotate the seeded super-admin password from env.
+- for now, production still supports the temporary password-auth SSH flow through:
+  - `SYNC360_CLIENT_VPS_SSH_PASSWORD`
+  - `SYNC360_CLIENT_VPS_SUDO_PASSWORD`
+- the production stack only binds Laravel to `127.0.0.1:8000`, so Apache remains the public entrypoint.
+
 ## Local Setup
 
 1. Copy the environment file:
@@ -176,11 +241,21 @@ If you do not have wildcard DNS and reverse proxying ready yet, the app can stil
 
 - `SYNC360_ADMIN_LOCAL_ONLY=false`
 - `SYNC360_INFRASTRUCTURE_DRIVER=local` or `ssh`
+- `TRUSTED_PROXIES=*`
+- `SYNC360_RUN_SEED=true`
+- `SYNC360_QUEUE_TRIES`
+- `SYNC360_QUEUE_TIMEOUT`
+- `SYNC360_QUEUE_SLEEP`
+- `SYNC360_QUEUE_MAX_TIME`
 - `SYNC360_LOCAL_DOCKER_COMPOSE_BIN="docker compose"`
 - `SYNC360_SSH_TIMEOUT_SECONDS=30`
 - `SYNC360_SCP_TIMEOUT_SECONDS=120`
 - `SYNC360_CLIENT_VPS_SSH_PASSWORD`
 - `SYNC360_CLIENT_VPS_SUDO_PASSWORD`
+- `SYNC360_SUPER_ADMIN_NAME`
+- `SYNC360_SUPER_ADMIN_EMAIL`
+- `SYNC360_SUPER_ADMIN_PASSWORD`
+- `SYNC360_RESET_SUPER_ADMIN_PASSWORD`
 
 ### Tenant Provisioning
 
@@ -277,7 +352,16 @@ That command installs Caddy, creates `/srv/sync360/runtime`, enables `/etc/caddy
 
 ## Default Admin
 
-Seeded super admin:
+The seeded super admin is now env-driven.
+
+Important env vars:
+
+- `SYNC360_SUPER_ADMIN_NAME`
+- `SYNC360_SUPER_ADMIN_EMAIL`
+- `SYNC360_SUPER_ADMIN_PASSWORD`
+- `SYNC360_RESET_SUPER_ADMIN_PASSWORD`
+
+Development defaults:
 
 - Email: `admin@sync360.local`
 - Password: `admin12345`
@@ -305,6 +389,7 @@ Current coverage includes:
 - admin retry flow
 - admin access restrictions
 - admin workspace controls
+- seeded super-admin password preservation and explicit reset behavior
 
 ## Scope Notes
 
@@ -313,7 +398,6 @@ This MVP still intentionally excludes:
 - billing
 - password reset and email verification
 - remote DNS automation
-- automated reverse proxy provisioning
 - advanced monitoring and alerting
 - multi-region scheduling
 - production hardening across every failure mode
