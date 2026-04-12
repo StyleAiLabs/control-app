@@ -45,7 +45,17 @@ return [
 
     'litellm' => [
         'base_url' => env('LITELLM_BASE_URL', 'https://litellm.stylesoftware.co.nz'),
+        'virtual_key' => env('LITELLM_VIRTUAL_KEY'),
         'master_key' => env('LITELLM_MASTER_KEY'),
+    ],
+
+    'whatsapp' => [
+        'base_url' => env('WHATSAPP_API_BASE_URL', 'https://graph.facebook.com'),
+        'api_version' => env('WHATSAPP_API_VERSION', 'v22.0'),
+    ],
+
+    'telegram' => [
+        'base_url' => env('TELEGRAM_API_BASE_URL', 'https://api.telegram.org'),
     ],
 
 ];

@@ -347,6 +347,48 @@
         /* ── Misc ── */
         .hint { font-size: 0.875rem; color: var(--muted); }
         form.inline { display: inline; }
+        form {
+            display: grid;
+            gap: 16px;
+        }
+        .field-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+        }
+        .field-single {
+            display: grid;
+            gap: 14px;
+        }
+        label {
+            display: grid;
+            gap: 6px;
+            color: var(--ink);
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        input, select, textarea {
+            width: 100%;
+            border-radius: 14px;
+            border: 1.5px solid rgba(17, 15, 13, 0.12);
+            padding: 13px 16px;
+            background: #fcfaf8;
+            font: inherit;
+            color: var(--ink);
+            transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+        }
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.14);
+            background: white;
+        }
+        input::placeholder,
+        textarea::placeholder { color: #a29c97; }
 
         /* ── Responsive ── */
         @media (max-width: 980px) {
@@ -354,7 +396,7 @@
             .sidebar { height: auto; position: static; flex-direction: row; flex-wrap: wrap; padding: 16px; }
             .sidebar-brand { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
             .sidebar-footer { display: none; }
-            .stats, .grid-2, .meta { grid-template-columns: 1fr; }
+            .stats, .grid-2, .meta, .field-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -381,6 +423,14 @@
                 Dashboard
             </a>
             @if (auth()->user()->tenant)
+                <a href="{{ route('conversations.index') }}"
+                   class="nav-link {{ request()->routeIs('conversations.*') ? 'active' : '' }}">
+                    Conversations
+                </a>
+                <a href="{{ route('profile.show') }}"
+                   class="nav-link {{ request()->routeIs('profile.*') ? 'active' : '' }}">
+                    Profile
+                </a>
                 <a href="{{ route('tenant.setup') }}"
                    class="nav-link {{ request()->routeIs('tenant.*') ? 'active' : '' }}">
                     Setup

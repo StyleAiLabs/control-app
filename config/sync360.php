@@ -44,6 +44,10 @@ return [
         'public_readiness_timeout_seconds' => (int) env('SYNC360_WORKSPACE_PUBLIC_READY_TIMEOUT_SECONDS', 120),
         'public_readiness_poll_interval_ms' => (int) env('SYNC360_WORKSPACE_PUBLIC_READY_POLL_INTERVAL_MS', 1500),
     ],
+    'workspace_gateway' => [
+        'chat_path' => env('SYNC360_WORKSPACE_CHAT_PATH', '/chat'),
+        'timeout_seconds' => (int) env('SYNC360_WORKSPACE_CHAT_TIMEOUT_SECONDS', 15),
+    ],
     'litellm' => [
         'default_plan_name' => env('LITELLM_DEFAULT_PLAN_NAME', 'trial'),
         'default_budget' => (float) env('LITELLM_DEFAULT_MAX_BUDGET', 25),

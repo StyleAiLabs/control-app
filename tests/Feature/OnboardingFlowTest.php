@@ -1,0 +1,662 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Contracts\DockerComposeRunner;
+use App\Enums\TenantProvisioningStatus;
+use App\Enums\TrialStatus;
+use App\Models\BusinessProfile;
+use App\Models\BusinessProfileFiles;
+use App\Models\Server;
+use App\Models\Tenant;
+use App\Models\User;
+use Illuminate\Support\Facades\File;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
+use Tests\TestCase;
+
+class OnboardingFlowTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_authenticated_tenant_can_view_onboarding_shell(): void
+    {
+        [$user] = $this->seedTenantWithProfile();
+
+        $this->actingAs($user);
+
+        $this->get('/onboarding')
+            ->assertOk()
+            ->assertSee('Guided Setup')
+            ->assertSee('Set up your digital employee in one guided flow.')
+            ->assertSee('Read your business website')
+            ->assertSee('Confirm your business details')
+            ->assertSee('Connect your customer channel')
+            ->assertSee('Bring it live')
+            ->assertSee('WhatsApp Webhook URL')
+            ->assertSee('Telegram Webhook URL');
+    }
+
+    public function test_onboarding_state_returns_resume_information_for_new_signup_data(): void
+    {
+        [$user] = $this->seedTenantWithProfile();
+
+        $this->actingAs($user);
+
+        $this->get('/onboarding/state')
+            ->assertOk()
+            ->assertJson([
+                'onboarding_status' => 'pending',
+                'onboarding_step' => 0,
+                'provisioning_status' => 'pending',
+                'agent_status' => 'offline',
+                'resume_from_step' => 1,
+                'tenant' => [
+                    'business_name' => 'Acme Plumbing',
+                    'industry' => 'Trades',
+                    'skill_pack' => 'Operations Core',
+                ],
+                'business' => [
+                    'business_name' => 'Acme Plumbing',
+                    'industry' => 'Trades',
+                    'contact_email' => 'alice@example.com',
+                    'contact_phone' => '+64 21 555 0101',
+                    'owner_name' => 'Alice Admin',
+                    'services' => [],
+                ],
+                'steps' => [
+                    '1' => ['label' => 'Business Website', 'status' => 'incomplete'],
+                    '2' => ['label' => 'Business Info', 'status' => 'incomplete'],
+                    '3' => ['label' => 'Personality', 'status' => 'incomplete'],
+                    '4' => ['label' => 'Capabilities', 'status' => 'incomplete'],
+                    '5' => ['label' => 'Channel', 'status' => 'incomplete'],
+                    '6' => ['label' => 'Go Live', 'status' => 'incomplete'],
+                ],
+            ]);
+    }
+
+    public function test_onboarding_state_advances_when_profile_tone_and_capabilities_exist(): void
+    {
+        [$user, $tenant, $profile, $files] = $this->seedTenantWithProfile();
+
+        $profile->forceFill([
+            'website_url' => 'https://acme.example',
+            'description' => 'Acme Plumbing helps homeowners with urgent repairs and scheduled installs.',
+            'services' => ['Emergency plumbing', 'Hot water cylinder installs'],
+        ])->save();
+
+        $tenant->forceFill([
+            'onboarding_status' => 'in_progress',
+            'onboarding_step' => 3,
+            'tone' => 'friendly',
+            'capabilities' => ['faqs', 'messages'],
+        ])->save();
+
+        $files->forceFill([
+            'generated_at' => now(),
+        ])->save();
+
+        $this->actingAs($user);
+
+        $this->get('/onboarding/state')
+            ->assertOk()
+            ->assertJson([
+                'onboarding_status' => 'in_progress',
+                'resume_from_step' => 4,
+                'tone' => 'friendly',
+                'capabilities' => ['faqs', 'messages'],
+                'steps' => [
+                    '1' => ['label' => 'Business Website', 'status' => 'complete'],
+                    '2' => ['label' => 'Business Info', 'status' => 'complete'],
+                    '3' => ['label' => 'Personality', 'status' => 'complete'],
+                    '4' => ['label' => 'Capabilities', 'status' => 'incomplete'],
+                    '5' => ['label' => 'Channel', 'status' => 'incomplete'],
+                    '6' => ['label' => 'Go Live', 'status' => 'incomplete'],
+                ],
+            ]);
+    }
+
+    public function test_extract_business_updates_profile_and_marks_step_one_in_progress(): void
+    {
+        [$user, $tenant] = $this->seedTenantWithProfile();
+
+        Http::fake([
+            'https://litellm.stylesoftware.co.nz/chat/completions' => Http::response([
+                'choices' => [[
+                    'message' => [
+                        'content' => json_encode([
+                            'business_name' => 'Acme Plumbing',
+                            'trading_name' => null,
+                            'tagline' => 'Fast local plumbing help',
+                            'description' => 'Acme Plumbing helps homeowners with urgent repairs and planned plumbing jobs.',
+                            'industry' => 'Trades',
+                            'services' => ['Emergency plumbing', 'Hot water repairs'],
+                            'target_customers' => 'Homeowners and property managers in Auckland.',
+                            'tone_hint' => 'friendly',
+                            'contact_email' => 'hello@acme.example',
+                            'contact_phone' => '+64 21 000 0000',
+                            'contact_mobile' => null,
+                            'physical_address' => '123 Main Street',
+                            'city' => 'Auckland',
+                            'country' => 'New Zealand',
+                            'pricing_notes' => null,
+                        ]),
+                    ],
+                ]],
+            ], 200),
+        ]);
+
+        config()->set('services.litellm.base_url', 'https://litellm.stylesoftware.co.nz');
+        config()->set('services.litellm.virtual_key', 'sk-sync360-control-app-test');
+        config()->set('services.litellm.master_key', 'sk-sync360-master-test');
+
+        $this->actingAs($user);
+
+        $this->postJson('/onboarding/extract-business', [
+            'url' => 'https://acme.example',
+        ])
+            ->assertOk()
+            ->assertJson([
+                'success' => true,
+                'state' => [
+                    'onboarding_status' => 'in_progress',
+                    'onboarding_step' => 1,
+                    'business' => [
+                        'website_url' => 'https://acme.example',
+                        'description' => 'Acme Plumbing helps homeowners with urgent repairs and planned plumbing jobs.',
+                    ],
+                ],
+            ]);
+
+        $tenant->refresh();
+
+        $this->assertSame('in_progress', $tenant->onboarding_status);
+        $this->assertSame(1, $tenant->onboarding_step);
+        $this->assertSame('https://acme.example', $tenant->businessProfile->website_url);
+        $this->assertSame('Fast local plumbing help', $tenant->businessProfile->tagline);
+        $this->assertSame(['Emergency plumbing', 'Hot water repairs'], $tenant->businessProfile->services);
+    }
+
+    public function test_save_business_info_updates_profile_tenant_and_step_two(): void
+    {
+        [$user, $tenant] = $this->seedTenantWithProfile();
+
+        $this->actingAs($user);
+
+        $this->postJson('/onboarding/business-info', [
+            'business_name' => 'Acme Plumbing & Drainage',
+            'trading_name' => 'Acme Plumbing',
+            'description' => 'We help homeowners and property managers with urgent callouts, maintenance, and installs.',
+            'industry' => 'Trades',
+            'services' => ['Emergency plumbing', 'Drain unblocking'],
+            'contact_email' => 'support@acme.example',
+            'contact_phone' => '+64 21 999 9999',
+            'physical_address' => '123 Main Street',
+            'city' => 'Auckland',
+            'tagline' => 'Fast local plumbing help',
+            'website_url' => 'https://acme.example',
+            'owner_name' => 'Alice Admin',
+        ])
+            ->assertOk()
+            ->assertJson([
+                'success' => true,
+                'state' => [
+                    'onboarding_status' => 'in_progress',
+                    'onboarding_step' => 2,
+                    'resume_from_step' => 3,
+                    'tenant' => [
+                        'business_name' => 'Acme Plumbing & Drainage',
+                        'industry' => 'Trades',
+                    ],
+                    'steps' => [
+                        '1' => ['label' => 'Business Website', 'status' => 'complete'],
+                        '2' => ['label' => 'Business Info', 'status' => 'complete'],
+                    ],
+                ],
+            ]);
+
+        $tenant->refresh();
+
+        $this->assertSame('Acme Plumbing & Drainage', $tenant->business_name);
+        $this->assertSame('Trades', $tenant->industry);
+        $this->assertSame('in_progress', $tenant->onboarding_status);
+        $this->assertSame(2, $tenant->onboarding_step);
+        $this->assertSame('Acme Plumbing & Drainage', $tenant->businessProfile->business_name);
+        $this->assertSame('Acme Plumbing', $tenant->businessProfile->trading_name);
+        $this->assertSame(['Emergency plumbing', 'Drain unblocking'], $tenant->businessProfile->services);
+        $this->assertSame('support@acme.example', $tenant->businessProfile->contact_email);
+        $this->assertSame('https://acme.example', $tenant->businessProfile->website_url);
+    }
+
+    public function test_save_personality_updates_tenant_and_profile_tone(): void
+    {
+        [$user, $tenant, $profile] = $this->seedTenantWithProfile();
+
+        $profile->forceFill([
+            'website_url' => 'https://acme.example',
+            'description' => 'Acme Plumbing helps homeowners with urgent repairs and scheduled installs.',
+            'services' => ['Emergency plumbing', 'Hot water cylinder installs'],
+        ])->save();
+
+        $tenant->forceFill([
+            'onboarding_status' => 'in_progress',
+            'onboarding_step' => 2,
+        ])->save();
+
+        $this->actingAs($user);
+
+        $this->postJson('/onboarding/personality', [
+            'tone' => 'professional',
+        ])
+            ->assertOk()
+            ->assertJson([
+                'success' => true,
+                'state' => [
+                    'onboarding_status' => 'in_progress',
+                    'onboarding_step' => 3,
+                    'resume_from_step' => 4,
+                    'tone' => 'professional',
+                    'steps' => [
+                        '3' => ['label' => 'Personality', 'status' => 'complete'],
+                        '4' => ['label' => 'Capabilities', 'status' => 'incomplete'],
+                    ],
+                ],
+            ]);
+
+        $tenant->refresh();
+
+        $this->assertSame('professional', $tenant->tone);
+        $this->assertSame(3, $tenant->onboarding_step);
+        $this->assertSame('professional', $tenant->businessProfile->tone_hint);
+    }
+
+    public function test_save_capabilities_generates_internal_files_and_marks_step_four_complete(): void
+    {
+        [$user, $tenant, $profile, $files] = $this->seedTenantWithProfile();
+
+        config()->set('services.litellm.virtual_key', null);
+        config()->set('services.litellm.master_key', null);
+
+        $profile->forceFill([
+            'website_url' => 'https://acme.example',
+            'description' => 'Acme Plumbing helps homeowners with urgent repairs and scheduled installs.',
+            'services' => ['Emergency plumbing', 'Hot water cylinder installs'],
+            'target_customers' => 'Homeowners and property managers who need prompt plumbing help.',
+            'pricing_notes' => 'Pricing depends on the job scope and should be confirmed when details are clear.',
+        ])->save();
+
+        $tenant->forceFill([
+            'onboarding_status' => 'in_progress',
+            'onboarding_step' => 3,
+            'tone' => 'friendly',
+        ])->save();
+
+        $this->actingAs($user);
+
+        $this->postJson('/onboarding/capabilities', [
+            'capabilities' => ['faqs', 'messages', 'after_hours'],
+        ])
+            ->assertOk()
+            ->assertJson([
+                'success' => true,
+                'state' => [
+                    'onboarding_status' => 'in_progress',
+                    'onboarding_step' => 4,
+                    'resume_from_step' => 5,
+                    'tone' => 'friendly',
+                    'capabilities' => ['faqs', 'messages', 'after_hours'],
+                    'steps' => [
+                        '4' => ['label' => 'Capabilities', 'status' => 'complete'],
+                        '5' => ['label' => 'Channel', 'status' => 'incomplete'],
+                    ],
+                ],
+            ]);
+
+        $tenant->refresh();
+        $files->refresh();
+
+        $this->assertSame(['faqs', 'messages', 'after_hours'], $tenant->capabilities);
+        $this->assertSame(4, $tenant->onboarding_step);
+        $this->assertNotNull($files->generated_at);
+        $this->assertIsString($files->identity_markdown);
+        $this->assertIsString($files->soul_markdown);
+        $this->assertIsString($files->user_markdown);
+        $this->assertIsString($files->bootstrap_markdown);
+        $this->assertStringContainsString('Acme Plumbing', $files->identity_markdown);
+        $this->assertStringContainsString('Communication Style', $files->soul_markdown);
+        $this->assertStringContainsString('Answer common questions', $files->soul_markdown);
+    }
+
+    public function test_save_channel_persists_whatsapp_configuration_generates_verify_token_and_marks_step_five_complete(): void
+    {
+        [$user, $tenant, $profile] = $this->seedTenantWithProfile();
+
+        $profile->forceFill([
+            'website_url' => 'https://acme.example',
+            'description' => 'Acme Plumbing helps homeowners with urgent repairs and scheduled installs.',
+            'services' => ['Emergency plumbing', 'Hot water cylinder installs'],
+        ])->save();
+
+        $tenant->forceFill([
+            'onboarding_status' => 'in_progress',
+            'onboarding_step' => 4,
+            'tone' => 'friendly',
+            'capabilities' => ['faqs', 'messages'],
+        ])->save();
+
+        $tenant->businessProfileFiles->forceFill([
+            'identity_markdown' => '# Identity',
+            'soul_markdown' => '# Soul',
+            'user_markdown' => '# User',
+            'bootstrap_markdown' => '# Bootstrap',
+            'generated_at' => now(),
+        ])->save();
+
+        $this->actingAs($user);
+
+        $this->postJson('/onboarding/channel', [
+            'channel' => 'whatsapp',
+            'whatsapp_phone_number_id' => '1234567890',
+            'whatsapp_access_token' => 'wa-access-token',
+        ])
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('state.onboarding_status', 'in_progress')
+            ->assertJsonPath('state.onboarding_step', 5)
+            ->assertJsonPath('state.resume_from_step', 6)
+            ->assertJsonPath('state.channel', 'whatsapp')
+            ->assertJsonPath('state.steps.5.label', 'Channel')
+            ->assertJsonPath('state.steps.5.status', 'complete')
+            ->assertJsonPath('state.steps.6.label', 'Go Live')
+            ->assertJsonPath('state.steps.6.status', 'incomplete')
+            ->assertJsonPath('state.channel_setup.selected_channel', 'whatsapp')
+            ->assertJsonPath('state.channel_setup.status', 'connected')
+            ->assertJsonPath('state.channel_setup.whatsapp.phone_number_id', '1234567890')
+            ->assertJsonPath('state.channel_setup.whatsapp.access_token_saved', true);
+
+        $tenant->refresh();
+
+        $this->assertSame('whatsapp', $tenant->channel);
+        $this->assertSame(5, $tenant->onboarding_step);
+        $this->assertNotNull($tenant->webhook_secret);
+        $this->assertSame('1234567890', $tenant->channel_config['whatsapp_phone_number_id']);
+        $this->assertSame('wa-access-token', $tenant->channel_config['whatsapp_access_token']);
+        $this->assertIsString($tenant->channel_config['whatsapp_verify_token']);
+        $this->assertStringStartsWith('sync360-'.$tenant->tenant_id.'-', $tenant->channel_config['whatsapp_verify_token']);
+    }
+
+    public function test_onboarding_state_exposes_channel_setup_urls_for_saved_connections(): void
+    {
+        [$user, $tenant, $profile] = $this->seedTenantWithProfile();
+
+        $profile->forceFill([
+            'website_url' => 'https://acme.example',
+            'description' => 'Acme Plumbing helps homeowners with urgent repairs and scheduled installs.',
+            'services' => ['Emergency plumbing', 'Hot water cylinder installs'],
+        ])->save();
+
+        $tenant->forceFill([
+            'onboarding_status' => 'in_progress',
+            'onboarding_step' => 5,
+            'tone' => 'friendly',
+            'capabilities' => ['faqs', 'messages'],
+            'channel' => 'whatsapp',
+            'channel_config' => [
+                'whatsapp_phone_number_id' => '1234567890',
+                'whatsapp_access_token' => 'wa-access-token',
+                'whatsapp_verify_token' => 'verify-me',
+            ],
+        ])->save();
+
+        $tenant->businessProfileFiles->forceFill([
+            'identity_markdown' => '# Identity',
+            'soul_markdown' => '# Soul',
+            'user_markdown' => '# User',
+            'bootstrap_markdown' => '# Bootstrap',
+            'generated_at' => now(),
+        ])->save();
+
+        $this->actingAs($user);
+
+        $response = $this->get('/onboarding/state')
+            ->assertOk()
+            ->assertJson([
+                'channel_setup' => [
+                    'selected_channel' => 'whatsapp',
+                    'status' => 'connected',
+                    'whatsapp' => [
+                        'verify_token' => 'verify-me',
+                        'phone_number_id' => '1234567890',
+                        'access_token_saved' => true,
+                    ],
+                ],
+            ]);
+
+        $state = $response->json();
+
+        $this->assertStringEndsWith('/webhooks/whatsapp/'.$tenant->tenant_id, $state['channel_setup']['whatsapp']['webhook_url']);
+        $this->assertStringEndsWith('/webhooks/telegram/'.$tenant->tenant_id, $state['channel_setup']['telegram']['webhook_url']);
+    }
+
+    public function test_go_live_requires_workspace_to_be_ready(): void
+    {
+        [$user, $tenant, $profile, $files] = $this->seedTenantWithProfile();
+
+        $profile->forceFill([
+            'website_url' => 'https://acme.example',
+            'description' => 'Acme Plumbing helps homeowners with urgent repairs and scheduled installs.',
+            'services' => ['Emergency plumbing', 'Hot water cylinder installs'],
+        ])->save();
+
+        $files->forceFill([
+            'identity_markdown' => '# Identity',
+            'soul_markdown' => '# Soul',
+            'user_markdown' => '# User',
+            'bootstrap_markdown' => '# Bootstrap',
+            'generated_at' => now(),
+        ])->save();
+
+        $tenant->forceFill([
+            'onboarding_status' => 'in_progress',
+            'onboarding_step' => 5,
+            'tone' => 'friendly',
+            'capabilities' => ['faqs'],
+            'channel' => 'telegram',
+            'channel_config' => ['telegram_bot_token' => 'telegram-bot-token'],
+            'provisioning_status' => TenantProvisioningStatus::Pending,
+        ])->save();
+
+        $this->actingAs($user);
+
+        $this->postJson('/onboarding/go-live')
+            ->assertStatus(409)
+            ->assertJson([
+                'success' => false,
+            ]);
+    }
+
+    public function test_go_live_writes_runtime_files_syncs_and_marks_agent_live(): void
+    {
+        [$user, $tenant, $profile, $files] = $this->seedTenantWithProfile();
+
+        $profile->forceFill([
+            'website_url' => 'https://acme.example',
+            'description' => 'Acme Plumbing helps homeowners with urgent repairs and scheduled installs.',
+            'services' => ['Emergency plumbing', 'Hot water cylinder installs'],
+            'contact_email' => 'support@acme.example',
+            'contact_phone' => '+64 21 999 9999',
+            'physical_address' => '123 Main Street',
+            'city' => 'Auckland',
+        ])->save();
+
+        $files->forceFill([
+            'identity_markdown' => "# Identity\n\nAcme Plumbing",
+            'soul_markdown' => "# Soul\n\nFriendly and helpful.",
+            'user_markdown' => "# User\n\nSupport homeowners.",
+            'bootstrap_markdown' => "# Bootstrap\n\nStart with the business profile.",
+            'generated_at' => now(),
+        ])->save();
+
+        $tenant->forceFill([
+            'onboarding_status' => 'in_progress',
+            'onboarding_step' => 5,
+            'tone' => 'friendly',
+            'capabilities' => ['faqs', 'after_hours'],
+            'channel' => 'telegram',
+            'channel_config' => ['telegram_bot_token' => 'telegram-bot-token'],
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'workspace_url' => 'https://acme-plumbing.workspace.test',
+            'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
+        ])->save();
+
+        $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
+        File::ensureDirectoryExists($localRuntimePath.'/workspace');
+        File::put($localRuntimePath.'/compose.yaml', 'services: {}');
+
+        $runnerSpy = new class implements DockerComposeRunner
+        {
+            /** @var array<int, array<string, mixed>> */
+            public array $syncCalls = [];
+
+            /** @var array<int, array<string, mixed>> */
+            public array $upCalls = [];
+
+            public function syncRuntime(Server $server, string $localRuntimePath, string $remoteRuntimePath): void
+            {
+                $this->syncCalls[] = [
+                    'server_id' => $server->id,
+                    'local' => $localRuntimePath,
+                    'remote' => $remoteRuntimePath,
+                ];
+            }
+
+            public function putFile(Server $server, string $remotePath, string $contents, bool $sudo = false): void
+            {
+            }
+
+            public function removeFile(Server $server, string $remotePath, bool $sudo = false): void
+            {
+            }
+
+            public function runCommand(Server $server, string $command, bool $sudo = false): void
+            {
+            }
+
+            public function up(Server $server, string $composeFile, string $projectName): void
+            {
+                $this->upCalls[] = [
+                    'server_id' => $server->id,
+                    'compose_file' => $composeFile,
+                    'project' => $projectName,
+                ];
+            }
+
+            public function down(Server $server, string $composeFile, string $projectName): void
+            {
+            }
+
+            public function start(Server $server, string $composeFile, string $projectName): void
+            {
+            }
+
+            public function stop(Server $server, string $composeFile, string $projectName): void
+            {
+            }
+
+            public function isRunning(Server $server, string $composeFile, string $projectName): bool
+            {
+                return false;
+            }
+
+            public function isHostPortInUse(Server $server, int $port): bool
+            {
+                return false;
+            }
+
+            public function waitForHttpReady(Server $server, string $url, int $timeoutSeconds, int $pollIntervalMs): void
+            {
+            }
+        };
+
+        $this->instance(DockerComposeRunner::class, $runnerSpy);
+        $this->actingAs($user);
+
+        $this->postJson('/onboarding/go-live')
+            ->assertOk()
+            ->assertJson([
+                'success' => true,
+                'state' => [
+                    'onboarding_status' => 'complete',
+                    'onboarding_step' => 6,
+                    'agent_status' => 'live',
+                    'resume_from_step' => 6,
+                    'steps' => [
+                        '5' => ['label' => 'Channel', 'status' => 'complete'],
+                        '6' => ['label' => 'Go Live', 'status' => 'complete'],
+                    ],
+                ],
+            ]);
+
+        $tenant->refresh();
+        $profile->refresh();
+        $files->refresh();
+
+        $this->assertSame('live', $tenant->agent_status);
+        $this->assertSame('complete', $tenant->onboarding_status);
+        $this->assertSame(6, $tenant->onboarding_step);
+        $this->assertNotNull($tenant->agent_last_synced_at);
+        $this->assertNotNull($profile->last_synced_to_agent);
+        $this->assertNotNull($files->synced_at);
+        $this->assertStringContainsString('Acme Plumbing', File::get($localRuntimePath.'/workspace/IDENTITY.md'));
+        $this->assertStringContainsString('Business Profile', File::get($localRuntimePath.'/workspace/PROFILE.md'));
+        $this->assertStringContainsString('Heartbeat Rules', File::get($localRuntimePath.'/workspace/HEARTBEAT.md'));
+        $this->assertCount(1, $runnerSpy->syncCalls);
+        $this->assertCount(1, $runnerSpy->upCalls);
+        $this->assertSame('/srv/sync360/runtime/tenants/acme-plumbing', $runnerSpy->syncCalls[0]['remote']);
+        $this->assertSame('/srv/sync360/runtime/tenants/acme-plumbing/compose.yaml', $runnerSpy->upCalls[0]['compose_file']);
+    }
+
+    /**
+     * @return array{0: User, 1: Tenant, 2: BusinessProfile, 3: BusinessProfileFiles}
+     */
+    private function seedTenantWithProfile(): array
+    {
+        $user = User::query()->create([
+            'name' => 'Alice Admin',
+            'email' => 'alice@example.com',
+            'password' => 'super-secret',
+        ]);
+
+        $tenant = Tenant::query()->create([
+            'tenant_id' => 'tenant_01',
+            'slug' => 'acme-plumbing',
+            'business_name' => 'Acme Plumbing',
+            'industry' => 'Trades',
+            'skill_pack' => 'Operations Core',
+            'onboarding_status' => 'pending',
+            'onboarding_step' => 0,
+            'agent_status' => 'offline',
+            'user_id' => $user->id,
+            'server_id' => \App\Models\Server::query()->firstOrFail()->id,
+            'trial_status' => TrialStatus::Active,
+            'provisioning_status' => TenantProvisioningStatus::Pending,
+        ]);
+
+        $profile = BusinessProfile::query()->create([
+            'tenant_id' => $tenant->id,
+            'business_name' => 'Acme Plumbing',
+            'industry' => 'Trades',
+            'contact_email' => 'alice@example.com',
+            'contact_phone' => '+64 21 555 0101',
+            'owner_name' => 'Alice Admin',
+            'owner_email' => 'alice@example.com',
+            'owner_phone' => '+64 21 555 0101',
+        ]);
+
+        $files = BusinessProfileFiles::query()->create([
+            'tenant_id' => $tenant->id,
+        ]);
+
+        return [$user, $tenant, $profile, $files];
+    }
+}

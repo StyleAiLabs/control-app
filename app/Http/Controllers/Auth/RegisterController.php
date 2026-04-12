@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\BusinessProfile;
+use App\Models\BusinessProfileFiles;
 use App\Enums\ProvisioningJobStatus;
 use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
@@ -68,6 +70,9 @@ class RegisterController extends Controller
                     'business_name' => $validated['business_name'],
                     'industry' => $validated['industry'],
                     'skill_pack' => $validated['skill_pack'],
+                    'onboarding_status' => 'pending',
+                    'onboarding_step' => 0,
+                    'agent_status' => 'offline',
                     'user_id' => $user->id,
                     'server_id' => $server->id,
                     'trial_status' => TrialStatus::Active,
@@ -84,6 +89,21 @@ class RegisterController extends Controller
                         'industry' => $validated['industry'],
                         'skill_pack' => $validated['skill_pack'],
                     ], $validated['email'], $validated['password']),
+                ]);
+
+                BusinessProfile::query()->create([
+                    'tenant_id' => $tenant->id,
+                    'business_name' => $validated['business_name'],
+                    'industry' => $validated['industry'],
+                    'contact_email' => $validated['email'],
+                    'contact_phone' => $validated['phone'] ?? null,
+                    'owner_name' => $validated['contact_name'],
+                    'owner_email' => $validated['email'],
+                    'owner_phone' => $validated['phone'] ?? null,
+                ]);
+
+                BusinessProfileFiles::query()->create([
+                    'tenant_id' => $tenant->id,
                 ]);
 
                 $server->increment('current_clients');

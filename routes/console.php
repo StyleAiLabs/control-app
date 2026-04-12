@@ -1,9 +1,11 @@
 <?php
 
 use App\Contracts\DockerComposeRunner;
+use App\Models\Tenant;
 use App\Models\Server;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -81,3 +83,48 @@ Artisan::command('sync360:bootstrap-client-vps {serverSelector? : Server id or n
 
     $this->components->info('Client VPS bootstrap completed successfully.');
 })->purpose('Install and prepare Caddy/runtime directories on the remote client VPS');
+
+Artisan::command('tenants:health-check', function () {
+    /** @var \App\Services\TenantHealthCheckService $healthChecks */
+    $healthChecks = app(\App\Services\TenantHealthCheckService::class);
+
+    $tenants = Tenant::query()
+        ->whereIn('agent_status', ['live', 'failed'])
+        ->whereNotNull('workspace_url')
+        ->whereNotNull('runtime_path')
+        ->whereNotNull('server_id')
+        ->orderBy('id')
+        ->get();
+
+    if ($tenants->isEmpty()) {
+        $this->components->info('No live or failed tenants required a health check.');
+
+        return;
+    }
+
+    $healthy = 0;
+    $failed = 0;
+
+    foreach ($tenants as $tenant) {
+        $result = $healthChecks->check($tenant);
+
+        if ($result['healthy']) {
+            $healthy++;
+        } else {
+            $failed++;
+        }
+
+        $this->components->twoColumnDetail(
+            sprintf('%s (%s)', $tenant->business_name, $tenant->tenant_id),
+            $result['message'],
+        );
+    }
+
+    $this->components->info(sprintf(
+        'Health checks finished. Healthy: %d. Failed: %d.',
+        $healthy,
+        $failed,
+    ));
+})->purpose('Check live tenant workspaces and refresh their health status');
+
+Schedule::command('tenants:health-check')->everyFiveMinutes();

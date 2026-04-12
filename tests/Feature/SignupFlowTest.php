@@ -6,6 +6,8 @@ use App\Enums\ProvisioningJobStatus;
 use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
 use App\Jobs\ProcessTenantProvisioning;
+use App\Models\BusinessProfile;
+use App\Models\BusinessProfileFiles;
 use App\Models\ProvisioningJob;
 use App\Models\Server;
 use App\Models\Tenant;
@@ -60,10 +62,26 @@ class SignupFlowTest extends TestCase
         $this->assertNotNull($tenant->server_id);
         $this->assertSame(TrialStatus::Active, $tenant->trial_status);
         $this->assertSame(TenantProvisioningStatus::Pending, $tenant->provisioning_status);
+        $this->assertSame('pending', $tenant->onboarding_status);
+        $this->assertSame(0, $tenant->onboarding_step);
+        $this->assertSame('offline', $tenant->agent_status);
         $this->assertSame(ProvisioningJobStatus::Queued, $job->status);
         $this->assertSame(1, Server::query()->firstOrFail()->current_clients);
         $this->assertSame('alice@example.com', $job->payload_json[WorkspaceReadyEmailService::PAYLOAD_LOGIN_EMAIL] ?? null);
         $this->assertIsString($job->payload_json[WorkspaceReadyEmailService::PAYLOAD_PASSWORD_ENCRYPTED] ?? null);
+
+        $profile = BusinessProfile::query()->where('tenant_id', $tenant->id)->first();
+        $files = BusinessProfileFiles::query()->where('tenant_id', $tenant->id)->first();
+
+        $this->assertNotNull($profile);
+        $this->assertNotNull($files);
+        $this->assertSame('Acme Plumbing', $profile->business_name);
+        $this->assertSame('Trades', $profile->industry);
+        $this->assertSame('alice@example.com', $profile->contact_email);
+        $this->assertSame('+64 21 555 0101', $profile->contact_phone);
+        $this->assertSame('Alice Admin', $profile->owner_name);
+        $this->assertSame('alice@example.com', $profile->owner_email);
+        $this->assertSame('+64 21 555 0101', $profile->owner_phone);
 
         Queue::assertPushed(ProcessTenantProvisioning::class, function (ProcessTenantProvisioning $queuedJob) use ($tenant, $job): bool {
             return $queuedJob->tenantId === $tenant->id
@@ -95,6 +113,8 @@ class SignupFlowTest extends TestCase
 
         $this->assertDatabaseCount('tenants', 0);
         $this->assertDatabaseCount('provisioning_jobs', 0);
+        $this->assertDatabaseCount('business_profiles', 0);
+        $this->assertDatabaseCount('business_profile_files', 0);
     }
 
     public function test_signup_fails_cleanly_when_no_client_vps_is_available(): void
@@ -118,5 +138,7 @@ class SignupFlowTest extends TestCase
         $this->assertDatabaseCount('users', 0);
         $this->assertDatabaseCount('tenants', 0);
         $this->assertDatabaseCount('provisioning_jobs', 0);
+        $this->assertDatabaseCount('business_profiles', 0);
+        $this->assertDatabaseCount('business_profile_files', 0);
     }
 }

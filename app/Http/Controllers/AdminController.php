@@ -10,6 +10,8 @@ use App\Models\ProvisioningJob;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\ControlAppDeploymentService;
+use App\Services\TenantHealthCheckService;
+use App\Services\TenantProfileSyncService;
 use App\Services\WorkspaceReadyEmailService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -23,6 +25,8 @@ class AdminController extends Controller
     public function __construct(
         private readonly DockerComposeRunner $dockerCompose,
         private readonly ControlAppDeploymentService $controlAppDeployment,
+        private readonly TenantHealthCheckService $tenantHealthChecks,
+        private readonly TenantProfileSyncService $tenantProfileSync,
         private readonly WorkspaceReadyEmailService $workspaceReadyEmail,
     ) {}
 
@@ -134,6 +138,41 @@ class AdminController extends Controller
         }
 
         return back()->with('status', 'Workspace container stop requested.');
+    }
+
+    public function restartWorkspace(Tenant $tenant): RedirectResponse
+    {
+        try {
+            [$composeFile, $projectName] = $this->workspaceFilesFor($tenant);
+            $this->dockerCompose->stop($tenant->server, $composeFile, $projectName);
+            $this->dockerCompose->start($tenant->server, $composeFile, $projectName);
+        } catch (Throwable $exception) {
+            return back()->with('status', $exception->getMessage());
+        }
+
+        return back()->with('status', 'Workspace container restart requested.');
+    }
+
+    public function healthCheck(Tenant $tenant): RedirectResponse
+    {
+        try {
+            $result = $this->tenantHealthChecks->check($tenant);
+        } catch (Throwable $exception) {
+            return back()->with('status', $exception->getMessage());
+        }
+
+        return back()->with('status', $result['message']);
+    }
+
+    public function resyncAgent(Tenant $tenant): RedirectResponse
+    {
+        try {
+            $this->tenantProfileSync->regenerateAndSync($tenant->fresh(['businessProfile', 'businessProfileFiles', 'server']));
+        } catch (Throwable $exception) {
+            return back()->with('status', $exception->getMessage());
+        }
+
+        return back()->with('status', 'Agent resync requested.');
     }
 
     public function triggerControlAppDeploy(): RedirectResponse

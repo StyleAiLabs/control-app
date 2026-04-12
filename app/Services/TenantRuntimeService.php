@@ -100,6 +100,13 @@ class TenantRuntimeService
         return rtrim($server->runtime_root, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'tenants'.DIRECTORY_SEPARATOR.$tenant->slug;
     }
 
+    public function localRuntimePath(Tenant $tenant): string
+    {
+        $runtimeRoot = $this->normalizePath((string) config('sync360.runtime_root'));
+
+        return $runtimeRoot.DIRECTORY_SEPARATOR.$tenant->slug;
+    }
+
     public function caddySitePath(Tenant $tenant): string
     {
         $server = $tenant->server;
@@ -124,7 +131,7 @@ class TenantRuntimeService
     ): string {
         $templatePath = $this->normalizePath((string) config('sync360.template_root'));
         $runtimeRoot = $this->normalizePath((string) config('sync360.runtime_root'));
-        $runtimePath = $runtimeRoot.DIRECTORY_SEPARATOR.$tenant->slug;
+        $runtimePath = $this->localRuntimePath($tenant);
 
         if (! $this->files->exists($templatePath)) {
             throw new RuntimeException(sprintf('Template directory [%s] does not exist.', $templatePath));

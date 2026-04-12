@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Tenant extends Model
 {
@@ -22,10 +23,22 @@ class Tenant extends Model
         'business_name',
         'industry',
         'skill_pack',
+        'tone',
+        'capabilities',
+        'channel',
+        'channel_config',
+        'agent_status',
+        'agent_last_synced_at',
+        'webhook_secret',
+        'last_health_check_at',
+        'last_health_check_status',
+        'health_check_message',
         'user_id',
         'server_id',
         'trial_status',
         'provisioning_status',
+        'onboarding_status',
+        'onboarding_step',
         'assigned_port',
         'workspace_url',
         'runtime_path',
@@ -42,7 +55,12 @@ class Tenant extends Model
         return [
             'trial_status' => TrialStatus::class,
             'provisioning_status' => TenantProvisioningStatus::class,
+            'capabilities' => 'array',
+            'channel_config' => 'encrypted:array',
             'assigned_port' => 'integer',
+            'onboarding_step' => 'integer',
+            'agent_last_synced_at' => 'datetime',
+            'last_health_check_at' => 'datetime',
             'litellm_virtual_key' => 'encrypted',
             'litellm_max_budget' => 'decimal:2',
             'litellm_last_synced_at' => 'datetime',
@@ -67,5 +85,20 @@ class Tenant extends Model
     public function provisioningJobs(): HasMany
     {
         return $this->hasMany(ProvisioningJob::class);
+    }
+
+    public function conversationLogs(): HasMany
+    {
+        return $this->hasMany(ConversationLog::class);
+    }
+
+    public function businessProfile(): HasOne
+    {
+        return $this->hasOne(BusinessProfile::class);
+    }
+
+    public function businessProfileFiles(): HasOne
+    {
+        return $this->hasOne(BusinessProfileFiles::class);
     }
 }

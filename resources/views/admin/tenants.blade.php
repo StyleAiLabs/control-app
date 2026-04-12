@@ -15,6 +15,8 @@
                     <th>User</th>
                     <th>Client VPS</th>
                     <th>Status</th>
+                    <th>Agent</th>
+                    <th>Health</th>
                     <th>Workspace</th>
                     <th>Port</th>
                     <th>Workspace URL</th>
@@ -43,6 +45,15 @@
                             <span class="hint">{{ $tenant->server?->host ?? '—' }}</span>
                         </td>
                         <td><span class="badge {{ $tenant->provisioning_status->value }}">{{ $tenant->provisioning_status->value }}</span></td>
+                        <td><span class="badge {{ $tenant->agent_status === 'live' ? 'ready' : ($tenant->agent_status === 'failed' ? 'failed' : 'pending') }}">{{ $tenant->agent_status ?? 'offline' }}</span></td>
+                        <td>
+                            <span class="badge {{ $tenant->last_health_check_status === 'healthy' ? 'ready' : ($tenant->last_health_check_status === 'failed' ? 'failed' : 'pending') }}">
+                                {{ $tenant->last_health_check_status ?? 'unchecked' }}
+                            </span>
+                            <div class="hint" style="margin-top: 6px;">
+                                {{ $tenant->health_check_message ?? 'No health check run yet.' }}
+                            </div>
+                        </td>
                         <td><span class="badge {{ $workspaceState === 'running' ? 'ready' : ($workspaceState === 'stopped' ? 'pending' : 'failed') }}">{{ str_replace('_', ' ', $workspaceState) }}</span></td>
                         <td>{{ $tenant->assigned_port ?? 'Pending' }}</td>
                         <td>{{ $tenant->workspace_url ?? 'Generating...' }}</td>
@@ -54,6 +65,14 @@
                                     @csrf
                                     <button type="submit">Retry</button>
                                 </form>
+                                <form method="POST" action="{{ route('admin.tenants.health-check', $tenant) }}" class="inline">
+                                    @csrf
+                                    <button type="submit" {{ in_array($workspaceState, ['not_provisioned', 'missing_config'], true) ? 'disabled' : '' }}>Health Check</button>
+                                </form>
+                                <form method="POST" action="{{ route('admin.tenants.resync-agent', $tenant) }}" class="inline">
+                                    @csrf
+                                    <button type="submit" {{ in_array($workspaceState, ['not_provisioned', 'missing_config'], true) ? 'disabled' : '' }}>Resync Agent</button>
+                                </form>
                                 <form method="POST" action="{{ route('admin.workspace.start', $tenant) }}" class="inline">
                                     @csrf
                                     <button type="submit" {{ in_array($workspaceState, ['not_provisioned', 'missing_config'], true) ? 'disabled' : '' }}>Start</button>
@@ -62,12 +81,16 @@
                                     @csrf
                                     <button type="submit" {{ in_array($workspaceState, ['not_provisioned', 'missing_config'], true) ? 'disabled' : '' }}>Stop</button>
                                 </form>
+                                <form method="POST" action="{{ route('admin.workspace.restart', $tenant) }}" class="inline">
+                                    @csrf
+                                    <button type="submit" {{ in_array($workspaceState, ['not_provisioned', 'missing_config'], true) ? 'disabled' : '' }}>Restart</button>
+                                </form>
                             </div>
                         </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="10">No tenants found yet.</td>
+                        <td colspan="12">No tenants found yet.</td>
                     </tr>
                 @endforelse
             </tbody>
