@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\ExtractionFailedException;
+use App\Models\BusinessProfile;
+use App\Models\BusinessProfileFiles;
 use App\Models\Tenant;
 use App\Services\BusinessExtractionService;
 use App\Services\TenantAgentSyncService;
@@ -50,7 +52,11 @@ class OnboardingController extends Controller
         ]);
 
         $tenant = $this->tenantFor($request);
-        $profile = $tenant->businessProfile;
+        $profile = $tenant->businessProfile
+            ?? BusinessProfile::query()->firstOrCreate(
+                ['tenant_id' => $tenant->id],
+                ['business_name' => $tenant->business_name, 'industry' => $tenant->industry]
+            );
 
         try {
             $result = $this->businessExtraction->extractFromUrl($validated['url']);
@@ -117,7 +123,11 @@ class OnboardingController extends Controller
         ]);
 
         $tenant = $this->tenantFor($request);
-        $profile = $tenant->businessProfile;
+        $profile = $tenant->businessProfile
+            ?? BusinessProfile::query()->firstOrCreate(
+                ['tenant_id' => $tenant->id],
+                ['business_name' => $tenant->business_name, 'industry' => $tenant->industry]
+            );
 
         $services = array_values(array_filter(
             array_map(
@@ -165,7 +175,11 @@ class OnboardingController extends Controller
         ]);
 
         $tenant = $this->tenantFor($request);
-        $profile = $tenant->businessProfile;
+        $profile = $tenant->businessProfile
+            ?? BusinessProfile::query()->firstOrCreate(
+                ['tenant_id' => $tenant->id],
+                ['business_name' => $tenant->business_name, 'industry' => $tenant->industry]
+            );
 
         $tenant->forceFill([
             'tone' => $validated['tone'],
@@ -173,7 +187,7 @@ class OnboardingController extends Controller
             'onboarding_step' => max((int) $tenant->onboarding_step, 3),
         ])->save();
 
-        $profile?->forceFill([
+        $profile->forceFill([
             'tone_hint' => $validated['tone'],
         ])->save();
 
@@ -192,15 +206,15 @@ class OnboardingController extends Controller
         ]);
 
         $tenant = $this->tenantFor($request);
-        $profile = $tenant->businessProfile;
-        $files = $tenant->businessProfileFiles;
-
-        if (! $profile || ! $files) {
-            return response()->json([
-                'success' => false,
-                'message' => 'We need your business details in place before we can configure what your digital employee should handle.',
-            ], 422);
-        }
+        $profile = $tenant->businessProfile
+            ?? BusinessProfile::query()->firstOrCreate(
+                ['tenant_id' => $tenant->id],
+                ['business_name' => $tenant->business_name, 'industry' => $tenant->industry]
+            );
+        $files = $tenant->businessProfileFiles
+            ?? BusinessProfileFiles::query()->firstOrCreate(
+                ['tenant_id' => $tenant->id]
+            );
 
         if (! filled($tenant->tone)) {
             return response()->json([

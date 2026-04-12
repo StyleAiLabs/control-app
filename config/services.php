@@ -49,6 +49,11 @@ return [
         'master_key' => env('LITELLM_MASTER_KEY'),
     ],
 
+    'jina' => [
+        'base_url' => env('JINA_BASE_URL', 'https://r.jina.ai'),
+        'api_key'  => env('JINA_API_KEY', ''),
+    ],
+
     'whatsapp' => [
         'base_url' => env('WHATSAPP_API_BASE_URL', 'https://graph.facebook.com'),
         'api_version' => env('WHATSAPP_API_VERSION', 'v22.0'),

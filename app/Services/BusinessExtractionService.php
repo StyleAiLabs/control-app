@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\ExtractionFailedException;
+use App\Exceptions\WebScrapingFailedException;
 use App\Models\BusinessProfile;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Throwable;
@@ -12,9 +13,11 @@ class BusinessExtractionService
     private const MODEL = 'claude-sonnet-4-6';
 
     private const EXTRACTION_PROMPT = <<<'PROMPT'
-You are extracting structured business information from a website to help configure a small-business digital employee.
+You are extracting structured business information from scraped website content to help configure a small-business digital employee.
 
-Review the website URL below and return ONLY a valid JSON object with these keys:
+The content below was scraped from the business website — it may include the homepage, about page, services page, contact page, and FAQ page.
+
+Return ONLY a valid JSON object with these keys:
 {
   "business_name": "string or null",
   "trading_name": "string or null",
@@ -34,13 +37,15 @@ Review the website URL below and return ONLY a valid JSON object with these keys
 }
 
 Rules:
-- Return raw JSON only
-- Use null when a value is unknown
-- Keep services as an array of strings
+- Return raw JSON only — no markdown fences, no explanation
+- Use null when a value is not clearly stated in the content
+- Extract only what is present — do not invent or assume information
+- Keep services as a specific array of strings drawn from the content
 - Keep description plain text in 2 to 3 sentences
 - tone_hint must be one of the allowed values or null
 
-Website URL: {{URL}}
+Website content:
+{{PAGE_CONTENT}}
 PROMPT;
 
     private const FILE_GENERATION_PROMPT = <<<'PROMPT'
@@ -70,8 +75,10 @@ Rules:
 - Do not invent specific pricing, legal promises, or unavailable services
 PROMPT;
 
-    public function __construct(private readonly HttpFactory $http)
-    {
+    public function __construct(
+        private readonly HttpFactory $http,
+        private readonly WebScraperService $scraper,
+    ) {
     }
 
     /**
@@ -79,11 +86,19 @@ PROMPT;
      */
     public function extractFromUrl(string $url): array
     {
+        // Stage 1: scrape the site — homepage + up to 5 scored internal pages.
+        try {
+            $pageContent = $this->scraper->scrape($url);
+        } catch (WebScrapingFailedException $exception) {
+            throw new ExtractionFailedException($exception->getMessage());
+        }
+
+        // Stage 2: send scraped text to Claude for structured JSON extraction.
         $token = $this->token();
         $baseUrl = rtrim((string) config('services.litellm.base_url', ''), '/');
 
         if ($baseUrl === '' || $token === '') {
-            throw new ExtractionFailedException('Website reading is not configured yet. You can still fill in your business details manually.');
+            throw new ExtractionFailedException('AI extraction is not configured yet. You can still fill in your business details manually.');
         }
 
         $response = $this->http
@@ -96,24 +111,24 @@ PROMPT;
                 'max_tokens' => 4000,
                 'messages' => [[
                     'role' => 'user',
-                    'content' => str_replace('{{URL}}', $url, self::EXTRACTION_PROMPT),
+                    'content' => str_replace('{{PAGE_CONTENT}}', $pageContent, self::EXTRACTION_PROMPT),
                 ]],
             ]);
 
         if ($response->failed()) {
-            throw new ExtractionFailedException('We couldn’t read that website just now. You can try again or enter the details manually.');
+            throw new ExtractionFailedException('We couldn\'t extract your business details just now. You can try again or enter the details manually.');
         }
 
         $content = data_get($response->json(), 'choices.0.message.content');
 
         if (! is_string($content) || trim($content) === '') {
-            throw new ExtractionFailedException('We couldn’t understand that website response. You can still fill in the details manually.');
+            throw new ExtractionFailedException('We couldn\'t understand the extraction response. You can still fill in the details manually.');
         }
 
         $decoded = json_decode($this->cleanJson($content), true);
 
         if (! is_array($decoded)) {
-            throw new ExtractionFailedException('We couldn’t turn that website into business details. Please fill in the details manually.');
+            throw new ExtractionFailedException('We couldn\'t parse the extraction result. Please fill in the details manually.');
         }
 
         $services = array_values(array_filter(

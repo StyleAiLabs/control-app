@@ -84,10 +84,41 @@
                     </label>
                 </div>
                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button type="submit">Read My Website</button>
+                    <button type="submit" id="read-website-btn">Read My Website</button>
                     <button type="button" class="button button--secondary" id="manual-focus-button">Fill In Manually</button>
                 </div>
             </form>
+
+            <div id="website-progress" style="margin-top: 18px; display: none;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <svg id="progress-spinner" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0; animation: spin 1s linear infinite;">
+                        <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2" stroke-dasharray="40" stroke-dashoffset="15" opacity="0.25"/>
+                        <path d="M10 2a8 8 0 0 1 8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <span id="progress-message" style="font-size: 0.875rem; color: var(--text-muted, #6b7280);">Reading your website pages…</span>
+                </div>
+                <div id="progress-steps" style="margin-top: 12px; display: grid; gap: 6px;">
+                    <div class="progress-step" data-step="scraping" style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem;">
+                        <span class="step-icon" style="width: 16px; text-align: center;">⏳</span>
+                        <span>Reading your website pages</span>
+                    </div>
+                    <div class="progress-step" data-step="analysing" style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; opacity: 0.4;">
+                        <span class="step-icon" style="width: 16px; text-align: center;">⏳</span>
+                        <span>Analysing business information</span>
+                    </div>
+                    <div class="progress-step" data-step="writing" style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; opacity: 0.4;">
+                        <span class="step-icon" style="width: 16px; text-align: center;">⏳</span>
+                        <span>Filling in your business details</span>
+                    </div>
+                </div>
+            </div>
+
+            <style>
+                @keyframes spin { to { transform: rotate(360deg); } }
+                .progress-step { transition: opacity 0.4s ease; }
+                .progress-step[data-done] .step-icon::before { content: "✓"; }
+            </style>
+
             <div class="note" style="margin-top: 18px; display: none;" id="website-success"></div>
             <div class="note error" style="margin-top: 18px; display: none;" id="website-error"></div>
         </div>
@@ -660,19 +691,86 @@
             applyState(await response.json());
         }
 
-        websiteForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
+        const readWebsiteBtn = document.getElementById('read-website-btn');
+        const websiteProgress = document.getElementById('website-progress');
+        const progressMessage = document.getElementById('progress-message');
+        const progressSteps = document.querySelectorAll('#progress-steps .progress-step');
+
+        function showWebsiteProgress() {
+            readWebsiteBtn.disabled = true;
+            readWebsiteBtn.textContent = 'Reading…';
+            websiteProgress.style.display = 'block';
             hideMessage(websiteSuccess);
             hideMessage(websiteError);
+
+            // Advance the animated progress steps on a timer
+            const timings = [
+                { step: 'scraping',  delay: 0,     message: 'Reading your website pages…' },
+                { step: 'analysing', delay: 18000,  message: 'Analysing business information…' },
+                { step: 'writing',   delay: 32000,  message: 'Filling in your business details…' },
+            ];
+
+            timings.forEach(({ step, delay, message }) => {
+                setTimeout(() => {
+                    progressMessage.textContent = message;
+                    const el = websiteProgress.querySelector(`[data-step="${step}"]`);
+                    if (el) {
+                        el.style.opacity = '1';
+                        el.querySelector('.step-icon').textContent = '🔄';
+                    }
+                    // Mark previous steps done
+                    progressSteps.forEach((s) => {
+                        if (s !== el && s.style.opacity === '1' && !s.hasAttribute('data-done')) {
+                            s.setAttribute('data-done', '');
+                            s.querySelector('.step-icon').textContent = '✓';
+                        }
+                    });
+                }, delay);
+            });
+        }
+
+        function hideWebsiteProgress(allDone = false) {
+            if (allDone) {
+                progressSteps.forEach((s) => {
+                    s.style.opacity = '1';
+                    s.setAttribute('data-done', '');
+                    s.querySelector('.step-icon').textContent = '✓';
+                });
+                setTimeout(() => {
+                    websiteProgress.style.display = 'none';
+                    resetProgressSteps();
+                }, 800);
+            } else {
+                websiteProgress.style.display = 'none';
+                resetProgressSteps();
+            }
+            readWebsiteBtn.disabled = false;
+            readWebsiteBtn.textContent = 'Read My Website';
+        }
+
+        function resetProgressSteps() {
+            progressSteps.forEach((s, i) => {
+                s.removeAttribute('data-done');
+                s.style.opacity = i === 0 ? '1' : '0.4';
+                s.querySelector('.step-icon').textContent = '⏳';
+            });
+            progressMessage.textContent = 'Reading your website pages…';
+        }
+
+        websiteForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            showWebsiteProgress();
 
             try {
                 const data = await fetchJson(onboardingExtractEndpoint, {
                     url: websiteUrlFormInput.value,
                 });
 
+                hideWebsiteProgress(true);
                 applyState(data.state);
                 showMessage(websiteSuccess, data.message || 'We’ve pulled in your website details.');
             } catch (error) {
+                hideWebsiteProgress(false);
                 showMessage(websiteError, error.message);
             }
         });

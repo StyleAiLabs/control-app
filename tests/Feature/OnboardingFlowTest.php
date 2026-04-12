@@ -120,7 +120,21 @@ class OnboardingFlowTest extends TestCase
     {
         [$user, $tenant] = $this->seedTenantWithProfile();
 
+        $homepageMarkdown = implode("\n", [
+            '# Acme Plumbing',
+            'Auckland plumbers you can trust.',
+            '',
+            '[About Us](/about)',
+            '[Our Services](/services)',
+            '[Contact](/contact)',
+        ]);
+
         Http::fake([
+            // Jina Reader: homepage fetch.
+            'https://r.jina.ai/https://acme.example' => Http::response($homepageMarkdown, 200),
+            // Jina Reader: any discovered sub-pages (scored links like /about, /services).
+            'https://r.jina.ai/*' => Http::response('Additional page content.', 200),
+            // LiteLLM structured extraction.
             'https://litellm.stylesoftware.co.nz/chat/completions' => Http::response([
                 'choices' => [[
                     'message' => [
