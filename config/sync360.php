@@ -53,6 +53,8 @@ return [
         'default_plan_name' => env('LITELLM_DEFAULT_PLAN_NAME', 'trial'),
         'default_budget' => (float) env('LITELLM_DEFAULT_MAX_BUDGET', 25),
         'default_budget_duration' => env('LITELLM_DEFAULT_BUDGET_DURATION', 'monthly'),
+        'team_id' => env('LITELLM_TEAM_ID'),
+        'default_models' => array_filter(array_map('trim', explode(',', (string) env('LITELLM_DEFAULT_MODELS', 'gpt-4o')))),
         'plan_budgets' => [
             'trial' => (float) env('LITELLM_TRIAL_MAX_BUDGET', env('LITELLM_DEFAULT_MAX_BUDGET', 25)),
             'starter' => (float) env('LITELLM_STARTER_MAX_BUDGET', env('LITELLM_DEFAULT_MAX_BUDGET', 25)),

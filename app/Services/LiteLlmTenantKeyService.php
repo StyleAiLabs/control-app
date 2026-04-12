@@ -35,15 +35,17 @@ class LiteLlmTenantKeyService
         $budgetDuration = (string) config('sync360.litellm.default_budget_duration', 'monthly');
         $alias = sprintf('openclaw-%s', $tenant->tenant_id);
 
-        $response = $this->request('post', '/key/generate', [
+        $response = $this->request('post', '/key/generate', array_filter([
             'key_alias' => $alias,
             'max_budget' => $budget,
             'budget_duration' => $budgetDuration,
+            'team_id' => config('sync360.litellm.team_id'),
+            'models' => config('sync360.litellm.default_models', []) ?: null,
             'metadata' => [
                 'tenant_id' => $tenant->tenant_id,
                 'plan' => $planName,
             ],
-        ]);
+        ]));
 
         $key = (string) data_get($response->json(), 'key', '');
 
