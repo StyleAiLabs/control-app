@@ -50,6 +50,8 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/', [AdminController::class, 'index'])->name('index');
         Route::get('/users', [AdminController::class, 'users'])->name('users');
         Route::get('/tenants', [AdminController::class, 'tenants'])->name('tenants');
+        Route::get('/tenants/{tenant}', [AdminController::class, 'showTenant'])->name('tenants.show');
+        Route::delete('/tenants/{tenant}', [AdminController::class, 'destroyTenant'])->name('tenants.destroy');
         Route::get('/jobs', [AdminController::class, 'jobs'])->name('jobs');
         Route::get('/deploy/control-app/status', [AdminController::class, 'controlAppDeployStatus'])->name('deploy.control-app.status');
         Route::post('/deploy/control-app', [AdminController::class, 'triggerControlAppDeploy'])->name('deploy.control-app');

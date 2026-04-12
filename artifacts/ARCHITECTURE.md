@@ -20,6 +20,7 @@ It currently validates this end-to-end flow:
 8. The app can send a workspace-created email with login details after successful provisioning.
 9. The app provisions a dedicated LiteLLM virtual key for each OpenClaw tenant before container startup.
 10. A super admin can inspect tenants, jobs, workspace state, and trigger safe control-plane deployments.
+11. A super admin can open a tenant detail page and permanently delete a tenant only after infrastructure cleanup succeeds.
 
 ## 2. Deployment Shapes
 
@@ -154,6 +155,8 @@ Responsibilities:
 - workspace-ready state
 - placeholder workspace route
 - super admin debug area
+- super-admin tenant list and tenant detail views
+- slug-confirmed permanent tenant deletion
 - super-admin control-plane deploy trigger
 - super-admin live deploy status view with latest commit metadata and recent log tail
 
@@ -190,6 +193,7 @@ This layer now owns:
 
 - runtime sync for remote servers
 - Docker Compose start/stop/up/down
+- runtime directory removal
 - remote port probing
 - readiness polling
 
@@ -232,18 +236,55 @@ Defined in [routes/web.php](/Users/gayanhewage/Projects/openclaw-saas/routes/web
 - `/admin`
 - `/admin/users`
 - `/admin/tenants`
+- `GET /admin/tenants/{tenant}`
+- `DELETE /admin/tenants/{tenant}`
 - `/admin/jobs`
 - `GET /admin/deploy/control-app/status`
 - `POST /admin/deploy/control-app`
 - `POST /admin/jobs/{tenant}/retry`
 - `POST /admin/tenants/{tenant}/workspace/start`
 - `POST /admin/tenants/{tenant}/workspace/stop`
+- `POST /admin/tenants/{tenant}/workspace/restart`
 
 Admin routes are protected by:
 
 - `auth`
 - `admin`
 - optional `local.only`, controlled by config
+
+## 8. Admin Tenant Operations
+
+The admin tenant area now has two layers:
+
+- a compact list view at `/admin/tenants`
+- a detailed tenant view at `/admin/tenants/{tenant}`
+
+The compact list is intended for quick scanning and keeps only the highest-signal fields:
+
+- business name and slug
+- customer name and email
+- assigned client VPS
+- provisioning status
+- agent status
+- health / workspace summary
+
+The detail page is the operational workspace for one tenant and includes:
+
+- customer account metadata
+- runtime and server metadata
+- onboarding and channel summary
+- latest provisioning job status and error
+- support actions for retry, health check, agent resync, start, stop, and restart
+- a danger zone for permanent deletion
+
+Permanent deletion is intentionally strict:
+
+- infrastructure teardown must succeed first
+- LiteLLM key deletion must succeed
+- only then is the linked non-admin customer account deleted, allowing the tenant and tenant-owned records to cascade
+- if any cleanup step fails, the control-app record is preserved so the admin can retry safely
+
+In local development, permanent deletion bypasses SSH and performs runtime shutdown locally with `docker compose` before deleting local runtime files.
 
 ## 7. Authentication And Admin Model
 

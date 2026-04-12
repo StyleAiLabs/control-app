@@ -10,6 +10,7 @@ use App\Models\ProvisioningJob;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\ControlAppDeploymentService;
+use App\Services\TenantDeletionService;
 use App\Services\TenantHealthCheckService;
 use App\Services\TenantProfileSyncService;
 use App\Services\TenantRuntimeService;
@@ -32,6 +33,7 @@ class AdminController extends Controller
         private readonly TenantProfileSyncService $tenantProfileSync,
         private readonly WorkspaceReadyEmailService $workspaceReadyEmail,
         private readonly TenantRuntimeService $runtime,
+        private readonly TenantDeletionService $tenantDeletion,
     ) {}
 
     public function index(): View
@@ -81,6 +83,23 @@ class AdminController extends Controller
         return view('admin.tenants', [
             'tenants' => $tenants,
             'workspaceStates' => $workspaceStates,
+        ]);
+    }
+
+    public function showTenant(Tenant $tenant): View
+    {
+        $tenant->load([
+            'user',
+            'server',
+            'businessProfile',
+            'businessProfileFiles',
+            'provisioningJobs' => fn ($query) => $query->latest('id'),
+        ]);
+
+        return view('admin.tenant-show', [
+            'tenant' => $tenant,
+            'workspaceState' => $this->workspaceStateFor($tenant),
+            'latestJob' => $tenant->provisioningJobs->first(),
         ]);
     }
 
@@ -189,6 +208,26 @@ class AdminController extends Controller
         }
 
         return back()->with('status', 'Agent resync requested.');
+    }
+
+    public function destroyTenant(Tenant $tenant): RedirectResponse
+    {
+        $validated = request()->validate([
+            'confirmation_slug' => ['required', 'string', 'in:'.$tenant->slug],
+        ], [
+            'confirmation_slug.in' => 'Type the tenant slug exactly to confirm permanent deletion.',
+        ]);
+
+        try {
+            $this->tenantDeletion->deletePermanently($tenant);
+        } catch (Throwable $exception) {
+            return back()->with('status', $exception->getMessage());
+        }
+
+        return redirect()->route('admin.tenants')->with('status', sprintf(
+            'Tenant %s and its linked customer account were permanently deleted.',
+            $validated['confirmation_slug'],
+        ));
     }
 
     public function triggerControlAppDeploy(): RedirectResponse

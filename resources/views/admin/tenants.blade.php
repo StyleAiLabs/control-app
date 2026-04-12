@@ -3,7 +3,7 @@
         <div>
             <span class="eyebrow">Admin Tenants</span>
             <h2>Tenant Records</h2>
-            <p>Inspect provisioning status, assigned ports, workspace URLs, and runtime paths.</p>
+            <p>Review the most important tenant signals here, then open a tenant to inspect operational details or perform destructive actions.</p>
         </div>
     </div>
 
@@ -12,28 +12,22 @@
             <thead>
                 <tr>
                     <th>Business</th>
-                    <th>User</th>
+                    <th>Customer</th>
                     <th>Client VPS</th>
-                    <th>Status</th>
+                    <th>Provisioning</th>
                     <th>Agent</th>
                     <th>Health</th>
                     <th>Workspace</th>
-                    <th>Port</th>
-                    <th>Workspace URL</th>
-                    <th>Runtime Path</th>
-                    <th>Latest Error</th>
-                    <th>Action</th>
                 </tr>
             </thead>
             <tbody>
                 @forelse ($tenants as $tenant)
                     @php
-                        $latestJob = $tenant->provisioningJobs->first();
                         $workspaceState = $workspaceStates[$tenant->id] ?? 'unknown';
                     @endphp
-                    <tr>
+                    <tr class="clickable-row" data-href="{{ route('admin.tenants.show', $tenant) }}" tabindex="0">
                         <td>
-                            <strong>{{ $tenant->business_name }}</strong><br>
+                            <a href="{{ route('admin.tenants.show', $tenant) }}"><strong>{{ $tenant->business_name }}</strong></a><br>
                             <span class="hint">{{ $tenant->slug }}</span>
                         </td>
                         <td>
@@ -54,46 +48,40 @@
                                 {{ $tenant->health_check_message ?? 'No health check run yet.' }}
                             </div>
                         </td>
-                        <td><span class="badge {{ $workspaceState === 'running' ? 'ready' : ($workspaceState === 'stopped' ? 'pending' : 'failed') }}">{{ str_replace('_', ' ', $workspaceState) }}</span></td>
-                        <td>{{ $tenant->assigned_port ?? 'Pending' }}</td>
-                        <td>{{ $tenant->workspace_url ?? 'Generating...' }}</td>
-                        <td>{{ $tenant->runtime_path ?? 'Pending' }}</td>
-                        <td>{{ $latestJob?->error_message ?? '—' }}</td>
                         <td>
-                            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                                <form method="POST" action="{{ route('admin.retry', $tenant) }}" class="inline">
-                                    @csrf
-                                    <button type="submit">Retry</button>
-                                </form>
-                                <form method="POST" action="{{ route('admin.tenants.health-check', $tenant) }}" class="inline">
-                                    @csrf
-                                    <button type="submit" {{ in_array($workspaceState, ['not_provisioned', 'missing_config'], true) ? 'disabled' : '' }}>Health Check</button>
-                                </form>
-                                <form method="POST" action="{{ route('admin.tenants.resync-agent', $tenant) }}" class="inline">
-                                    @csrf
-                                    <button type="submit" {{ in_array($workspaceState, ['not_provisioned', 'missing_config'], true) ? 'disabled' : '' }}>Resync Agent</button>
-                                </form>
-                                <form method="POST" action="{{ route('admin.workspace.start', $tenant) }}" class="inline">
-                                    @csrf
-                                    <button type="submit" {{ in_array($workspaceState, ['not_provisioned', 'missing_config'], true) ? 'disabled' : '' }}>Start</button>
-                                </form>
-                                <form method="POST" action="{{ route('admin.workspace.stop', $tenant) }}" class="inline">
-                                    @csrf
-                                    <button type="submit" {{ in_array($workspaceState, ['not_provisioned', 'missing_config'], true) ? 'disabled' : '' }}>Stop</button>
-                                </form>
-                                <form method="POST" action="{{ route('admin.workspace.restart', $tenant) }}" class="inline">
-                                    @csrf
-                                    <button type="submit" {{ in_array($workspaceState, ['not_provisioned', 'missing_config'], true) ? 'disabled' : '' }}>Restart</button>
-                                </form>
+                            <span class="badge {{ $workspaceState === 'running' ? 'ready' : ($workspaceState === 'stopped' ? 'pending' : 'failed') }}">{{ str_replace('_', ' ', $workspaceState) }}</span>
+                            <div class="hint" style="margin-top: 6px;">
+                                {{ $tenant->workspace_url ?? 'Workspace URL pending' }}
                             </div>
                         </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="12">No tenants found yet.</td>
+                        <td colspan="7">No tenants found yet.</td>
                     </tr>
                 @endforelse
             </tbody>
         </table>
     </section>
+
+    <script>
+        (() => {
+            document.querySelectorAll('.clickable-row').forEach((row) => {
+                const href = row.dataset.href;
+                if (!href) return;
+
+                row.addEventListener('click', (event) => {
+                    if (event.target.closest('a, button, input, textarea, select, form')) return;
+                    window.location = href;
+                });
+
+                row.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        window.location = href;
+                    }
+                });
+            });
+        })();
+    </script>
 </x-layouts.app>

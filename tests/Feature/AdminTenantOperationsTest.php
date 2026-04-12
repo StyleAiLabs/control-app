@@ -53,7 +53,7 @@ class AdminTenantOperationsTest extends TestCase
 
         $runner = Mockery::mock(DockerComposeRunner::class);
         $runner->shouldReceive('isRunning')
-            ->once()
+            ->twice()
             ->withArgs(fn (Server $server, string $composeFile, string $projectName): bool => $composeFile === '/srv/sync360/runtime/tenants/ops-shop/compose.yaml' && $projectName === 'sync360-ops-shop')
             ->andReturnTrue();
         $runner->shouldReceive('stop')
@@ -91,10 +91,16 @@ class AdminTenantOperationsTest extends TestCase
         $this->get('/admin/tenants')
             ->assertOk()
             ->assertSee('Ops Shop')
+            ->assertSee(route('admin.tenants.show', $tenant), false)
+            ->assertDontSee('Permanent Delete');
+
+        $this->get(route('admin.tenants.show', $tenant))
+            ->assertOk()
             ->assertSee('Health Check')
             ->assertSee('Resync Agent')
             ->assertSee('Restart')
-            ->assertSee('healthy');
+            ->assertSee('healthy')
+            ->assertSee('Permanent Delete');
 
         $this->post(route('admin.tenants.health-check', $tenant))
             ->assertRedirect()

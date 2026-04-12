@@ -121,6 +121,7 @@ class ProfileFlowTest extends TestCase
 
             public function putFile(Server $server, string $remotePath, string $contents, bool $sudo = false): void {}
             public function removeFile(Server $server, string $remotePath, bool $sudo = false): void {}
+            public function removeDirectory(Server $server, string $remotePath, bool $sudo = false): void {}
             public function runCommand(Server $server, string $command, bool $sudo = false): void {}
             public function up(Server $server, string $composeFile, string $projectName): void
             {

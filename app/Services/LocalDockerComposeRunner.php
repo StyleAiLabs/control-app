@@ -34,6 +34,11 @@ class LocalDockerComposeRunner implements DockerComposeRunner
         $this->files->delete($remotePath);
     }
 
+    public function removeDirectory(Server $server, string $remotePath, bool $sudo = false): void
+    {
+        $this->files->deleteDirectory($remotePath);
+    }
+
     public function runCommand(Server $server, string $command, bool $sudo = false): void
     {
         $this->run(['sh', '-lc', $command]);

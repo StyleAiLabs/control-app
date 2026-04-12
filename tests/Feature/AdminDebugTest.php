@@ -31,6 +31,25 @@ class AdminDebugTest extends TestCase
             'is_admin' => false,
         ]);
 
+        $tenantOwner = User::query()->create([
+            'name' => 'Tenant Owner',
+            'email' => 'tenant-owner@example.com',
+            'password' => 'super-secret',
+            'is_admin' => false,
+        ]);
+
+        $tenant = Tenant::query()->create([
+            'tenant_id' => 'tenant_non_admin_01',
+            'slug' => 'tenant-non-admin',
+            'business_name' => 'Tenant Non Admin',
+            'industry' => 'Retail',
+            'skill_pack' => 'Client Support',
+            'user_id' => $tenantOwner->id,
+            'server_id' => Server::query()->firstOrFail()->id,
+            'trial_status' => TrialStatus::Active,
+            'provisioning_status' => TenantProvisioningStatus::Pending,
+        ]);
+
         $this->actingAs($user);
 
         $this->get('/admin')->assertForbidden();
@@ -38,6 +57,7 @@ class AdminDebugTest extends TestCase
         $this->get('/admin/tenants')->assertForbidden();
         $this->get('/admin/jobs')->assertForbidden();
         $this->post('/admin/deploy/control-app')->assertForbidden();
+        $this->delete(route('admin.tenants.destroy', $tenant))->assertForbidden();
     }
 
     public function test_admin_pages_list_users_tenants_jobs_and_allow_retry(): void
@@ -82,7 +102,7 @@ class AdminDebugTest extends TestCase
 
         $runner = Mockery::mock(DockerComposeRunner::class);
         $runner->shouldReceive('isRunning')
-            ->once()
+            ->twice()
             ->withArgs(fn (Server $server, string $composeFile, string $projectName): bool => $server->name === 'test-vps' && $composeFile === '/srv/sync360/runtime/tenants/debug-shop/compose.yaml' && $projectName === 'sync360-debug-shop')
             ->andReturnTrue();
         $runner->shouldReceive('start')
@@ -173,8 +193,13 @@ class AdminDebugTest extends TestCase
         $this->get('/admin/tenants')
             ->assertOk()
             ->assertSee('Debug Shop')
-            ->assertSee('Provisioner exploded.')
             ->assertSee('running');
+
+        $this->get(route('admin.tenants.show', $tenant))
+            ->assertOk()
+            ->assertSee('Debug Shop')
+            ->assertSee('Provisioner exploded.')
+            ->assertSee('Permanent Delete');
 
         $this->get('/admin/jobs')
             ->assertOk()

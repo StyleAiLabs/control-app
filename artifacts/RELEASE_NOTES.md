@@ -7,10 +7,13 @@ Newest updates appear first.
 ## Unreleased
 
 Date: 2026-04-12
-Branch: `cdx-feature/client-onbarding-wizard`
+Branch: `cdx-feature/tenant-record-resource-delete`
 Status: In progress
 
 Summary:
+- Added a dedicated super-admin tenant detail page and simplified the tenant list into a compact overview
+- Added strict permanent tenant deletion with full infrastructure teardown, LiteLLM key removal, and linked customer-user deletion
+- Added local development bypass for tenant deletion so localhost runtimes are removed without SSH
 - Added the first end-to-end managed onboarding flow for Sync360 customers without exposing OpenClaw internals
 - Added AI-assisted business extraction and assistant file generation using the control app LiteLLM virtual key
 - Added channel connection, go-live sync, webhook routing, and conversation logging for WhatsApp and Telegram
@@ -20,6 +23,35 @@ Summary:
 - Added channel disconnect flow with config cleanup and gateway restart
 - Simplified onboarding UX by removing all OpenClaw/CLI references and adding brand icons
 - Fixed local development SSH bypass for admin workspace start/stop/restart actions
+
+### 2026-04-12 — Superadmin Tenant Detail & Permanent Delete
+
+**Admin Tenant UX**
+- Slimmed [admin/tenants.blade.php](/Users/gayanhewage/Projects/openclaw-saas/resources/views/admin/tenants.blade.php) into a compact list that keeps only the key operational signals in each row
+- Added tenant detail route support in [routes/web.php](/Users/gayanhewage/Projects/openclaw-saas/routes/web.php) and [AdminController.php](/Users/gayanhewage/Projects/openclaw-saas/app/Http/Controllers/AdminController.php) with `GET /admin/tenants/{tenant}`
+- Added [tenant-show.blade.php](/Users/gayanhewage/Projects/openclaw-saas/resources/views/admin/tenant-show.blade.php) with grouped sections for customer details, runtime metadata, onboarding summary, latest job state, support actions, and a danger zone
+
+**Permanent Tenant Delete**
+- Added [TenantDeletionService.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/TenantDeletionService.php) to orchestrate strict synchronous deletion
+- Permanent delete now:
+  - tears down the tenant Docker Compose project
+  - removes the tenant Caddy config and reloads Caddy when managed
+  - deletes the remote tenant runtime directory
+  - deletes the local staged runtime directory
+  - deletes the LiteLLM virtual key
+  - deletes the linked non-admin customer account, letting tenant-owned records cascade from the database
+- Added delete route `DELETE /admin/tenants/{tenant}` in [routes/web.php](/Users/gayanhewage/Projects/openclaw-saas/routes/web.php)
+- Added slug-confirmation protection on the detail page before permanent deletion is enabled
+- Deletion now blocks if remote cleanup fails, if LiteLLM key deletion fails, or if the tenant is linked to an admin account
+
+**Infrastructure Support**
+- Extended [DockerComposeRunner.php](/Users/gayanhewage/Projects/openclaw-saas/app/Contracts/DockerComposeRunner.php) with remote directory removal support
+- Implemented `removeDirectory()` in [LocalDockerComposeRunner.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/LocalDockerComposeRunner.php) and [SshDockerComposeRunner.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/SshDockerComposeRunner.php)
+- Added local-development deletion bypass in [TenantDeletionService.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/TenantDeletionService.php) so localhost tenant deletion uses local `docker compose down` instead of SSH
+
+Verification:
+- `php artisan test --filter=AdminTenantDeletionTest` passed
+- `php artisan test` passed with `63 passed` and `521 assertions`
 
 ### 2026-04-12 — Managed Channel Connection & Admin SSH Bypass
 

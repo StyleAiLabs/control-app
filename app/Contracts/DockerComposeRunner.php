@@ -12,6 +12,8 @@ interface DockerComposeRunner
 
     public function removeFile(Server $server, string $remotePath, bool $sudo = false): void;
 
+    public function removeDirectory(Server $server, string $remotePath, bool $sudo = false): void;
+
     public function runCommand(Server $server, string $command, bool $sudo = false): void;
 
     public function up(Server $server, string $composeFile, string $projectName): void;

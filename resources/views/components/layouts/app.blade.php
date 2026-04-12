@@ -235,6 +235,7 @@
         }
         tr:last-child td { border-bottom: none; }
         tbody tr:hover { background: rgba(255, 107, 53, 0.03); }
+        .clickable-row { cursor: pointer; }
 
         /* ── Buttons ── */
         .button, button {
@@ -285,6 +286,20 @@
             color: white;
             transform: none;
         }
+        .button--danger {
+            background: var(--danger);
+            color: white;
+            box-shadow: 0 6px 20px rgba(159, 55, 55, 0.28);
+        }
+        .button--danger:hover {
+            background: #872f2f;
+            box-shadow: 0 10px 28px rgba(159, 55, 55, 0.35);
+        }
+        .button--danger:disabled {
+            background: #d8b9b9;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
 
         /* ── Meta items ── */
         .meta {
@@ -323,6 +338,10 @@
             background: var(--danger-bg);
             color: var(--danger);
             border-color: rgba(159, 55, 55, 0.18);
+        }
+        .danger-panel {
+            border-color: rgba(159, 55, 55, 0.24);
+            box-shadow: 0 4px 24px rgba(159, 55, 55, 0.06);
         }
 
         /* ── Progress bar ── */

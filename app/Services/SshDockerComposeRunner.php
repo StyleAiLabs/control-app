@@ -59,6 +59,11 @@ class SshDockerComposeRunner implements DockerComposeRunner
         $this->runCommand($server, sprintf('rm -f %s', $this->shellQuote($remotePath)), $sudo);
     }
 
+    public function removeDirectory(Server $server, string $remotePath, bool $sudo = false): void
+    {
+        $this->runCommand($server, sprintf('rm -rf %s', $this->shellQuote($remotePath)), $sudo);
+    }
+
     public function runCommand(Server $server, string $command, bool $sudo = false): void
     {
         $this->runSsh($server, $this->wrapRemoteCommand($server, $command, $sudo));

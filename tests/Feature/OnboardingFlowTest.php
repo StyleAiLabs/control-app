@@ -552,6 +552,10 @@ class OnboardingFlowTest extends TestCase
             {
             }
 
+            public function removeDirectory(Server $server, string $remotePath, bool $sudo = false): void
+            {
+            }
+
             public function runCommand(Server $server, string $command, bool $sudo = false): void
             {
             }
