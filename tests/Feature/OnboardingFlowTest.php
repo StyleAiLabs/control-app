@@ -28,7 +28,7 @@ class OnboardingFlowTest extends TestCase
         $this->get('/onboarding')
             ->assertOk()
             ->assertSee('Guided Setup')
-            ->assertSee('Set up your digital employee in one guided flow.')
+            ->assertSee('Set up your digital employee')
             ->assertSee('Read your business website')
             ->assertSee('Confirm your business details')
             ->assertSee('Connect your customer channel')

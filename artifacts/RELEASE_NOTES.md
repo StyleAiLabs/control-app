@@ -16,6 +16,39 @@ Summary:
 - Added channel connection, go-live sync, webhook routing, and conversation logging for WhatsApp and Telegram
 - Added a richer customer dashboard, dedicated conversation browsing, editable business profile management, live assistant resync, and tenant health tooling
 - Polished channel onboarding so customers now get tenant-specific webhook setup details directly inside the guided flow
+- Added managed Telegram channel connection — bot token is written directly to `openclaw.json` and the gateway is restarted automatically
+- Added channel disconnect flow with config cleanup and gateway restart
+- Simplified onboarding UX by removing all OpenClaw/CLI references and adding brand icons
+- Fixed local development SSH bypass for admin workspace start/stop/restart actions
+
+### 2026-04-12 — Managed Channel Connection & Admin SSH Bypass
+
+**Managed Telegram Connection**
+- Added `configureChannel()` in [TenantAgentSyncService.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/TenantAgentSyncService.php) — reads the tenant's `openclaw.json`, merges `channels.telegram` config (`enabled`, `botToken`, `dmPolicy: "open"`), writes it back, and restarts the gateway container
+- Added `removeChannelConfig()` in [TenantAgentSyncService.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/TenantAgentSyncService.php) — removes the `channels` key from `openclaw.json` on disconnect and restarts the gateway
+- Updated `saveChannel()` in [OnboardingController.php](/Users/gayanhewage/Projects/openclaw-saas/app/Http/Controllers/OnboardingController.php) to call `configureChannel()` after saving to DB, with graceful fallback if config write fails
+- Added `disconnectChannel()` endpoint and route `POST /onboarding/channel/disconnect` in [OnboardingController.php](/Users/gayanhewage/Projects/openclaw-saas/app/Http/Controllers/OnboardingController.php) and [routes/web.php](/Users/gayanhewage/Projects/openclaw-saas/routes/web.php)
+
+**Channel UI Overhaul**
+- Added connected status panel in [show.blade.php](/Users/gayanhewage/Projects/openclaw-saas/resources/views/onboarding/show.blade.php) — shows channel icon + green "Connected" badge + "Disconnect" button when a channel is active; hides the connection form
+- Added WhatsApp "Coming Soon" badge (disabled, greyed out) — always visible in both connected and disconnected states
+- Added SVG brand icons for WhatsApp (green) and Telegram (blue) throughout the channel step
+- Rewrote all channel setup guides to be customer-friendly — no CLI commands, no OpenClaw references, no technical jargon
+- Rewrote all status note messages to plain language ("Telegram is connected", "Your assistant is ready to go")
+
+**Bug Fixes**
+- Fixed `channel_config` column type mismatch — migrated from `json` to `text` in [change_channel_config_to_text_on_tenants_table](/Users/gayanhewage/Projects/openclaw-saas/database/migrations/2026_04_12_071749_change_channel_config_to_text_on_tenants_table.php) to fix incompatibility between `encrypted:array` cast and PostgreSQL's JSON column validation
+
+**Admin SSH Bypass (Local Dev)**
+- Updated `startWorkspace()`, `stopWorkspace()`, `restartWorkspace()`, and `workspaceStateFor()` in [AdminController.php](/Users/gayanhewage/Projects/openclaw-saas/app/Http/Controllers/AdminController.php) to bypass SSH and run `docker compose` commands locally when `APP_ENV=local`
+- Added `localDockerCompose()` helper method for running compose commands against the local runtime directory
+- Injected [TenantRuntimeService](/Users/gayanhewage/Projects/openclaw-saas/app/Services/TenantRuntimeService.php) into AdminController for local path resolution
+
+Verification:
+- 57/57 tests passing (459 assertions)
+- Telegram bot token successfully written to `openclaw.json` on save
+- Channel disconnect removes `channels` key from `openclaw.json`
+- Admin workspace start/stop/restart working on localhost without SSH
 
 Notable changes:
 - Added onboarding data model and tenant state for guided activation:

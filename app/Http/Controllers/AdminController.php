@@ -12,10 +12,13 @@ use App\Models\User;
 use App\Services\ControlAppDeploymentService;
 use App\Services\TenantHealthCheckService;
 use App\Services\TenantProfileSyncService;
+use App\Services\TenantRuntimeService;
 use App\Services\WorkspaceReadyEmailService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
@@ -28,6 +31,7 @@ class AdminController extends Controller
         private readonly TenantHealthCheckService $tenantHealthChecks,
         private readonly TenantProfileSyncService $tenantProfileSync,
         private readonly WorkspaceReadyEmailService $workspaceReadyEmail,
+        private readonly TenantRuntimeService $runtime,
     ) {}
 
     public function index(): View
@@ -119,8 +123,12 @@ class AdminController extends Controller
     public function startWorkspace(Tenant $tenant): RedirectResponse
     {
         try {
-            [$composeFile, $projectName] = $this->workspaceFilesFor($tenant);
-            $this->dockerCompose->start($tenant->server, $composeFile, $projectName);
+            if (app()->environment('local')) {
+                $this->localDockerCompose($tenant, 'up -d');
+            } else {
+                [$composeFile, $projectName] = $this->workspaceFilesFor($tenant);
+                $this->dockerCompose->start($tenant->server, $composeFile, $projectName);
+            }
         } catch (Throwable $exception) {
             return back()->with('status', $exception->getMessage());
         }
@@ -131,8 +139,12 @@ class AdminController extends Controller
     public function stopWorkspace(Tenant $tenant): RedirectResponse
     {
         try {
-            [$composeFile, $projectName] = $this->workspaceFilesFor($tenant);
-            $this->dockerCompose->stop($tenant->server, $composeFile, $projectName);
+            if (app()->environment('local')) {
+                $this->localDockerCompose($tenant, 'stop');
+            } else {
+                [$composeFile, $projectName] = $this->workspaceFilesFor($tenant);
+                $this->dockerCompose->stop($tenant->server, $composeFile, $projectName);
+            }
         } catch (Throwable $exception) {
             return back()->with('status', $exception->getMessage());
         }
@@ -143,9 +155,13 @@ class AdminController extends Controller
     public function restartWorkspace(Tenant $tenant): RedirectResponse
     {
         try {
-            [$composeFile, $projectName] = $this->workspaceFilesFor($tenant);
-            $this->dockerCompose->stop($tenant->server, $composeFile, $projectName);
-            $this->dockerCompose->start($tenant->server, $composeFile, $projectName);
+            if (app()->environment('local')) {
+                $this->localDockerCompose($tenant, 'restart');
+            } else {
+                [$composeFile, $projectName] = $this->workspaceFilesFor($tenant);
+                $this->dockerCompose->stop($tenant->server, $composeFile, $projectName);
+                $this->dockerCompose->start($tenant->server, $composeFile, $projectName);
+            }
         } catch (Throwable $exception) {
             return back()->with('status', $exception->getMessage());
         }
@@ -193,8 +209,25 @@ class AdminController extends Controller
 
     private function workspaceStateFor(Tenant $tenant): string
     {
-        if (! $tenant->runtime_path) {
+        if (! $tenant->runtime_path && ! app()->environment('local')) {
             return 'not_provisioned';
+        }
+
+        if (app()->environment('local')) {
+            $localCompose = $this->runtime->localRuntimePath($tenant).DIRECTORY_SEPARATOR.'compose.yaml';
+
+            if (! file_exists($localCompose)) {
+                return 'missing_config';
+            }
+
+            $projectName = Str::limit('sync360-'.$tenant->slug, 63, '');
+            $result = Process::run(sprintf(
+                'docker compose -f %s -p %s ps --format json',
+                escapeshellarg($localCompose),
+                escapeshellarg($projectName),
+            ));
+
+            return str_contains($result->output(), '"running"') ? 'running' : 'stopped';
         }
 
         try {
@@ -206,6 +239,30 @@ class AdminController extends Controller
         return $this->dockerCompose->isRunning($tenant->server, $composeFile, $projectName)
             ? 'running'
             : 'stopped';
+    }
+
+    /**
+     * Run a docker compose command locally (dev environment only).
+     */
+    private function localDockerCompose(Tenant $tenant, string $action): void
+    {
+        $localCompose = $this->runtime->localRuntimePath($tenant).DIRECTORY_SEPARATOR.'compose.yaml';
+        $projectName = Str::limit('sync360-'.$tenant->slug, 63, '');
+
+        $command = sprintf(
+            'docker compose -f %s -p %s %s',
+            escapeshellarg($localCompose),
+            escapeshellarg($projectName),
+            $action,
+        );
+
+        Log::info('[AdminWorkspace] Local dev: '.$command);
+
+        $result = Process::run($command);
+
+        if (! $result->successful()) {
+            throw new RuntimeException('Docker compose command failed: '.$result->errorOutput());
+        }
     }
 
     /**

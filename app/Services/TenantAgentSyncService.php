@@ -8,6 +8,7 @@ use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
 use App\Models\Tenant;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
@@ -54,8 +55,13 @@ class TenantAgentSyncService
                 $this->files->put($workspacePath.DIRECTORY_SEPARATOR.$filename, $contents);
             }
 
-            $this->dockerCompose->syncRuntime($tenant->server, $localRuntimePath, $remoteRuntimePath);
-            $this->dockerCompose->up($tenant->server, $composeFile, $projectName);
+            /* Skip SSH-based remote sync in local dev — files are already on disk. */
+            if (app()->environment('local')) {
+                Log::info('[GoLive] Local dev mode — skipping remote sync for tenant '.$tenant->slug);
+            } else {
+                $this->dockerCompose->syncRuntime($tenant->server, $localRuntimePath, $remoteRuntimePath);
+                $this->dockerCompose->up($tenant->server, $composeFile, $projectName);
+            }
 
             $profileFiles->forceFill([
                 'profile_markdown' => $artifacts['PROFILE.md'],
@@ -83,6 +89,114 @@ class TenantAgentSyncService
         }
     }
 
+    /**
+     * Write channel configuration into the tenant's openclaw.json and restart
+     * the gateway so it picks up the new channel.
+     */
+    public function configureChannel(Tenant $tenant): void
+    {
+        $tenant->loadMissing('server');
+
+        $localRuntimePath = $this->runtime->localRuntimePath($tenant);
+        $configPath = $localRuntimePath.DIRECTORY_SEPARATOR.'config'.DIRECTORY_SEPARATOR.'openclaw.json';
+
+        if (! $this->files->exists($configPath)) {
+            throw new RuntimeException('The workspace config file does not exist yet. Please complete the earlier setup steps first.');
+        }
+
+        $config = json_decode($this->files->get($configPath), true) ?: [];
+        $channelConfig = is_array($tenant->channel_config) ? $tenant->channel_config : [];
+
+        /* Merge channel-specific settings into the openclaw config. */
+        match ($tenant->channel) {
+            'telegram' => $config['channels']['telegram'] = array_filter([
+                'enabled' => true,
+                'botToken' => $channelConfig['telegram_bot_token'] ?? null,
+                'dmPolicy' => 'open',
+            ]),
+            default => null, /* WhatsApp will be added in a future phase. */
+        };
+
+        $this->files->put(
+            $configPath,
+            json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL,
+        );
+
+        /* Restart the gateway so it picks up the new config. */
+        if (app()->environment('local')) {
+            Log::info('[ConfigureChannel] Local dev mode — config written, skipping remote sync for tenant '.$tenant->slug);
+
+            return;
+        }
+
+        $remoteRuntimePath = $tenant->runtime_path ?: $this->runtime->remoteRuntimePath($tenant);
+        $remoteConfigPath = $remoteRuntimePath.'/config/openclaw.json';
+        $composeFile = $remoteRuntimePath.'/'.(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
+        $projectName = Str::limit('sync360-'.$tenant->slug, 63, '');
+
+        $this->dockerCompose->putFile(
+            $tenant->server,
+            $remoteConfigPath,
+            json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL,
+        );
+
+        /* Restart instead of full up — faster and preserves session data. */
+        $this->dockerCompose->runCommand(
+            $tenant->server,
+            sprintf('docker compose -f %s -p %s restart', escapeshellarg($composeFile), escapeshellarg($projectName)),
+        );
+
+        Log::info('[ConfigureChannel] Channel config written and gateway restarted for tenant '.$tenant->slug);
+    }
+
+    /**
+     * Remove channel configuration from the tenant's openclaw.json and restart
+     * the gateway.
+     */
+    public function removeChannelConfig(Tenant $tenant): void
+    {
+        $tenant->loadMissing('server');
+
+        $localRuntimePath = $this->runtime->localRuntimePath($tenant);
+        $configPath = $localRuntimePath.DIRECTORY_SEPARATOR.'config'.DIRECTORY_SEPARATOR.'openclaw.json';
+
+        if (! $this->files->exists($configPath)) {
+            return;
+        }
+
+        $config = json_decode($this->files->get($configPath), true) ?: [];
+        unset($config['channels']);
+
+        $this->files->put(
+            $configPath,
+            json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL,
+        );
+
+        if (app()->environment('local')) {
+            Log::info('[RemoveChannelConfig] Local dev mode — channels removed from config for tenant '.$tenant->slug);
+
+            return;
+        }
+
+        $remoteRuntimePath = $tenant->runtime_path ?: $this->runtime->remoteRuntimePath($tenant);
+        $remoteConfigPath = $remoteRuntimePath.'/config/openclaw.json';
+        $composeFile = $remoteRuntimePath.'/'.(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
+        $projectName = Str::limit('sync360-'.$tenant->slug, 63, '');
+
+        $this->dockerCompose->putFile(
+            $tenant->server,
+            $remoteConfigPath,
+            json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL,
+        );
+
+        $this->dockerCompose->runCommand(
+            $tenant->server,
+            sprintf('docker compose -f %s -p %s restart', escapeshellarg($composeFile), escapeshellarg($projectName)),
+        );
+
+        Log::info('[RemoveChannelConfig] Channels removed and gateway restarted for tenant '.$tenant->slug);
+    }
+
     private function ensureTenantCanGoLive(Tenant $tenant, ?BusinessProfile $profile, ?BusinessProfileFiles $profileFiles): void
     {
         if (! $tenant->server) {
@@ -101,23 +215,7 @@ class TenantAgentSyncService
             throw new RuntimeException('We still need to prepare the internal business files before going live.');
         }
 
-        if (! filled($tenant->channel)) {
-            throw new RuntimeException('Choose a customer channel before going live.');
-        }
-
-        $channelConfig = is_array($tenant->channel_config) ? $tenant->channel_config : [];
-
-        $channelReady = match ($tenant->channel) {
-            'whatsapp' => filled($channelConfig['whatsapp_phone_number_id'] ?? null)
-                && filled($channelConfig['whatsapp_access_token'] ?? null)
-                && filled($channelConfig['whatsapp_verify_token'] ?? null),
-            'telegram' => filled($channelConfig['telegram_bot_token'] ?? null),
-            default => false,
-        };
-
-        if (! $channelReady) {
-            throw new RuntimeException('Finish connecting the customer messaging channel before going live.');
-        }
+        /* Channel is optional — tenant can connect one later. */
 
         if (! filled($tenant->runtime_path)) {
             throw new RuntimeException('The workspace runtime path is missing, so we cannot sync the final setup files yet.');

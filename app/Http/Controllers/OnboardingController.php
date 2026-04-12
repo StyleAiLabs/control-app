@@ -286,11 +286,51 @@ class OnboardingController extends Controller
             'onboarding_step' => max((int) $tenant->onboarding_step, 5),
         ])->save();
 
+        /* Write channel config to the tenant's OpenClaw instance and restart
+           the gateway so it starts listening immediately. */
+        $channelConfigured = false;
+
+        if ($channel === 'telegram') {
+            try {
+                $this->agentSync->configureChannel($tenant);
+                $channelConfigured = true;
+            } catch (Throwable $exception) {
+                report($exception);
+            }
+        }
+
+        $message = match (true) {
+            $channel === 'telegram' && $channelConfigured => 'Telegram is connected — your assistant is ready to receive messages.',
+            $channel === 'telegram' => 'Telegram details saved. We could not configure the assistant automatically right now — please try again shortly.',
+            default => 'Channel details saved.',
+        };
+
         return response()->json([
             'success' => true,
-            'message' => $channel === 'whatsapp'
-                ? 'WhatsApp is connected. Use the webhook details shown below in Meta, then you’re ready for the final live step.'
-                : 'Telegram is connected. If you are setting the bot webhook manually, use the webhook URL shown below, then move to the final live step.',
+            'message' => $message,
+            'state' => $this->statePayload($tenant->fresh(['businessProfile', 'businessProfileFiles'])),
+        ]);
+    }
+
+    public function disconnectChannel(Request $request): JsonResponse
+    {
+        $tenant = $this->tenantFor($request);
+
+        $tenant->forceFill([
+            'channel' => null,
+            'channel_config' => null,
+        ])->save();
+
+        /* Remove channel config from openclaw.json and restart the gateway. */
+        try {
+            $this->agentSync->removeChannelConfig($tenant);
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Channel disconnected.',
             'state' => $this->statePayload($tenant->fresh(['businessProfile', 'businessProfileFiles'])),
         ]);
     }

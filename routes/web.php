@@ -39,6 +39,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/onboarding/personality', [OnboardingController::class, 'savePersonality'])->name('onboarding.personality');
     Route::post('/onboarding/capabilities', [OnboardingController::class, 'saveCapabilities'])->name('onboarding.capabilities');
     Route::post('/onboarding/channel', [OnboardingController::class, 'saveChannel'])->name('onboarding.channel');
+    Route::post('/onboarding/channel/disconnect', [OnboardingController::class, 'disconnectChannel'])->name('onboarding.channel.disconnect');
     Route::post('/onboarding/go-live', [OnboardingController::class, 'goLive'])->name('onboarding.go-live');
     Route::get('/tenant/setup', [TenantSetupController::class, 'show'])->name('tenant.setup');
     Route::get('/tenant/status', [TenantSetupController::class, 'status'])->name('tenant.status');
