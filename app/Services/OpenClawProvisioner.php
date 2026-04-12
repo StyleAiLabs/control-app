@@ -119,12 +119,26 @@ class OpenClawProvisioner implements TenantProvisioner
         $configPath = $runtimePath.DIRECTORY_SEPARATOR.'config'.DIRECTORY_SEPARATOR.'openclaw.json';
         $this->files->ensureDirectoryExists(dirname($configPath));
 
+        $defaultModel = (string) config('sync360.openclaw.default_agent_model', 'gpt-4o');
+        $liteLlmBaseUrl = rtrim((string) config('services.litellm.base_url', 'https://litellm.stylesoftware.co.nz'), '/');
+
         $this->files->put(
             $configPath,
             json_encode([
                 'agents' => [
                     'defaults' => [
-                        'model' => (string) config('sync360.openclaw.default_agent_model', 'gpt-4o'),
+                        'model' => $defaultModel,
+                    ],
+                ],
+                'models' => [
+                    'mode' => 'replace',
+                    'providers' => [
+                        'openai' => [
+                            'baseUrl' => $liteLlmBaseUrl.'/v1',
+                            'models' => [
+                                ['id' => $defaultModel, 'name' => $defaultModel],
+                            ],
+                        ],
                     ],
                 ],
                 'gateway' => [
@@ -210,7 +224,6 @@ class OpenClawProvisioner implements TenantProvisioner
             sprintf('      OPENCLAW_GATEWAY_TOKEN: %s', $this->yamlQuote($gatewayToken)),
             sprintf('      OPENAI_API_KEY: %s', $this->yamlQuote($liteLlmKey)),
             sprintf('      OPENAI_BASE_URL: %s', $this->yamlQuote($liteLlmBaseUrl)),
-            sprintf('      OPENCLAW_MODEL: %s', $this->yamlQuote((string) config('sync360.openclaw.default_agent_model', 'gpt-4o'))),
             '',
         ]);
 

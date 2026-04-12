@@ -111,8 +111,26 @@ class TenantAgentSyncService
         unset($config['agent']);
 
         /* Ensure the default agent model is set via the correct OpenClaw path. */
+        $defaultModel = (string) config('sync360.openclaw.default_agent_model', 'gpt-4o');
+
         if (! isset($config['agents']['defaults']['model'])) {
-            $config['agents']['defaults']['model'] = (string) config('sync360.openclaw.default_agent_model', 'gpt-4o');
+            $config['agents']['defaults']['model'] = $defaultModel;
+        }
+
+        /* Ensure the OpenAI provider routes through LiteLLM, not directly to api.openai.com. */
+        if (! isset($config['models']['providers']['openai']['baseUrl'])) {
+            $liteLlmBaseUrl = rtrim((string) config('services.litellm.base_url', 'https://litellm.stylesoftware.co.nz'), '/');
+            $config['models'] = [
+                'mode' => 'replace',
+                'providers' => [
+                    'openai' => [
+                        'baseUrl' => $liteLlmBaseUrl.'/v1',
+                        'models' => [
+                            ['id' => $defaultModel, 'name' => $defaultModel],
+                        ],
+                    ],
+                ],
+            ];
         }
 
         /* Merge channel-specific settings into the openclaw config. */
