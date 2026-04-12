@@ -161,7 +161,7 @@ class TenantRuntimeService
             throw new RuntimeException(sprintf('Unable to copy tenant template into [%s].', $runtimePath));
         }
 
-        foreach (['config', 'data', 'logs', 'workspace'] as $directory) {
+        foreach (['config', 'data', 'logs', 'workspace', '.openclaw/workspace'] as $directory) {
             $this->files->ensureDirectoryExists($runtimePath.DIRECTORY_SEPARATOR.$directory);
         }
 

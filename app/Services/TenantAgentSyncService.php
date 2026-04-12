@@ -32,7 +32,8 @@ class TenantAgentSyncService
         $this->ensureTenantCanGoLive($tenant, $profile, $profileFiles);
 
         $localRuntimePath = $this->runtime->localRuntimePath($tenant);
-        $workspacePath = $localRuntimePath.DIRECTORY_SEPARATOR.'workspace';
+        /* OpenClaw reads workspace bootstrap files from .openclaw/workspace/ inside OPENCLAW_HOME. */
+        $workspacePath = $localRuntimePath.DIRECTORY_SEPARATOR.'.openclaw'.DIRECTORY_SEPARATOR.'workspace';
 
         if (! $this->files->isDirectory($localRuntimePath) || ! $this->files->isDirectory($workspacePath)) {
             throw new RuntimeException('Your workspace files are still being prepared. Please wait a moment and try again.');
