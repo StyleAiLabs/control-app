@@ -14,7 +14,7 @@ return new class extends Migration
             $table->string('tone', 50)->nullable()->after('skill_pack');
             $table->json('capabilities')->nullable()->after('tone');
             $table->string('channel', 50)->nullable()->after('capabilities');
-            $table->json('channel_config')->nullable()->after('channel');
+            $table->text('channel_config')->nullable()->after('channel');
             $table->string('agent_status')->default('offline')->after('channel_config');
             $table->timestamp('agent_last_synced_at')->nullable()->after('agent_status');
             $table->string('webhook_secret', 100)->nullable()->after('agent_last_synced_at');

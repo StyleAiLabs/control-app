@@ -12,6 +12,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasColumn('tenants', 'channel_config')) {
+            return; // Column will be created as text by add_onboarding_fields migration
+        }
+
         Schema::table('tenants', function (Blueprint $table) {
             $table->text('channel_config')->nullable()->change();
         });
