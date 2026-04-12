@@ -145,11 +145,11 @@ class WorkspaceReadyEmailService
 <p>Your <strong>{$businessName}</strong> workspace has been created and is ready to use.</p>
 <p>You can log in using the details below:</p>
 <p>
-  <strong>Workspace link:</strong> <a href="{$workspaceUrl}">{$workspaceUrl}</a><br>
+  <strong>Sync360 workspace URL:</strong> <a href="{$workspaceUrl}">{$workspaceUrl}</a><br>
   <strong>Username:</strong> {$email}<br>
   <strong>Password:</strong> {$password}
 </p>
-<p>We recommend signing in and updating your password after your first login.</p>
+<p>We recommend signing in to Sync360 and updating your password after your first login.</p>
 <p>If you need any help getting started, just reply to this email and our team will be happy to help.</p>
 <p>Regards,<br>Sync360</p>
 HTML;
@@ -164,11 +164,11 @@ HTML;
             '',
             'You can log in using the details below:',
             '',
-            sprintf('Workspace: %s', $tenant->workspace_url),
+            sprintf('Sync360 workspace URL: %s', $tenant->workspace_url),
             sprintf('Username: %s', $loginEmail),
             sprintf('Password: %s', $plainPassword),
             '',
-            'We recommend signing in and updating your password after your first login.',
+            'We recommend signing in to Sync360 and updating your password after your first login.',
             '',
             'If you need any help getting started, just reply to this email and our team will be happy to help.',
             '',

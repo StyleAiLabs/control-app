@@ -31,6 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin' => \App\Http\Middleware\EnsureAdminUser::class,
             'local.only' => \App\Http\Middleware\EnsureLocalEnvironment::class,
+            'workspace.access' => \App\Http\Middleware\EnsureWorkspaceTenantAccess::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

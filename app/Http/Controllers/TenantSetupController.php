@@ -37,7 +37,7 @@ class TenantSetupController extends Controller
             'provisioning_status' => $tenant->provisioning_status->value,
             'workspace_url' => $tenant->workspace_url,
             'workspace_route' => $tenant->provisioning_status === TenantProvisioningStatus::Ready
-                ? route('workspace.show', $tenant)
+                ? $tenant->workspace_url
                 : null,
             'ready_redirect' => $tenant->provisioning_status === TenantProvisioningStatus::Ready
                 ? route('tenant.workspace-ready')
@@ -86,8 +86,8 @@ class TenantSetupController extends Controller
     {
         return [
             [
-                'title' => 'Open your workspace',
-                'description' => 'Take a quick look around and confirm the experience feels right for '.$tenant->business_name.'.',
+                'title' => 'Log in to Sync360',
+                'description' => 'Open your workspace URL and make sure you can land in the right Sync360 dashboard for '.$tenant->business_name.'.',
             ],
             [
                 'title' => 'Add your business context',

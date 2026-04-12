@@ -7,10 +7,14 @@ Newest updates appear first.
 ## Unreleased
 
 Date: 2026-04-12
-Branch: `cdx-feature/tenant-record-resource-delete`
+Branch: `cdx-feature/tenant-workspace-login`
 Status: In progress
 
 Summary:
+- Changed tenant workspace URLs so they now open Sync360 login/dashboard instead of the public OpenClaw gateway
+- Moved tenant gateway `/chat` and `/readyz` access to private control-plane requests over the existing SSH channel
+- Changed tenant Caddy routing so tenant subdomains reverse proxy to the Sync360 control app upstream, not the OpenClaw container
+- Added strict tenant-host access rules so one signed-in customer cannot use another tenant’s workspace subdomain
 - Added a dedicated super-admin tenant detail page and simplified the tenant list into a compact overview
 - Added strict permanent tenant deletion with full infrastructure teardown, LiteLLM key removal, and linked customer-user deletion
 - Added local development bypass for tenant deletion so localhost runtimes are removed without SSH
@@ -23,6 +27,34 @@ Summary:
 - Added channel disconnect flow with config cleanup and gateway restart
 - Simplified onboarding UX by removing all OpenClaw/CLI references and adding brand icons
 - Fixed local development SSH bypass for admin workspace start/stop/restart actions
+
+### 2026-04-12 — Tenant Workspace URL Now Lands In Sync360
+
+**Customer Workspace URL Behavior**
+- `tenants.workspace_url` remains the canonical customer URL, but it now represents the Sync360 entrypoint rather than the public OpenClaw gateway
+- Added [LandingController.php](/Users/gayanhewage/Projects/openclaw-saas/app/Http/Controllers/LandingController.php) so `https://<slug>.workspace...`:
+  - redirects guests to login
+  - redirects matching signed-in customers to dashboard
+  - blocks mismatched signed-in users from opening another tenant’s host
+- Added [EnsureWorkspaceTenantAccess.php](/Users/gayanhewage/Projects/openclaw-saas/app/Http/Middleware/EnsureWorkspaceTenantAccess.php), [WorkspaceHostResolver.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/WorkspaceHostResolver.php), and [workspace-access.blade.php](/Users/gayanhewage/Projects/openclaw-saas/resources/views/errors/workspace-access.blade.php) for strict tenant-subdomain enforcement
+- Updated customer-facing CTAs and ready-email copy so they consistently describe opening the Sync360 workspace instead of opening the gateway
+
+**Private Gateway Access**
+- Extended [DockerComposeRunner.php](/Users/gayanhewage/Projects/openclaw-saas/app/Contracts/DockerComposeRunner.php) with private HTTP request support
+- Added [TenantGatewayService.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/TenantGatewayService.php)
+- Updated [TenantWorkspaceMessenger.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/TenantWorkspaceMessenger.php) and [TenantHealthCheckService.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/TenantHealthCheckService.php) to use tenant-local `http://127.0.0.1:<assigned_port>` gateway access instead of the public workspace URL
+- Implemented SSH-backed private gateway requests in [SshDockerComposeRunner.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/SshDockerComposeRunner.php) and matching local behavior in [LocalDockerComposeRunner.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/LocalDockerComposeRunner.php)
+
+**Provisioning And Routing**
+- Updated [OpenClawProvisioner.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/OpenClawProvisioner.php) so generated `workspace.caddy` files reverse proxy tenant subdomains to the Sync360 control app upstream instead of the OpenClaw container
+- Added `SYNC360_WORKSPACE_CONTROL_APP_UPSTREAM` in [config/sync360.php](/Users/gayanhewage/Projects/openclaw-saas/config/sync360.php), [.env.example](/Users/gayanhewage/Projects/openclaw-saas/.env.example), and [.env.production.example](/Users/gayanhewage/Projects/openclaw-saas/.env.production.example)
+- Changed public provisioning verification from `https://<tenant>/readyz` to `https://<tenant>/login`
+- Disabled public OpenClaw control UI exposure in generated `openclaw.json`
+- Updated production example session sharing to `.sync360.co.nz` so auth can work across `app.sync360.co.nz` and tenant workspace subdomains
+
+Verification:
+- `php artisan test` passed with `66 passed` and `528 assertions`
+- Added [WorkspaceHostAccessTest.php](/Users/gayanhewage/Projects/openclaw-saas/tests/Feature/WorkspaceHostAccessTest.php) covering guest redirects, matching-tenant access, and mismatched-tenant blocking
 
 ### 2026-04-12 — Superadmin Tenant Detail & Permanent Delete
 

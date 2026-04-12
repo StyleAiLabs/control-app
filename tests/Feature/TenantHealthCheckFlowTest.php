@@ -24,6 +24,12 @@ class TenantHealthCheckFlowTest extends TestCase
         $runner = new class implements DockerComposeRunner
         {
             public function syncRuntime(Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
+            public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array
+            {
+                $response = Http::timeout($timeoutSeconds)->acceptJson()->send($method, $url, $json !== null ? ['json' => $json] : []);
+
+                return ['status' => $response->status(), 'body' => $response->body()];
+            }
             public function putFile(Server $server, string $remotePath, string $contents, bool $sudo = false): void {}
             public function removeFile(Server $server, string $remotePath, bool $sudo = false): void {}
             public function removeDirectory(Server $server, string $remotePath, bool $sudo = false): void {}
@@ -40,7 +46,7 @@ class TenantHealthCheckFlowTest extends TestCase
         $this->instance(DockerComposeRunner::class, $runner);
 
         Http::fake([
-            'https://acme-plumbing.workspace.test/readyz' => Http::response(['ok' => true], 200),
+            'http://127.0.0.1:4100/readyz' => Http::response(['ok' => true], 200),
         ]);
 
         $result = app(TenantHealthCheckService::class)->check($tenant);
@@ -61,6 +67,12 @@ class TenantHealthCheckFlowTest extends TestCase
         $runner = new class implements DockerComposeRunner
         {
             public function syncRuntime(Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
+            public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array
+            {
+                $response = Http::timeout($timeoutSeconds)->acceptJson()->send($method, $url, $json !== null ? ['json' => $json] : []);
+
+                return ['status' => $response->status(), 'body' => $response->body()];
+            }
             public function putFile(Server $server, string $remotePath, string $contents, bool $sudo = false): void {}
             public function removeFile(Server $server, string $remotePath, bool $sudo = false): void {}
             public function removeDirectory(Server $server, string $remotePath, bool $sudo = false): void {}
@@ -77,7 +89,7 @@ class TenantHealthCheckFlowTest extends TestCase
         $this->instance(DockerComposeRunner::class, $runner);
 
         Http::fake([
-            'https://acme-plumbing.workspace.test/readyz' => Http::response(['ok' => true], 200),
+            'http://127.0.0.1:4100/readyz' => Http::response(['ok' => true], 200),
         ]);
 
         $this->artisan('tenants:health-check')
@@ -108,6 +120,7 @@ class TenantHealthCheckFlowTest extends TestCase
             'trial_status' => TrialStatus::Active,
             'provisioning_status' => TenantProvisioningStatus::Ready,
             'agent_status' => 'live',
+            'assigned_port' => 4100,
             'workspace_url' => 'https://acme-plumbing.workspace.test',
             'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
         ]);

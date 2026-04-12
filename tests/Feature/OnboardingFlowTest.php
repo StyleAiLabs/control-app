@@ -544,6 +544,13 @@ class OnboardingFlowTest extends TestCase
                 ];
             }
 
+            public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array
+            {
+                $response = Http::timeout($timeoutSeconds)->acceptJson()->send($method, $url, $json !== null ? ['json' => $json] : []);
+
+                return ['status' => $response->status(), 'body' => $response->body()];
+            }
+
             public function putFile(Server $server, string $remotePath, string $contents, bool $sudo = false): void
             {
             }

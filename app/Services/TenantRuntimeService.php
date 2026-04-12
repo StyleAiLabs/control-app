@@ -74,6 +74,15 @@ class TenantRuntimeService
         return $server->workspace_scheme ?: 'http';
     }
 
+    public function gatewayBaseUrl(Tenant $tenant): string
+    {
+        if (! $tenant->assigned_port) {
+            throw new RuntimeException('Tenant assigned port is missing for the private gateway URL.');
+        }
+
+        return sprintf('http://127.0.0.1:%d', $tenant->assigned_port);
+    }
+
     public function workspaceHost(Tenant $tenant): ?string
     {
         $server = $tenant->server;
@@ -87,6 +96,11 @@ class TenantRuntimeService
         }
 
         return null;
+    }
+
+    public function controlAppUpstream(): string
+    {
+        return rtrim((string) config('sync360.workspace_proxy.control_app_upstream', config('app.url')), '/');
     }
 
     public function remoteRuntimePath(Tenant $tenant): string

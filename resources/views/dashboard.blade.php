@@ -12,7 +12,7 @@
             </p>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <a href="{{ $agentContent['primary_cta_route'] }}" class="button button--primary" @if ($tenant->agent_status === 'live' && filled($tenant->workspace_url)) target="_blank" rel="noreferrer" @endif>
+            <a href="{{ $agentContent['primary_cta_route'] }}" class="button button--primary" @if ($tenant->agent_status === 'live' && filled($tenant->workspace_url)) rel="noreferrer" @endif>
                 {{ $agentContent['primary_cta_label'] }}
             </a>
             <a href="{{ route('profile.show') }}" class="button button--secondary">Update Business Details</a>
@@ -111,7 +111,7 @@
                         {{ $businessProfile?->last_synced_to_agent?->diffForHumans() ?: 'Not synced yet' }}
                     </div>
                 </div>
-                <a href="{{ $agentContent['primary_cta_route'] }}" class="button button--primary" style="align-self: start;" @if ($tenant->agent_status === 'live' && filled($tenant->workspace_url)) target="_blank" rel="noreferrer" @endif>
+                <a href="{{ $agentContent['primary_cta_route'] }}" class="button button--primary" style="align-self: start;" @if ($tenant->agent_status === 'live' && filled($tenant->workspace_url)) rel="noreferrer" @endif>
                     {{ $agentContent['primary_cta_label'] }}
                 </a>
                 <a href="{{ route('profile.show') }}" class="button button--secondary" style="align-self: start;">

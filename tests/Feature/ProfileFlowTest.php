@@ -12,6 +12,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class ProfileFlowTest extends TestCase
@@ -117,6 +118,13 @@ class ProfileFlowTest extends TestCase
             public function syncRuntime(Server $server, string $localRuntimePath, string $remoteRuntimePath): void
             {
                 $this->syncCalls[] = compact('localRuntimePath', 'remoteRuntimePath');
+            }
+
+            public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array
+            {
+                $response = Http::timeout($timeoutSeconds)->acceptJson()->send($method, $url, $json !== null ? ['json' => $json] : []);
+
+                return ['status' => $response->status(), 'body' => $response->body()];
             }
 
             public function putFile(Server $server, string $remotePath, string $contents, bool $sudo = false): void {}

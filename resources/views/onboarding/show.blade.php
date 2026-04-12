@@ -57,7 +57,7 @@
                 @if (($state['workspace']['ready'] ?? false) === false)
                     <a href="{{ route('tenant.setup') }}" class="button button--primary">Watch Workspace Setup</a>
                 @elseif (! empty($state['workspace']['url']))
-                    <a href="{{ $state['workspace']['url'] }}" class="button button--primary" target="_blank" rel="noreferrer">Open Workspace</a>
+                    <a href="{{ $state['workspace']['url'] }}" class="button button--primary" rel="noreferrer">Open Sync360 Workspace</a>
                 @endif
             </div>
         </div>

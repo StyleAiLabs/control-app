@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use RuntimeException;
 
 class Tenant extends Model
 {
@@ -100,5 +101,18 @@ class Tenant extends Model
     public function businessProfileFiles(): HasOne
     {
         return $this->hasOne(BusinessProfileFiles::class);
+    }
+
+    public function workspaceHost(): string
+    {
+        $this->loadMissing('server');
+
+        $baseDomain = trim((string) $this->server?->workspace_base_domain, '.');
+
+        if ($baseDomain === '') {
+            throw new RuntimeException('Tenant workspace base domain is not configured.');
+        }
+
+        return sprintf('%s.%s', $this->slug, $baseDomain);
     }
 }

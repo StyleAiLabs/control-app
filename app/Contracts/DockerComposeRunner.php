@@ -8,6 +8,12 @@ interface DockerComposeRunner
 {
     public function syncRuntime(Server $server, string $localRuntimePath, string $remoteRuntimePath): void;
 
+    /**
+     * @param  array<string, mixed>|null  $json
+     * @return array{status:int, body:string}
+     */
+    public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array;
+
     public function putFile(Server $server, string $remotePath, string $contents, bool $sudo = false): void;
 
     public function removeFile(Server $server, string $remotePath, bool $sudo = false): void;

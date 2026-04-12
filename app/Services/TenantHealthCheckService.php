@@ -4,13 +4,12 @@ namespace App\Services;
 
 use App\Contracts\DockerComposeRunner;
 use App\Models\Tenant;
-use Illuminate\Http\Client\Factory as HttpFactory;
 
 class TenantHealthCheckService
 {
     public function __construct(
         private readonly DockerComposeRunner $dockerCompose,
-        private readonly HttpFactory $http,
+        private readonly TenantGatewayService $gateway,
     ) {
     }
 
@@ -25,12 +24,12 @@ class TenantHealthCheckService
             return $this->markFailed($tenant, 'Tenant is missing an assigned server.', 'missing_server');
         }
 
-        if (! filled($tenant->workspace_url)) {
-            return $this->markFailed($tenant, 'Tenant workspace URL is missing.', 'missing_workspace_url');
-        }
-
         if (! filled($tenant->runtime_path)) {
             return $this->markFailed($tenant, 'Tenant runtime path is missing.', 'missing_runtime_path');
+        }
+
+        if (! filled($tenant->workspace_url)) {
+            return $this->markFailed($tenant, 'Tenant workspace URL is missing.', 'missing_workspace_url');
         }
 
         $composeFile = rtrim((string) $tenant->runtime_path, DIRECTORY_SEPARATOR)
@@ -46,15 +45,16 @@ class TenantHealthCheckService
         }
 
         $readinessPath = '/'.ltrim((string) config('sync360.openclaw.readiness_path', '/readyz'), '/');
-        $healthUrl = rtrim((string) $tenant->workspace_url, '/').$readinessPath;
 
         try {
-            $response = $this->http
-                ->timeout((int) config('sync360.workspace_gateway.timeout_seconds', 15))
-                ->acceptJson()
-                ->get($healthUrl);
+            $response = $this->gateway->request(
+                $tenant,
+                'GET',
+                $readinessPath,
+                timeoutSeconds: (int) config('sync360.workspace_gateway.timeout_seconds', 15),
+            );
 
-            if ($response->successful()) {
+            if ($response['status'] >= 200 && $response['status'] < 300) {
                 $tenant->forceFill([
                     'last_health_check_at' => now(),
                     'last_health_check_status' => 'healthy',
@@ -72,7 +72,7 @@ class TenantHealthCheckService
 
             return $this->markFailed(
                 $tenant,
-                sprintf('Workspace readiness returned HTTP %d.', $response->status()),
+                sprintf('Workspace readiness returned HTTP %d.', $response['status']),
                 $workspaceState,
             );
         } catch (\Throwable $exception) {

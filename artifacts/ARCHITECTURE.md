@@ -1,6 +1,6 @@
 # Sync360 Control App Architecture
 
-This document describes the current as-built architecture of the Sync360 Control App on the `codex/control-app-prod-deploy` branch.
+This document describes the current as-built architecture of the Sync360 Control App.
 
 It focuses on the implemented system, including the new VPS-ready provisioning model.
 
@@ -21,6 +21,7 @@ It currently validates this end-to-end flow:
 9. The app provisions a dedicated LiteLLM virtual key for each OpenClaw tenant before container startup.
 10. A super admin can inspect tenants, jobs, workspace state, and trigger safe control-plane deployments.
 11. A super admin can open a tenant detail page and permanently delete a tenant only after infrastructure cleanup succeeds.
+12. Tenant workspace URLs now open the Sync360 login/dashboard experience while the OpenClaw gateway remains private.
 
 ## 2. Deployment Shapes
 
@@ -222,6 +223,13 @@ Defined in [routes/web.php](/Users/gayanhewage/Projects/openclaw-saas/routes/web
 - `/signup`
 - `/login`
 
+When the request host matches a tenant workspace hostname such as
+`https://<tenant-slug>.<workspace_base_domain>`:
+
+- guests hitting `/` are redirected to `/login`
+- matching signed-in customers hitting `/` are redirected to `/dashboard`
+- mismatched signed-in customers are blocked from using another tenant's host
+
 ### Authenticated Customer Routes
 
 - `POST /logout`
@@ -251,6 +259,8 @@ Admin routes are protected by:
 - `auth`
 - `admin`
 - optional `local.only`, controlled by config
+
+Authenticated customer routes that expose tenant data are additionally protected by workspace-host matching when the request is made through a tenant workspace hostname.
 
 ## 8. Admin Tenant Operations
 
@@ -511,12 +521,14 @@ Responsibilities:
 
 - allocate next free port for the assigned server
 - generate server-aware workspace URL
+- generate private tenant gateway base URL from `127.0.0.1:<assigned_port>`
 - create local runtime staging path
 - copy template files
 - create required directories
 - write tenant `.env`
 - write `metadata.json`
 - compute remote runtime path from the assigned server
+- compute the control-app upstream used in generated tenant Caddy configs
 
 ### 12.3 Local Fake Provisioner
 
@@ -550,10 +562,18 @@ Current provisioning sequence:
 15. Install the tenant Caddy site file on the client VPS and reload Caddy.
 16. Start the OpenClaw container on the target host.
 17. Poll the loopback readiness endpoint on the client VPS.
-18. Poll the public HTTPS workspace hostname.
+18. Poll the public HTTPS tenant login entrypoint.
 19. Mark tenant `ready`.
 20. Mark provisioning job `completed`.
 21. Trigger the workspace-created email service after successful provisioning.
+
+Current routing behavior inside provisioning:
+
+- the OpenClaw container is still bound only to loopback on the client VPS
+- generated tenant Caddy configs reverse proxy `https://<slug>.workspace...` to the Sync360 control app upstream
+- generated `openclaw.json` disables the public control UI
+- public provisioning verification checks `https://<slug>.workspace.../login`
+- private readiness checks continue to use `http://127.0.0.1:<assigned_port>/readyz`
 
 On failure:
 
@@ -578,7 +598,7 @@ Email-specific behavior:
 Purpose:
 
 - send the customer-facing confirmation that the workspace has been created
-- include workspace link, username, and initial password
+- include the Sync360 workspace URL, username, and initial password
 - keep initial credentials encrypted at rest until the email is sent successfully
 
 Current provider:
@@ -666,6 +686,7 @@ Responsibilities:
 - run Docker Compose commands
 - probe server port usage
 - check readiness
+- make private HTTP requests to tenant-local services
 
 ### 13.2 Local Runner
 
@@ -680,6 +701,7 @@ Behavior:
 - no runtime sync step
 - uses local Docker Compose
 - checks readiness locally
+- performs private tenant gateway HTTP requests directly through Laravel's HTTP client
 
 ### 13.3 SSH Runner
 
@@ -700,6 +722,7 @@ Behavior:
 - runs Docker Compose remotely over SSH
 - probes ports remotely using `ss`
 - checks readiness remotely using `curl`
+- performs private tenant gateway HTTP requests over SSH by executing remote `curl` against tenant-local loopback URLs
 
 ## 14. Runtime Filesystem Model
 
@@ -749,7 +772,7 @@ This means the provisioning system owns both:
 
 ## 15. Workspace URL Model
 
-Workspace URLs are generated from the assigned `Server`.
+Workspace URLs are generated from the assigned `Server` and are now strictly customer-facing Sync360 URLs.
 
 Rules:
 
@@ -771,6 +794,12 @@ In the current validated deployment model:
 - `workspace_scheme = https`
 - `workspace_base_domain = workspace.sync360.co.nz`
 - URLs therefore resolve to `https://<tenant-slug>.workspace.sync360.co.nz`
+
+Behavioral contract:
+
+- `workspace_url` is the customer login/dashboard URL, not the public OpenClaw gateway URL
+- the tenant subdomain fronts the Sync360 control app for human access
+- private control-plane-to-gateway traffic uses tenant-local loopback URLs derived from `assigned_port`
 
 The internal placeholder route still exists:
 
@@ -957,6 +986,9 @@ Responsibilities:
 - per-tenant OpenClaw containers
 - Caddy reverse proxy
 - public HTTPS termination for `*.workspace.sync360.co.nz`
+- reverse proxy from tenant subdomains into the Sync360 control app
+
+The OpenClaw gateway is no longer intended to be publicly reachable on the tenant hostname. Customer traffic lands in Sync360; control-plane traffic reaches OpenClaw privately over the existing SSH channel.
 
 ### 22.3 Trust And Secret Model
 

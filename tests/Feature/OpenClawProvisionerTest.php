@@ -28,7 +28,7 @@ class OpenClawProvisionerTest extends TestCase
         config()->set('services.litellm.master_key', 'litellm-master');
         Http::fake([
             'https://litellm.stylesoftware.co.nz/key/generate' => Http::response(['key' => 'sk-tenant-acme'], 200),
-            'https://acme-plumbing.workspace.test/readyz' => Http::response(['ok' => true], 200),
+            'https://acme-plumbing.workspace.test/login' => Http::response('login', 200),
         ]);
 
         $runner = Mockery::mock(DockerComposeRunner::class);
@@ -50,7 +50,7 @@ class OpenClawProvisionerTest extends TestCase
                 return $server->name === 'test-vps'
                     && $remotePath === '/etc/caddy/sites/acme-plumbing.caddy'
                     && str_contains($contents, 'acme-plumbing.workspace.test')
-                    && str_contains($contents, 'reverse_proxy 127.0.0.1:4100')
+                    && str_contains($contents, 'reverse_proxy https://app.sync360.test')
                     && $sudo === true;
             })
             ->andReturnNull();
@@ -165,7 +165,7 @@ class OpenClawProvisionerTest extends TestCase
         config()->set('services.litellm.master_key', 'litellm-master');
         Http::fake([
             'https://litellm.stylesoftware.co.nz/key/generate' => Http::response(['key' => 'sk-tenant-acme'], 200),
-            'https://acme-plumbing.workspace.test/readyz' => Http::response('bad gateway', 502),
+            'https://acme-plumbing.workspace.test/login' => Http::response('bad gateway', 502),
         ]);
 
         $runner = Mockery::mock(DockerComposeRunner::class);

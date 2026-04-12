@@ -3,44 +3,36 @@
 namespace App\Services;
 
 use App\Models\Tenant;
-use Illuminate\Http\Client\Factory as HttpFactory;
 use RuntimeException;
 
 class TenantWorkspaceMessenger
 {
     public function __construct(
-        private readonly HttpFactory $http,
+        private readonly TenantGatewayService $gateway,
     ) {
     }
 
     public function send(Tenant $tenant, string $channel, string $from, string $message): string
     {
-        $workspaceUrl = rtrim((string) $tenant->workspace_url, '/');
-
-        if ($workspaceUrl === '') {
-            throw new RuntimeException('Workspace URL is missing for this tenant.');
-        }
-
         $chatPath = '/'.ltrim((string) config('sync360.workspace_gateway.chat_path', '/chat'), '/');
 
-        $response = $this->http
-            ->timeout((int) config('sync360.workspace_gateway.timeout_seconds', 15))
-            ->acceptJson()
-            ->post($workspaceUrl.$chatPath, [
-                'message' => $message,
-                'from' => $from,
-                'channel' => $channel,
-                'tenant_id' => $tenant->tenant_id,
-            ]);
+        $response = $this->gateway->request($tenant, 'POST', $chatPath, [
+            'message' => $message,
+            'from' => $from,
+            'channel' => $channel,
+            'tenant_id' => $tenant->tenant_id,
+        ], (int) config('sync360.workspace_gateway.timeout_seconds', 15));
 
-        if ($response->failed()) {
+        if ($response['status'] >= 400) {
             throw new RuntimeException(sprintf(
-                'Workspace request failed with HTTP %d.',
-                $response->status()
+                'Private gateway request failed with HTTP %d.',
+                $response['status']
             ));
         }
 
-        return $this->extractReplyText($response->json(), $response->body());
+        $decoded = json_decode($response['body'], true);
+
+        return $this->extractReplyText(is_array($decoded) ? $decoded : null, $response['body']);
     }
 
     /**

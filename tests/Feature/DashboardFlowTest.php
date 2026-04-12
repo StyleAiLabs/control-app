@@ -75,7 +75,7 @@ class DashboardFlowTest extends TestCase
             ->assertOk()
             ->assertSee('Live')
             ->assertSee('Conversation Activity')
-            ->assertSee('Open Workspace')
+            ->assertSee('Open Sync360 Workspace')
             ->assertSee('Do you do emergency callouts?')
             ->assertSee('Yes, we do emergency callouts across Auckland.')
             ->assertSee('WhatsApp')

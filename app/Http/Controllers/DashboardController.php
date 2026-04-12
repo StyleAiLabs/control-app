@@ -105,7 +105,7 @@ class DashboardController extends Controller
                 'label' => 'Live',
                 'description' => 'Your digital employee is live and ready to respond on the connected channel.',
                 'badge' => 'ready',
-                'primary_cta_label' => 'Open Workspace',
+                'primary_cta_label' => 'Open Sync360 Workspace',
                 'primary_cta_route' => $tenant->workspace_url ?: route('tenant.workspace-ready'),
             ],
             'deploying' => [

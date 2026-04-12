@@ -6,6 +6,7 @@ use App\Contracts\DockerComposeRunner;
 use App\Models\Server;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -46,6 +47,7 @@ abstract class TestCase extends BaseTestCase
         config()->set('sync360.openclaw.readiness_timeout_seconds', 1);
         config()->set('sync360.openclaw.readiness_poll_interval_ms', 10);
         config()->set('sync360.openclaw.compose_timeout_seconds', 10);
+        config()->set('sync360.workspace_proxy.control_app_upstream', 'https://app.sync360.test');
         config()->set('sync360.workspace_proxy.public_readiness_timeout_seconds', 1);
         config()->set('sync360.workspace_proxy.public_readiness_poll_interval_ms', 10);
 
@@ -74,6 +76,22 @@ abstract class TestCase extends BaseTestCase
         {
             public function syncRuntime(Server $server, string $localRuntimePath, string $remoteRuntimePath): void
             {
+            }
+
+            public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array
+            {
+                $request = Http::timeout($timeoutSeconds)->acceptJson();
+
+                if ($json !== null) {
+                    $request = $request->asJson();
+                }
+
+                $response = $request->send($method, $url, $json !== null ? ['json' => $json] : []);
+
+                return [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ];
             }
 
             public function putFile(Server $server, string $remotePath, string $contents, bool $sudo = false): void

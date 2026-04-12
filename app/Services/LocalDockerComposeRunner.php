@@ -22,6 +22,26 @@ class LocalDockerComposeRunner implements DockerComposeRunner
         // Local mode provisions directly from the app filesystem, so no sync step is needed.
     }
 
+    /**
+     * @param  array<string, mixed>|null  $json
+     * @return array{status:int, body:string}
+     */
+    public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array
+    {
+        $request = Http::timeout($timeoutSeconds)->acceptJson();
+
+        if ($json !== null) {
+            $request = $request->asJson();
+        }
+
+        $response = $request->send($method, $url, $json !== null ? ['json' => $json] : []);
+
+        return [
+            'status' => $response->status(),
+            'body' => $response->body(),
+        ];
+    }
+
     public function putFile(Server $server, string $remotePath, string $contents, bool $sudo = false): void
     {
         $directory = dirname($remotePath);

@@ -35,7 +35,7 @@ class WebhookFlowTest extends TestCase
         ]);
 
         Http::fake([
-            'https://acme-plumbing.workspace.test/chat' => Http::response([
+            'http://127.0.0.1:4100/chat' => Http::response([
                 'reply' => 'Thanks, we can help with that.',
             ], 200),
             'https://graph.facebook.com/*' => Http::response([
@@ -67,7 +67,7 @@ class WebhookFlowTest extends TestCase
             ]);
 
         Http::assertSent(function ($request): bool {
-            return $request->url() === 'https://acme-plumbing.workspace.test/chat'
+            return $request->url() === 'http://127.0.0.1:4100/chat'
                 && $request['message'] === 'Do you handle urgent leaks?'
                 && $request['channel'] === 'whatsapp';
         });
@@ -98,7 +98,7 @@ class WebhookFlowTest extends TestCase
         ]);
 
         Http::fake([
-            'https://acme-plumbing.workspace.test/chat' => Http::response([
+            'http://127.0.0.1:4100/chat' => Http::response([
                 'reply' => 'We can help.',
             ], 200),
             'https://graph.facebook.com/*' => Http::response(['ok' => true], 200),
@@ -134,7 +134,7 @@ class WebhookFlowTest extends TestCase
         ]);
 
         Http::fake([
-            'https://acme-plumbing.workspace.test/chat' => Http::response([
+            'http://127.0.0.1:4100/chat' => Http::response([
                 'message' => 'Yes, we do after-hours callouts.',
             ], 200),
             'https://api.telegram.org/*' => Http::response([
@@ -197,6 +197,7 @@ class WebhookFlowTest extends TestCase
             'server_id' => \App\Models\Server::query()->firstOrFail()->id,
             'channel' => $channel,
             'channel_config' => $channelConfig,
+            'assigned_port' => 4100,
             'workspace_url' => 'https://acme-plumbing.workspace.test',
             'agent_status' => 'live',
             'onboarding_status' => 'complete',

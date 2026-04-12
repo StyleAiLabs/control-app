@@ -41,6 +41,7 @@ return [
         'compose_timeout_seconds' => (int) env('OPENCLAW_COMPOSE_TIMEOUT_SECONDS', 600),
     ],
     'workspace_proxy' => [
+        'control_app_upstream' => env('SYNC360_WORKSPACE_CONTROL_APP_UPSTREAM', env('APP_URL', 'http://localhost')),
         'public_readiness_timeout_seconds' => (int) env('SYNC360_WORKSPACE_PUBLIC_READY_TIMEOUT_SECONDS', 120),
         'public_readiness_poll_interval_ms' => (int) env('SYNC360_WORKSPACE_PUBLIC_READY_POLL_INTERVAL_MS', 1500),
     ],

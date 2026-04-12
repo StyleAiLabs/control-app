@@ -28,6 +28,73 @@ class SshDockerComposeRunner implements DockerComposeRunner
         $this->runScp($server, $localRuntimePath, $remoteRuntimePath);
     }
 
+    /**
+     * @param  array<string, mixed>|null  $json
+     * @return array{status:int, body:string}
+     */
+    public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array
+    {
+        $parts = [
+            'tmp_file=$(mktemp)',
+        ];
+
+        $curlParts = [
+            'curl',
+            '-sS',
+            '-X',
+            $this->shellQuote(strtoupper($method)),
+            '-H',
+            $this->shellQuote('Accept: application/json'),
+        ];
+
+        if ($json !== null) {
+            $payload = json_encode($json, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+            if ($payload === false) {
+                throw new RuntimeException('Unable to encode the private gateway request payload.');
+            }
+
+            $curlParts[] = '-H';
+            $curlParts[] = $this->shellQuote('Content-Type: application/json');
+            $curlParts[] = '--data-binary';
+            $curlParts[] = '@-';
+
+            $parts[] = sprintf(
+                'status=$(printf %%s %s | %s -o "$tmp_file" -w "%%{http_code}" %s)',
+                $this->shellQuote($payload),
+                implode(' ', $curlParts),
+                $this->shellQuote($url),
+            );
+        } else {
+            $parts[] = sprintf(
+                'status=$(%s -o "$tmp_file" -w "%%{http_code}" %s)',
+                implode(' ', $curlParts),
+                $this->shellQuote($url),
+            );
+        }
+
+        $parts[] = 'printf \'__SYNC360_STATUS__%s\n\' "$status"';
+        $parts[] = 'cat "$tmp_file"';
+        $parts[] = 'rm -f "$tmp_file"';
+
+        $process = $this->runSsh(
+            $server,
+            sprintf('sh -lc %s', $this->shellQuote(implode(' && ', $parts))),
+            timeoutSeconds: $timeoutSeconds,
+        );
+
+        $output = $process->getOutput();
+
+        if (! preg_match('/^__SYNC360_STATUS__(\d{3})\n/s', $output, $matches)) {
+            throw new RuntimeException('Unable to parse the private gateway HTTP response.');
+        }
+
+        return [
+            'status' => (int) $matches[1],
+            'body' => substr($output, strlen($matches[0])),
+        ];
+    }
+
     public function putFile(Server $server, string $remotePath, string $contents, bool $sudo = false): void
     {
         $tempFile = tempnam(sys_get_temp_dir(), 'sync360-');

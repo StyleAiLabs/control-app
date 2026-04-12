@@ -13,7 +13,7 @@
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <a href="{{ route('admin.tenants') }}" class="button button--secondary">Back to Tenants</a>
             @if ($tenant->workspace_url)
-                <a href="{{ $tenant->workspace_url }}" class="button button--secondary" target="_blank" rel="noreferrer">Open Workspace</a>
+                <a href="{{ $tenant->workspace_url }}" class="button button--secondary" target="_blank" rel="noreferrer">Open Customer Workspace URL</a>
             @endif
         </div>
     </div>

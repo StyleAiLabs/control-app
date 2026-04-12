@@ -222,7 +222,7 @@
             <div style="margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap;">
                 <a href="{{ route('onboarding.show') }}" class="button button--secondary">Back to Guided Setup</a>
                 @if (filled($tenant->workspace_url))
-                    <a href="{{ $tenant->workspace_url }}" class="button button--secondary" target="_blank" rel="noreferrer">Open Workspace</a>
+                    <a href="{{ $tenant->workspace_url }}" class="button button--secondary" rel="noreferrer">Open Sync360 Workspace</a>
                 @endif
             </div>
         </div>

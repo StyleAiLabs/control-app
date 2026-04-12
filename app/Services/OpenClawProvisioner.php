@@ -117,7 +117,7 @@ class OpenClawProvisioner implements TenantProvisioner
     private function writeOpenClawConfig(string $runtimePath, Tenant $tenant, int $assignedPort, string $gatewayToken): void
     {
         $configPath = $runtimePath.DIRECTORY_SEPARATOR.'config'.DIRECTORY_SEPARATOR.'openclaw.json';
-        $workspaceUrl = $this->runtime->workspaceUrl($tenant, $assignedPort);
+        $this->files->ensureDirectoryExists(dirname($configPath));
 
         $this->files->put(
             $configPath,
@@ -130,13 +130,7 @@ class OpenClawProvisioner implements TenantProvisioner
                         'token' => $gatewayToken,
                     ],
                     'controlUi' => [
-                        'enabled' => true,
-                        'allowInsecureAuth' => true,
-                        'allowedOrigins' => [
-                            $workspaceUrl,
-                            sprintf('http://%s:%d', $tenant->server?->host ?: '127.0.0.1', $assignedPort),
-                            sprintf('http://127.0.0.1:%d', $assignedPort),
-                        ],
+                        'enabled' => false,
                     ],
                 ],
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL,
@@ -153,12 +147,13 @@ class OpenClawProvisioner implements TenantProvisioner
 
         $caddyConfig = implode(PHP_EOL, [
             sprintf('%s {', $host),
-            sprintf('    reverse_proxy 127.0.0.1:%d', $assignedPort),
+            sprintf('    reverse_proxy %s', $this->runtime->controlAppUpstream()),
             '}',
             '',
         ]);
 
         $configPath = $runtimePath.DIRECTORY_SEPARATOR.'config'.DIRECTORY_SEPARATOR.'workspace.caddy';
+        $this->files->ensureDirectoryExists(dirname($configPath));
         $this->files->put($configPath, $caddyConfig);
 
         return $caddyConfig;
@@ -175,6 +170,7 @@ class OpenClawProvisioner implements TenantProvisioner
     ): void
     {
         $composeFile = $localRuntimePath.DIRECTORY_SEPARATOR.(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
+        $this->files->ensureDirectoryExists(dirname($composeFile));
         $containerHome = rtrim((string) config('sync360.openclaw.container_home', '/home/node/.openclaw'), '/');
         $gatewayPort = (int) config('sync360.openclaw.gateway_port', 18789);
         $serviceName = (string) config('sync360.openclaw.service_name', 'openclaw-gateway');
@@ -226,15 +222,14 @@ class OpenClawProvisioner implements TenantProvisioner
 
     private function waitForPublicWorkspace(Tenant $tenant): void
     {
-        $readinessPath = '/'.ltrim((string) config('sync360.openclaw.readiness_path', '/readyz'), '/');
-        $publicReadinessUrl = rtrim((string) $tenant->workspace_url, '/').$readinessPath;
+        $publicReadinessUrl = rtrim((string) $tenant->workspace_url, '/').'/login';
         $deadline = microtime(true) + max(1, (int) config('sync360.workspace_proxy.public_readiness_timeout_seconds', 120));
         $pollIntervalMs = max(100, (int) config('sync360.workspace_proxy.public_readiness_poll_interval_ms', 1500));
         $lastError = null;
 
         do {
             try {
-                $response = Http::timeout(5)->acceptJson()->get($publicReadinessUrl);
+                $response = Http::timeout(5)->get($publicReadinessUrl);
 
                 if ($response->successful()) {
                     return;

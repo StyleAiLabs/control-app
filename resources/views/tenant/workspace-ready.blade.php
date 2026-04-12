@@ -3,11 +3,11 @@
         <div>
             <span class="eyebrow"><span style="display:inline-block; margin-right:4px;">🎉</span> You're All Set</span>
             <h2>{{ $firstName }}, your workspace is ready.</h2>
-            <p>{{ $tenant->business_name }} is set up and ready to start handling messages, bookings, and quotes for you.</p>
+            <p>{{ $tenant->business_name }} is set up. Your workspace URL now takes you into the Sync360 login and dashboard experience.</p>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <a href="{{ $tenant->workspace_url }}" class="button button--primary" target="_blank" rel="noreferrer">
-                Open Your Dashboard &rarr;
+            <a href="{{ $tenant->workspace_url }}" class="button button--primary">
+                Open Your Sync360 Workspace &rarr;
             </a>
             @if (auth()->user()?->is_admin)
                 <a href="{{ route('admin.tenants') }}" class="button button--secondary">Inspect Tenant</a>
@@ -52,8 +52,8 @@
                         </div>
                     </div>
                 @endforeach
-                <a href="{{ $tenant->workspace_url }}" class="button button--primary" target="_blank" rel="noreferrer" style="margin-top: 4px;">
-                    Open Your Dashboard &rarr;
+                <a href="{{ $tenant->workspace_url }}" class="button button--primary" style="margin-top: 4px;">
+                    Open Your Sync360 Workspace &rarr;
                 </a>
             </div>
         </div>
