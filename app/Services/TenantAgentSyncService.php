@@ -113,6 +113,7 @@ class TenantAgentSyncService
                 'enabled' => true,
                 'botToken' => $channelConfig['telegram_bot_token'] ?? null,
                 'dmPolicy' => 'open',
+                'allowFrom' => ['*'],
             ]),
             default => null, /* WhatsApp will be added in a future phase. */
         };
