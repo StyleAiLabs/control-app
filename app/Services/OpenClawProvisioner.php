@@ -119,9 +119,14 @@ class OpenClawProvisioner implements TenantProvisioner
         $configPath = $runtimePath.DIRECTORY_SEPARATOR.'config'.DIRECTORY_SEPARATOR.'openclaw.json';
         $this->files->ensureDirectoryExists(dirname($configPath));
 
+        $defaultModel = (string) config('sync360.openclaw.default_agent_model', 'gpt-4o');
+
         $this->files->put(
             $configPath,
             json_encode([
+                'agent' => [
+                    'model' => $defaultModel,
+                ],
                 'gateway' => [
                     'mode' => 'local',
                     'bind' => 'lan',
@@ -205,6 +210,7 @@ class OpenClawProvisioner implements TenantProvisioner
             sprintf('      OPENCLAW_GATEWAY_TOKEN: %s', $this->yamlQuote($gatewayToken)),
             sprintf('      OPENAI_API_KEY: %s', $this->yamlQuote($liteLlmKey)),
             sprintf('      OPENAI_BASE_URL: %s', $this->yamlQuote($liteLlmBaseUrl)),
+            sprintf('      OPENCLAW_MODEL: %s', $this->yamlQuote((string) config('sync360.openclaw.default_agent_model', 'gpt-4o'))),
             '',
         ]);
 

@@ -39,6 +39,7 @@ return [
         'readiness_timeout_seconds' => (int) env('OPENCLAW_READINESS_TIMEOUT_SECONDS', 45),
         'readiness_poll_interval_ms' => (int) env('OPENCLAW_READINESS_POLL_INTERVAL_MS', 1000),
         'compose_timeout_seconds' => (int) env('OPENCLAW_COMPOSE_TIMEOUT_SECONDS', 600),
+        'default_agent_model' => env('OPENCLAW_DEFAULT_AGENT_MODEL', 'gpt-4o'),
     ],
     'workspace_proxy' => [
         'control_app_upstream' => env('SYNC360_WORKSPACE_CONTROL_APP_UPSTREAM', env('APP_URL', 'http://localhost')),
