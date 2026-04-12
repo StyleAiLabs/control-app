@@ -119,7 +119,7 @@ class RegisterController extends Controller
 
         ProcessTenantProvisioning::dispatch($tenant->id, $provisioningJob->id)->afterCommit();
 
-        return redirect()->route('tenant.setup');
+        return redirect()->route('onboarding.show');
     }
 
     private function generateSlug(string $businessName): string

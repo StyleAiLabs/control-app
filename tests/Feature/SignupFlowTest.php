@@ -46,7 +46,7 @@ class SignupFlowTest extends TestCase
             'phone' => '+64 21 555 0101',
         ]);
 
-        $response->assertRedirect(route('tenant.setup'));
+        $response->assertRedirect(route('onboarding.show'));
         $this->assertAuthenticated();
 
         $this->assertDatabaseHas('users', [
