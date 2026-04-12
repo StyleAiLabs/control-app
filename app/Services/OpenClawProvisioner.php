@@ -122,6 +122,11 @@ class OpenClawProvisioner implements TenantProvisioner
         $this->files->put(
             $configPath,
             json_encode([
+                'agents' => [
+                    'defaults' => [
+                        'model' => (string) config('sync360.openclaw.default_agent_model', 'gpt-4o'),
+                    ],
+                ],
                 'gateway' => [
                     'mode' => 'local',
                     'bind' => 'lan',

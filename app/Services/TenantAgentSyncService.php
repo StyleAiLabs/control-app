@@ -107,8 +107,13 @@ class TenantAgentSyncService
         $config = json_decode($this->files->get($configPath), true) ?: [];
         $channelConfig = is_array($tenant->channel_config) ? $tenant->channel_config : [];
 
-        /* Remove any stale agent key that was written by earlier versions. */
+        /* Remove any stale top-level "agent" key from earlier versions. */
         unset($config['agent']);
+
+        /* Ensure the default agent model is set via the correct OpenClaw path. */
+        if (! isset($config['agents']['defaults']['model'])) {
+            $config['agents']['defaults']['model'] = (string) config('sync360.openclaw.default_agent_model', 'gpt-4o');
+        }
 
         /* Merge channel-specific settings into the openclaw config. */
         match ($tenant->channel) {
