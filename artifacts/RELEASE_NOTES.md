@@ -4,6 +4,63 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-12 — LiteLLM Key Hardening & OpenClaw Provider Routing
+
+Date: 2026-04-12
+Branch: `codex/control-app-prod-deploy`
+Status: Released
+
+Summary:
+- Hardened LiteLLM virtual key generation to enforce team and model restrictions on all tenant keys
+- Lowered the default trial budget from $25 to $5/month
+- Configured OpenClaw to route all AI calls through the LiteLLM proxy instead of directly to `api.openai.com`
+- Set `gpt-4o` as the default agent model for all tenant OpenClaw instances
+- Added self-healing config migration in `configureChannel()` so pre-existing tenants are automatically upgraded
+
+### LiteLLM Key Restrictions
+
+- Updated [LiteLlmTenantKeyService.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/LiteLlmTenantKeyService.php) so `POST /key/generate` now includes `team_id` and `models` restrictions from centralized config
+- Added `LITELLM_TEAM_ID` and `LITELLM_DEFAULT_MODELS` to [config/sync360.php](/Users/gayanhewage/Projects/openclaw-saas/config/sync360.php), [.env.example](/Users/gayanhewage/Projects/openclaw-saas/.env.example), and [.env.production.example](/Users/gayanhewage/Projects/openclaw-saas/.env.production.example)
+- Updated `LITELLM_TRIAL_MAX_BUDGET` default from `25` to `5`
+
+### OpenClaw Model & Provider Configuration
+
+- Updated [OpenClawProvisioner.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/OpenClawProvisioner.php) to write `agents.defaults.model` and `models.providers.openai` config in the generated `openclaw.json`
+- The `models` block uses `mode: "replace"` with `providers.openai.baseUrl` pointing to `litellm.stylesoftware.co.nz/v1`, overriding OpenClaw's built-in provider catalog that defaults to `api.openai.com`
+- The `models.providers.openai.models` array uses the `[{id, name}]` object format required by OpenClaw's config schema
+- Added `OPENCLAW_DEFAULT_AGENT_MODEL` to [config/sync360.php](/Users/gayanhewage/Projects/openclaw-saas/config/sync360.php), [.env.example](/Users/gayanhewage/Projects/openclaw-saas/.env.example), and [.env.production.example](/Users/gayanhewage/Projects/openclaw-saas/.env.production.example)
+- Removed unused `OPENCLAW_MODEL` env var from `compose.yaml` template (OpenClaw does not read this env var)
+
+### Channel Configuration Self-Healing
+
+- Updated [TenantAgentSyncService.php](/Users/gayanhewage/Projects/openclaw-saas/app/Services/TenantAgentSyncService.php) `configureChannel()` to:
+  - Remove any stale top-level `agent` key written by earlier versions (invalid OpenClaw config key)
+  - Inject `agents.defaults.model` if missing
+  - Inject full `models.providers.openai` block pointing to LiteLLM if missing
+  - This ensures pre-existing tenants are self-healed to the correct config on the next channel update
+
+### Key Discoveries
+
+- `OPENCLAW_MODEL` env var — **not recognized** by OpenClaw; has no effect
+- `agent.model` in `openclaw.json` — **invalid top-level key**; causes gateway config validation failure
+- `agents.defaults.model` in `openclaw.json` — **correct path** for setting the default agent model
+- `models.providers.openai.baseUrl` in `openclaw.json` — **required** to override OpenClaw's built-in `api.openai.com` base URL
+- LiteLLM team model restrictions and key model restrictions **must both allow the same model** or requests are rejected with 401
+
+Verification:
+- Direct `curl` to LiteLLM with tenant virtual key returns HTTP 200 with `gpt-4o` response
+- OpenClaw gateway starts with `agent model: openai/gpt-4o` (confirmed in container logs)
+- Telegram bot responds to messages successfully via `gpt-4o` through LiteLLM
+- Gateway readiness endpoint returns `{"ready": true}`
+- No config validation errors in OpenClaw startup logs
+
+Operational notes:
+- The LiteLLM team `Sync360` (`00a47146-4a89-4775-abff-57ef53ef20b5`) must have `gpt-4o` in its allowed models list
+- Tenants provisioned before this change require a `configureChannel()` call or manual `openclaw.json` update to get the correct `models` config
+- The `style-software` tenant was manually updated and verified working in this session
+
+---
+
 ## Unreleased
 
 Date: 2026-04-12

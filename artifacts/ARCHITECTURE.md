@@ -553,7 +553,7 @@ Current provisioning sequence:
 6. Persist the encrypted LiteLLM key plus plan and budget metadata on the tenant record.
 7. Generate local runtime staging files, including `OPENAI_API_KEY` and `OPENAI_BASE_URL`.
 8. Compute remote runtime path for the assigned server.
-9. Write `config/openclaw.json`.
+9. Write `config/openclaw.json` with `agents.defaults.model`, `models.providers.openai` pointing to LiteLLM, and gateway auth config.
 10. Write `compose.yaml` using the remote runtime bind path and tenant-scoped LiteLLM environment.
 11. Write a tenant-specific `workspace.caddy` site fragment when wildcard-domain routing is configured.
 12. Persist `assigned_port`, `runtime_path`, and `workspace_url`.
@@ -638,10 +638,20 @@ Configuration:
 - `LITELLM_DEFAULT_MAX_BUDGET`
 - `LITELLM_DEFAULT_BUDGET_DURATION`
 - `LITELLM_TRIAL_MAX_BUDGET`
+- `LITELLM_TEAM_ID`
+- `LITELLM_DEFAULT_MODELS`
+
+Key restrictions:
+
+- all generated virtual keys are assigned to a LiteLLM team via `LITELLM_TEAM_ID`
+- all generated virtual keys are restricted to the models listed in `LITELLM_DEFAULT_MODELS`
+- the LiteLLM team must also allow the same models in its own settings, or requests are rejected with 401
+- the default trial budget is set via `LITELLM_TRIAL_MAX_BUDGET` (currently $5/month)
 
 Operational behavior:
 
 - the service calls `POST /key/generate` on LiteLLM before OpenClaw runtime preparation
+- the generated request includes `team_id` and `models` restrictions from centralized config
 - the generated tenant key is stored on the tenant record with Laravel encrypted casting
 - the generated runtime `.env` file receives `OPENAI_API_KEY` and `OPENAI_BASE_URL`
 - the tenant `compose.yaml` also receives `OPENAI_API_KEY` and `OPENAI_BASE_URL` so the OpenClaw container uses the tenant key at runtime
@@ -650,7 +660,45 @@ Operational behavior:
 - suspension uses `POST /key/update` with `max_budget=0` and `budget_duration=null`
 - cancellation-ready cleanup uses `POST /key/delete`
 
-## 12.7 Control-Plane Deploy Status Flow
+### 12.7 OpenClaw Model & Provider Routing
+
+OpenClaw has a built-in provider catalog that defaults to calling `api.openai.com` directly. Since tenant API keys are LiteLLM virtual keys (not real OpenAI keys), all AI calls must be routed through LiteLLM.
+
+This is achieved by writing a `models` block in the generated `openclaw.json`:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "model": "gpt-4o"
+    }
+  },
+  "models": {
+    "mode": "replace",
+    "providers": {
+      "openai": {
+        "baseUrl": "https://litellm.stylesoftware.co.nz/v1",
+        "models": [{"id": "gpt-4o", "name": "gpt-4o"}]
+      }
+    }
+  }
+}
+```
+
+Key points:
+
+- `models.mode: "replace"` is critical — without it, OpenClaw merges with its built-in catalog and may still call `api.openai.com` directly
+- `models.providers.openai.models` must use the `[{id, name}]` object format (string arrays cause validation errors)
+- `agents.defaults.model` sets the default model for all agents (not `agent.model`, which is invalid)
+- `OPENCLAW_MODEL` and `OPENAI_BASE_URL` env vars do **not** override the built-in provider catalog
+- the model is configured via `OPENCLAW_DEFAULT_AGENT_MODEL` env var on the control app, which defaults to `gpt-4o`
+
+Self-healing:
+
+- `TenantAgentSyncService::configureChannel()` checks for and injects the `agents.defaults.model` and `models.providers` config if missing
+- this ensures pre-existing tenants provisioned before this feature are automatically upgraded on the next channel update
+
+## 12.8 Control-Plane Deploy Status Flow
 
 The control-plane deploy feature now has a dedicated status loop for the super-admin interface.
 
@@ -844,6 +892,7 @@ Important groups:
 - port range
 - provisioning driver
 - OpenClaw image and compose config
+- OpenClaw default agent model
 - public workspace readiness polling
 
 Default environment values live in:
