@@ -4,6 +4,73 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-14 — Live Workspace Status, AI Usage Refresh & Notification Bell
+
+Date: 2026-04-14
+Branch: `cdx-feature/hot-fixes` (commit `8ee02f6`)
+Status: Pending merge to `codex/control-app-prod-deploy`
+
+### Overview
+
+A set of UX and correctness improvements built on top of the Trial Lifecycle Management feature.
+Fixes a stale workspace status shown to clients, adds on-demand AI credit refresh, corrects a confusing admin label, and introduces a persistent notification bell in the sidebar.
+
+### Live Workspace State on Client Dashboard
+
+**Problem:** The client dashboard was reading `provisioning_status` from the database (a cached value), which always said "Workspace is live" even when the actual Docker container was stopped. The superadmin tenants table showed "stopped" correctly because it makes a live Docker API call.
+
+**Fix:** `DashboardController` now runs the same live Docker container state check (`workspaceState()` helper) as `AdminController`. The result is:
+- **Workspace stat card** now reflects the real Docker state (`running` / `stopped` / `missing_config`)
+- When stopped, the card shows "Workspace is stopped" in amber with a contact prompt
+
+### Manual AI Credit Refresh Button
+
+New ↻ refresh icon in the Trial & AI Usage panel header on the client dashboard.
+- POST to `dashboard/refresh-trial-usage` → calls LiteLLM `/key/info` live
+- Fetches real spend, caches it on the tenant record, returns updated data as JSON
+- All UI values (spend label, progress bars, urgency badge, cached-at footer) update **in-place** without a page reload
+- Icon spins during the request; error message appears inline on failure
+
+**Route:** `POST /dashboard/refresh-trial-usage` (name: `dashboard.refresh-trial-usage`)
+
+**Controller:** `DashboardController::refreshTrialUsage()`
+
+### Admin Trial Time Label Fix
+
+The superadmin tenant detail view was showing `7.1% of 14 days used` which is meaningless.
+
+**Fixed to:** `1 of 14 days elapsed — 12 remaining` — plain day counts on both sides.
+
+### Sidebar Notification Bell
+
+A persistent notification bell is now rendered in the sidebar footer on every authenticated page.
+
+**Design:**
+- Bell icon + "Alerts" label
+- Red dot badge + red count pill when alerts are active
+- Click opens a dark card dropdown listing each alert with title, message, and CTA link
+- Closes on outside click
+
+**Alert sources (two-layer system):**
+
+| Layer | Source | What triggers it |
+|---|---|---|
+| DB-level (all pages) | `AppServiceProvider` View composer | Trial expired, trial urgency `critical`, health check `failed` |
+| Live Docker (dashboard only) | `DashboardController` → request attributes | Workspace `stopped` / `missing_config` / `unknown` |
+
+The dashboard injects workspace alerts via `$request->attributes` before the view renders; the View composer in `AppServiceProvider` merges them into `$sidebarAlerts` when it runs.
+
+### Files Changed
+
+- `app/Http/Controllers/DashboardController.php` — `workspaceState()`, `refreshTrialUsage()`, request-attribute workspace alert injection
+- `app/Providers/AppServiceProvider.php` — View composer registering `$sidebarAlerts`
+- `resources/views/components/layouts/app.blade.php` — notification bell CSS + HTML + JS toggle
+- `resources/views/dashboard.blade.php` — Workspace stat card live state, refresh button, removed full-width workspace banner
+- `resources/views/admin/tenant-show.blade.php` — time label fix
+- `routes/web.php` — `dashboard.refresh-trial-usage` route
+
+---
+
 ## 2026-04-14 — Trial Backfill, Defensive Fallbacks & Admin Trial Metrics
 
 Date: 2026-04-14
