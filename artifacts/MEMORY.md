@@ -40,15 +40,17 @@ Primary working deployment branch:
 
 Active feature/hotfix branch:
 
-- None — all recent work committed directly to `codex/control-app-prod-deploy`
+- `cdx-feature/hot-fixes` (merged into `codex/control-app-prod-deploy` after each session)
 
 Important recent commits on the deployment branch:
 
+- `781aa40` `fix: use config('app.url') for webhook URLs — prevents workspace proxy from polluting host`
+- `6f60009` `fix: register control-app Telegram webhook after configureChannel() to prevent OpenClaw override`
+- `2631ff7` `docs: update release notes for live workspace state, refresh button, and notification bell`
+- `8ee02f6` `feat: notification bell in sidebar — workspace & trial alerts with red badge and dropdown`
+- `25cffa3` `fix: dashboard live workspace state check — stopped banner + correct stat card`
 - `6202226` `fix: backfill trial_ends_at for existing tenants, defensive fallback, admin trial metrics`
 - `a3b15e3` `feat: trial lifecycle management — expiry enforcement, AI usage widget, email notifications`
-- `895b9b1` `feat: conversations and dashboard channel-aware connected state indicators`
-- `478a90c` `feat: onboarding UX polish — owner↔assistant copy, clipboard webhooks, step labels`
-- `f650484` `fix: redirect signup to /onboarding instead of /tenant/setup`
 
 Important note:
 
@@ -371,7 +373,45 @@ This decision is confirmed and intentional for Phase 1. Future phases may add a 
 
 ---
 
-## 11. Known Current State / Open Work
+## 11. Conversation Logging Pipeline
+
+**Flow:** Telegram → control-app `WebhookController::handleTelegram()` → `ProcessIncomingMessage` job → `TenantWorkspaceMessenger::send()` → workspace → reply → `ConversationLog::create()`
+
+**Critical architecture rule:**
+- The Telegram bot webhook **must point to the control-app URL** (`https://app.sync360.co.nz/webhooks/telegram/{tenant_id}`), NOT the workspace URL.
+- OpenClaw registers its own workspace URL when its gateway starts. This overwrites the control-app webhook, bypassing all logging.
+- `TenantAgentSyncService::configureChannel()` now calls `registerTelegramWebhook()` after every channel config write to overwrite the workspace URL with the control-app URL.
+
+**Webhook URL generation:** Always use `config('app.url')` directly, never `route()`, for webhook URLs shown in the onboarding UI. Requests are proxied through the workspace VPS which does not set `X-Forwarded-Host` correctly, causing `route()` to generate the wrong host.
+
+**Production webhook (verified 2026-04-14):**
+```
+https://app.sync360.co.nz/webhooks/telegram/01KP0JG8P5KA1ZMQCPD2X8GE2G
+```
+Registered manually after discovering the SSL cert for `app.sync360.co.nz` was causing Apache to run on stale config.
+
+**Key files:**
+- `app/Http/Controllers/WebhookController.php` — `handleTelegram()`, `handleWhatsApp()`
+- `app/Jobs/ProcessIncomingMessage.php` — processes + logs messages
+- `app/Services/TenantAgentSyncService.php` — `registerTelegramWebhook()` (call after every channel config change)
+- `app/Http/Controllers/OnboardingController.php` — `channelSetupPayload()` uses `config('app.url')` not `route()`
+
+---
+
+## 12. Sidebar Notification Bell
+
+A persistent notification bell renders in the sidebar footer on every authenticated tenant page.
+
+- **DB-level alerts** (all pages): View composer in `AppServiceProvider::boot()` builds `$sidebarAlerts` from tenant DB state — trial expired, urgency `critical`, health check `failed`.
+- **Live Docker alerts** (dashboard only): `DashboardController::index()` runs `workspaceState()` (live Docker SSH call), builds a workspace alert, injects it via `$request->attributes->set('_workspaceAlert', [...])` before view renders. Composer merges it.
+- Bell shows red dot badge + count when alerts exist. Clicking opens a dark dropdown. Closes on outside click.
+
+**Key files:**
+- `app/Providers/AppServiceProvider.php` — View composer
+- `app/Http/Controllers/DashboardController.php` — `workspaceState()`, alert injection
+- `resources/views/components/layouts/app.blade.php` — bell CSS + HTML + JS
+
+---
 
 These are the main future areas, not active failures:
 
@@ -382,7 +422,7 @@ These are the main future areas, not active failures:
 - add a safer env/config drift check in admin UI
 - further harden operational monitoring and rollback paths
 
-## 11. Practical Commands Worth Remembering
+## 14. Practical Commands Worth Remembering
 
 ### Manual bootstrap deploy on control server
 
@@ -397,6 +437,27 @@ docker compose -f docker-compose.prod.yml exec app php artisan optimize:clear
 docker compose -f docker-compose.prod.yml exec app php artisan optimize
 ```
 
+### Re-register Telegram webhook manually (if OpenClaw overrides it)
+
+```bash
+curl -s -X POST 'https://api.telegram.org/bot<TOKEN>/setWebhook' \
+  -H 'Content-Type: application/json' \
+  -d '{"url": "https://app.sync360.co.nz/webhooks/telegram/<tenant_id>", "allowed_updates": ["message"]}'
+```
+
+### Verify Telegram webhook registration
+
+```bash
+curl -s 'https://api.telegram.org/bot<TOKEN>/getWebhookInfo' | python3 -m json.tool
+```
+
+### Reload Apache on control server (requires sudo)
+
+```bash
+sudo systemctl reload apache2
+sudo apache2ctl -S  # verify no syntax errors
+```
+
 ### Check deployed branch commit manually
 
 ```bash
@@ -409,13 +470,57 @@ git rev-parse --short origin/codex/control-app-prod-deploy
 
 Both should match.
 
-## 13. Suggested New-Thread Prompt
+## 15. Gotchas We Already Learned
+
+### 1. Self-updating deploy scripts are dangerous
+
+The control-plane deploy script must bootstrap from fetched branch content, not from the stale checked-out file already on disk.
+
+### 2. Deploy success is meaningless without commit verification
+
+A deploy should not be considered successful unless:
+
+- remote branch tip was resolved
+- local branch fast-forwarded
+- local `HEAD` equals the expected remote commit
+
+### 3. Production `.env` is not auto-updated
+
+Git deploys update code only.
+
+Any new or changed env variables must still be updated manually on the server.
+
+### 4. Password-auth SSH is only a temporary bridge
+
+It works right now, but it should be replaced with SSH keys.
+
+### 5. Secrets were shared in-thread
+
+Multiple secrets were pasted during setup. Do not preserve them in docs or code. Treat them as compromised and rotate them.
+
+### 6. Telegram webhook is overwritten by OpenClaw on every gateway restart
+
+When `configureChannel()` writes `botToken` into `openclaw.json`, OpenClaw registers its own workspace URL as the Telegram webhook on startup. Always call `registerTelegramWebhook()` after channel config to restore the control-app URL.
+
+### 7. Use `config('app.url')` not `route()` for webhook URLs in the UI
+
+Requests proxied through the workspace VPS (`89.116.28.191`) don't set `X-Forwarded-Host` correctly. Laravel's `route()` picks up the wrong host and generates workspace subdomain URLs. Explicitly building from `config('app.url')` is safe.
+
+### 8. Apache needs a reload after certbot issues a new cert
+
+Certbot stores certs under `/etc/letsencrypt/live/`. If a cert was issued but Apache was not reloaded, the old (missing) cert path remains active and Telegram's strict TLS validation will reject the webhook registration even though the domain resolves correctly.
+
+### 9. Sudo password for `serveradmin` on the control server
+
+The VPS client SSH/sudo password (`roApoxDY5K9lAae8ngzey4M`) is for client workspace VPSes only. The control server (`161.97.74.128`) `serveradmin` user has a separate sudo password. Keep it in your password manager, not in `.env`.
+
+---
+
+## 16. Suggested New-Thread Prompt
 
 If starting a fresh thread, say something like:
 
-> Read [MEMORY.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/MEMORY.md), [ARCHITECTURE.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/ARCHITECTURE.md), and [RELEASE_NOTES.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/RELEASE_NOTES.md) first. We are on `codex/control-app-prod-deploy` (latest commit `6202226`). Phase 1 channel communication is strictly owner↔assistant. Trial lifecycle (14 days / $5) is fully implemented including backfill and admin metrics. Continue from there.
-
----
+> Read [MEMORY.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/MEMORY.md), [ARCHITECTURE.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/ARCHITECTURE.md), and [RELEASE_NOTES.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/RELEASE_NOTES.md) first. We are on `codex/control-app-prod-deploy` (latest commit `781aa40`). Phase 1 channel communication is strictly owner↔assistant. Trial lifecycle (14 days / $5) is fully implemented. Telegram conversation logging pipeline is fixed — webhook points to `app.sync360.co.nz`. Sidebar notification bell is live. Continue from there.
 
 ## 14. Trial Lifecycle Quick Reference
 
