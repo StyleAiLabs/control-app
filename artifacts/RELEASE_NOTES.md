@@ -4,6 +4,57 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-14 — Telegram Conversation Logging Pipeline Fix
+
+Date: 2026-04-14
+Branch: `cdx-feature/hot-fixes` → `codex/control-app-prod-deploy` (commits `6f60009`, `781aa40`)
+Status: Deployed to production
+
+### Overview
+
+Investigated and resolved a multi-layer issue causing Telegram conversations to not appear in the Control App's Conversations dashboard. Root cause was that incoming messages were handled entirely by the OpenClaw workspace (bypassing the control-app `WebhookController`), so zero `ConversationLog` records were ever created.
+
+### Root Causes Found
+
+1. **Telegram webhook was blank** — The bot had no webhook registered at all. OpenClaw's gateway uses long-polling, not webhooks, to receive messages natively and replies without involving the control-app.
+2. **OpenClaw overrides webhook on every restart** — `configureChannel()` writes `botToken` into `openclaw.json`. When the gateway starts, it registers its own workspace URL (e.g. `style-software.workspace.sync360.co.nz`) as the Telegram webhook, bypassing the control-app entirely.
+3. **Apache stale config** — The Let's Encrypt SSL cert for `app.sync360.co.nz` existed under `/etc/letsencrypt/live/` but Apache was running on a cached config referencing it incorrectly. Telegram's strict TLS checks caused `setWebhook` to fail with "Failed to resolve host" — not a DNS issue, but a TLS validation failure.
+4. **Webhook URL in onboarding UI was wrong** — `OnboardingController::channelSetupPayload()` used `route()` to generate webhook URLs. Requests proxied through the workspace VPS (`89.116.28.191`) don't set `X-Forwarded-Host` correctly, causing `route()` to return the workspace subdomain URL instead of `app.sync360.co.nz`.
+
+### Changes Made
+
+#### `app/Services/TenantAgentSyncService.php`
+- Added public `registerTelegramWebhook(Tenant $tenant)` method
+- Calls Telegram's `setWebhook` API after `configureChannel()` completes (both local and production)
+- Points webhook at `{APP_URL}/webhooks/telegram/{tenant_id}`
+- Non-fatal — logs warning/error and continues if Telegram API call fails
+
+#### `app/Http/Controllers/OnboardingController.php`
+- Replaced `route('webhooks.telegram.handle', ...)` with `config('app.url') . '/webhooks/telegram/' . $tenant->tenant_id`
+- Same fix for WhatsApp webhook URL
+- Prevents workspace proxy from polluting the displayed URL
+
+#### Production (manual ops)
+- Reloaded Apache with `sudo systemctl reload apache2` to pick up valid cert config
+- Manually registered Telegram webhook via `setWebhook` API:
+  ```
+  https://app.sync360.co.nz/webhooks/telegram/01KP0JG8P5KA1ZMQCPD2X8GE2G
+  ```
+- Deployed latest code: `git pull` + `docker compose restart app worker`
+
+### Conversation Flow (now correct)
+
+```
+Telegram user → POST https://app.sync360.co.nz/webhooks/telegram/{tenant_id}
+  → WebhookController::handleTelegram()
+  → ProcessIncomingMessage job (queued)
+  → TenantWorkspaceMessenger::send() → workspace
+  → Reply sent back via Telegram API
+  → ConversationLog::create()
+```
+
+---
+
 ## 2026-04-14 — Live Workspace Status, AI Usage Refresh & Notification Bell
 
 Date: 2026-04-14
