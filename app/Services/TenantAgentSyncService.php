@@ -138,18 +138,22 @@ class TenantAgentSyncService
         /* Merge channel-specific settings into the openclaw config. */
         $webhookBaseUrl = rtrim((string) config('app.url'), '/');
         match ($tenant->channel) {
-            'telegram' => (function () use (&$config, $channelConfig, $webhookBaseUrl, $tenant): void {
+            'telegram' => (static function () use (&$config, &$channelConfig, $webhookBaseUrl, $tenant): void {
                 // Generate a stable per-tenant webhook secret (stored in channel_config).
-                // OpenClaw requires webhookSecret whenever webhookUrl is set.
-                // Telegram will include this as X-Telegram-Bot-Api-Secret-Token on each request.
+                // OpenClaw requires webhookSecret when webhookUrl is set.
+                // Telegram includes this as X-Telegram-Bot-Api-Secret-Token on each request.
                 $webhookSecret = $channelConfig['telegram_webhook_secret'] ?? null;
                 if (! $webhookSecret) {
                     $webhookSecret = Str::random(32);
-                    $tenant->forceFill([
-                        'channel_config' => array_merge($channelConfig, [
-                            'telegram_webhook_secret' => $webhookSecret,
-                        ]),
-                    ])->save();
+                    // Use direct property assignment — more reliable than forceFill for
+                    // encrypted:array casts which need the full array re-encrypted on save.
+                    $tenant->channel_config = array_merge($channelConfig, [
+                        'telegram_webhook_secret' => $webhookSecret,
+                    ]);
+                    $tenant->save();
+                    // Refresh so registerTelegramWebhook reads the persisted secret.
+                    $tenant->refresh();
+                    $channelConfig = is_array($tenant->channel_config) ? $tenant->channel_config : [];
                 }
 
                 $config['channels']['telegram'] = array_filter([
