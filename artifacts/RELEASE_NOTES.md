@@ -4,6 +4,96 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-14 — Session-Grouped Conversation History + AI Summaries
+
+Date: 2026-04-14
+Branch: `cdx-feature/hot-fixes` → `codex/control-app-prod-deploy`
+Status: Deployed to production
+
+### Overview
+
+Replaced the flat per-message conversation log view with a session-aware, AI-summarised conversation history system. Each conversation thread is now grouped by its OpenClaw session UUID, and a one-sentence AI summary is generated per session so customers can immediately understand the context of any past conversation.
+
+### Architecture Shift — Polling Mode
+
+**OpenClaw does not use a Telegram webhook.** It runs in native `getUpdates` long-polling mode, meaning no `webhookUrl` exists in `openclaw.json`. Messages flow:
+
+```
+Telegram → OpenClaw polling → workspace agent → reply → session log written to
+  {runtime_path}/.openclaw/workspace/memory/*.md
+```
+
+The control-app `WebhookController` is not involved in this flow. Conversation logs are backfilled from the session files by the `sync360:sync-replies` scheduler command.
+
+### Database Schema
+
+New migration: `2026_04_14_000001_add_session_id_and_summary_to_conversation_logs`
+
+- `session_id` (VARCHAR, nullable, indexed) — OpenClaw session UUID extracted from `# Session:` headers in workspace memory files
+- `ai_summary` (TEXT, nullable) — one-sentence business-outcome summary generated per session by the LLM
+
+### Session Log Parser — `WorkspaceSessionLogReader`
+
+Rewritten to split workspace memory Markdown files on `# Session:` block headers. Each message turn is mapped to its exact session UUID. Previous implementation ignored session structure entirely.
+
+### Sync Command — `SyncConversationReplies`
+
+Updated flow:
+
+1. Reads all session log files from the tenant workspace VPS over SSH
+2. Groups messages by `session_id`
+3. Upserts `ConversationLog` records (creates new, updates `message_out` if replied, skips unchanged)
+4. After upsert, checks all sessions missing an `ai_summary`
+5. Calls `ConversationSummaryService::summarise()` per incomplete session
+6. Writes summary back to all records in that session
+
+Scheduled every 10 minutes in `routes/console.php`.
+
+### AI Summary Service — `ConversationSummaryService`
+
+- Calls LiteLLM at `LITELLM_BASE_URL` using the platform `LITELLM_VIRTUAL_KEY`
+- Model: `claude-sonnet-4-6` (only model the platform virtual key permits)
+- System prompt: produces ≤25-word summary focused on business outcome
+- Failure is silent (returns `null`, records kept without summary until next sync)
+
+### Conversations UI
+
+- Redesigned from flat message list → compact session summary cards
+- Each card: channel badge, sender, `Replied`/`No reply` status badge, AI summary paragraph, date, message count, short session UUID
+- No chat thread expanded inline — summary only
+- Custom pagination view (`resources/views/vendor/pagination/tailwind.blade.php`) — fixes oversized SVG arrows that appeared when Tailwind classes were not loaded; uses project button design with explicit 14×14 SVG icons and accent-coloured active page numbers
+
+### Scheduler Container Fix
+
+The `docker-compose.prod.yml` was missing a scheduler service — `sync360:sync-replies` and all other scheduled commands were **never running automatically** in production.
+
+Added:
+- `scheduler` service in `docker-compose.prod.yml`
+- `docker/start-prod-scheduler.sh` — waits for DB/Redis/app health then runs `php artisan schedule:work` (foreground scheduler, no cron required)
+
+Verification:
+- `scheduler` container confirmed running: `Up 18 seconds`
+- `session_id` populated for 3 sessions (382e48e9, daded3a9, dd393720)
+- AI summaries generated for all 3 sessions:
+  - `Gayan Hewage greeted the assistant, but no business need or outcome was identified`
+  - `Gayan inquired about automation services and Style Software's contact...`
+  - `Painting business owner needed a website similar to nzcpm.co.nz; arranged consultation`
+
+### Files Changed
+
+- `database/migrations/2026_04_14_000001_add_session_id_and_summary_to_conversation_logs.php`
+- `app/Models/ConversationLog.php` — `session_id`, `ai_summary` added to `$fillable`
+- `app/Services/WorkspaceSessionLogReader.php` — session-block parser rewrite
+- `app/Services/ConversationSummaryService.php` — LiteLLM `claude-sonnet-4-6` summariser
+- `app/Console/Commands/SyncConversationReplies.php` — session grouping + summary trigger
+- `app/Http/Controllers/ConversationsController.php` — paginate by session, not by message
+- `resources/views/conversations/index.blade.php` — summary card UI
+- `resources/views/vendor/pagination/tailwind.blade.php` — custom pagination (NEW)
+- `docker-compose.prod.yml` — added `scheduler` service
+- `docker/start-prod-scheduler.sh` — scheduler container entrypoint (NEW)
+
+---
+
 ## 2026-04-14 — Global Workspace Alert (All Pages)
 
 Date: 2026-04-14
