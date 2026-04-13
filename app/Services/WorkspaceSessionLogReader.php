@@ -59,7 +59,7 @@ class WorkspaceSessionLogReader
             foreach ($files as $file) {
                 $content = $this->runSsh($tenant, sprintf('cat %s', escapeshellarg($file)));
                 $extracted = $this->parseSessionLog($content);
-                $replies = array_merge($replies, $extracted);
+                $replies += $extracted; // += preserves numeric-string keys (message IDs like "46")
             }
 
             return $replies;
