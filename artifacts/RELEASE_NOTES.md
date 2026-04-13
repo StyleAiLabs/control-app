@@ -4,6 +4,35 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-14 — Global Workspace Alert (All Pages)
+
+Date: 2026-04-14
+Branch: `cdx-feature/hot-fixes` → `codex/control-app-prod-deploy` (commit `e7fdf3b`)
+Status: Deployed to production
+
+### Overview
+
+Workspace offline alerts were only showing on the Dashboard (where the live Docker check runs). Conversations, Profile, Setup, and all future pages showed a clean bell with no badge even when the workspace was down.
+
+### Root Cause
+
+The alert was injected as a `request()->attributes` value by `DashboardController`, which only lives for the duration of that single request. The `AppServiceProvider` View composer reads from this attribute and merges it with DB-level alerts — but on every other page (no DashboardController), the attribute was never set.
+
+### Fix
+
+`DashboardController::index()` now **persists the live Docker check result to the DB**:
+
+- If workspace is **running** → clears `last_health_check_status` and `health_check_message` so stale alerts disappear everywhere.
+- If workspace is **stopped / unknown** → writes `last_health_check_status = 'failed'` and `health_check_message` to the tenant row, then the `AppServiceProvider` View composer already reads this on every page and shows the bell alert.
+
+No live Docker call is made on any page other than the dashboard — the persisted DB value acts as the cached state across all pages.
+
+### File changed
+
+- `app/Http/Controllers/DashboardController.php` — adds DB persistence of workspace health check result in `index()`
+
+---
+
 ## 2026-04-14 — Telegram Conversation Logging Pipeline Fix
 
 Date: 2026-04-14
