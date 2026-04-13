@@ -8,30 +8,36 @@ use Throwable;
 
 /**
  * Generates a concise, human-readable summary of a conversation session
- * using the OpenAI Chat Completions API.
+ * via the platform's own LiteLLM virtual key.
  *
- * Summaries are stored in ConversationLog.ai_summary (same value for every
- * message in the session) and surfaced in the Conversations dashboard.
+ * LiteLLM exposes an OpenAI-compatible /chat/completions endpoint.
+ * Summaries are stored in ConversationLog.ai_summary (same value for all
+ * records in a session) and surfaced in the Conversations dashboard.
+ *
+ * Config keys used (services.litellm.*):
+ *   LITELLM_BASE_URL    — e.g. https://litellm.stylesoftware.co.nz
+ *   LITELLM_VIRTUAL_KEY — platform-level virtual key (NOT a tenant key)
  */
 class ConversationSummaryService
 {
-    private const MODEL   = 'gpt-4o-mini';
+    private const MODEL      = 'gpt-4o-mini';
     private const MAX_TOKENS = 120;
 
     /**
      * Generate a 1–2 sentence summary for a conversation session.
      *
-     * @param  list<array{message_in: string, message_out: string|null}>  $messages  Ordered list of turns.
-     * @param  string|null  $senderName  Display name of the customer (for context).
-     * @return string|null  The summary, or null if the API call fails.
+     * @param  list<array{message_in: string, message_out: string|null}>  $messages  Chronological turns.
+     * @param  string|null  $senderName  Customer display name for context.
+     * @return string|null  The summary, or null if the call fails or is unconfigured.
      */
     public function summarise(array $messages, ?string $senderName = null): ?string
     {
         try {
-            $apiKey = config('services.openai.key') ?: env('OPENAI_API_KEY');
+            $baseUrl    = rtrim((string) config('services.litellm.base_url', ''), '/');
+            $virtualKey = (string) config('services.litellm.virtual_key', '');
 
-            if (! $apiKey) {
-                Log::warning('[ConversationSummaryService] OPENAI_API_KEY not configured — skipping summary.');
+            if ($baseUrl === '' || $virtualKey === '') {
+                Log::warning('[ConversationSummaryService] LITELLM_BASE_URL or LITELLM_VIRTUAL_KEY not configured — skipping summary.');
 
                 return null;
             }
@@ -53,9 +59,9 @@ class ConversationSummaryService
 
             $userPrompt = "{$customerLabel} had this conversation:\n\n{$transcript}\n\nSummarise in one sentence.";
 
-            $response = Http::withToken($apiKey)
-                ->timeout(15)
-                ->post('https://api.openai.com/v1/chat/completions', [
+            $response = Http::withToken($virtualKey)
+                ->timeout(20)
+                ->post("{$baseUrl}/chat/completions", [
                     'model'      => self::MODEL,
                     'max_tokens' => self::MAX_TOKENS,
                     'messages'   => [
@@ -65,7 +71,7 @@ class ConversationSummaryService
                 ]);
 
             if (! $response->successful()) {
-                Log::warning('[ConversationSummaryService] API error.', [
+                Log::warning('[ConversationSummaryService] LiteLLM API error.', [
                     'status' => $response->status(),
                     'body'   => $response->body(),
                 ]);
@@ -86,7 +92,7 @@ class ConversationSummaryService
     }
 
     /**
-     * Build a readable transcript string from ordered message turns.
+     * Build a readable transcript from ordered message turns.
      *
      * @param  list<array{message_in: string, message_out: string|null}>  $messages
      */
