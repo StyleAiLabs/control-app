@@ -136,13 +136,34 @@ class TenantAgentSyncService
         }
 
         /* Merge channel-specific settings into the openclaw config. */
+        $webhookBaseUrl = rtrim((string) config('app.url'), '/');
         match ($tenant->channel) {
-            'telegram' => $config['channels']['telegram'] = array_filter([
-                'enabled' => true,
-                'botToken' => $channelConfig['telegram_bot_token'] ?? null,
-                'dmPolicy' => 'open',
-                'allowFrom' => ['*'],
-            ]),
+            'telegram' => (function () use (&$config, $channelConfig, $webhookBaseUrl, $tenant): void {
+                // Generate a stable per-tenant webhook secret (stored in channel_config).
+                // OpenClaw requires webhookSecret whenever webhookUrl is set.
+                // Telegram will include this as X-Telegram-Bot-Api-Secret-Token on each request.
+                $webhookSecret = $channelConfig['telegram_webhook_secret'] ?? null;
+                if (! $webhookSecret) {
+                    $webhookSecret = Str::random(32);
+                    $tenant->forceFill([
+                        'channel_config' => array_merge($channelConfig, [
+                            'telegram_webhook_secret' => $webhookSecret,
+                        ]),
+                    ])->save();
+                }
+
+                $config['channels']['telegram'] = array_filter([
+                    'enabled'       => true,
+                    'botToken'      => $channelConfig['telegram_bot_token'] ?? null,
+                    'dmPolicy'      => 'open',
+                    'allowFrom'     => ['*'],
+                    // Webhook mode: OpenClaw never falls back to polling when these are set.
+                    // Without webhookUrl, OpenClaw calls deleteWebhook+getUpdates on startup,
+                    // wiping our control-app setWebhook registration after every restart.
+                    'webhookUrl'    => $webhookBaseUrl . '/webhooks/telegram/' . $tenant->tenant_id,
+                    'webhookSecret' => $webhookSecret,
+                ]);
+            })(),
             default => null, /* WhatsApp will be added in a future phase. */
         };
 
@@ -177,11 +198,8 @@ class TenantAgentSyncService
 
         Log::info('[ConfigureChannel] Channel config written and gateway restarted for tenant '.$tenant->slug);
 
-        // After the workspace is configured, ensure the control-app webhook URL is
-        // registered with Telegram. OpenClaw registers its own workspace URL when it
-        // starts, which would bypass our WebhookController and prevent conversation
-        // logging. We overwrite it here so messages flow:
-        //   Telegram → control-app webhook → workspace → reply
+        // Also call setWebhook directly as a belt-and-suspenders measure in case
+        // OpenClaw hasn't processed its config yet when the first message arrives.
         $this->registerTelegramWebhook($tenant);
     }
 
@@ -202,12 +220,18 @@ class TenantAgentSyncService
             return;
         }
 
-        $webhookUrl = rtrim((string) config('app.url'), '/') . '/webhooks/telegram/' . $tenant->tenant_id;
+        $webhookUrl    = rtrim((string) config('app.url'), '/') . '/webhooks/telegram/' . $tenant->tenant_id;
+        $webhookSecret = $channelConfig['telegram_webhook_secret'] ?? null;
 
         try {
+            $payload = ['url' => $webhookUrl, 'allowed_updates' => ['message']];
+            if ($webhookSecret) {
+                $payload['secret_token'] = $webhookSecret;
+            }
+
             $response = Http::timeout(10)->post(
                 'https://api.telegram.org/bot' . $botToken . '/setWebhook',
-                ['url' => $webhookUrl],
+                $payload,
             );
 
             if ($response->json('ok')) {
