@@ -537,10 +537,18 @@
                 @endif
             </div>
 
-            <form id="go-live-form" style="margin-top: 18px;">
-                @csrf
-                <button type="submit">{{ ($state['agent_status'] ?? null) === 'live' ? 'Resync Assistant' : 'Go Live' }}</button>
-            </form>
+            @if ($tenant->isTrialExpired())
+                <div class="note error" style="margin-top: 18px;">
+                    Your trial has ended — activating your digital employee is not available.
+                    <a href="mailto:hello@sync360.co.nz">Contact us</a> to continue.
+                </div>
+                <button type="button" disabled style="margin-top: 12px; opacity: 0.45; cursor: not-allowed;">Go Live</button>
+            @else
+                <form id="go-live-form" style="margin-top: 18px;">
+                    @csrf
+                    <button type="submit">{{ ($state['agent_status'] ?? null) === 'live' ? 'Resync Assistant' : 'Go Live' }}</button>
+                </form>
+            @endif
             <div class="note" style="margin-top: 18px; display: none;" id="go-live-success"></div>
             <div class="note error" style="margin-top: 18px; display: none;" id="go-live-error"></div>
 

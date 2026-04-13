@@ -4,6 +4,67 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-13 — Trial Lifecycle Management
+
+Date: 2026-04-13
+Branch: `cdx-feature/onbord-trial-management` → merged to `codex/control-app-prod-deploy`
+Status: Released
+
+### Overview
+
+Enforces trial expiry under two independent conditions (whichever occurs first): 14-day time limit OR $5.00 AI credit exhausted. No grace period. Introduces the AI Usage dashboard widget and automated email notifications.
+
+### Schema
+
+- New migration: `add_trial_and_spend_fields_to_tenants`
+- 6 new columns on `tenants`: `trial_ends_at`, `litellm_spend`, `litellm_spend_cached_at`, `trial_80pct_notified_at`, `trial_3day_notified_at`, `trial_expired_notified_at`
+- `trial_ends_at` is set at signup = `created_at + 14 days` (UTC)
+
+### RegisterController
+
+- `trial_ends_at` is now set on Tenant creation at signup
+
+### LiteLlmTenantKeyService
+
+- Added `getKeyInfo(Tenant): array` — calls `GET /key/info` and returns `spend`, `max_budget`, `budget_reset_at`
+
+### Scheduler Command — `sync360:check-trial-expiry`
+
+- Runs every 30 minutes (defined in `routes/console.php`)
+- Per active trial tenant: fetches live spend → caches on tenant → evaluates both expiry conditions → expires + suspends if triggered → sends email notifications at thresholds
+- All notification events are idempotent (each email type fires at most once per tenant)
+
+### TrialNotificationEmailService (NEW)
+
+Three Brevo transactional emails:
+
+| Trigger | Email Subject |
+|---|---|
+| Spend ≥ 80% of budget | "Your AI credit is almost used up" |
+| ≤ 3 days remaining | "Your trial ends in N days" |
+| Either condition expired | "Your Sync360 trial has ended" |
+
+Expired email includes whether `budget` or `time` triggered expiry. CTA = `mailto:hello@sync360.co.nz`.
+
+### Tenant Model
+
+Five new accessor methods: `isTrialExpired()`, `trialDaysLeft()`, `trialBudgetPercent()`, `trialTimePercent()`, `trialUrgency()`.
+
+### Dashboard
+
+- New **Trial & AI Usage** panel with two colour-coded progress bars (AI Credit + Trial Time)
+- Urgency badge: green (`ok`) / amber (`warning` ≥60%) / red (`critical` ≥85%)
+- "Usage data as of X" footer showing staleness of cached spend
+- Trial stat card now shows days remaining and live spend/budget instead of static text
+- **Expired state:** full-width red top banner + "Trial ended" stat card
+
+### Onboarding
+
+- Step 6 Go Live button conditionally disabled when `isTrialExpired() === true`
+- Error note with "Contact us" mailto link shown instead of the submission form
+
+---
+
 ## 2026-04-13 — Onboarding UX Polish & Owner↔Assistant Framing
 
 Date: 2026-04-13

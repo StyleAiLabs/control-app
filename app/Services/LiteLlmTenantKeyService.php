@@ -144,6 +144,47 @@ class LiteLlmTenantKeyService
     }
 
     /**
+     * Fetch live key usage from LiteLLM.
+     *
+     * @return array{spend:float, max_budget:float, budget_reset_at:string}
+     */
+    public function getKeyInfo(Tenant $tenant): array
+    {
+        $key = (string) $tenant->litellm_virtual_key;
+
+        if ($key === '') {
+            throw new RuntimeException(sprintf(
+                'Tenant [%s] does not have a LiteLLM virtual key.',
+                $tenant->tenant_id,
+            ));
+        }
+
+        $baseUrl = rtrim((string) config('services.litellm.base_url', ''), '/');
+        $masterKey = (string) config('services.litellm.master_key', '');
+
+        $response = $this->http
+            ->baseUrl($baseUrl)
+            ->acceptJson()
+            ->withToken($masterKey)
+            ->get('/key/info', ['key' => $key]);
+
+        if ($response->failed()) {
+            throw new RuntimeException(sprintf(
+                'LiteLLM /key/info request failed for tenant [%s] with HTTP %d. %s',
+                $tenant->tenant_id,
+                $response->status(),
+                $this->responseSummary($response),
+            ));
+        }
+
+        return [
+            'spend'           => (float)  data_get($response->json(), 'info.spend', 0),
+            'max_budget'      => (float)  data_get($response->json(), 'info.max_budget', 5),
+            'budget_reset_at' => (string) data_get($response->json(), 'info.budget_reset_at', ''),
+        ];
+    }
+
+    /**
      * @return array{key:string,alias:string,plan_name:string,max_budget:float,budget_duration:string,base_url:string}
      */
     private function detailsFromTenant(Tenant $tenant): array

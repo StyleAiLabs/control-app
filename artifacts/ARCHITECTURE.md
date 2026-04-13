@@ -1140,5 +1140,71 @@ Today’s Sync360 Control App is:
 - capable of generating server-aware workspace URLs
 - equipped with super-admin inspection and workspace control tools
 - able to bootstrap and provision the first client VPS deployment architecture
+- equipped with automated trial lifecycle enforcement (time + budget expiry, email notifications, dashboard credit widget)
 
 It is now ready for the intended primary-server plus client-VPS deployment architecture at the application layer, with DNS automation, SSH key hardening, and broader production hardening left as the next operational steps.
+
+---
+
+## 27. Trial Lifecycle Architecture
+
+### 27.1 Overview
+
+Each tenant is provisioned with a free trial governed by **two independent expiry conditions** — whichever occurs first:
+
+1. **Time:** 14 days from `tenants.created_at` (UTC)
+2. **Budget:** LiteLLM AI spend reaches `litellm_max_budget` (default $5.00)
+
+There is no grace period. The assistant is suspended immediately on expiry.
+
+### 27.2 Schema (tenants table additions)
+
+| Column | Type | Purpose |
+|---|---|---|
+| `trial_ends_at` | `timestamp nullable` | Set at signup = `created_at + 14 days` |
+| `litellm_spend` | `decimal(10,6) nullable` | Cached spend from LiteLLM `/key/info` |
+| `litellm_spend_cached_at` | `timestamp nullable` | When the spend was last refreshed |
+| `trial_80pct_notified_at` | `timestamp nullable` | Idempotency guard for 80% budget email |
+| `trial_3day_notified_at` | `timestamp nullable` | Idempotency guard for 3-day warning email |
+| `trial_expired_notified_at` | `timestamp nullable` | Idempotency guard for trial expired email |
+
+### 27.3 Scheduler
+
+Command: `sync360:check-trial-expiry`
+Schedule: every 30 minutes (defined in `routes/console.php`)
+
+Per active trial tenant:
+1. Calls `LiteLlmTenantKeyService::getKeyInfo()` → stores `litellm_spend` + `litellm_spend_cached_at`
+2. Evaluates both expiry conditions
+3. If expired: sets `trial_status = trial_expired`, calls `suspendTenant()`, sends expiry email once
+4. If not expired: sends 80% budget warning once; sends 3-day warning once
+
+### 27.4 Email Notifications
+
+Service: `TrialNotificationEmailService` (Brevo direct-HTTP, same pattern as `WorkspaceReadyEmailService`)
+
+| Event | Subject | Guard |
+|---|---|---|
+| Budget ≥ 80% | "Your AI credit is almost used up" | `trial_80pct_notified_at` |
+| ≤ 3 days left | "Your trial ends in N days" | `trial_3day_notified_at` |
+| Expired | "Your Sync360 trial has ended" | `trial_expired_notified_at` |
+
+All emails idempotent. Upgrade CTA = `mailto:hello@sync360.co.nz` (Phase 1 — no self-serve upgrade).
+
+### 27.5 Tenant Model Accessors
+
+| Method | Returns |
+|---|---|
+| `isTrialExpired()` | `bool` |
+| `trialDaysLeft()` | `int` — 0 if expired |
+| `trialBudgetPercent()` | `float` — 0–100 |
+| `trialTimePercent()` | `float` — 0–100 |
+| `trialUrgency()` | `'ok'` / `'warning'` / `'critical'` |
+
+### 27.6 Dashboard Trial Widget
+
+`DashboardController::trialData()` passes a pre-computed snapshot (no live API call on page load).
+
+**Active trial:** Two colour-coded progress bars (AI Credit + Trial Time). Urgency badge when approaching limit. "Usage data as of X" timestamp footer.
+
+**Expired trial:** Full-width red banner. Trial stat card shows "Trial ended". Onboarding Step 6 Go Live button replaced with disabled state + contact message.

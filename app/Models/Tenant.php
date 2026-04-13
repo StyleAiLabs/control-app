@@ -49,6 +49,12 @@ class Tenant extends Model
         'litellm_max_budget',
         'litellm_budget_duration',
         'litellm_last_synced_at',
+        'trial_ends_at',
+        'litellm_spend',
+        'litellm_spend_cached_at',
+        'trial_80pct_notified_at',
+        'trial_3day_notified_at',
+        'trial_expired_notified_at',
     ];
 
     protected function casts(): array
@@ -65,6 +71,12 @@ class Tenant extends Model
             'litellm_virtual_key' => 'encrypted',
             'litellm_max_budget' => 'decimal:2',
             'litellm_last_synced_at' => 'datetime',
+            'trial_ends_at' => 'datetime',
+            'litellm_spend' => 'decimal:6',
+            'litellm_spend_cached_at' => 'datetime',
+            'trial_80pct_notified_at' => 'datetime',
+            'trial_3day_notified_at' => 'datetime',
+            'trial_expired_notified_at' => 'datetime',
         ];
     }
 
@@ -114,5 +126,48 @@ class Tenant extends Model
         }
 
         return sprintf('%s.%s', $this->slug, $baseDomain);
+    }
+
+    // -------------------------------------------------------------------------
+    // Trial accessors
+    // -------------------------------------------------------------------------
+
+    public function isTrialExpired(): bool
+    {
+        return $this->trial_status === TrialStatus::Expired;
+    }
+
+    public function trialDaysLeft(): int
+    {
+        if (! $this->trial_ends_at || $this->isTrialExpired()) {
+            return 0;
+        }
+
+        return max(0, (int) now()->diffInDays($this->trial_ends_at, absolute: false));
+    }
+
+    public function trialBudgetPercent(): float
+    {
+        $max = max(0.01, (float) ($this->litellm_max_budget ?? 5.0));
+
+        return min(100.0, round((float) ($this->litellm_spend ?? 0.0) / $max * 100, 1));
+    }
+
+    public function trialTimePercent(): float
+    {
+        $elapsed = (int) $this->created_at->diffInDays(now());
+
+        return min(100.0, round($elapsed / 14 * 100, 1));
+    }
+
+    public function trialUrgency(): string
+    {
+        $pct = max($this->trialBudgetPercent(), $this->trialTimePercent());
+
+        return match (true) {
+            $pct >= 85 => 'critical',
+            $pct >= 60 => 'warning',
+            default    => 'ok',
+        };
     }
 }

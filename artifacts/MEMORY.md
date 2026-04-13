@@ -1,6 +1,6 @@
 # Sync360 Control App Memory
 
-This file is the durable project memory for the Sync360 Control App as of `2026-04-13`.
+This file is the durable project memory for the Sync360 Control App as of `2026-04-14`.
 
 It is meant to help a new thread recover the important context quickly without losing the engineering decisions, deployment model, branch history, and verified behaviors we established together.
 
@@ -44,11 +44,11 @@ Active feature/hotfix branch:
 
 Important recent commits on the deployment branch:
 
-- `478a90c` `feat: onboarding UX polish — owner↔assistant copy, clipboard webhooks, step labels, dashboard and conversations reframe`
+- `a3b15e3` `feat: trial lifecycle management — expiry enforcement, AI usage widget, email notifications`
+- `895b9b1` `feat: conversations and dashboard channel-aware connected state indicators`
+- `478a90c` `feat: onboarding UX polish — owner↔assistant copy, clipboard webhooks, step labels`
 - `f650484` `fix: redirect signup to /onboarding instead of /tenant/setup`
-- `71aec85` `fix: write agent bootstrap files to .openclaw/workspace/ where OpenClaw reads them`
 - `cbb8050` `Run latest fetched deploy script from UI`
-- `a870349` merge of LiteLLM provisioning work
 
 Important note:
 
@@ -413,4 +413,30 @@ Both should match.
 
 If starting a fresh thread, say something like:
 
-> Read [MEMORY.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/MEMORY.md), [ARCHITECTURE.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/ARCHITECTURE.md), and [RELEASE_NOTES.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/RELEASE_NOTES.md) first. We are on `codex/control-app-prod-deploy` (latest commit `478a90c`). Phase 1 channel communication is strictly owner↔assistant — no public customers. Continue from there.
+> Read [MEMORY.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/MEMORY.md), [ARCHITECTURE.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/ARCHITECTURE.md), and [RELEASE_NOTES.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/RELEASE_NOTES.md) first. We are on `codex/control-app-prod-deploy` (latest commit `a3b15e3`). Phase 1 channel communication is strictly owner↔assistant. Trial lifecycle (14 days / $5) is fully implemented. Continue from there.
+
+---
+
+## 14. Trial Lifecycle Quick Reference
+
+**Two expiry conditions (first wins):**
+- Time: 14 days from `created_at` (UTC)
+- Budget: LiteLLM spend ≥ `litellm_max_budget` (default $5)
+
+**Scheduler:** `sync360:check-trial-expiry` every 30 min
+
+**Emails (all idempotent via guard columns):**
+- 80% budget used → budget warning
+- ≤ 3 days left → time warning
+- Either expired → expired email + `suspendTenant()`
+
+**Expired state:** `trial_status = trial_expired`, LiteLLM budget = 0, Go Live disabled, dashboard banner shown
+
+**Upgrade path (Phase 1):** `mailto:hello@sync360.co.nz` — no self-serve billing yet
+
+**Key files:**
+- `app/Services/TrialNotificationEmailService.php`
+- `app/Services/LiteLlmTenantKeyService.php::getKeyInfo()`
+- `app/Models/Tenant.php` (accessors: `isTrialExpired`, `trialDaysLeft`, `trialBudgetPercent`, `trialTimePercent`, `trialUrgency`)
+- `routes/console.php` (command + schedule)
+- Migration: `2026_04_13_123342_add_trial_and_spend_fields_to_tenants`
