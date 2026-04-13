@@ -33,9 +33,7 @@ class SyncConversationReplies extends Command
             ->whereNotNull('server_id');
 
         if ($tenantArg) {
-            $query->where(function ($q) use ($tenantArg): void {
-                $q->where('tenant_id', $tenantArg)->orWhere('id', $tenantArg);
-            });
+            $query->where('tenant_id', $tenantArg);
         }
 
         $tenants = $query->get();
