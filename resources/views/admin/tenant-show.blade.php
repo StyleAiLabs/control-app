@@ -213,7 +213,7 @@
             <div style="margin-bottom: 14px;">
                 <div style="display:flex; justify-content:space-between; font-size:0.82rem; color:var(--text-muted,#9ca3af); margin-bottom:5px;">
                     <span>Time</span>
-                    <span>{{ $tenant->trialTimePercent() }}% of 14 days used</span>
+                    <span>{{ min(14, (int) $tenant->created_at->diffInDays(now())) }} of 14 days elapsed — {{ $tenant->trialDaysLeft() }} remaining</span>
                 </div>
                 <div style="background:rgba(255,255,255,0.07);border-radius:5px;height:7px;overflow:hidden;">
                     <div style="background:{{ $urgencyColor }};width:{{ min(100,$tenant->trialTimePercent()) }}%;height:100%;border-radius:5px;"></div>
