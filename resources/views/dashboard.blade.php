@@ -80,24 +80,37 @@
                 default    => 'rgba(34,197,94,0.15)',
             };
         @endphp
-        <section class="panel" style="margin-bottom: 20px;">
+        <section class="panel" id="trial-usage-panel" style="margin-bottom: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px;">
-                <span class="eyebrow">Trial &amp; AI Usage</span>
-                @if ($trialData['urgency'] !== 'ok')
-                    <span style="background: {{ $urgencyBg }}; color: {{ $urgencyColor }}; padding: 4px 12px; border-radius: 20px; font-size: 0.82rem; font-weight: 600;">
-                        {{ $trialData['urgency'] === 'critical' ? '⚠ Approaching limit' : 'Heads up — usage climbing' }}
-                    </span>
-                @endif
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span class="eyebrow">Trial &amp; AI Usage</span>
+                    <button
+                        id="trial-refresh-btn"
+                        title="Refresh usage from LiteLLM"
+                        onclick="refreshTrialUsage()"
+                        style="background: none; border: none; cursor: pointer; padding: 2px; display: flex; align-items: center; color: var(--text-muted, #9ca3af); opacity: 0.7; transition: opacity 0.2s;"
+                        onmouseover="this.style.opacity='1'"
+                        onmouseout="this.style.opacity='0.7'"
+                    >
+                        <svg id="trial-refresh-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+                            <path d="M21 3v5h-5"/>
+                        </svg>
+                    </button>
+                </div>
+                <span id="trial-urgency-badge" style="background: {{ $urgencyBg }}; color: {{ $urgencyColor }}; padding: 4px 12px; border-radius: 20px; font-size: 0.82rem; font-weight: 600; {{ $trialData['urgency'] === 'ok' ? 'display:none;' : '' }}">
+                    {{ $trialData['urgency'] === 'critical' ? '⚠ Approaching limit' : 'Heads up — usage climbing' }}
+                </span>
             </div>
 
             {{-- AI Credit bar --}}
             <div style="margin-bottom: 16px;">
                 <div style="display: flex; justify-content: space-between; font-size: 0.82rem; color: var(--text-muted, #9ca3af); margin-bottom: 6px;">
                     <span>AI Credit</span>
-                    <span>${{ number_format($trialData['spend'], 2) }} of ${{ number_format($trialData['max_budget'], 2) }} used ({{ $trialData['budget_percent'] }}%)</span>
+                    <span id="trial-spend-label">${{ number_format($trialData['spend'], 2) }} of ${{ number_format($trialData['max_budget'], 2) }} used ({{ $trialData['budget_percent'] }}%)</span>
                 </div>
                 <div style="background: rgba(255,255,255,0.07); border-radius: 6px; height: 8px; overflow: hidden;">
-                    <div style="background: {{ $urgencyColor }}; width: {{ min(100, $trialData['budget_percent']) }}%; height: 100%; border-radius: 6px; transition: width 0.4s ease;"></div>
+                    <div id="trial-budget-bar" style="background: {{ $urgencyColor }}; width: {{ min(100, $trialData['budget_percent']) }}%; height: 100%; border-radius: 6px; transition: width 0.4s ease;"></div>
                 </div>
             </div>
 
@@ -105,20 +118,116 @@
             <div style="margin-bottom: 16px;">
                 <div style="display: flex; justify-content: space-between; font-size: 0.82rem; color: var(--text-muted, #9ca3af); margin-bottom: 6px;">
                     <span>Trial Time</span>
-                    <span>{{ $trialData['days_left'] }} {{ $trialData['days_left'] === 1 ? 'day' : 'days' }} remaining of 14</span>
+                    <span id="trial-time-label">{{ $trialData['days_left'] }} {{ $trialData['days_left'] === 1 ? 'day' : 'days' }} remaining of 14</span>
                 </div>
                 <div style="background: rgba(255,255,255,0.07); border-radius: 6px; height: 8px; overflow: hidden;">
-                    <div style="background: {{ $urgencyColor }}; width: {{ min(100, $trialData['time_percent']) }}%; height: 100%; border-radius: 6px; transition: width 0.4s ease;"></div>
+                    <div id="trial-time-bar" style="background: {{ $urgencyColor }}; width: {{ min(100, $trialData['time_percent']) }}%; height: 100%; border-radius: 6px; transition: width 0.4s ease;"></div>
                 </div>
             </div>
 
             <div style="font-size: 0.8rem; color: var(--text-muted, #9ca3af); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
                 <span>Trial ends when either limit is reached first.</span>
-                @if ($trialData['spend_cached_at'])
-                    <span>Usage data as of {{ $trialData['spend_cached_at'] }}</span>
-                @endif
+                <span id="trial-cached-at">
+                    @if ($trialData['spend_cached_at'])
+                        Usage data as of {{ $trialData['spend_cached_at'] }}
+                    @else
+                        Click ↻ to load live usage
+                    @endif
+                </span>
             </div>
+
+            <div id="trial-refresh-error" style="display:none; margin-top:10px; font-size:0.8rem; color:#ef4444;"></div>
         </section>
+
+        <style>
+            @keyframes spin { to { transform: rotate(360deg); } }
+            .trial-spin { animation: spin 0.8s linear infinite; transform-origin: center; }
+        </style>
+
+        <script>
+            const _trialRefreshUrl  = @json(route('dashboard.refresh-trial-usage'));
+            const _trialCsrfToken   = @json(csrf_token());
+
+            const urgencyColors = { critical: '#ef4444', warning: '#f59e0b', ok: '#22c55e' };
+            const urgencyBgs    = {
+                critical: 'rgba(239,68,68,0.15)',
+                warning:  'rgba(245,158,11,0.15)',
+                ok:       'rgba(34,197,94,0.15)',
+            };
+            const urgencyLabels = {
+                critical: '⚠ Approaching limit',
+                warning:  'Heads up — usage climbing',
+                ok:       '',
+            };
+
+            async function refreshTrialUsage() {
+                const btn   = document.getElementById('trial-refresh-btn');
+                const icon  = document.getElementById('trial-refresh-icon');
+                const error = document.getElementById('trial-refresh-error');
+
+                btn.disabled = true;
+                icon.classList.add('trial-spin');
+                error.style.display = 'none';
+
+                try {
+                    const res  = await fetch(_trialRefreshUrl, {
+                        method:  'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': _trialCsrfToken,
+                            'Accept':       'application/json',
+                            'Content-Type': 'application/json',
+                        },
+                    });
+                    const data = await res.json();
+
+                    if (!data.success) {
+                        error.textContent  = data.message || 'Refresh failed.';
+                        error.style.display = 'block';
+                        return;
+                    }
+
+                    const td    = data.trialData;
+                    const color = urgencyColors[td.urgency] || urgencyColors.ok;
+
+                    // Update spend label & bar
+                    document.getElementById('trial-spend-label').textContent =
+                        '$' + Number(td.spend).toFixed(2) + ' of $' + Number(td.max_budget).toFixed(2) + ' used (' + td.budget_percent + '%)';
+                    const budgetBar = document.getElementById('trial-budget-bar');
+                    budgetBar.style.background = color;
+                    budgetBar.style.width      = Math.min(100, td.budget_percent) + '%';
+
+                    // Update time label & bar
+                    const dayLabel = td.days_left === 1 ? 'day' : 'days';
+                    document.getElementById('trial-time-label').textContent =
+                        td.days_left + ' ' + dayLabel + ' remaining of 14';
+                    const timeBar = document.getElementById('trial-time-bar');
+                    timeBar.style.background = color;
+                    timeBar.style.width      = Math.min(100, td.time_percent) + '%';
+
+                    // Update urgency badge
+                    const badge = document.getElementById('trial-urgency-badge');
+                    if (td.urgency !== 'ok') {
+                        badge.textContent        = urgencyLabels[td.urgency];
+                        badge.style.color        = color;
+                        badge.style.background   = urgencyBgs[td.urgency];
+                        badge.style.display      = 'inline-block';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+
+                    // Update cached-at footer
+                    document.getElementById('trial-cached-at').textContent =
+                        td.spend_cached_at ? 'Usage data as of ' + td.spend_cached_at : '';
+
+                } catch (e) {
+                    error.textContent  = 'Network error — please try again.';
+                    error.style.display = 'block';
+                } finally {
+                    icon.classList.remove('trial-spin');
+                    btn.disabled = false;
+                }
+            }
+        </script>
     @endif
 
     <section class="grid grid-2">

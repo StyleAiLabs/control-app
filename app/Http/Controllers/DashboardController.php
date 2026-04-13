@@ -6,11 +6,14 @@ use App\Models\ConversationLog;
 use App\Models\Tenant;
 use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
+use App\Services\LiteLlmTenantKeyService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
+use Throwable;
 
 class DashboardController extends Controller
 {
@@ -42,6 +45,32 @@ class DashboardController extends Controller
             'provisioningContent' => $this->provisioningContent($tenant->provisioning_status),
             'trialData' => $this->trialData($tenant),
         ]);
+    }
+
+    public function refreshTrialUsage(Request $request): JsonResponse
+    {
+        $tenant = $request->user()->tenant()->firstOrFail();
+
+        try {
+            $info = app(LiteLlmTenantKeyService::class)->getKeyInfo($tenant);
+
+            $tenant->forceFill([
+                'litellm_spend'           => $info['spend'],
+                'litellm_spend_cached_at' => now(),
+            ])->save();
+
+            $tenant->refresh();
+
+            return response()->json([
+                'success'   => true,
+                'trialData' => $this->trialData($tenant),
+            ]);
+        } catch (Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Could not refresh usage right now. Please try again shortly.',
+            ], 503);
+        }
     }
 
     /**

@@ -30,6 +30,7 @@ Route::middleware('auth')->group(function (): void {
 
     Route::middleware('workspace.access')->group(function (): void {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+        Route::post('/dashboard/refresh-trial-usage', [DashboardController::class, 'refreshTrialUsage'])->name('dashboard.refresh-trial-usage');
         Route::get('/conversations', [ConversationsController::class, 'index'])->name('conversations.index');
         Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
