@@ -4,21 +4,31 @@ namespace App\Jobs;
 
 use App\Models\ConversationLog;
 use App\Models\Tenant;
-use App\Services\Channels\TelegramSender;
-use App\Services\Channels\WhatsAppSender;
-use App\Services\TenantWorkspaceMessenger;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
-use Throwable;
 
+/**
+ * Logs an incoming channel message and schedules a reply-sync job.
+ *
+ * Message delivery and AI reply are handled entirely by the OpenClaw workspace
+ * (via its own webhook/polling integration). This job's sole responsibility is:
+ *
+ *   1. Deduplicate — skip if we already logged this external_message_id.
+ *   2. Create a ConversationLog with message_out = null.
+ *   3. Dispatch SyncReplyFromWorkspace (delayed 45 s) to backfill the reply
+ *      once OpenClaw has flushed its session log to disk.
+ *
+ * The former TenantWorkspaceMessenger::send() call that tried POST /chat on
+ * the workspace has been removed — OpenClaw does not expose that endpoint.
+ */
 class ProcessIncomingMessage implements ShouldQueue
 {
     use Queueable;
 
     public int $tries = 1;
 
-    public int $timeout = 60;
+    public int $timeout = 30;
 
     /**
      * @param  array<string, mixed>  $meta
@@ -30,57 +40,48 @@ class ProcessIncomingMessage implements ShouldQueue
         public readonly string $fromIdentifier,
         public readonly string $messageText,
         public readonly array $meta = [],
-    ) {
-    }
+    ) {}
 
-    public function handle(
-        TenantWorkspaceMessenger $workspaceMessenger,
-        WhatsAppSender $whatsAppSender,
-        TelegramSender $telegramSender,
-    ): void {
+    public function handle(): void
+    {
         $tenant = Tenant::query()->findOrFail($this->tenantId);
 
-        $existing = ConversationLog::query()
+        // Idempotency: skip if we already have a log for this message.
+        $exists = ConversationLog::query()
             ->where('tenant_id', $tenant->id)
             ->where('channel', $this->channel)
             ->where('external_message_id', $this->externalMessageId)
-            ->first();
+            ->exists();
 
-        if ($existing) {
+        if ($exists) {
             return;
         }
 
-        $reply = null;
-        $meta = $this->meta;
-
-        try {
-            $reply = $workspaceMessenger->send($tenant, $this->channel, $this->fromIdentifier, $this->messageText);
-
-            match ($this->channel) {
-                'whatsapp' => $whatsAppSender->send($tenant, $this->fromIdentifier, $reply),
-                'telegram' => $telegramSender->send($tenant, $this->fromIdentifier, $reply),
-                default => null,
-            };
-        } catch (Throwable $exception) {
-            $meta['error'] = $exception->getMessage();
-
-            Log::warning('Incoming channel message processing failed.', [
-                'tenant_id' => $tenant->id,
-                'channel' => $this->channel,
-                'external_message_id' => $this->externalMessageId,
-                'error' => $exception->getMessage(),
-            ]);
-        }
-
         ConversationLog::query()->create([
-            'tenant_id' => $tenant->id,
-            'channel' => $this->channel,
+            'tenant_id'           => $tenant->id,
+            'channel'             => $this->channel,
             'external_message_id' => $this->externalMessageId,
-            'from_identifier' => $this->fromIdentifier,
-            'message_in' => $this->messageText,
-            'message_out' => $reply,
-            'meta_json' => $meta,
-            'responded_at' => $reply ? now() : null,
+            'from_identifier'     => $this->fromIdentifier,
+            'message_in'          => $this->messageText,
+            'message_out'         => null,
+            'meta_json'           => $this->meta,
+            'responded_at'        => null,
         ]);
+
+        Log::info('[ProcessIncomingMessage] Conversation log created.', [
+            'tenant_id'           => $tenant->id,
+            'channel'             => $this->channel,
+            'external_message_id' => $this->externalMessageId,
+        ]);
+
+        // Dispatch the reply-sync job with a 45-second delay.
+        // OpenClaw needs time to process the message and flush its session log.
+        // SyncReplyFromWorkspace will retry up to 3× (backoff: 30 s, 60 s) if
+        // the reply is not yet present in the session log on first attempt.
+        SyncReplyFromWorkspace::dispatch(
+            $this->tenantId,
+            $this->channel,
+            $this->externalMessageId,
+        )->delay(now()->addSeconds(45));
     }
 }
