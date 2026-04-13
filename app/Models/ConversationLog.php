@@ -17,9 +17,11 @@ class ConversationLog extends Model
         'tenant_id',
         'channel',
         'external_message_id',
+        'session_id',
         'from_identifier',
         'message_in',
         'message_out',
+        'ai_summary',
         'meta_json',
         'responded_at',
     ];
