@@ -41,6 +41,24 @@ class DashboardController extends Controller
             ->limit(10)
             ->get();
         $onboardingSummary = $this->onboardingSummary($tenant);
+        $workspaceState    = $this->workspaceState($tenant);
+
+        // Inject workspace alert into the sidebar bell via request attributes
+        // (the View composer in AppServiceProvider merges this in)
+        if ($workspaceState !== 'running' && $workspaceState !== 'not_provisioned') {
+            $wsAlertMsg = match ($workspaceState) {
+                'stopped'        => 'Your workspace container is offline. Your digital employee cannot respond right now.',
+                'missing_config' => 'Workspace configuration is missing. Contact support.',
+                default          => 'We could not confirm your workspace is running. Contact support.',
+            };
+            $request->attributes->set('_workspaceAlert', [[
+                'type'    => 'warning',
+                'icon'    => '⚠️',
+                'title'   => 'Workspace offline',
+                'message' => $wsAlertMsg,
+                'cta'     => ['text' => 'Contact support', 'href' => 'mailto:hello@sync360.co.nz'],
+            ]]);
+        }
 
         return view('dashboard', [
             'tenant'              => $tenant,
@@ -54,7 +72,7 @@ class DashboardController extends Controller
             'trialContent'        => $this->trialContent($tenant->trial_status),
             'provisioningContent' => $this->provisioningContent($tenant->provisioning_status),
             'trialData'           => $this->trialData($tenant),
-            'workspaceState'      => $this->workspaceState($tenant),
+            'workspaceState'      => $workspaceState,
         ]);
     }
 

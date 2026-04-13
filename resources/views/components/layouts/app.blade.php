@@ -409,6 +409,116 @@
         input::placeholder,
         textarea::placeholder { color: #a29c97; }
 
+        /* ── Notification bell ── */
+        .notif-bell-wrap {
+            position: relative;
+            margin-bottom: 10px;
+        }
+        .notif-bell-btn {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: rgba(255,255,255,0.70);
+            font-size: 0.88rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s;
+            text-align: left;
+            position: relative;
+        }
+        .notif-bell-btn:hover {
+            background: rgba(255,255,255,0.09);
+            color: white;
+            transform: none;
+            box-shadow: none;
+        }
+        .notif-bell-badge {
+            position: absolute;
+            top: 8px;
+            left: 26px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+            border: 1.5px solid #1a1a1a;
+        }
+        .notif-bell-count {
+            margin-left: auto;
+            background: #ef4444;
+            color: white;
+            font-size: 0.7rem;
+            font-weight: 700;
+            border-radius: 999px;
+            min-width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 5px;
+            font-family: "Space Mono", monospace;
+        }
+        .notif-dropdown {
+            display: none;
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            background: #2a2a2a;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 -8px 32px rgba(0,0,0,0.4);
+            z-index: 100;
+        }
+        .notif-dropdown.open { display: block; }
+        .notif-header {
+            padding: 12px 14px 8px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: rgba(255,255,255,0.35);
+            font-family: "Space Mono", monospace;
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+        }
+        .notif-item {
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .notif-item:last-child { border-bottom: none; }
+        .notif-item-title {
+            font-size: 0.84rem;
+            font-weight: 600;
+            color: #f5f5f5;
+            margin-bottom: 3px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .notif-item-msg {
+            font-size: 0.78rem;
+            color: rgba(255,255,255,0.55);
+            line-height: 1.45;
+            margin-bottom: 6px;
+        }
+        .notif-item-cta {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #fb923c;
+            text-decoration: none;
+        }
+        .notif-item-cta:hover { color: #fdba74; }
+        .notif-empty {
+            padding: 16px 14px;
+            font-size: 0.82rem;
+            color: rgba(255,255,255,0.35);
+            text-align: center;
+        }
         /* ── Responsive ── */
         @media (max-width: 980px) {
             .shell { grid-template-columns: 1fr; }
@@ -465,6 +575,46 @@
         </nav>
 
         <div class="sidebar-footer">
+            {{-- Notification bell --}}
+            @php
+                // Merge any extra alerts pushed via a Blade stack from individual pages (e.g. dashboard)
+                $extraAlerts = $__env->yieldContent('sidebar-alerts-extra') !== '' ? json_decode($__env->yieldContent('sidebar-alerts-extra'), true) : [];
+                $allAlerts   = array_merge($sidebarAlerts ?? [], is_array($extraAlerts) ? $extraAlerts : []);
+                $alertCount  = count($allAlerts);
+            @endphp
+            <div class="notif-bell-wrap">
+                <button class="notif-bell-btn" id="notif-bell-toggle" onclick="toggleNotifBell()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                    </svg>
+                    @if ($alertCount > 0)
+                        <span class="notif-bell-badge"></span>
+                    @endif
+                    Alerts
+                    @if ($alertCount > 0)
+                        <span class="notif-bell-count">{{ $alertCount }}</span>
+                    @endif
+                </button>
+
+                <div class="notif-dropdown" id="notif-dropdown">
+                    <div class="notif-header">Alerts</div>
+                    @forelse ($allAlerts as $alert)
+                        <div class="notif-item">
+                            <div class="notif-item-title">
+                                {{ $alert['icon'] }} {{ $alert['title'] }}
+                            </div>
+                            <div class="notif-item-msg">{{ $alert['message'] }}</div>
+                            @if (!empty($alert['cta']))
+                                <a href="{{ $alert['cta']['href'] }}" class="notif-item-cta">{{ $alert['cta']['text'] }} →</a>
+                            @endif
+                        </div>
+                    @empty
+                        <div class="notif-empty">No alerts — all good ✓</div>
+                    @endforelse
+                </div>
+            </div>
+
             <div class="sidebar-user">
                 <div class="sidebar-user-name">{{ auth()->user()->name }}</div>
                 <div class="sidebar-user-email">{{ auth()->user()->email }}</div>
@@ -495,5 +645,18 @@
         {{ $slot }}
     </main>
 </div>
+<script>
+    function toggleNotifBell() {
+        document.getElementById('notif-dropdown').classList.toggle('open');
+    }
+    // Close on outside click
+    document.addEventListener('click', function(e) {
+        var btn = document.getElementById('notif-bell-toggle');
+        var dd  = document.getElementById('notif-dropdown');
+        if (btn && dd && !btn.contains(e.target) && !dd.contains(e.target)) {
+            dd.classList.remove('open');
+        }
+    });
+</script>
 </body>
 </html>
