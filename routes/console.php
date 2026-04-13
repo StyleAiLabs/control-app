@@ -289,9 +289,12 @@ Artisan::command('sync360:sync-replies {tenant? : Tenant ID (optional — all li
                 }
             }
 
+            $tenantUpdated = count(array_filter($pendingLogs->map(fn ($l) => $replies[$l->external_message_id] ?? null)->all()));
+            $tenantSkipped = $pendingLogs->count() - $tenantUpdated;
+
             $this->components->twoColumnDetail(
                 sprintf('%s (%s)', $t->business_name, $t->tenant_id),
-                sprintf('Updated: %d  Skipped: %d', count(array_filter(array_map(fn ($l) => $replies[$l->external_message_id] ?? null, $pendingLogs->all()))), $pendingLogs->count() - count(array_filter(array_map(fn ($l) => $replies[$l->external_message_id] ?? null, $pendingLogs->all())))),
+                sprintf('Updated: %d  Skipped: %d', $tenantUpdated, $tenantSkipped),
             );
         } catch (\Throwable $e) {
             $errors++;
