@@ -89,17 +89,20 @@ class WorkspaceSessionLogReader
     /**
      * Parse a single session markdown file and return message_id → reply pairs.
      *
-     * Session log format (OpenClaw memory markdown):
+     * Actual OpenClaw memory file format:
      *
      *   user: Conversation info (untrusted metadata):
      *   ```json
-     *   {"message_id": "58", "sender_id": "...", ...}
+     *   {
+     *     "message_id": "46",
+     *     "sender_id": "...",
+     *     ...
+     *   }
      *   ```
-     *   Sender (untrusted metadata): ...
+     *   ... (optional sender metadata block) ...
      *
      *   The actual message text
      *   assistant: The AI reply text
-     *   user: ...next message...
      *
      * @return array<string, string>
      */
@@ -107,25 +110,27 @@ class WorkspaceSessionLogReader
     {
         $replies = [];
 
-        // Split on "user:" boundaries to get each user-turn block
-        // Each block contains the message metadata JSON and then ends before "assistant:"
-        $pattern = '/\{"message_id":\s*"(\d+)"[^}]*\}.*?assistant:\s*(.*?)(?=\nuser:|\Z)/s';
+        // Split on "user:" that appears at the start of a line to get turn blocks.
+        $parts = preg_split('/\nuser:\s*/u', "\n".$content);
 
-        if (! preg_match_all($pattern, $content, $matches, PREG_SET_ORDER)) {
+        if (! $parts) {
             return [];
         }
 
-        foreach ($matches as $match) {
-            $messageId = trim($match[1]);
-            $replyRaw  = trim($match[2]);
-
-            if ($messageId === '' || $replyRaw === '') {
+        foreach ($parts as $block) {
+            // Find message_id inside a ```json code fence.
+            if (! preg_match('/```json\s*\{[^}]*"message_id"\s*:\s*"(\d+)"[^}]*\}\s*```/su', $block, $idMatch)) {
                 continue;
             }
 
-            // Strip any trailing "user:" lead-in that got captured
-            $reply = preg_replace('/\s*user:.*$/s', '', $replyRaw);
-            $reply = trim((string) $reply);
+            $messageId = $idMatch[1];
+
+            // Find the assistant reply that follows in this block (or next user: boundary).
+            if (! preg_match('/\nassistant:\s*(.+?)(?=\nuser:|\Z)/su', "\n".$block, $replyMatch)) {
+                continue;
+            }
+
+            $reply = trim($replyMatch[1]);
 
             if ($reply !== '') {
                 $replies[$messageId] = $reply;
