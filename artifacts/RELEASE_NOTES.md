@@ -4,6 +4,48 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-14 — Trial Backfill, Defensive Fallbacks & Admin Trial Metrics
+
+Date: 2026-04-14
+Branch: `codex/control-app-prod-deploy` (commit `6202226`)
+Status: Released
+
+### Overview
+
+Follow-up to the Trial Lifecycle feature. Patches two correctness gaps for tenants that
+pre-date the `trial_ends_at` column, adds code-level defensive fallbacks throughout, and
+surfaces trial/spend metrics on both admin views for superadmin oversight.
+
+### Backfill Migration
+
+New migration: `2026_04_13_125055_backfill_trial_ends_at_for_existing_tenants`
+
+- Sets `trial_ends_at = created_at + 14 days` for every existing tenant where the column is `NULL`
+- Uses a PHP `lazyById()` loop (not raw SQL) for **SQLite + PostgreSQL** compatibility
+- If `created_at + 14 days` is already in the past the scheduler will expire the tenant on its next 30-min run
+
+### Defensive Fallbacks
+
+Two code locations now fall back to `created_at + 14 days` if `trial_ends_at` is `NULL`:
+
+- **`Tenant::trialDaysLeft()`** — returns correct remaining days instead of `0` for pre-backfill tenants
+- **`sync360:check-trial-expiry` command** — `$trialEndsAt = $tenant->trial_ends_at ?? $tenant->created_at->copy()->addDays(14)` so the time-expiry check always fires correctly
+
+### Admin Trial Metrics
+
+**Tenants list (`/admin/tenants`) — new Trial column:**
+- `expired` red badge when trial has ended
+- `Nd left` badge colour-coded by urgency (green / amber / red)
+- `$X.XX / $5.00` spend hint beneath the badge
+
+**Tenant detail (`/admin/tenants/{slug}`) — new Trial & AI Usage section:**
+- Dual progress bars (AI Credit + Trial Time) with urgency colour
+- Full metadata grid: trial status, `trial_ends_at`, cached spend (4dp), `litellm_spend_cached_at`
+- All three notification guard timestamps (`trial_80pct_notified_at`, `trial_3day_notified_at`, `trial_expired_notified_at`)
+- LiteLLM plan name
+
+---
+
 ## 2026-04-13 — Trial Lifecycle Management
 
 Date: 2026-04-13

@@ -40,15 +40,15 @@ Primary working deployment branch:
 
 Active feature/hotfix branch:
 
-- `cdx-feature/hot-fixes` (merged into `codex/control-app-prod-deploy`)
+- None — all recent work committed directly to `codex/control-app-prod-deploy`
 
 Important recent commits on the deployment branch:
 
+- `6202226` `fix: backfill trial_ends_at for existing tenants, defensive fallback, admin trial metrics`
 - `a3b15e3` `feat: trial lifecycle management — expiry enforcement, AI usage widget, email notifications`
 - `895b9b1` `feat: conversations and dashboard channel-aware connected state indicators`
 - `478a90c` `feat: onboarding UX polish — owner↔assistant copy, clipboard webhooks, step labels`
 - `f650484` `fix: redirect signup to /onboarding instead of /tenant/setup`
-- `cbb8050` `Run latest fetched deploy script from UI`
 
 Important note:
 
@@ -413,7 +413,7 @@ Both should match.
 
 If starting a fresh thread, say something like:
 
-> Read [MEMORY.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/MEMORY.md), [ARCHITECTURE.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/ARCHITECTURE.md), and [RELEASE_NOTES.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/RELEASE_NOTES.md) first. We are on `codex/control-app-prod-deploy` (latest commit `a3b15e3`). Phase 1 channel communication is strictly owner↔assistant. Trial lifecycle (14 days / $5) is fully implemented. Continue from there.
+> Read [MEMORY.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/MEMORY.md), [ARCHITECTURE.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/ARCHITECTURE.md), and [RELEASE_NOTES.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/RELEASE_NOTES.md) first. We are on `codex/control-app-prod-deploy` (latest commit `6202226`). Phase 1 channel communication is strictly owner↔assistant. Trial lifecycle (14 days / $5) is fully implemented including backfill and admin metrics. Continue from there.
 
 ---
 
@@ -434,9 +434,19 @@ If starting a fresh thread, say something like:
 
 **Upgrade path (Phase 1):** `mailto:hello@sync360.co.nz` — no self-serve billing yet
 
+**Existing tenants:** Backfill migration sets `trial_ends_at = created_at + 14 days` for pre-existing rows.
+Both `Tenant::trialDaysLeft()` and the scheduler command fall back to `created_at + 14 days` if `trial_ends_at` is NULL — safe for any missed rows.
+
+**Admin visibility:**
+- `/admin/tenants` — Trial column: badge (Nd left / expired) + spend/budget hint
+- `/admin/tenants/{slug}` — Full Trial & AI Usage section: progress bars, raw timestamps, all 3 notification guards, plan name
+
 **Key files:**
 - `app/Services/TrialNotificationEmailService.php`
 - `app/Services/LiteLlmTenantKeyService.php::getKeyInfo()`
-- `app/Models/Tenant.php` (accessors: `isTrialExpired`, `trialDaysLeft`, `trialBudgetPercent`, `trialTimePercent`, `trialUrgency`)
-- `routes/console.php` (command + schedule)
-- Migration: `2026_04_13_123342_add_trial_and_spend_fields_to_tenants`
+- `app/Models/Tenant.php` — accessors: `isTrialExpired`, `trialDaysLeft`, `trialBudgetPercent`, `trialTimePercent`, `trialUrgency`
+- `routes/console.php` — command + schedule
+- `database/migrations/2026_04_13_123342_add_trial_and_spend_fields_to_tenants.php`
+- `database/migrations/2026_04_13_125055_backfill_trial_ends_at_for_existing_tenants.php`
+- `resources/views/admin/tenants.blade.php` — Trial column
+- `resources/views/admin/tenant-show.blade.php` — Trial & AI Usage section

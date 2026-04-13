@@ -1208,3 +1208,37 @@ All emails idempotent. Upgrade CTA = `mailto:hello@sync360.co.nz` (Phase 1 — n
 **Active trial:** Two colour-coded progress bars (AI Credit + Trial Time). Urgency badge when approaching limit. "Usage data as of X" timestamp footer.
 
 **Expired trial:** Full-width red banner. Trial stat card shows "Trial ended". Onboarding Step 6 Go Live button replaced with disabled state + contact message.
+
+### 27.7 Existing Tenant Backfill Strategy
+
+Tenants created before the `trial_ends_at` column was introduced have a `NULL` value in that column.
+
+**Backfill migration** (`2026_04_13_125055_backfill_trial_ends_at_for_existing_tenants`):
+- Sets `trial_ends_at = created_at + 14 days` for every tenant where `trial_ends_at IS NULL`
+- Implemented as a PHP `lazyById()` loop (not raw SQL) to be compatible with both SQLite (test) and PostgreSQL (production)
+- Runs automatically on deploy via `php artisan migrate`
+
+**Defensive fallback in code** — two locations handle `NULL` without relying solely on the migration:
+
+```php
+// Tenant::trialDaysLeft()
+$endsAt = $this->trial_ends_at ?? $this->created_at->copy()->addDays(14);
+
+// sync360:check-trial-expiry command
+$trialEndsAt = $tenant->trial_ends_at ?? $tenant->created_at->copy()->addDays(14);
+```
+
+This means a tenant with a `NULL` `trial_ends_at` will always behave correctly in both the dashboard and the scheduler, even if somehow missed by the backfill.
+
+### 27.8 Superadmin Trial Visibility
+
+Trial and spend metrics are visible to superadmins on two admin pages:
+
+**`/admin/tenants` (tenants list):**
+- New **Trial** column showing status badge and spend/budget hint
+- Badge colour matches urgency: green (active, ok) / amber (warning) / red (critical or expired)
+
+**`/admin/tenants/{slug}` (tenant detail):**
+- New **Trial & AI Usage** section with dual progress bars (AI Credit + Trial Time)
+- Full metadata grid exposing: `trial_status`, `trial_ends_at`, `litellm_spend` (4dp), `litellm_spend_cached_at`, all three notification guard timestamps, `litellm_plan_name`
+- Allows superadmin to instantly confirm whether lifecycle emails have fired and when
