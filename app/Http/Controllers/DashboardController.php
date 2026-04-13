@@ -45,12 +45,29 @@ class DashboardController extends Controller
 
         // Inject workspace alert into the sidebar bell via request attributes
         // (the View composer in AppServiceProvider merges this in)
-        if ($workspaceState !== 'running' && $workspaceState !== 'not_provisioned') {
+        // Also persist the result to the DB so all other pages show the alert too.
+        if ($workspaceState === 'running') {
+            // Clear any stale health-check failure so the bell goes away on other pages.
+            if ($tenant->last_health_check_status !== null) {
+                $tenant->forceFill([
+                    'last_health_check_status' => null,
+                    'health_check_message'     => null,
+                ])->save();
+            }
+        } elseif ($workspaceState !== 'not_provisioned') {
             $wsAlertMsg = match ($workspaceState) {
                 'stopped'        => 'Your workspace container is offline. Your digital employee cannot respond right now.',
                 'missing_config' => 'Workspace configuration is missing. Contact support.',
                 default          => 'We could not confirm your workspace is running. Contact support.',
             };
+
+            // Persist so that all pages (Conversations, Profile, Setup…) show the bell alert
+            // without needing their own live Docker call.
+            $tenant->forceFill([
+                'last_health_check_status' => 'failed',
+                'health_check_message'     => $wsAlertMsg,
+            ])->save();
+
             $request->attributes->set('_workspaceAlert', [[
                 'type'    => 'warning',
                 'icon'    => '⚠️',
