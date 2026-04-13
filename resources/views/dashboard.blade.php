@@ -9,6 +9,25 @@
             <a href="mailto:hello@sync360.co.nz" style="background: #fca5a5; color: #7f1d1d; padding: 7px 16px; border-radius: 6px; font-weight: 600; text-decoration: none; white-space: nowrap;">Contact Us →</a>
         </div>
     @endif
+
+    {{-- Workspace stopped / degraded banner --}}
+    @if (! $trialData['is_expired'] && $workspaceState !== 'running' && $workspaceState !== 'not_provisioned')
+        <div style="background: #78350f; color: #fcd34d; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 0.92rem;">
+            <span>
+                @if ($workspaceState === 'stopped')
+                    <strong style="color: #fef3c7;">⚠ Your workspace is currently stopped.</strong>
+                    Your digital employee cannot respond to customers right now. Please contact us to restart it.
+                @elseif ($workspaceState === 'missing_config')
+                    <strong style="color: #fef3c7;">⚠ Workspace configuration is missing.</strong>
+                    We couldn't locate your workspace setup. Please contact support.
+                @else
+                    <strong style="color: #fef3c7;">⚠ Workspace status is unknown.</strong>
+                    We couldn't confirm your workspace is running. Please contact support.
+                @endif
+            </span>
+            <a href="mailto:hello@sync360.co.nz" style="background: #fcd34d; color: #78350f; padding: 7px 16px; border-radius: 6px; font-weight: 600; text-decoration: none; white-space: nowrap;">Contact Support →</a>
+        </div>
+    @endif
     <div class="topbar">
         <div>
             <span class="eyebrow">Dashboard</span>
@@ -51,8 +70,19 @@
         </div>
         <div class="stat">
             <div class="hint">Workspace</div>
-            <strong>{{ $provisioningContent['label'] }}</strong>
-            <p>{{ $provisioningContent['description'] }}</p>
+            @if ($workspaceState === 'running')
+                <strong>Workspace is live</strong>
+                <p>Your digital employee is online and ready for the next step.</p>
+            @elseif ($workspaceState === 'stopped')
+                <strong style="color: #f59e0b;">Workspace is stopped</strong>
+                <p>Your workspace container is currently offline. Contact us to restart.</p>
+            @elseif ($workspaceState === 'not_provisioned')
+                <strong>{{ $provisioningContent['label'] }}</strong>
+                <p>{{ $provisioningContent['description'] }}</p>
+            @else
+                <strong style="color: #f59e0b;">Status unavailable</strong>
+                <p>We couldn't confirm your workspace state. Contact support if issues persist.</p>
+            @endif
         </div>
         <div class="stat">
             <div class="hint">Skill Pack</div>

@@ -2,21 +2,31 @@
 
 namespace App\Http\Controllers;
 
+use App\Contracts\DockerComposeRunner;
 use App\Models\ConversationLog;
 use App\Models\Tenant;
 use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
 use App\Services\LiteLlmTenantKeyService;
+use App\Services\TenantRuntimeService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
+use RuntimeException;
 use Throwable;
 
 class DashboardController extends Controller
 {
+    public function __construct(
+        private readonly DockerComposeRunner $dockerCompose,
+        private readonly TenantRuntimeService $runtime,
+    ) {}
+
     public function index(Request $request): View|RedirectResponse
     {
         if ($request->user()->is_admin && ! $request->user()->tenant) {
@@ -33,17 +43,18 @@ class DashboardController extends Controller
         $onboardingSummary = $this->onboardingSummary($tenant);
 
         return view('dashboard', [
-            'tenant' => $tenant,
-            'businessProfile' => $tenant->businessProfile,
-            'businessFiles' => $tenant->businessProfileFiles,
+            'tenant'              => $tenant,
+            'businessProfile'     => $tenant->businessProfile,
+            'businessFiles'       => $tenant->businessProfileFiles,
             'recentConversations' => $recentConversations,
-            'conversationStats' => $this->conversationStats($tenant),
-            'onboardingSummary' => $onboardingSummary,
-            'agentContent' => $this->agentContent($tenant),
-            'firstName' => Str::of($request->user()->name)->before(' ')->value() ?: $request->user()->name,
-            'trialContent' => $this->trialContent($tenant->trial_status),
+            'conversationStats'   => $this->conversationStats($tenant),
+            'onboardingSummary'   => $onboardingSummary,
+            'agentContent'        => $this->agentContent($tenant),
+            'firstName'           => Str::of($request->user()->name)->before(' ')->value() ?: $request->user()->name,
+            'trialContent'        => $this->trialContent($tenant->trial_status),
             'provisioningContent' => $this->provisioningContent($tenant->provisioning_status),
-            'trialData' => $this->trialData($tenant),
+            'trialData'           => $this->trialData($tenant),
+            'workspaceState'      => $this->workspaceState($tenant),
         ]);
     }
 
@@ -272,7 +283,61 @@ class DashboardController extends Controller
         return [
             'total' => (clone $baseQuery)->count(),
             'today' => (clone $baseQuery)->where('created_at', '>=', $todayStart)->count(),
-            'week' => (clone $baseQuery)->where('created_at', '>=', $weekStart)->count(),
+            'week'  => (clone $baseQuery)->where('created_at', '>=', $weekStart)->count(),
         ];
+    }
+
+    /**
+     * Check the live Docker container state for this tenant's workspace.
+     * Mirrors AdminController::workspaceStateFor() so the client dashboard
+     * always reflects reality rather than the cached DB columns.
+     *
+     * Returns: 'running' | 'stopped' | 'not_provisioned' | 'missing_config'
+     */
+    private function workspaceState(Tenant $tenant): string
+    {
+        if (! $tenant->runtime_path && ! app()->environment('local')) {
+            return 'not_provisioned';
+        }
+
+        if (app()->environment('local')) {
+            $localCompose = $this->runtime->localRuntimePath($tenant) . DIRECTORY_SEPARATOR . 'compose.yaml';
+
+            if (! file_exists($localCompose)) {
+                return 'missing_config';
+            }
+
+            $projectName = Str::limit('sync360-' . $tenant->slug, 63, '');
+            $result = Process::run(sprintf(
+                'docker compose -f %s -p %s ps --format json',
+                escapeshellarg($localCompose),
+                escapeshellarg($projectName),
+            ));
+
+            return str_contains($result->output(), '"running"') ? 'running' : 'stopped';
+        }
+
+        try {
+            if (! $tenant->runtime_path || ! $tenant->server) {
+                return 'missing_config';
+            }
+
+            $composeFile = rtrim($tenant->runtime_path, DIRECTORY_SEPARATOR)
+                . DIRECTORY_SEPARATOR
+                . (string) config('sync360.openclaw.compose_filename', 'compose.yaml');
+
+            $projectName = Str::limit('sync360-' . $tenant->slug, 63, '');
+
+            return $this->dockerCompose->isRunning($tenant->server, $composeFile, $projectName)
+                ? 'running'
+                : 'stopped';
+        } catch (RuntimeException $e) {
+            Log::warning('[Dashboard] Could not check workspace state.', [
+                'tenant_id' => $tenant->tenant_id,
+                'error'     => $e->getMessage(),
+            ]);
+
+            return 'unknown';
+        }
     }
 }
