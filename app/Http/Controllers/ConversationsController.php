@@ -38,7 +38,11 @@ class ConversationsController extends Controller
 
         $conversationStats = [
             'matched'  => (clone $baseQuery)->count(),
-            'replied'  => (clone $baseQuery)->whereNotNull('message_out')->where('message_out', '!=', '')->count(),
+            'replied'  => (clone $baseQuery)
+                ->whereNotNull('message_out')
+                ->where('message_out', '!=', '')
+                ->selectRaw('COUNT(DISTINCT COALESCE(session_id, CAST(id AS TEXT)))')
+                ->value(DB::raw('COUNT(DISTINCT COALESCE(session_id, CAST(id AS TEXT)))')),
             'whatsapp' => (clone $baseQuery)->where('channel', 'whatsapp')->count(),
             'telegram' => (clone $baseQuery)->where('channel', 'telegram')->count(),
         ];
