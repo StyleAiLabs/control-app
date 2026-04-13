@@ -20,7 +20,7 @@ use Throwable;
  */
 class ConversationSummaryService
 {
-    private const MODEL      = 'gpt-4o-mini';
+    private const MODEL      = 'claude-sonnet-4-6';
     private const MAX_TOKENS = 120;
 
     /**
