@@ -136,36 +136,19 @@ class TenantAgentSyncService
         }
 
         /* Merge channel-specific settings into the openclaw config. */
-        $webhookBaseUrl = rtrim((string) config('app.url'), '/');
         match ($tenant->channel) {
-            'telegram' => (static function () use (&$config, &$channelConfig, $webhookBaseUrl, $tenant): void {
-                // Generate a stable per-tenant webhook secret (stored in channel_config).
-                // OpenClaw requires webhookSecret when webhookUrl is set.
-                // Telegram includes this as X-Telegram-Bot-Api-Secret-Token on each request.
-                $webhookSecret = $channelConfig['telegram_webhook_secret'] ?? null;
-                if (! $webhookSecret) {
-                    $webhookSecret = Str::random(32);
-                    // Use direct property assignment — more reliable than forceFill for
-                    // encrypted:array casts which need the full array re-encrypted on save.
-                    $tenant->channel_config = array_merge($channelConfig, [
-                        'telegram_webhook_secret' => $webhookSecret,
-                    ]);
-                    $tenant->save();
-                    // Refresh so registerTelegramWebhook reads the persisted secret.
-                    $tenant->refresh();
-                    $channelConfig = is_array($tenant->channel_config) ? $tenant->channel_config : [];
-                }
-
+            'telegram' => (static function () use (&$config, $channelConfig): void {
+                // OpenClaw operates in polling mode — it calls Telegram's getUpdates API
+                // directly, handles all message delivery and AI reply generation autonomously.
+                // Do NOT set webhookUrl here: OpenClaw in polling mode calls deleteWebhook
+                // on startup and manages the full conversation lifecycle itself.
+                // Conversation logs are populated via sync360:sync-replies which reads
+                // OpenClaw's session memory files from the workspace VPS.
                 $config['channels']['telegram'] = array_filter([
-                    'enabled'       => true,
-                    'botToken'      => $channelConfig['telegram_bot_token'] ?? null,
-                    'dmPolicy'      => 'open',
-                    'allowFrom'     => ['*'],
-                    // Webhook mode: OpenClaw never falls back to polling when these are set.
-                    // Without webhookUrl, OpenClaw calls deleteWebhook+getUpdates on startup,
-                    // wiping our control-app setWebhook registration after every restart.
-                    'webhookUrl'    => $webhookBaseUrl . '/webhooks/telegram/' . $tenant->tenant_id,
-                    'webhookSecret' => $webhookSecret,
+                    'enabled'   => true,
+                    'botToken'  => $channelConfig['telegram_bot_token'] ?? null,
+                    'dmPolicy'  => 'open',
+                    'allowFrom' => ['*'],
                 ]);
             })(),
             default => null, /* WhatsApp will be added in a future phase. */
@@ -202,9 +185,6 @@ class TenantAgentSyncService
 
         Log::info('[ConfigureChannel] Channel config written and gateway restarted for tenant '.$tenant->slug);
 
-        // Also call setWebhook directly as a belt-and-suspenders measure in case
-        // OpenClaw hasn't processed its config yet when the first message arrives.
-        $this->registerTelegramWebhook($tenant);
     }
 
     /**
