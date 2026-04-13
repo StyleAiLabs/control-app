@@ -31,7 +31,7 @@ class OnboardingFlowTest extends TestCase
             ->assertSee('Set up your digital employee')
             ->assertSee('Read your business website')
             ->assertSee('Confirm your business details')
-            ->assertSee('Connect your customer channel')
+            ->assertSee('Connect your messaging channel')
             ->assertSee('Bring it live')
             ->assertSee('WhatsApp Webhook URL')
             ->assertSee('Telegram Webhook URL');
@@ -65,10 +65,10 @@ class OnboardingFlowTest extends TestCase
                     'services' => [],
                 ],
                 'steps' => [
-                    '1' => ['label' => 'Business Website', 'status' => 'incomplete'],
+                    '1' => ['label' => 'Website', 'status' => 'incomplete'],
                     '2' => ['label' => 'Business Info', 'status' => 'incomplete'],
-                    '3' => ['label' => 'Personality', 'status' => 'incomplete'],
-                    '4' => ['label' => 'Capabilities', 'status' => 'incomplete'],
+                    '3' => ['label' => 'Tone', 'status' => 'incomplete'],
+                    '4' => ['label' => 'Skills', 'status' => 'incomplete'],
                     '5' => ['label' => 'Channel', 'status' => 'incomplete'],
                     '6' => ['label' => 'Go Live', 'status' => 'incomplete'],
                 ],
@@ -106,10 +106,10 @@ class OnboardingFlowTest extends TestCase
                 'tone' => 'friendly',
                 'capabilities' => ['faqs', 'messages'],
                 'steps' => [
-                    '1' => ['label' => 'Business Website', 'status' => 'complete'],
+                    '1' => ['label' => 'Website', 'status' => 'complete'],
                     '2' => ['label' => 'Business Info', 'status' => 'complete'],
-                    '3' => ['label' => 'Personality', 'status' => 'complete'],
-                    '4' => ['label' => 'Capabilities', 'status' => 'incomplete'],
+                    '3' => ['label' => 'Tone', 'status' => 'complete'],
+                    '4' => ['label' => 'Skills', 'status' => 'incomplete'],
                     '5' => ['label' => 'Channel', 'status' => 'incomplete'],
                     '6' => ['label' => 'Go Live', 'status' => 'incomplete'],
                 ],
@@ -223,7 +223,7 @@ class OnboardingFlowTest extends TestCase
                         'industry' => 'Trades',
                     ],
                     'steps' => [
-                        '1' => ['label' => 'Business Website', 'status' => 'complete'],
+                        '1' => ['label' => 'Website', 'status' => 'complete'],
                         '2' => ['label' => 'Business Info', 'status' => 'complete'],
                     ],
                 ],
@@ -271,8 +271,8 @@ class OnboardingFlowTest extends TestCase
                     'resume_from_step' => 4,
                     'tone' => 'professional',
                     'steps' => [
-                        '3' => ['label' => 'Personality', 'status' => 'complete'],
-                        '4' => ['label' => 'Capabilities', 'status' => 'incomplete'],
+                        '3' => ['label' => 'Tone', 'status' => 'complete'],
+                        '4' => ['label' => 'Skills', 'status' => 'incomplete'],
                     ],
                 ],
             ]);
@@ -320,7 +320,7 @@ class OnboardingFlowTest extends TestCase
                     'tone' => 'friendly',
                     'capabilities' => ['faqs', 'messages', 'after_hours'],
                     'steps' => [
-                        '4' => ['label' => 'Capabilities', 'status' => 'complete'],
+                        '4' => ['label' => 'Skills', 'status' => 'complete'],
                         '5' => ['label' => 'Channel', 'status' => 'incomplete'],
                     ],
                 ],

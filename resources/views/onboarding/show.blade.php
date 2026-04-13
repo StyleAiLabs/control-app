@@ -50,7 +50,7 @@
             <div>
                 <span class="eyebrow">Guided Setup</span>
                 <h2>Set up your digital employee</h2>
-                <p style="margin-top: 4px;">Tell us about your business, choose how it should respond, and connect the channel your customers already use.</p>
+                <p style="margin-top: 4px;">Tell us about your business, choose how your digital employee should communicate, and connect the messaging app you use to reach it.</p>
             </div>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                 <a href="{{ route('dashboard') }}" class="button button--secondary">Back to Dashboard</a>
@@ -89,7 +89,7 @@
                 </div>
                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                     <button type="submit" id="read-website-btn">Read My Website</button>
-                    <button type="button" class="button button--secondary" id="manual-focus-button">Skip — Fill In Manually</button>
+                    <button type="button" class="button button--secondary" id="manual-focus-button">Fill In Manually →</button>
                 </div>
             </form>
 
@@ -291,7 +291,7 @@
                         </label>
                     @endforeach
                 </div>
-                <button type="submit">Save Capabilities</button>
+                <button type="submit">Save &amp; Prepare Files</button>
             </form>
             <div class="note" style="margin-top: 18px; display: none;" id="capabilities-success"></div>
             <div class="note error" style="margin-top: 18px; display: none;" id="capabilities-error"></div>
@@ -312,9 +312,9 @@
         {{-- ═══════════════════ STEP 5 — Channel ═══════════════════ --}}
         <div class="wizard-panel panel" data-wizard-step="5" id="wizard-step-5" style="display: none;">
             <span class="eyebrow">Step 5</span>
-            <h3 style="margin-top: 16px; font-size: 1.35rem;">Connect your customer channel</h3>
+            <h3 style="margin-top: 16px; font-size: 1.35rem;">Connect your messaging channel</h3>
             <p style="margin-top: 8px;">
-                Choose where customers will message you first. We'll keep the technical setup behind the scenes and just store what's needed to connect it.
+                Pick the messaging app you already use. Your digital employee will use this channel to reach you — so you can ask questions and get real-time updates directly from it.
             </p>
 
             {{-- Connected status panel — shown when a channel is already connected --}}
@@ -331,7 +331,7 @@
                         <div>
                             <strong id="connected-channel-name" style="font-size: 1.05rem;">{{ ucfirst($state['channel'] ?? '') }}</strong>
                             <span style="display: inline-block; margin-left: 10px; background: #22c55e; color: #fff; font-size: 0.72rem; font-weight: 600; padding: 2px 10px; border-radius: 6px; vertical-align: middle;">Connected</span>
-                            <span class="hint" style="display: block; margin-top: 4px;">Your assistant is receiving messages on this channel.</span>
+                            <span class="hint" style="display: block; margin-top: 4px;">Your digital employee is connected and ready to respond through this channel.</span>
                         </div>
                     </div>
                     <button type="button" id="disconnect-channel-btn" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; padding: 6px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 500; cursor: pointer; white-space: nowrap;">
@@ -371,7 +371,7 @@
                             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" style="flex-shrink: 0; margin-top: 1px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-.98-.19-1.46-.35-.59-.2-1.06-.3-1.02-.64.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z" fill="#229ED9"/></svg>
                             <span>
                                 <strong>Telegram</strong>
-                                <span class="hint" style="display: block; margin-top: 4px;">Connect your Telegram bot so customers can start messaging it right away.</span>
+                                <span class="hint" style="display: block; margin-top: 4px;">Connect Telegram so you can message your digital employee directly from your Telegram account.</span>
                             </span>
                         </span>
                     </label>
@@ -413,18 +413,18 @@
 
                 <div id="telegram-fields" style="margin-top: 18px; display: none;">
                     <div style="background: #faf9f8; border: 1px solid var(--stroke, #e5e7eb); border-radius: 14px; padding: 18px 20px; margin-bottom: 18px;">
-                        <strong style="display: block; margin-bottom: 10px; font-size: 0.95rem;">Creating your Telegram bot</strong>
+                        <strong style="display: block; margin-bottom: 10px; font-size: 0.95rem;">Set up your Telegram connection</strong>
                         <p style="margin: 0 0 12px; font-size: 0.88rem; color: var(--muted, #6b7280); line-height: 1.6;">
-                            Your digital employee needs a Telegram bot to chat with your customers. It only takes a minute to set one up:
+                            To connect Telegram, you need a Telegram Bot — this is the channel your digital employee will use to reach you. It only takes a minute to set one up:
                         </p>
                         <ol style="margin: 0; padding-left: 20px; font-size: 0.88rem; color: var(--muted, #6b7280); line-height: 1.7;">
                             <li>Open Telegram on your phone or desktop and search for <strong>@BotFather</strong>.</li>
                             <li>Send the message <strong>/newbot</strong> and follow the prompts to pick a name and username for your bot.</li>
                             <li>BotFather will reply with a <strong>bot token</strong> &mdash; it looks something like <code style="background: #eee; padding: 2px 6px; border-radius: 4px;">123456:ABC-DEF1234</code>.</li>
-                            <li>Copy the token, paste it below, and click <strong>Save Channel Connection</strong>.</li>
+                            <li>Copy the token, paste it below, and click <strong>Connect Channel</strong>. Once connected, your digital employee will be reachable at this bot.</li>
                         </ol>
                         <p style="margin: 12px 0 0; font-size: 0.82rem; color: var(--muted, #6b7280);">
-                            That's it! We take care of the rest &mdash; your assistant will start replying to messages sent to your bot automatically.
+                            That's it! Once connected, open a chat with your bot in Telegram and start a conversation with your digital employee directly.
                         </p>
                     </div>
                     <div class="field-single">
@@ -435,20 +435,23 @@
                     </div>
                 </div>
 
-                <button type="submit">Save Channel Connection</button>
+                <button type="submit">Connect Channel</button>
             </form>
             <div class="note" style="margin-top: 18px; display: none;" id="channel-success"></div>
             <div class="note error" style="margin-top: 18px; display: none;" id="channel-error"></div>
 
             <div class="note" style="margin-top: 18px;" id="channel-status-note">
-                Pick a channel above and fill in the details &mdash; once saved, your assistant will be ready to receive messages.
+                Pick a channel above and fill in the details &mdash; once connected, your digital employee will be reachable through that app.
             </div>
 
             <div id="whatsapp-setup-summary" style="margin-top: 18px; display: none;">
                 <div class="meta">
                     <div class="meta-item">
                         <small>WhatsApp Webhook URL</small>
-                        <input id="whatsapp-webhook-url" type="text" readonly value="{{ $state['channel_setup']['whatsapp']['webhook_url'] ?? '' }}">
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input id="whatsapp-webhook-url" type="text" readonly value="{{ $state['channel_setup']['whatsapp']['webhook_url'] ?? '' }}" style="flex: 1; min-width: 0;">
+                            <button type="button" onclick="copyField('whatsapp-webhook-url', this)" class="button button--secondary" style="padding: 6px 14px; font-size: 0.82rem; white-space: nowrap; flex-shrink: 0;">Copy</button>
+                        </div>
                     </div>
                     <div class="meta-item">
                         <small>Verify Token</small>
@@ -472,7 +475,10 @@
                 <div class="meta">
                     <div class="meta-item">
                         <small>Telegram Webhook URL</small>
-                        <input id="telegram-webhook-url" type="text" readonly value="{{ $state['channel_setup']['telegram']['webhook_url'] ?? '' }}">
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input id="telegram-webhook-url" type="text" readonly value="{{ $state['channel_setup']['telegram']['webhook_url'] ?? '' }}" style="flex: 1; min-width: 0;">
+                            <button type="button" onclick="copyField('telegram-webhook-url', this)" class="button button--secondary" style="padding: 6px 14px; font-size: 0.82rem; white-space: nowrap; flex-shrink: 0;">Copy</button>
+                        </div>
                     </div>
                     <div class="meta-item">
                         <small>Bot Token</small>
@@ -480,7 +486,7 @@
                     </div>
                 </div>
                 <div class="note" style="margin-top: 18px;">
-                    If you are setting Telegram manually, point your bot webhook at the URL above after saving the bot token.
+                    Your digital employee is connected through this bot. Use the webhook URL above if you ever need to reconfigure the bot manually.
                 </div>
             </div>
 
@@ -495,13 +501,13 @@
             <span class="eyebrow">Step 6</span>
             <h3 style="margin-top: 16px; font-size: 1.35rem;">Bring it live</h3>
             <p style="margin-top: 8px;">
-                Once your business details, response style, capabilities, and channel are in place, we'll sync everything to your live workspace and switch the assistant on.
+                Once your business details, communication style, skills, and channel are in place, we'll activate your digital employee.
             </p>
 
             <div class="meta" style="margin-top: 18px;">
                 <div class="meta-item">
                     <small>Workspace Status</small>
-                    <span id="go-live-workspace-status">{{ ($state['workspace']['ready'] ?? false) ? 'Ready' : 'Still preparing' }}</span>
+                    <span id="go-live-workspace-status">{{ ($state['workspace']['ready'] ?? false) ? 'Ready' : 'Setting up…' }}</span>
                 </div>
                 <div class="meta-item">
                     <small>Selected Channel</small>
@@ -523,17 +529,17 @@
 
             <div class="note" style="margin-top: 18px;" id="go-live-note">
                 @if (($state['agent_status'] ?? null) === 'live')
-                    Your digital employee is already live. If you update anything and run this again, we'll resync the latest files.
+                    Your digital employee is already active. Run this again after any changes to resync everything.
                 @elseif (($state['workspace']['ready'] ?? false) === true)
-                    Your workspace is ready. Once your channel is connected, you can bring the assistant live.
+                    Everything is ready. Click below to activate your digital employee.
                 @else
-                    Your workspace is still being prepared in the background. We'll only go live once that setup is finished.
+                    Your workspace is still being set up in the background — this usually takes a few minutes. You can activate once it is ready.
                 @endif
             </div>
 
             <form id="go-live-form" style="margin-top: 18px;">
                 @csrf
-                <button type="submit">{{ ($state['agent_status'] ?? null) === 'live' ? 'Resync Live Assistant' : 'Bring My Assistant Live' }}</button>
+                <button type="submit">{{ ($state['agent_status'] ?? null) === 'live' ? 'Resync Assistant' : 'Go Live' }}</button>
             </form>
             <div class="note" style="margin-top: 18px; display: none;" id="go-live-success"></div>
             <div class="note error" style="margin-top: 18px; display: none;" id="go-live-error"></div>
@@ -759,7 +765,7 @@
             filesNote.textContent = state.files?.generated_at
                 ? `Your internal setup files were generated on ${state.files.generated_at}.`
                 : `Once you save the capabilities, we'll prepare the internal setup files behind the scenes.`;
-            goLiveWorkspaceStatus.textContent = state.workspace?.ready ? 'Ready' : 'Still preparing';
+            goLiveWorkspaceStatus.textContent = state.workspace?.ready ? 'Ready' : 'Setting up…';
             goLiveChannelStatus.textContent = state.channel === 'whatsapp'
                 ? 'WhatsApp'
                 : state.channel === 'telegram'
@@ -770,16 +776,18 @@
                 : 'Offline';
             channelStatusNote.textContent = state.channel === 'whatsapp'
                 ? (state.channel_setup?.status === 'connected'
-                    ? `WhatsApp is connected. You're all set — head to the final step to bring your assistant live.`
-                    : `Fill in your WhatsApp details above and save to connect your assistant.`)
+                    ? `WhatsApp is connected — head to the final step to activate your digital employee.`
+                    : `Fill in your WhatsApp details above to connect your digital employee.`)
                 : state.channel === 'telegram'
                     ? (state.channel_setup?.status === 'connected'
-                        ? `Telegram is connected. You're all set — head to the final step to bring your assistant live.`
-                        : `Paste your bot token above and save to connect your assistant.`)
-                    : `Pick a channel above and fill in the details — once saved, your assistant will be ready to receive messages.`;
+                        ? `Telegram is connected — head to the final step to activate your digital employee.`
+                        : `Paste your bot token above to connect your digital employee.`)
+                    : `Pick a channel above and fill in the details — once connected, your digital employee will be reachable through that app.`;
             goLiveNote.textContent = state.agent_status === 'live'
-                ? `Your digital employee is live${state.files?.synced_at ? ` and was last synced at ${state.files.synced_at}.` : '.'}`
-                : `Your assistant is ready to go. Click the button above to bring it live.`;
+                ? `Your digital employee is active${state.files?.synced_at ? ` — last synced at ${state.files.synced_at}.` : '.'}`
+                : state.workspace?.ready
+                    ? `Everything is ready. Click Go Live above to activate your digital employee.`
+                    : `Your workspace is still setting up. You can activate once it is ready.`;
 
             /* Toggle connected panel vs form */
             const isConnected = state.channel_setup?.status === 'connected';
@@ -1071,6 +1079,24 @@
                 showMessage(goLiveError, error.message);
             }
         });
+
+        /* ══════════════════════════════════════════════════════════════════
+           CLIPBOARD HELPER
+           ══════════════════════════════════════════════════════════════════ */
+        function copyField(inputId, btn) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+            const original = btn.textContent;
+            navigator.clipboard.writeText(input.value).then(() => {
+                btn.textContent = 'Copied ✓';
+                setTimeout(() => { btn.textContent = original; }, 2000);
+            }).catch(() => {
+                input.select();
+                document.execCommand('copy');
+                btn.textContent = 'Copied ✓';
+                setTimeout(() => { btn.textContent = original; }, 2000);
+            });
+        }
 
         /* ══════════════════════════════════════════════════════════════════
            INITIALISE

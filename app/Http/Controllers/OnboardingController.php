@@ -382,7 +382,7 @@ class OnboardingController extends Controller
 
         $steps = [
             1 => [
-                'label' => 'Business Website',
+                'label' => 'Website',
                 'status' => $this->stepOneComplete($tenant, $profile, $services) ? 'complete' : 'incomplete',
             ],
             2 => [
@@ -390,11 +390,11 @@ class OnboardingController extends Controller
                 'status' => $this->stepTwoComplete($tenant, $profile, $services) ? 'complete' : 'incomplete',
             ],
             3 => [
-                'label' => 'Personality',
+                'label' => 'Tone',
                 'status' => ((int) $tenant->onboarding_step >= 3 && filled($tenant->tone)) ? 'complete' : 'incomplete',
             ],
             4 => [
-                'label' => 'Capabilities',
+                'label' => 'Skills',
                 'status' => ((int) $tenant->onboarding_step >= 4 && $capabilities !== [] && $files?->generated_at !== null) ? 'complete' : 'incomplete',
             ],
             5 => [

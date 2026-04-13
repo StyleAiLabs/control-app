@@ -2,8 +2,8 @@
     <div class="topbar">
         <div>
             <span class="eyebrow">Conversations</span>
-            <h2>See what customers are asking your digital employee.</h2>
-            <p>Search, filter, and review recent inbound messages and the replies your assistant sent back.</p>
+            <h2>Messages with Your Digital Employee</h2>
+            <p>A log of sessions between you and your digital employee across your connected channels.</p>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <a href="{{ route('dashboard') }}" class="button button--secondary">Back to Dashboard</a>
@@ -13,24 +13,24 @@
 
     <section class="stats" style="margin-bottom: 20px;">
         <div class="stat">
-            <div class="hint">Matched</div>
+            <div class="hint">Sessions</div>
             <strong>{{ $conversationStats['matched'] }}</strong>
-            <p>Conversation records that match the current filters.</p>
+            <p>Sessions that match the current filters.</p>
         </div>
         <div class="stat">
-            <div class="hint">Replied</div>
+            <div class="hint">Responded</div>
             <strong>{{ $conversationStats['replied'] }}</strong>
-            <p>Messages that received a reply from the assistant.</p>
+            <p>Sessions where your digital employee sent a reply.</p>
         </div>
         <div class="stat">
             <div class="hint">WhatsApp</div>
             <strong>{{ $conversationStats['whatsapp'] }}</strong>
-            <p>Messages delivered through your WhatsApp connection.</p>
+            <p>Sessions through your WhatsApp connection.</p>
         </div>
         <div class="stat">
             <div class="hint">Telegram</div>
             <strong>{{ $conversationStats['telegram'] }}</strong>
-            <p>Messages delivered through your Telegram connection.</p>
+            <p>Sessions through your Telegram connection.</p>
         </div>
     </section>
 
@@ -95,7 +95,7 @@
 
         @if ($conversations->isEmpty())
             <div class="note" style="margin-top: 18px;">
-                No conversations matched the current filters yet. Once customer messages arrive through the connected channel, they will appear here.
+                No messages recorded yet. Once you start a conversation through your connected channel, the session log will appear here.
             </div>
         @else
             <div style="margin-top: 18px; display: grid; gap: 14px;">
@@ -141,5 +141,7 @@
                 {{ $conversations->links() }}
             </div>
         @endif
+
+        <p class="hint" style="margin-top: 20px; font-size: 0.82rem;">Detailed session view coming soon.</p>
     </section>
 </x-layouts.app>
