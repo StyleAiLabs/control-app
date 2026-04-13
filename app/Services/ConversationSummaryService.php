@@ -21,7 +21,13 @@ use Throwable;
 class ConversationSummaryService
 {
     private const MODEL      = 'claude-sonnet-4-6';
-    private const MAX_TOKENS = 120;
+    private const MAX_TOKENS = 150;
+    /**
+     * Max characters to keep from each assistant turn.
+     * Prevents long service-list replies from dominating the transcript
+     * and causing Claude to summarise the offer instead of the customer's choice.
+     */
+    private const MAX_ASSISTANT_TURN_CHARS = 250;
 
     /**
      * Generate a 1–2 sentence summary for a conversation session.
@@ -48,16 +54,24 @@ class ConversationSummaryService
                 return null;
             }
 
-            $customerLabel = $senderName ? "Customer: {$senderName}" : 'A customer';
+            $customerLabel = $senderName ? "Customer name: {$senderName}" : 'Customer';
 
             $systemPrompt = <<<PROMPT
-                You are a conversation summariser for an AI business assistant platform.
-                Write a single concise sentence (max 25 words) describing what the customer needed
-                and how the assistant helped. Focus on the business outcome. No filler phrases.
-                Do not start with "The customer" — be direct.
+                You are a CRM note writer for an AI business assistant platform.
+
+                Write exactly one sentence (max 30 words) that captures:
+                1. What the customer SPECIFICALLY asked for, selected, or chose — not what the assistant listed as options.
+                2. Any concrete action, outcome, or next step (e.g. service selected, phone number given, appointment arranged, question answered).
+
+                Rules:
+                - If the customer chose a specific service or product, name it exactly (e.g. "PPC Management", "Web Design").
+                - Do not describe what the assistant offered — focus on the customer's specific request and outcome.
+                - Use the customer's name if provided. Do not start with "The customer".
+                - No filler phrases like "inquired about services" or "discussed offerings".
+                - If only a greeting happened with no clear request, say: "Session opened with no specific request made."
                 PROMPT;
 
-            $userPrompt = "{$customerLabel} had this conversation:\n\n{$transcript}\n\nSummarise in one sentence.";
+            $userPrompt = "{$customerLabel}\n\nConversation transcript:\n{$transcript}\n\nWrite the CRM note:";
 
             $response = Http::withToken($virtualKey)
                 ->timeout(20)
@@ -94,6 +108,10 @@ class ConversationSummaryService
     /**
      * Build a readable transcript from ordered message turns.
      *
+     * Assistant turns are truncated to MAX_ASSISTANT_TURN_CHARS to prevent long
+     * service-list replies from dominating the LLM context and causing vague
+     * summaries that reflect the assistant's offer rather than the customer's choice.
+     *
      * @param  list<array{message_in: string, message_out: string|null}>  $messages
      */
     private function buildTranscript(array $messages): string
@@ -108,6 +126,11 @@ class ConversationSummaryService
 
             $out = trim($msg['message_out'] ?? '');
             if ($out !== '') {
+                // Truncate long assistant replies so service lists etc. don't
+                // overshadow what the customer specifically selected or requested.
+                if (mb_strlen($out) > self::MAX_ASSISTANT_TURN_CHARS) {
+                    $out = mb_substr($out, 0, self::MAX_ASSISTANT_TURN_CHARS).'…';
+                }
                 $lines[] = 'Assistant: '.$out;
             }
         }
