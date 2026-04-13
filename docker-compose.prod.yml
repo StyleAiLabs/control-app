@@ -46,6 +46,27 @@ services:
       redis:
         condition: service_healthy
 
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    restart: unless-stopped
+    working_dir: /var/www/html
+    env_file:
+      - .env
+    command: ["./docker/start-prod-scheduler.sh"]
+    volumes:
+      - storage-data:/var/www/html/storage
+      - runtime-data:/var/www/html/runtime
+    depends_on:
+      app:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
