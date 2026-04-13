@@ -1,6 +1,6 @@
 # Sync360 Control App Memory
 
-This file is the durable project memory for the Sync360 Control App as of `2026-04-11`.
+This file is the durable project memory for the Sync360 Control App as of `2026-04-13`.
 
 It is meant to help a new thread recover the important context quickly without losing the engineering decisions, deployment model, branch history, and verified behaviors we established together.
 
@@ -38,17 +38,17 @@ Primary working deployment branch:
 
 - `codex/control-app-prod-deploy`
 
-Important recent commits on that branch:
+Active feature/hotfix branch:
 
+- `cdx-feature/hot-fixes` (merged into `codex/control-app-prod-deploy`)
+
+Important recent commits on the deployment branch:
+
+- `478a90c` `feat: onboarding UX polish — owner↔assistant copy, clipboard webhooks, step labels, dashboard and conversations reframe`
+- `f650484` `fix: redirect signup to /onboarding instead of /tenant/setup`
+- `71aec85` `fix: write agent bootstrap files to .openclaw/workspace/ where OpenClaw reads them`
 - `cbb8050` `Run latest fetched deploy script from UI`
-- `f1866b0` `Verify fetched deploy commit before rebuild`
-- `2e7040c` `Show deploy action only when updates exist`
-- `cb8c399` `Fix deployed commit status tracking`
-- `a870349` merge of LiteLLM provisioning work into deployment branch
-
-Related feature branch already completed and merged:
-
-- `codex/litellm-key-provisioning`
+- `a870349` merge of LiteLLM provisioning work
 
 Important note:
 
@@ -124,22 +124,25 @@ This works, but it is explicitly temporary and should be replaced with SSH keys.
 ### Signup and provisioning flow
 
 1. Visitor lands on landing page.
-2. Visitor signs up.
+2. Visitor signs up (`/signup`).
 3. App creates:
    - `User`
    - `Tenant`
    - `ProvisioningJob`
-4. Queue worker picks up provisioning.
-5. Tenant is assigned to a `Server`.
-6. Runtime files are generated locally under:
+   - `BusinessProfile`
+   - `BusinessProfileFiles`
+4. User is logged in immediately and redirected to `/onboarding`.
+5. Queue worker picks up provisioning in the background (the owner can complete onboarding while provisioning runs).
+6. Tenant is assigned to a `Server`.
+7. Runtime files are generated locally under:
    - `runtime/tenants/<slug>/`
-7. LiteLLM tenant key is generated before startup.
-8. Runtime is copied to the assigned client VPS.
-9. Tenant-specific OpenClaw container is started remotely with Docker Compose.
-10. Readiness is checked.
-11. Public hostname is checked.
-12. Tenant is marked `ready`.
-13. Workspace-ready email is sent.
+8. LiteLLM tenant key is generated before startup.
+9. Runtime is copied to the assigned client VPS.
+10. Tenant-specific OpenClaw container is started remotely with Docker Compose.
+11. Readiness is checked.
+12. Public hostname is checked.
+13. Tenant is marked `ready`.
+14. Workspace-ready email is sent.
 
 If provisioning fails at any point:
 
@@ -352,7 +355,23 @@ Do not preserve them in docs or code.
 
 Treat them as compromised and rotate them.
 
-## 10. Known Current State / Open Work
+## 10. Channel Scope — Phase 1 Design Decision
+
+**Critical context for any future work involving channel copy, feature design, or UX:**
+
+In Phase 1 of Sync360, the Telegram and WhatsApp channel connection is **strictly owner↔assistant**.
+
+- The business owner connects their own personal Telegram or WhatsApp to their digital employee
+- Messages on that channel flow between the **business owner** and the **AI digital employee only**
+- There are **no public-facing end customers** messaging through the channel in this phase
+- `ConversationLog` records are owner-initiated sessions, not inbound customer queries
+- All copy, UI labels, help text, and onboarding instructions must reflect this — never say "customers will message you" or "your assistant will reply to customers"
+
+This decision is confirmed and intentional for Phase 1. Future phases may add a true customer-facing channel, but that is a separate engineering scope and must be explicitly planned.
+
+---
+
+## 11. Known Current State / Open Work
 
 These are the main future areas, not active failures:
 
@@ -390,10 +409,8 @@ git rev-parse --short origin/codex/control-app-prod-deploy
 
 Both should match.
 
-## 12. Suggested New-Thread Prompt
+## 13. Suggested New-Thread Prompt
 
 If starting a fresh thread, say something like:
 
-> Read [MEMORY.md](/Users/gayanhewage/Projects/openclaw-saas/MEMORY.md), [ARCHITECTURE.md](/Users/gayanhewage/Projects/openclaw-saas/ARCHITECTURE.md), and [RELEASE_NOTES.md](/Users/gayanhewage/Projects/openclaw-saas/RELEASE_NOTES.md) first. Continue from the current `codex/control-app-prod-deploy` state and assume the production deploy panel is now healthy and showing `Up-to-date` on commit `cbb8050`.
-
-That should preserve almost all important context with minimal re-explaining.
+> Read [MEMORY.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/MEMORY.md), [ARCHITECTURE.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/ARCHITECTURE.md), and [RELEASE_NOTES.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/RELEASE_NOTES.md) first. We are on `codex/control-app-prod-deploy` (latest commit `478a90c`). Phase 1 channel communication is strictly owner↔assistant — no public customers. Continue from there.

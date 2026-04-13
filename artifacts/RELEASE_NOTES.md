@@ -4,6 +4,63 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-13 — Onboarding UX Polish & Owner↔Assistant Framing
+
+Date: 2026-04-13
+Branch: `cdx-feature/hot-fixes` → merged to `codex/control-app-prod-deploy`
+Status: Released
+
+### Product Design Decision — Channel Scope (Phase 1)
+
+**The Telegram and WhatsApp channel connection in this phase is strictly owner↔assistant. There are no public-facing customers in this phase.**
+
+- The business owner connects their personal Telegram or WhatsApp account to their digital employee
+- All messages on that channel are between the business owner and the AI digital employee
+- The `ConversationLog` records therefore represent owner-initiated sessions, not inbound customer queries
+- This is an explicit product decision for Phase 1 and must be preserved in copy, docs, and any future feature design
+
+### Signup Redirect Fix
+- `RegisterController::store()` now redirects to `/onboarding` immediately after signup instead of `/tenant/setup`
+- Workspace provisioning continues in the background via the queue — the owner starts onboarding while the workspace is being prepared
+- Updated `SignupFlowTest` to assert the new redirect target
+
+### Onboarding Step Bar Label Shortening
+- `OnboardingController::statePayload()` step labels updated for narrower screens:
+  - `Business Website` → `Website`
+  - `Personality` → `Tone`
+  - `Capabilities` → `Skills`
+- Updated all matching label assertions in `OnboardingFlowTest`
+
+### Onboarding & Go-Live Copy Reframe
+- All Step 5 (Channel) and Step 6 (Go Live) copy rewritten to reflect the owner↔assistant model
+- Telegram setup guide updated: no longer implies customers message the bot — describes the owner connecting to their digital employee
+- Step 6 workspace-not-ready messaging improved from "Still preparing" to "Setting up… this usually takes a few minutes"
+- JS status strings for `goLiveNote` and `channelStatusNote` updated to match
+- Button labels tightened: `Bring My Assistant Live` → `Go Live`, `Resync Live Assistant` → `Resync Assistant`, `Save Channel Connection` → `Connect Channel`
+- Step 4 button: `Save Capabilities` → `Save & Prepare Files`
+
+### Copy-to-Clipboard for Webhook URLs
+- Added `Copy` buttons next to both the Telegram and WhatsApp webhook URL readonly inputs
+- Implemented `copyField()` JS helper with clipboard API fallback
+
+### Conversations Page Reframe
+- Page headline changed to `Messages with Your Digital Employee`
+- Sub-copy updated to describe owner↔assistant session log
+- Stats renamed: `Matched` → `Sessions`, `Replied` → `Responded`
+- Empty-state copy updated to reflect the owner-initiated model
+- Added `Detailed session view coming soon.` note
+- Channel filter dropdown now only shows the tenant's connected channel; unconnected channels show a disabled `No channel connected yet` option
+- Per-channel stat widgets show `Not connected` in muted text if that channel is not the tenant's active channel
+
+### Dashboard Activation Polish
+- Conversation Activity widget gains a 4th `Channel` stat showing the connected channel with its brand icon (Telegram blue / WhatsApp green), or `Not connected` with a direct link to onboarding
+- Channel display in the Digital Employee Status panel now renders inline SVG brand icons
+- Post-live secondary CTA switches from `Edit Business Profile` to `View Messages` when agent is live
+- Setup Progress badge for the active next step now renders in orange with `Next →` to distinguish it from completed and future pending steps
+- Completed steps show `Done ✓` badge
+
+---
+
 ## 2026-04-12 — LiteLLM Key Hardening & OpenClaw Provider Routing
 
 Date: 2026-04-12
@@ -61,7 +118,7 @@ Operational notes:
 
 ---
 
-## Unreleased
+## Released
 
 Date: 2026-04-12
 Branch: `cdx-feature/tenant-workspace-login`
