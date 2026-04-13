@@ -169,8 +169,10 @@ Artisan::command('sync360:check-trial-expiry', function () {
             $maxBudget = max(0.01, (float) ($tenant->litellm_max_budget ?? 5.0));
 
             // 2. Evaluate expiry conditions
+            // Fall back to created_at + 14 days for tenants pre-dating the trial_ends_at column
             $budgetExpired = $spend >= $maxBudget;
-            $timeExpired   = $tenant->trial_ends_at && now()->gte($tenant->trial_ends_at);
+            $trialEndsAt   = $tenant->trial_ends_at ?? $tenant->created_at->copy()->addDays(14);
+            $timeExpired   = now()->gte($trialEndsAt);
 
             if ($budgetExpired || $timeExpired) {
                 // 3. Expire the tenant

@@ -16,6 +16,7 @@
                     <th>Client VPS</th>
                     <th>Provisioning</th>
                     <th>Agent</th>
+                    <th>Trial</th>
                     <th>Health</th>
                     <th>Workspace</th>
                 </tr>
@@ -40,6 +41,22 @@
                         </td>
                         <td><span class="badge {{ $tenant->provisioning_status->value }}">{{ $tenant->provisioning_status->value }}</span></td>
                         <td><span class="badge {{ $tenant->agent_status === 'live' ? 'ready' : ($tenant->agent_status === 'failed' ? 'failed' : 'pending') }}">{{ $tenant->agent_status ?? 'offline' }}</span></td>
+                        <td>
+                            @if ($tenant->isTrialExpired())
+                                <span class="badge failed">expired</span>
+                            @else
+                                @php
+                                    $urgency = $tenant->trialUrgency();
+                                    $daysLeft = $tenant->trialDaysLeft();
+                                @endphp
+                                <span class="badge {{ $urgency === 'critical' ? 'failed' : ($urgency === 'warning' ? 'pending' : 'ready') }}">
+                                    {{ $daysLeft }}d left
+                                </span>
+                                <div class="hint" style="margin-top: 4px;">
+                                    ${{ number_format((float)($tenant->litellm_spend ?? 0), 2) }} / ${{ number_format((float)($tenant->litellm_max_budget ?? 5), 2) }}
+                                </div>
+                            @endif
+                        </td>
                         <td>
                             <span class="badge {{ $tenant->last_health_check_status === 'healthy' ? 'ready' : ($tenant->last_health_check_status === 'failed' ? 'failed' : 'pending') }}">
                                 {{ $tenant->last_health_check_status ?? 'unchecked' }}

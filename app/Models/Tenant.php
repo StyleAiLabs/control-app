@@ -139,11 +139,14 @@ class Tenant extends Model
 
     public function trialDaysLeft(): int
     {
-        if (! $this->trial_ends_at || $this->isTrialExpired()) {
+        if ($this->isTrialExpired()) {
             return 0;
         }
 
-        return max(0, (int) now()->diffInDays($this->trial_ends_at, absolute: false));
+        // Fall back to created_at + 14 days for tenants pre-dating the trial_ends_at column
+        $endsAt = $this->trial_ends_at ?? $this->created_at->copy()->addDays(14);
+
+        return max(0, (int) now()->diffInDays($endsAt, absolute: false));
     }
 
     public function trialBudgetPercent(): float
