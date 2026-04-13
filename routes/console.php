@@ -1,10 +1,14 @@
 <?php
 
 use App\Contracts\DockerComposeRunner;
+use App\Enums\TrialStatus;
 use App\Models\Tenant;
 use App\Models\Server;
+use App\Services\LiteLlmTenantKeyService;
+use App\Services\TrialNotificationEmailService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
@@ -128,3 +132,99 @@ Artisan::command('tenants:health-check', function () {
 })->purpose('Check live tenant workspaces and refresh their health status');
 
 Schedule::command('tenants:health-check')->everyFiveMinutes();
+
+Artisan::command('sync360:check-trial-expiry', function () {
+    /** @var LiteLlmTenantKeyService $litellm */
+    $litellm = app(LiteLlmTenantKeyService::class);
+
+    /** @var TrialNotificationEmailService $mailer */
+    $mailer = app(TrialNotificationEmailService::class);
+
+    $tenants = Tenant::query()
+        ->where('trial_status', TrialStatus::Active)
+        ->whereNotNull('litellm_virtual_key')
+        ->orderBy('id')
+        ->get();
+
+    if ($tenants->isEmpty()) {
+        $this->components->info('No active trial tenants to check.');
+
+        return;
+    }
+
+    $expired = 0;
+    $notified = 0;
+    $errors = 0;
+
+    foreach ($tenants as $tenant) {
+        try {
+            // 1. Refresh spend cache from LiteLLM
+            $info = $litellm->getKeyInfo($tenant);
+            $tenant->forceFill([
+                'litellm_spend'           => $info['spend'],
+                'litellm_spend_cached_at' => now(),
+            ])->save();
+
+            $spend     = (float) $info['spend'];
+            $maxBudget = max(0.01, (float) ($tenant->litellm_max_budget ?? 5.0));
+
+            // 2. Evaluate expiry conditions
+            $budgetExpired = $spend >= $maxBudget;
+            $timeExpired   = $tenant->trial_ends_at && now()->gte($tenant->trial_ends_at);
+
+            if ($budgetExpired || $timeExpired) {
+                // 3. Expire the tenant
+                $tenant->forceFill(['trial_status' => TrialStatus::Expired])->save();
+                $litellm->suspendTenant($tenant);
+                $expired++;
+
+                if (! $tenant->trial_expired_notified_at) {
+                    $reason = $budgetExpired ? 'budget' : 'time';
+                    $mailer->sendTrialExpired($tenant, $reason);
+                    $tenant->forceFill(['trial_expired_notified_at' => now()])->save();
+                    $notified++;
+                }
+
+                $this->components->twoColumnDetail(
+                    sprintf('%s (%s)', $tenant->business_name, $tenant->tenant_id),
+                    $budgetExpired ? 'Expired: budget exhausted' : 'Expired: time limit reached',
+                );
+
+                continue;
+            }
+
+            // 4. Send threshold warnings (each only once)
+            $budgetPct = $spend / $maxBudget * 100;
+            $daysLeft  = $tenant->trialDaysLeft();
+
+            if ($budgetPct >= 80 && ! $tenant->trial_80pct_notified_at) {
+                $mailer->sendBudgetWarning($tenant, $spend, $maxBudget);
+                $tenant->forceFill(['trial_80pct_notified_at' => now()])->save();
+                $notified++;
+            }
+
+            if ($daysLeft <= 3 && ! $tenant->trial_3day_notified_at) {
+                $mailer->sendExpiryWarning($tenant, $daysLeft);
+                $tenant->forceFill(['trial_3day_notified_at' => now()])->save();
+                $notified++;
+            }
+
+        } catch (Throwable $e) {
+            $errors++;
+            Log::warning('sync360:check-trial-expiry failed for tenant.', [
+                'tenant_id' => $tenant->tenant_id,
+                'error'     => $e->getMessage(),
+            ]);
+        }
+    }
+
+    $this->components->info(sprintf(
+        'Trial check complete. Checked: %d. Expired: %d. Notified: %d. Errors: %d.',
+        $tenants->count(),
+        $expired,
+        $notified,
+        $errors,
+    ));
+})->purpose('Check trial expiry conditions and send lifecycle email notifications');
+
+Schedule::command('sync360:check-trial-expiry')->everyThirtyMinutes();

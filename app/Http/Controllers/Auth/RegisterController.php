@@ -77,6 +77,7 @@ class RegisterController extends Controller
                     'server_id' => $server->id,
                     'trial_status' => TrialStatus::Active,
                     'provisioning_status' => TenantProvisioningStatus::Pending,
+                    'trial_ends_at' => now()->addDays(14),
                 ]);
 
                 $provisioningJob = ProvisioningJob::query()->create([

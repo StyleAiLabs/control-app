@@ -40,6 +40,7 @@ class DashboardController extends Controller
             'firstName' => Str::of($request->user()->name)->before(' ')->value() ?: $request->user()->name,
             'trialContent' => $this->trialContent($tenant->trial_status),
             'provisioningContent' => $this->provisioningContent($tenant->provisioning_status),
+            'trialData' => $this->trialData($tenant),
         ]);
     }
 
@@ -58,6 +59,32 @@ class DashboardController extends Controller
                 'description' => 'Your workspace is still here. Reach out when you are ready to reactivate it.',
             ],
         };
+    }
+
+    /**
+     * @return array{
+     *   is_expired: bool,
+     *   max_budget: float,
+     *   spend: float,
+     *   days_left: int,
+     *   budget_percent: float,
+     *   time_percent: float,
+     *   urgency: string,
+     *   spend_cached_at: ?string
+     * }
+     */
+    private function trialData(Tenant $tenant): array
+    {
+        return [
+            'is_expired'      => $tenant->isTrialExpired(),
+            'max_budget'      => (float) ($tenant->litellm_max_budget ?? 5.0),
+            'spend'           => (float) ($tenant->litellm_spend ?? 0.0),
+            'days_left'       => $tenant->trialDaysLeft(),
+            'budget_percent'  => $tenant->trialBudgetPercent(),
+            'time_percent'    => $tenant->trialTimePercent(),
+            'urgency'         => $tenant->trialUrgency(),
+            'spend_cached_at' => $tenant->litellm_spend_cached_at?->diffForHumans(),
+        ];
     }
 
     /**

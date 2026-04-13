@@ -1,4 +1,14 @@
 <x-layouts.app title="Dashboard — Sync360">
+    {{-- Trial expired banner --}}
+    @if ($trialData['is_expired'])
+        <div style="background: #7f1d1d; color: #fca5a5; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 0.92rem;">
+            <span>
+                <strong style="color: #fef2f2;">Your trial has ended.</strong>
+                Your digital employee has been paused. Your data is safe.
+            </span>
+            <a href="mailto:hello@sync360.co.nz" style="background: #fca5a5; color: #7f1d1d; padding: 7px 16px; border-radius: 6px; font-weight: 600; text-decoration: none; white-space: nowrap;">Contact Us →</a>
+        </div>
+    @endif
     <div class="topbar">
         <div>
             <span class="eyebrow">Dashboard</span>
@@ -22,8 +32,22 @@
     <section class="stats" style="margin-bottom: 20px;">
         <div class="stat">
             <div class="hint">Trial</div>
-            <strong>{{ $trialContent['label'] }}</strong>
-            <p>{{ $trialContent['description'] }}</p>
+            @if ($trialData['is_expired'])
+                <strong style="color: #ef4444;">Trial ended</strong>
+                <p>Contact us to reactivate your digital employee.</p>
+            @else
+                @php
+                    $urgencyColor = match($trialData['urgency']) {
+                        'critical' => '#ef4444',
+                        'warning'  => '#f59e0b',
+                        default    => '#22c55e',
+                    };
+                @endphp
+                <strong style="color: {{ $urgencyColor }}; font-size: 0.95rem;">
+                    {{ $trialData['days_left'] }} {{ $trialData['days_left'] === 1 ? 'day' : 'days' }} left
+                </strong>
+                <p>Free trial · ${{ number_format($trialData['spend'], 2) }} of ${{ number_format($trialData['max_budget'], 2) }} used</p>
+            @endif
         </div>
         <div class="stat">
             <div class="hint">Workspace</div>
@@ -41,6 +65,61 @@
             <p>Grounded in your business sector.</p>
         </div>
     </section>
+
+    {{-- Trial & AI Usage Panel (active trials only) --}}
+    @if (! $trialData['is_expired'])
+        @php
+            $urgencyColor = match($trialData['urgency']) {
+                'critical' => '#ef4444',
+                'warning'  => '#f59e0b',
+                default    => '#22c55e',
+            };
+            $urgencyBg = match($trialData['urgency']) {
+                'critical' => 'rgba(239,68,68,0.15)',
+                'warning'  => 'rgba(245,158,11,0.15)',
+                default    => 'rgba(34,197,94,0.15)',
+            };
+        @endphp
+        <section class="panel" style="margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px;">
+                <span class="eyebrow">Trial &amp; AI Usage</span>
+                @if ($trialData['urgency'] !== 'ok')
+                    <span style="background: {{ $urgencyBg }}; color: {{ $urgencyColor }}; padding: 4px 12px; border-radius: 20px; font-size: 0.82rem; font-weight: 600;">
+                        {{ $trialData['urgency'] === 'critical' ? '⚠ Approaching limit' : 'Heads up — usage climbing' }}
+                    </span>
+                @endif
+            </div>
+
+            {{-- AI Credit bar --}}
+            <div style="margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; color: var(--text-muted, #9ca3af); margin-bottom: 6px;">
+                    <span>AI Credit</span>
+                    <span>${{ number_format($trialData['spend'], 2) }} of ${{ number_format($trialData['max_budget'], 2) }} used ({{ $trialData['budget_percent'] }}%)</span>
+                </div>
+                <div style="background: rgba(255,255,255,0.07); border-radius: 6px; height: 8px; overflow: hidden;">
+                    <div style="background: {{ $urgencyColor }}; width: {{ min(100, $trialData['budget_percent']) }}%; height: 100%; border-radius: 6px; transition: width 0.4s ease;"></div>
+                </div>
+            </div>
+
+            {{-- Trial Time bar --}}
+            <div style="margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; color: var(--text-muted, #9ca3af); margin-bottom: 6px;">
+                    <span>Trial Time</span>
+                    <span>{{ $trialData['days_left'] }} {{ $trialData['days_left'] === 1 ? 'day' : 'days' }} remaining of 14</span>
+                </div>
+                <div style="background: rgba(255,255,255,0.07); border-radius: 6px; height: 8px; overflow: hidden;">
+                    <div style="background: {{ $urgencyColor }}; width: {{ min(100, $trialData['time_percent']) }}%; height: 100%; border-radius: 6px; transition: width 0.4s ease;"></div>
+                </div>
+            </div>
+
+            <div style="font-size: 0.8rem; color: var(--text-muted, #9ca3af); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                <span>Trial ends when either limit is reached first.</span>
+                @if ($trialData['spend_cached_at'])
+                    <span>Usage data as of {{ $trialData['spend_cached_at'] }}</span>
+                @endif
+            </div>
+        </section>
+    @endif
 
     <section class="grid grid-2">
         <div class="panel">
