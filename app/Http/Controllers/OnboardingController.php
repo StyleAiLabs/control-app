@@ -486,17 +486,19 @@ class OnboardingController extends Controller
      */
     private function channelSetupPayload(Tenant $tenant, array $channelConfig): array
     {
+        $appUrl = rtrim((string) config('app.url'), '/');
+
         return [
             'selected_channel' => $tenant->channel,
             'status' => $this->stepFiveComplete($tenant, $channelConfig) ? 'connected' : 'pending',
             'whatsapp' => [
-                'webhook_url' => route('webhooks.whatsapp.verify', ['tenantId' => $tenant->tenant_id]),
-                'verify_token' => $channelConfig['whatsapp_verify_token'] ?? null,
-                'phone_number_id' => $channelConfig['whatsapp_phone_number_id'] ?? null,
+                'webhook_url'      => $appUrl . '/webhooks/whatsapp/' . $tenant->tenant_id . '/verify',
+                'verify_token'     => $channelConfig['whatsapp_verify_token'] ?? null,
+                'phone_number_id'  => $channelConfig['whatsapp_phone_number_id'] ?? null,
                 'access_token_saved' => filled($channelConfig['whatsapp_access_token'] ?? null),
             ],
             'telegram' => [
-                'webhook_url' => route('webhooks.telegram.handle', ['tenantId' => $tenant->tenant_id]),
+                'webhook_url'    => $appUrl . '/webhooks/telegram/' . $tenant->tenant_id,
                 'bot_token_saved' => filled($channelConfig['telegram_bot_token'] ?? null),
             ],
         ];
