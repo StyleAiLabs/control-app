@@ -178,6 +178,8 @@ class SyncConversationReplies extends Command
             }
 
             // Check if any record in this session already has a summary.
+            // When SYNC360_REFRESH_SUMMARIES=true the existing summary is cleared
+            // so all sessions get regenerated with the latest prompt (one-time use).
             $hasSummary = ConversationLog::query()
                 ->where('tenant_id', $tenant->id)
                 ->where('session_id', $sessionId)
@@ -185,7 +187,14 @@ class SyncConversationReplies extends Command
                 ->exists();
 
             if ($hasSummary) {
-                continue;
+                if (! config('sync360.refresh_summaries', false)) {
+                    continue;
+                }
+                // Clear the stale summary so it regenerates below.
+                ConversationLog::query()
+                    ->where('tenant_id', $tenant->id)
+                    ->where('session_id', $sessionId)
+                    ->update(['ai_summary' => null]);
             }
 
             // Build the ordered message list for the summariser.

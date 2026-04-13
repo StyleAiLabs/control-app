@@ -79,4 +79,10 @@ return [
         'log_tail_lines' => (int) env('SYNC360_CONTROL_DEPLOY_LOG_TAIL_LINES', 20),
         'timeout_seconds' => (int) env('SYNC360_CONTROL_DEPLOY_TIMEOUT_SECONDS', 30),
     ],
+
+    // ── Conversations ──────────────────────────────────────────────────────────
+    // Set SYNC360_REFRESH_SUMMARIES=true for one deploy cycle to clear and
+    // regenerate all existing AI session summaries with the current prompt.
+    // Flip back to false (or remove) after the next scheduler run completes.
+    'refresh_summaries' => (bool) env('SYNC360_REFRESH_SUMMARIES', false),
 ];
