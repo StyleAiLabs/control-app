@@ -3,7 +3,7 @@
         <div>
             <span class="eyebrow">Conversations</span>
             <h2>Messages with Your Digital Employee</h2>
-            <p>Conversation sessions between your customers and your digital employee.</p>
+            <p>Session-level log of customer conversations across your connected channels.</p>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <a href="{{ route('dashboard') }}" class="button button--secondary">Back to Dashboard</a>
@@ -113,18 +113,15 @@
                 No sessions recorded yet. Once your customers start a conversation through your connected channel, the history will appear here.
             </div>
         @else
-            <div style="margin-top: 18px; display: grid; gap: 20px;">
+            <div style="margin-top: 18px; display: grid; gap: 12px;">
                 @foreach ($sessions as $session)
-                    @php
-                        $firstMsg = $session['messages']->first();
-                        $senderName = $firstMsg?->meta_json['sender_name'] ?? null;
-                    @endphp
-                    <article class="meta-item" style="padding: 0; overflow: hidden;">
-                        {{-- Session header --}}
-                        <div style="padding: 16px 20px; border-bottom: 1px solid var(--border-color, #e5e7eb); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
-                            <div>
+                    @php $firstMsg = $session['messages']->first(); $senderName = $firstMsg?->meta_json['sender_name'] ?? null; @endphp
+                    <article class="meta-item">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
+                            {{-- Left: sender + status + summary --}}
+                            <div style="flex: 1; min-width: 0;">
                                 <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                                    <strong>{{ ucfirst($session['channel'] ?? 'Unknown channel') }}</strong>
+                                    <strong>{{ ucfirst($session['channel'] ?? 'Unknown') }}</strong>
                                     <span class="hint">{{ $session['from_identifier'] ?? '—' }}</span>
                                     @if ($senderName)
                                         <span class="hint">· {{ $senderName }}</span>
@@ -136,55 +133,31 @@
                                     @endif
                                 </div>
 
+                                {{-- AI Summary --}}
                                 @if ($session['ai_summary'])
-                                    <p style="margin: 8px 0 0; font-size: 0.92rem; color: var(--text-secondary, #6b7280); line-height: 1.5;">
-                                        🤖 {{ $session['ai_summary'] }}
+                                    <p style="margin: 10px 0 0; font-size: 0.9rem; color: var(--text-secondary, #6b7280); line-height: 1.55;">
+                                        {{ $session['ai_summary'] }}
+                                    </p>
+                                @else
+                                    <p style="margin: 10px 0 0; font-size: 0.86rem; color: var(--text-muted, #9ca3af); font-style: italic;">
+                                        Summary not yet generated.
                                     </p>
                                 @endif
                             </div>
 
+                            {{-- Right: date + message count --}}
                             <div style="text-align: right; flex-shrink: 0;">
                                 <small class="hint">{{ \Illuminate\Support\Carbon::parse($session['last_activity'])?->format('D, j M Y g:i A') }}</small>
-                                <div class="hint" style="margin-top: 4px;">{{ $session['message_count'] }} {{ Str::plural('message', $session['message_count']) }}</div>
-                            </div>
-                        </div>
-
-                        {{-- Message thread --}}
-                        <div style="padding: 16px 20px; display: grid; gap: 16px;">
-                            @foreach ($session['messages'] as $message)
-                                <div style="display: grid; gap: 10px;">
-                                    {{-- Incoming --}}
-                                    <div style="display: flex; gap: 12px; align-items: flex-start;">
-                                        <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--bg-alt, #f3f4f6); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.8rem;">👤</div>
-                                        <div style="flex: 1;">
-                                            <div style="font-size: 0.75rem; color: var(--text-muted, #9ca3af); margin-bottom: 4px;">
-                                                {{ $message->created_at?->format('g:i A') }}
-                                            </div>
-                                            <div style="background: var(--bg-alt, #f3f4f6); border-radius: 12px 12px 12px 2px; padding: 10px 14px; line-height: 1.55; font-size: 0.9rem;">{{ $message->message_in ?: '—' }}</div>
-                                        </div>
-                                    </div>
-
-                                    {{-- Reply --}}
-                                    @if ($message->message_out)
-                                        <div style="display: flex; gap: 12px; align-items: flex-start; flex-direction: row-reverse;">
-                                            <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--accent, #6366f1); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.8rem; color: #fff;">🤖</div>
-                                            <div style="flex: 1; text-align: right;">
-                                                <div style="font-size: 0.75rem; color: var(--text-muted, #9ca3af); margin-bottom: 4px;">
-                                                    {{ $message->responded_at?->format('g:i A') ?? $message->created_at?->format('g:i A') }}
-                                                </div>
-                                                <div style="background: var(--accent, #6366f1); color: #fff; border-radius: 12px 12px 2px 12px; padding: 10px 14px; line-height: 1.55; font-size: 0.9rem; text-align: left; display: inline-block; max-width: 85%;">{{ $message->message_out }}</div>
-                                            </div>
-                                        </div>
-                                    @endif
+                                <div class="hint" style="margin-top: 4px;">
+                                    {{ $session['message_count'] }} {{ Str::plural('message', $session['message_count']) }}
                                 </div>
-                            @endforeach
-                        </div>
-
-                        @if ($session['session_id'])
-                            <div style="padding: 8px 20px 12px; border-top: 1px solid var(--border-color, #e5e7eb);">
-                                <span class="hint" style="font-size: 0.75rem;">Session {{ $session['session_id'] }}</span>
+                                @if ($session['session_id'])
+                                    <div class="hint" style="margin-top: 4px; font-size: 0.72rem; font-family: monospace;">
+                                        {{ substr($session['session_id'], 0, 8) }}…
+                                    </div>
+                                @endif
                             </div>
-                        @endif
+                        </div>
                     </article>
                 @endforeach
             </div>
