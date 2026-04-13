@@ -3,7 +3,7 @@
         <div>
             <span class="eyebrow">Conversations</span>
             <h2>Messages with Your Digital Employee</h2>
-            <p>A log of sessions between you and your digital employee across your connected channels.</p>
+            <p>Conversation sessions between your customers and your digital employee.</p>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <a href="{{ route('dashboard') }}" class="button button--secondary">Back to Dashboard</a>
@@ -13,20 +13,20 @@
 
     <section class="stats" style="margin-bottom: 20px;">
         <div class="stat">
-            <div class="hint">Sessions</div>
+            <div class="hint">Messages</div>
             <strong>{{ $conversationStats['matched'] }}</strong>
-            <p>Sessions that match the current filters.</p>
+            <p>Messages matching the current filters.</p>
         </div>
         <div class="stat">
             <div class="hint">Responded</div>
             <strong>{{ $conversationStats['replied'] }}</strong>
-            <p>Sessions where your digital employee sent a reply.</p>
+            <p>Messages where your digital employee replied.</p>
         </div>
         <div class="stat">
             <div class="hint">Telegram</div>
             @if ($tenant->channel === 'telegram')
                 <strong>{{ $conversationStats['telegram'] }}</strong>
-                <p>Sessions through your Telegram connection.</p>
+                <p>Messages through your Telegram connection.</p>
             @else
                 <strong style="color: var(--text-muted, #9ca3af); font-size: 0.95rem;">Not connected</strong>
                 <p>Telegram is not connected for this workspace.</p>
@@ -36,7 +36,7 @@
             <div class="hint">WhatsApp</div>
             @if ($tenant->channel === 'whatsapp')
                 <strong>{{ $conversationStats['whatsapp'] }}</strong>
-                <p>Sessions through your WhatsApp connection.</p>
+                <p>Messages through your WhatsApp connection.</p>
             @else
                 <strong style="color: var(--text-muted, #9ca3af); font-size: 0.95rem;">Not connected</strong>
                 <p>WhatsApp is not connected for this workspace.</p>
@@ -54,19 +54,17 @@
                         type="text"
                         name="search"
                         value="{{ $filters['search'] }}"
-                        placeholder="Customer number, incoming message, reply text, or message ID"
+                        placeholder="Customer number, message text, session ID"
                     >
                 </label>
                 <label>
                     Channel
                     <select name="channel">
-                        <option value="">All sessions</option>
+                        <option value="">All channels</option>
                         @if ($tenant->channel === 'telegram')
-                            <option value="telegram" @selected($filters['channel'] === 'telegram')
-                            >Telegram</option>
+                            <option value="telegram" @selected($filters['channel'] === 'telegram')>Telegram</option>
                         @elseif ($tenant->channel === 'whatsapp')
-                            <option value="whatsapp" @selected($filters['channel'] === 'whatsapp')
-                            >WhatsApp</option>
+                            <option value="whatsapp" @selected($filters['channel'] === 'whatsapp')>WhatsApp</option>
                         @else
                             <option value="" disabled>No channel connected yet</option>
                         @endif
@@ -104,61 +102,96 @@
 
     <section class="panel" style="margin-top: 18px;">
         <div style="display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap;">
-            <span class="eyebrow">History</span>
+            <span class="eyebrow">Session History</span>
             <div class="hint">
-                Showing {{ $conversations->firstItem() ?? 0 }}-{{ $conversations->lastItem() ?? 0 }} of {{ $conversations->total() }}
+                Showing {{ $sessionPage->firstItem() ?? 0 }}–{{ $sessionPage->lastItem() ?? 0 }} of {{ $sessionPage->total() }} sessions
             </div>
         </div>
 
-        @if ($conversations->isEmpty())
+        @if ($sessions->isEmpty())
             <div class="note" style="margin-top: 18px;">
-                No messages recorded yet. Once you start a conversation through your connected channel, the session log will appear here.
+                No sessions recorded yet. Once your customers start a conversation through your connected channel, the history will appear here.
             </div>
         @else
-            <div style="margin-top: 18px; display: grid; gap: 14px;">
-                @foreach ($conversations as $conversation)
-                    <article class="meta-item">
-                        <div style="display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap;">
-                            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                                <strong>{{ ucfirst($conversation->channel) }}</strong>
-                                <span class="hint">{{ $conversation->from_identifier }}</span>
-                                @if (filled($conversation->message_out))
-                                    <span class="badge ready">Replied</span>
-                                @else
-                                    <span class="badge pending">No reply</span>
+            <div style="margin-top: 18px; display: grid; gap: 20px;">
+                @foreach ($sessions as $session)
+                    @php
+                        $firstMsg = $session['messages']->first();
+                        $senderName = $firstMsg?->meta_json['sender_name'] ?? null;
+                    @endphp
+                    <article class="meta-item" style="padding: 0; overflow: hidden;">
+                        {{-- Session header --}}
+                        <div style="padding: 16px 20px; border-bottom: 1px solid var(--border-color, #e5e7eb); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
+                            <div>
+                                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                    <strong>{{ ucfirst($session['channel'] ?? 'Unknown channel') }}</strong>
+                                    <span class="hint">{{ $session['from_identifier'] ?? '—' }}</span>
+                                    @if ($senderName)
+                                        <span class="hint">· {{ $senderName }}</span>
+                                    @endif
+                                    @if ($session['has_reply'])
+                                        <span class="badge ready">Replied</span>
+                                    @else
+                                        <span class="badge pending">No reply</span>
+                                    @endif
+                                </div>
+
+                                @if ($session['ai_summary'])
+                                    <p style="margin: 8px 0 0; font-size: 0.92rem; color: var(--text-secondary, #6b7280); line-height: 1.5;">
+                                        🤖 {{ $session['ai_summary'] }}
+                                    </p>
                                 @endif
                             </div>
-                            <small class="hint">{{ $conversation->created_at?->format('D, j M Y g:i A') }}</small>
+
+                            <div style="text-align: right; flex-shrink: 0;">
+                                <small class="hint">{{ \Illuminate\Support\Carbon::parse($session['last_activity'])?->format('D, j M Y g:i A') }}</small>
+                                <div class="hint" style="margin-top: 4px;">{{ $session['message_count'] }} {{ Str::plural('message', $session['message_count']) }}</div>
+                            </div>
                         </div>
 
-                        <div class="meta" style="margin-top: 14px;">
-                            <div>
-                                <small class="hint">Incoming</small>
-                                <div style="margin-top: 6px; line-height: 1.6;">{{ $conversation->message_in }}</div>
-                            </div>
-                            <div>
-                                <small class="hint">Reply</small>
-                                <div style="margin-top: 6px; line-height: 1.6;">
-                                    {{ $conversation->message_out ?: 'No reply was sent for this message.' }}
+                        {{-- Message thread --}}
+                        <div style="padding: 16px 20px; display: grid; gap: 16px;">
+                            @foreach ($session['messages'] as $message)
+                                <div style="display: grid; gap: 10px;">
+                                    {{-- Incoming --}}
+                                    <div style="display: flex; gap: 12px; align-items: flex-start;">
+                                        <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--bg-alt, #f3f4f6); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.8rem;">👤</div>
+                                        <div style="flex: 1;">
+                                            <div style="font-size: 0.75rem; color: var(--text-muted, #9ca3af); margin-bottom: 4px;">
+                                                {{ $message->created_at?->format('g:i A') }}
+                                            </div>
+                                            <div style="background: var(--bg-alt, #f3f4f6); border-radius: 12px 12px 12px 2px; padding: 10px 14px; line-height: 1.55; font-size: 0.9rem;">{{ $message->message_in ?: '—' }}</div>
+                                        </div>
+                                    </div>
+
+                                    {{-- Reply --}}
+                                    @if ($message->message_out)
+                                        <div style="display: flex; gap: 12px; align-items: flex-start; flex-direction: row-reverse;">
+                                            <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--accent, #6366f1); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.8rem; color: #fff;">🤖</div>
+                                            <div style="flex: 1; text-align: right;">
+                                                <div style="font-size: 0.75rem; color: var(--text-muted, #9ca3af); margin-bottom: 4px;">
+                                                    {{ $message->responded_at?->format('g:i A') ?? $message->created_at?->format('g:i A') }}
+                                                </div>
+                                                <div style="background: var(--accent, #6366f1); color: #fff; border-radius: 12px 12px 2px 12px; padding: 10px 14px; line-height: 1.55; font-size: 0.9rem; text-align: left; display: inline-block; max-width: 85%;">{{ $message->message_out }}</div>
+                                            </div>
+                                        </div>
+                                    @endif
                                 </div>
-                            </div>
+                            @endforeach
                         </div>
 
-                        <div style="margin-top: 14px; display: flex; gap: 18px; flex-wrap: wrap;">
-                            <div class="hint">Message ID: {{ $conversation->external_message_id ?: 'Not captured' }}</div>
-                            @if ($conversation->responded_at)
-                                <div class="hint">Responded {{ $conversation->responded_at->diffForHumans() }}</div>
-                            @endif
-                        </div>
+                        @if ($session['session_id'])
+                            <div style="padding: 8px 20px 12px; border-top: 1px solid var(--border-color, #e5e7eb);">
+                                <span class="hint" style="font-size: 0.75rem;">Session {{ $session['session_id'] }}</span>
+                            </div>
+                        @endif
                     </article>
                 @endforeach
             </div>
 
             <div style="margin-top: 20px;">
-                {{ $conversations->links() }}
+                {{ $sessionPage->links() }}
             </div>
         @endif
-
-        <p class="hint" style="margin-top: 20px; font-size: 0.82rem;">Detailed session view coming soon.</p>
     </section>
 </x-layouts.app>
