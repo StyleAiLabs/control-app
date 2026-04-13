@@ -89,13 +89,15 @@ That package consists of:
 - a production image target in [Dockerfile](/Users/gayanhewage/Projects/openclaw-saas/Dockerfile)
 - [docker/start-prod-app.sh](/Users/gayanhewage/Projects/openclaw-saas/docker/start-prod-app.sh)
 - [docker/start-prod-worker.sh](/Users/gayanhewage/Projects/openclaw-saas/docker/start-prod-worker.sh)
+- [docker/start-prod-scheduler.sh](/Users/gayanhewage/Projects/openclaw-saas/docker/start-prod-scheduler.sh)
 - [deploy/apache/app.sync360.co.nz.conf](/Users/gayanhewage/Projects/openclaw-saas/deploy/apache/app.sync360.co.nz.conf)
 
 The intended deployment shape is:
 
-- `161.97.74.128` runs the Dockerized control plane
+- `161.97.74.128` runs the Dockerized control plane with four services: `app`, `worker`, `scheduler`, `postgres`, `redis`
 - Apache on the host terminates TLS for `app.sync360.co.nz`
 - Apache reverse proxies to the app container on `127.0.0.1:8000`
+- the `scheduler` container runs `php artisan schedule:work` (foreground scheduler, no cron needed)
 - the worker still provisions client workspaces remotely over SSH using the current temporary password-auth model
 - the super-admin UI can trigger a safe host-side deploy script over SSH to update the control plane itself
 

@@ -44,12 +44,12 @@ Active feature/hotfix branch:
 
 Important recent commits on the deployment branch:
 
-- `781aa40` `fix: use config('app.url') for webhook URLs — prevents workspace proxy from polluting host`
-- `6f60009` `fix: register control-app Telegram webhook after configureChannel() to prevent OpenClaw override`
-- `2631ff7` `docs: update release notes for live workspace state, refresh button, and notification bell`
-- `8ee02f6` `feat: notification bell in sidebar — workspace & trial alerts with red badge and dropdown`
-- `25cffa3` `fix: dashboard live workspace state check — stopped banner + correct stat card`
-- `6202226` `fix: backfill trial_ends_at for existing tenants, defensive fallback, admin trial metrics`
+- `26d1d12` `fix: add scheduler container + fix pagination SVG size; compact conversation summary cards`
+- `fef03ed` `fix: use claude-sonnet-4-6 (platform virtual key only allows this model for AI summaries)`
+- `49360ed` `fix: use LiteLLM virtual key for conversation summary (not OpenAI directly)`
+- `f8045f4` `feat: session-grouped conversations — DB migration, parser, sync, summary, UI`
+- `781aa40` `fix: use config('app.url') for webhook URLs`
+- `8ee02f6` `feat: notification bell in sidebar — workspace & trial alerts`
 - `a3b15e3` `feat: trial lifecycle management — expiry enforcement, AI usage widget, email notifications`
 
 Important note:
@@ -373,28 +373,35 @@ This decision is confirmed and intentional for Phase 1. Future phases may add a 
 
 ---
 
-## 11. Conversation Logging Pipeline
+## 11. Conversation Logging Pipeline — Polling Mode (Current Architecture)
 
-**Flow:** Telegram → control-app `WebhookController::handleTelegram()` → `ProcessIncomingMessage` job → `TenantWorkspaceMessenger::send()` → workspace → reply → `ConversationLog::create()`
+**OpenClaw does NOT use a Telegram webhook.** It runs in native `getUpdates` polling mode. The `WebhookController` is not part of the live conversation flow.
 
-**Critical architecture rule:**
-- The Telegram bot webhook **must point to the control-app URL** (`https://app.sync360.co.nz/webhooks/telegram/{tenant_id}`), NOT the workspace URL.
-- OpenClaw registers its own workspace URL when its gateway starts. This overwrites the control-app webhook, bypassing all logging.
-- `TenantAgentSyncService::configureChannel()` now calls `registerTelegramWebhook()` after every channel config write to overwrite the workspace URL with the control-app URL.
-
-**Webhook URL generation:** Always use `config('app.url')` directly, never `route()`, for webhook URLs shown in the onboarding UI. Requests are proxied through the workspace VPS which does not set `X-Forwarded-Host` correctly, causing `route()` to generate the wrong host.
-
-**Production webhook (verified 2026-04-14):**
+**Actual message flow:**
 ```
-https://app.sync360.co.nz/webhooks/telegram/01KP0JG8P5KA1ZMQCPD2X8GE2G
+Telegram user → OpenClaw polls getUpdates → workspace agent processes + replies
+   → session log written to {runtime_path}/.openclaw/workspace/memory/*.md
+   → sync360:sync-replies (every 10 min) reads session files via SSH
+   → ConversationLog records upserted with session_id
+   → ConversationSummaryService generates ai_summary via LiteLLM
 ```
-Registered manually after discovering the SSL cert for `app.sync360.co.nz` was causing Apache to run on stale config.
+
+**No `webhookUrl`** should be written into `openclaw.json`. `configureChannel()` writes only `botToken`, `dmPolicy`, `enabled`.
+
+**Session log format:** OpenClaw writes `# Session: {uuid}` block headers in workspace memory Markdown files. The `WorkspaceSessionLogReader` splits on these headers to group message turns into their session UUID.
+
+**AI Summaries:** `ConversationSummaryService` calls LiteLLM using `LITELLM_VIRTUAL_KEY` (platform key, not tenant key). Model: `claude-sonnet-4-6` (only model the platform key allows). Summary is ≤25 words focused on business outcome.
+
+**Scheduler:** `sync360:sync-replies` runs every 10 minutes via the `scheduler` Docker container (`php artisan schedule:work`). The `scheduler` service was added to `docker-compose.prod.yml` — previously it was missing entirely and no scheduled commands ever ran in production.
 
 **Key files:**
-- `app/Http/Controllers/WebhookController.php` — `handleTelegram()`, `handleWhatsApp()`
-- `app/Jobs/ProcessIncomingMessage.php` — processes + logs messages
-- `app/Services/TenantAgentSyncService.php` — `registerTelegramWebhook()` (call after every channel config change)
-- `app/Http/Controllers/OnboardingController.php` — `channelSetupPayload()` uses `config('app.url')` not `route()`
+- `app/Services/WorkspaceSessionLogReader.php` — session-block log parser
+- `app/Console/Commands/SyncConversationReplies.php` — upsert + session grouping + summary trigger
+- `app/Services/ConversationSummaryService.php` — LiteLLM `claude-sonnet-4-6` summariser
+- `app/Http/Controllers/ConversationsController.php` — paginate by session
+- `resources/views/conversations/index.blade.php` — session summary card UI
+- `docker-compose.prod.yml` — `scheduler` service
+- `docker/start-prod-scheduler.sh` — scheduler entrypoint
 
 ---
 
@@ -498,19 +505,27 @@ It works right now, but it should be replaced with SSH keys.
 
 Multiple secrets were pasted during setup. Do not preserve them in docs or code. Treat them as compromised and rotate them.
 
-### 6. Telegram webhook is overwritten by OpenClaw on every gateway restart
+### 6. OpenClaw runs in polling mode — no Telegram webhook needed
 
-When `configureChannel()` writes `botToken` into `openclaw.json`, OpenClaw registers its own workspace URL as the Telegram webhook on startup. Always call `registerTelegramWebhook()` after channel config to restore the control-app URL.
+OpenClaw uses `getUpdates` long-polling. It does NOT register a Telegram webhook and does NOT need a `webhookUrl` in `openclaw.json`. The `WebhookController` is not part of the live conversation flow. Conversation logs are backfilled from session files via the `sync360:sync-replies` scheduler command. Never add `webhookUrl` back to `configureChannel()` unless switching to a deliberate webhook architecture with full control-app message processing.
 
-### 7. Use `config('app.url')` not `route()` for webhook URLs in the UI
+### 7. The platform LiteLLM virtual key only allows `claude-sonnet-4-6`
+
+`LITELLM_VIRTUAL_KEY` is restricted to `claude-sonnet-4-6` on the LiteLLM instance. Any call to `gpt-4o-mini` or other models will return 401. Use `claude-sonnet-4-6` for any platform-level AI calls (summaries, extraction, etc.).
+
+### 8. The scheduler was missing from production for the entire initial deployment
+
+`docker-compose.prod.yml` only had `app` and `worker` services. No scheduler ran. All `routes/console.php` scheduled commands (`sync360:sync-replies`, `sync360:check-trial-expiry`, `tenants:health-check`) were never executing automatically. The `scheduler` container was added 2026-04-14. Always confirm the `scheduler` service is in the compose file.
+
+### 9. Use `config('app.url')` not `route()` for webhook URLs in the UI
 
 Requests proxied through the workspace VPS (`89.116.28.191`) don't set `X-Forwarded-Host` correctly. Laravel's `route()` picks up the wrong host and generates workspace subdomain URLs. Explicitly building from `config('app.url')` is safe.
 
-### 8. Apache needs a reload after certbot issues a new cert
+### 10. Apache needs a reload after certbot issues a new cert
 
-Certbot stores certs under `/etc/letsencrypt/live/`. If a cert was issued but Apache was not reloaded, the old (missing) cert path remains active and Telegram's strict TLS validation will reject the webhook registration even though the domain resolves correctly.
+Certbot stores certs under `/etc/letsencrypt/live/`. If a cert was issued but Apache was not reloaded, the old (missing) cert path remains active and Telegram's strict TLS validation will reject webhook registration.
 
-### 9. Sudo password for `serveradmin` on the control server
+### 11. Sudo password for `serveradmin` on the control server
 
 The VPS client SSH/sudo password (`roApoxDY5K9lAae8ngzey4M`) is for client workspace VPSes only. The control server (`161.97.74.128`) `serveradmin` user has a separate sudo password. Keep it in your password manager, not in `.env`.
 
@@ -520,7 +535,7 @@ The VPS client SSH/sudo password (`roApoxDY5K9lAae8ngzey4M`) is for client works
 
 If starting a fresh thread, say something like:
 
-> Read [MEMORY.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/MEMORY.md), [ARCHITECTURE.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/ARCHITECTURE.md), and [RELEASE_NOTES.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/RELEASE_NOTES.md) first. We are on `codex/control-app-prod-deploy` (latest commit `781aa40`). Phase 1 channel communication is strictly owner↔assistant. Trial lifecycle (14 days / $5) is fully implemented. Telegram conversation logging pipeline is fixed — webhook points to `app.sync360.co.nz`. Sidebar notification bell is live. Continue from there.
+> Read [MEMORY.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/MEMORY.md), [ARCHITECTURE.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/ARCHITECTURE.md), and [RELEASE_NOTES.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/RELEASE_NOTES.md) first. We are on `codex/control-app-prod-deploy` (latest commit `26d1d12`). Phase 1 channel communication is strictly owner↔assistant. OpenClaw uses native Telegram polling — no webhook, no WebhookController involvement. Conversations are synced from workspace session log files every 10 min by `sync360:sync-replies` running in the `scheduler` container. Session threads are grouped by UUID with AI summaries via LiteLLM `claude-sonnet-4-6` (platform virtual key, not tenant key). Trial lifecycle (14 days / $5) is fully implemented. Scheduler container was missing and was added 2026-04-14. Continue from there.
 
 ## 14. Trial Lifecycle Quick Reference
 
