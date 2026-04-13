@@ -231,10 +231,8 @@ Artisan::command('sync360:check-trial-expiry', function () {
 
 Schedule::command('sync360:check-trial-expiry')->everyThirtyMinutes();
 
-// Register the SyncConversationReplies Command class (auto-discovery is closure-based in this app).
-Artisan::resolve(\App\Console\Commands\SyncConversationReplies::class);
-
 // Run every 10 minutes as a safety net for any SyncReplyFromWorkspace jobs
 // that failed all retries or were never dispatched.
-// The command itself lives in app/Console/Commands/SyncConversationReplies.php.
+// The command class lives in app/Console/Commands/SyncConversationReplies.php
+// and is registered via withCommands() in bootstrap/app.php.
 Schedule::command('sync360:sync-replies')->everyTenMinutes();
