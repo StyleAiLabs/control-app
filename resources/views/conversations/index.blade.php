@@ -20,7 +20,7 @@
         <div class="stat">
             <div class="hint">Responded</div>
             <strong>{{ $conversationStats['replied'] }}</strong>
-            <p>Messages where your digital employee replied.</p>
+            <p>Sessions where your digital employee replied.</p>
         </div>
         <div class="stat">
             <div class="hint">Telegram</div>
