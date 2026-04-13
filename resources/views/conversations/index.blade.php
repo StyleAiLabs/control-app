@@ -23,14 +23,24 @@
             <p>Sessions where your digital employee sent a reply.</p>
         </div>
         <div class="stat">
-            <div class="hint">WhatsApp</div>
-            <strong>{{ $conversationStats['whatsapp'] }}</strong>
-            <p>Sessions through your WhatsApp connection.</p>
+            <div class="hint">Telegram</div>
+            @if ($tenant->channel === 'telegram')
+                <strong>{{ $conversationStats['telegram'] }}</strong>
+                <p>Sessions through your Telegram connection.</p>
+            @else
+                <strong style="color: var(--text-muted, #9ca3af); font-size: 0.95rem;">Not connected</strong>
+                <p>Telegram is not connected for this workspace.</p>
+            @endif
         </div>
         <div class="stat">
-            <div class="hint">Telegram</div>
-            <strong>{{ $conversationStats['telegram'] }}</strong>
-            <p>Sessions through your Telegram connection.</p>
+            <div class="hint">WhatsApp</div>
+            @if ($tenant->channel === 'whatsapp')
+                <strong>{{ $conversationStats['whatsapp'] }}</strong>
+                <p>Sessions through your WhatsApp connection.</p>
+            @else
+                <strong style="color: var(--text-muted, #9ca3af); font-size: 0.95rem;">Not connected</strong>
+                <p>WhatsApp is not connected for this workspace.</p>
+            @endif
         </div>
     </section>
 
@@ -50,9 +60,16 @@
                 <label>
                     Channel
                     <select name="channel">
-                        <option value="">All channels</option>
-                        <option value="whatsapp" @selected($filters['channel'] === 'whatsapp')>WhatsApp</option>
-                        <option value="telegram" @selected($filters['channel'] === 'telegram')>Telegram</option>
+                        <option value="">All sessions</option>
+                        @if ($tenant->channel === 'telegram')
+                            <option value="telegram" @selected($filters['channel'] === 'telegram')
+                            >Telegram</option>
+                        @elseif ($tenant->channel === 'whatsapp')
+                            <option value="whatsapp" @selected($filters['channel'] === 'whatsapp')
+                            >WhatsApp</option>
+                        @else
+                            <option value="" disabled>No channel connected yet</option>
+                        @endif
                     </select>
                 </label>
             </div>
