@@ -8,6 +8,7 @@ use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
 use App\Models\Tenant;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -175,6 +176,59 @@ class TenantAgentSyncService
         );
 
         Log::info('[ConfigureChannel] Channel config written and gateway restarted for tenant '.$tenant->slug);
+
+        // After the workspace is configured, ensure the control-app webhook URL is
+        // registered with Telegram. OpenClaw registers its own workspace URL when it
+        // starts, which would bypass our WebhookController and prevent conversation
+        // logging. We overwrite it here so messages flow:
+        //   Telegram → control-app webhook → workspace → reply
+        $this->registerTelegramWebhook($tenant);
+    }
+
+    /**
+     * Register (or re-register) the control-app's Telegram webhook URL with the
+     * Telegram Bot API so that all incoming messages are routed through our
+     * WebhookController rather than directly into the OpenClaw workspace.
+     */
+    public function registerTelegramWebhook(Tenant $tenant): void
+    {
+        $channelConfig = is_array($tenant->channel_config) ? $tenant->channel_config : [];
+        $botToken = (string) ($channelConfig['telegram_bot_token'] ?? '');
+
+        if ($botToken === '') {
+            Log::warning('[TelegramWebhook] No bot token on tenant — skipping webhook registration.', [
+                'tenant_id' => $tenant->tenant_id,
+            ]);
+            return;
+        }
+
+        $webhookUrl = rtrim((string) config('app.url'), '/') . '/webhooks/telegram/' . $tenant->tenant_id;
+
+        try {
+            $response = Http::timeout(10)->post(
+                'https://api.telegram.org/bot' . $botToken . '/setWebhook',
+                ['url' => $webhookUrl],
+            );
+
+            if ($response->json('ok')) {
+                Log::info('[TelegramWebhook] Webhook registered successfully.', [
+                    'tenant_id'   => $tenant->tenant_id,
+                    'webhook_url' => $webhookUrl,
+                ]);
+            } else {
+                Log::warning('[TelegramWebhook] Telegram setWebhook returned not-ok.', [
+                    'tenant_id'   => $tenant->tenant_id,
+                    'webhook_url' => $webhookUrl,
+                    'response'    => $response->json(),
+                ]);
+            }
+        } catch (Throwable $e) {
+            // Non-fatal — log and continue. The admin can re-register manually.
+            Log::error('[TelegramWebhook] Failed to register webhook.', [
+                'tenant_id' => $tenant->tenant_id,
+                'error'     => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
