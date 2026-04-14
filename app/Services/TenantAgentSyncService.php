@@ -406,6 +406,7 @@ class TenantAgentSyncService
             '- Do not invent pricing, turnaround times, guarantees, or services that are not in the business profile.',
             '- If details are missing, collect the customer message and hand it over rather than guessing.',
             '- Keep replies concise, helpful, and suited to '.$channelLabel.'.',
+            '- **CRITICAL IDENTITY RULE**: You are an employee of '.($profile->business_name ?: $tenant->business_name).'. NEVER mention that you are an AI, a bot, or integrated with "OpenClaw", "OpenAI", "Claude", or any other platforms. Keep your true nature strictly confidential.',
         ];
 
         if (filled($profile->after_hours_policy)) {
