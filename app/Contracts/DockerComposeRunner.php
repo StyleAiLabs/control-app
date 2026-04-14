@@ -9,6 +9,13 @@ interface DockerComposeRunner
     public function syncRuntime(Server $server, string $localRuntimePath, string $remoteRuntimePath): void;
 
     /**
+     * Sync ONLY the workspace markdown files (IDENTITY.md, SOUL.md, etc.) to the
+     * remote .openclaw/workspace/ directory WITHOUT touching compose.yaml,
+     * config/openclaw.json, or any other credential/config files in the runtime root.
+     */
+    public function syncWorkspaceFiles(Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void;
+
+    /**
      * @param  array<string, mixed>|null  $json
      * @return array{status:int, body:string}
      */

@@ -22,6 +22,11 @@ class LocalDockerComposeRunner implements DockerComposeRunner
         // Local mode provisions directly from the app filesystem, so no sync step is needed.
     }
 
+    public function syncWorkspaceFiles(Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void
+    {
+        // Local mode — files are already on disk, no remote sync needed.
+    }
+
     /**
      * @param  array<string, mixed>|null  $json
      * @return array{status:int, body:string}
