@@ -774,51 +774,152 @@ Behavior:
 - checks readiness remotely using `curl`
 - performs private tenant gateway HTTP requests over SSH by executing remote `curl` against tenant-local loopback URLs
 
-## 14. Runtime Filesystem Model
+## 14. Path & Directory Reference
 
-### 14.1 Local Staging Path
+This section is the definitive reference for every path involved in the tenant lifecycle.
+Confusion about "which path to use" for a given operation has been a recurring issue — consult
+this section before touching any file sync, SSH, or Docker Compose code.
 
-Generated under:
+---
 
-```text
-runtime/tenants/<tenant-slug>/
+### 14.0 Overview Diagram
+
+```
+CONTROL SERVER (161.97.74.128)
+└─ Docker container: app / worker / scheduler
+   └─ LOCAL RUNTIME (inside the container)
+      /var/www/html/runtime/tenants/<slug>/          ← TENANT_RUNTIME_ROOT + slug
+      ├── .env                                        ← written by TenantRuntimeService
+      ├── metadata.json
+      ├── compose.yaml                                ← written by OpenClawProvisioner (credentials!)
+      ├── config/
+      │   └── openclaw.json                           ← model routing, gateway auth (credentials!)
+      ├── .openclaw/
+      │   └── workspace/                              ← goLive() syncs ONLY this subdir
+      │       ├── IDENTITY.md
+      │       ├── SOUL.md
+      │       ├── USER.md
+      │       ├── BOOTSTRAP.md
+      │       ├── PROFILE.md
+      │       └── HEARTBEAT.md
+      └── data/
+          └── (local dev: agent session data; prod: empty — session data lives on VPS)
+
+         ⬇  SCP via SSH  (syncWorkspaceFiles → only .openclaw/workspace/)
+         ⬇  SCP via SSH  (syncRuntime → entire dir, provisioning only)
+
+WORKSPACE VPS (89.116.28.191)
+└─ /srv/sync360/runtime/tenants/<slug>/              ← server.runtime_root + /tenants/ + slug
+   ├── compose.yaml                                   ← contains OPENAI_API_KEY (LiteLLM tenant key)
+   ├── config/
+   │   └── openclaw.json                              ← model routing, gateway auth, channel config
+   ├── .openclaw/
+   │   └── workspace/                                 ← goLive() writes here
+   │       ├── IDENTITY.md  SOUL.md  USER.md  BOOTSTRAP.md  PROFILE.md  HEARTBEAT.md
+   │   └── (other OpenClaw files — session memory, logs — managed by OpenClaw itself)
+   └── data/
+
+   Also on VPS:
+   /etc/caddy/sites/<slug>.caddy                      ← tenant Caddy reverse-proxy fragment
+
+   Docker container: sync360-<slug>
+   └─ Inside OpenClaw container (mounts /srv/sync360/runtime/tenants/<slug>/)
+      /home/node/.openclaw/                           ← OPENCLAW_HOME (container_home config)
+      ├── config/openclaw.json                        ← same file, bind-mounted from VPS
+      ├── workspace/                                  ← same as .openclaw/workspace/ on VPS
+      └── data/                                       ← OPENCLAW_STATE_DIR
 ```
 
-Contents:
+---
 
-```text
-.env
-metadata.json
-compose.yaml
-config/
-  openclaw.json
-data/
-logs/
-workspace/
+### 14.1 Path Inventory
+
+| Name | Location | Where it's defined | Who writes it |
+|---|---|---|---|
+| **Local runtime root** | `/var/www/html/runtime/tenants/` (inside container) | `TENANT_RUNTIME_ROOT` env var → `config/sync360.php` → `TenantRuntimeService::localRuntimePath()` | `TenantRuntimeService::prepareRuntime()` |
+| **Local tenant runtime** | `{local_root}/{slug}/` | `TenantRuntimeService::localRuntimePath($tenant)` | `OpenClawProvisioner::provision()` |
+| **Local compose.yaml** | `{local_tenant}/compose.yaml` | `config('sync360.openclaw.compose_filename')` | `OpenClawProvisioner::writeComposeFile()` **provisioning only** |
+| **Local openclaw.json** | `{local_tenant}/config/openclaw.json` | hardcoded path in `OpenClawProvisioner` | `OpenClawProvisioner::writeOpenClawConfig()` and `TenantAgentSyncService::configureChannel()` |
+| **Local workspace dir** | `{local_tenant}/.openclaw/workspace/` | `TenantAgentSyncService::goLive()` — `$workspacePath` | `TenantAgentSyncService::goLive()` via `Filesystem::put()` |
+| **Remote runtime root** | `/srv/sync360/runtime/tenants/` (on workspace VPS) | `server.runtime_root` DB field | Set at server registration time |
+| **Remote tenant runtime** | `{server.runtime_root}/tenants/{slug}/` | `TenantRuntimeService::remoteRuntimePath($tenant)` → stored as `tenant.runtime_path` | `OpenClawProvisioner::provision()` (set once, never changes) |
+| **Remote compose.yaml** | `{remote_tenant}/compose.yaml` | `tenant.runtime_path + compose_filename` | `syncRuntime()` during provisioning **only** |
+| **Remote openclaw.json** | `{remote_tenant}/config/openclaw.json` | hardcoded in `configureChannel()` | `configureChannel()` via `putFile()` |
+| **Remote workspace dir** | `{remote_tenant}/.openclaw/workspace/` | built in `goLive()` from `remoteRuntimePath` | `syncWorkspaceFiles()` — safe to call any time |
+| **OpenClaw container home** | `/home/node/.openclaw/` (inside container) | `OPENCLAW_HOME` env + `config('sync360.openclaw.container_home')` | Docker Compose bind mount |
+| **OpenClaw config path** | `/home/node/.openclaw/config/openclaw.json` | `OPENCLAW_CONFIG_PATH` env | Same file as remote `config/openclaw.json` via bind mount |
+| **OpenClaw state dir** | `/home/node/.openclaw/data/` | `OPENCLAW_STATE_DIR` env | OpenClaw itself |
+| **OpenClaw workspace** | `/home/node/.openclaw/workspace/` | implicit from `OPENCLAW_HOME` | Same dir as remote `.openclaw/workspace/` via bind mount |
+| **Caddy site fragment** | `/etc/caddy/sites/{slug}.caddy` | `server.caddy_sites_path + slug + .caddy` → `TenantRuntimeService::caddySitePath()` | `OpenClawProvisioner::writeCaddyConfig()` |
+| **Session log files** | `{remote_tenant}/.openclaw/workspace/memory/*.md` | OpenClaw writes these autonomously | OpenClaw agent (read by `WorkspaceSessionLogReader` via SSH) |
+
+---
+
+### 14.2 Sync Method Reference
+
+Which method to use for which kind of file push:
+
+| Operation | Method | Touches credentials? | Use when |
+|---|---|---|---|
+| Initial full provision | `syncRuntime()` | ✅ Yes — writes compose.yaml | `OpenClawProvisioner::provision()` only |
+| Update workspace markdown (IDENTITY, SOUL, etc.) | `syncWorkspaceFiles()` | ❌ No — workspace dir only | `TenantAgentSyncService::goLive()` |
+| Update channel config + restart gateway | `putFile()` → `openclaw.json` only | ❌ No | `TenantAgentSyncService::configureChannel()` |
+| Emergency key fix | Tinker: read local file, regex-replace key, `syncWorkspaceFiles()` + `runCommand(restart)` | Targeted | Manual recovery only |
+
+> **RULE:** Never call `syncRuntime()` from `goLive()`. It does `rm -rf {remote}` before rsyncing
+> — this will overwrite `compose.yaml` with the stale local copy (which has the original
+> provisioning-time LiteLLM key) and will break LiteLLM authentication.
+
+---
+
+### 14.3 LiteLLM Key Flow
+
+The tenant's LiteLLM key travels through three places that must always agree:
+
+```
+LiteLLM DB     tenant.litellm_virtual_key (encrypted)     compose.yaml OPENAI_API_KEY
+    ↑                        ↑                                       ↑
+generated by           stored by                               written by
+LiteLlmTenantKeyService  generateTenantKey()             OpenClawProvisioner::writeComposeFile()
+                                                          (written ONCE at provisioning)
 ```
 
-### 14.2 Remote Runtime Path
+**If any two of these three disagree → LiteLLM 401.**
 
-Derived from the assigned server:
+If the key in `compose.yaml` doesn't match the DB:
+1. Patch the local copy: `{local_tenant}/compose.yaml`
+2. Rsync ONLY that file to the workspace VPS (don't call `syncRuntime()`)
+3. Restart the workspace container via `runCommand()`
 
-```text
-<server.runtime_root>/tenants/<tenant-slug>/
+---
+
+### 14.4 Key Environment Variables That Drive Paths
+
+| Env var | Default | Controls |
+|---|---|---|
+| `TENANT_RUNTIME_ROOT` | `{base_path}/runtime/tenants` | Local runtime root inside control-app container |
+| `server.runtime_root` (DB) | `/srv/sync360/runtime` | Remote runtime root on workspace VPS |
+| `OPENCLAW_HOME` (compose env) | `/home/node/.openclaw` | OpenClaw container home inside workspace container |
+| `OPENCLAW_STATE_DIR` (compose env) | `/home/node/.openclaw/data` | OpenClaw agent state |
+| `OPENCLAW_CONFIG_PATH` (compose env) | `/home/node/.openclaw/config/openclaw.json` | OpenClaw reads its config from here |
+| `OPENAI_API_KEY` (compose env) | tenant LiteLLM virtual key | Auth for all AI calls from workspace |
+| `OPENAI_BASE_URL` (compose env) | `https://litellm.stylesoftware.co.nz` | Routes all AI calls through LiteLLM proxy |
+
+---
+
+### 14.5 Remote Runtime Path (as stored in DB)
+
+```php
+// TenantRuntimeService::remoteRuntimePath()
+{server->runtime_root}/tenants/{tenant->slug}
+
+// Stored on tenant record as:
+$tenant->runtime_path   // e.g. /srv/sync360/runtime/tenants/style-software
 ```
 
-The database `runtime_path` now stores the remote runtime path, not the local staging path.
+Once written at provisioning this value must never be changed — all subsequent
+`configureChannel()`, `goLive()`, and compose restart operations derive their paths from it.
 
-### 14.3 Client VPS Filesystem Roles
-
-For the validated client-VPS shape on `89.116.28.191`:
-
-- tenant runtimes live under `/srv/sync360/runtime/tenants/<slug>/`
-- tenant Caddy site files live under `/etc/caddy/sites/<slug>.caddy`
-- Caddy imports `/etc/caddy/sites/*.caddy` from the main Caddyfile
-
-This means the provisioning system owns both:
-
-- the tenant runtime directory
-- the reverse-proxy route definition for the tenant hostname
 
 ## 15. Workspace URL Model
 

@@ -34,6 +34,81 @@ The current product goal is still MVP validation, but the codebase has now evolv
 
 ## 2. Current Branch + Repo State
 
+## 2026-04-14 — Hot Fixes: Credential Overwrite, Identity Guardrails, Conversation UI
+
+Date: 2026-04-14
+Branch: `cdx-feature/hot-fixes` → `codex/control-app-prod-deploy`
+Status: Deployed to production
+
+### Bug Fix: `goLive()` Overwrote Provisioned LiteLLM Key (Critical)
+
+**Problem:** `TenantAgentSyncService::goLive()` called `DockerComposeRunner::syncRuntime()` which
+did a destructive `rm -rf {remote} + scp {local}` of the entire runtime directory. The local
+copy of `compose.yaml` inside the control-app container contained the **original provisioning-time
+LiteLLM key**. If the tenant's key had been rotated or regenerated since provisioning, the local
+copy was stale. Every subsequent `goLive()` call overwrote the remote workspace VPS `compose.yaml`
+with the stale key, causing immediate LiteLLM 401 authentication failures on the workspace.
+
+**Diagnosis checklist:**
+- `HTTP 401: Invalid proxy server token` from OpenClaw → LiteLLM key mismatch
+- Key in workspace `compose.yaml` ≠ `tenant->litellm_virtual_key` in DB
+- `/key/info?key=<value>` on LiteLLM API returns `Key not found in database`
+
+**Fix:**
+- Added `syncWorkspaceFiles(Server, localWorkspacePath, remoteWorkspacePath)` to the
+  `DockerComposeRunner` contract and both implementations (`SshDockerComposeRunner`,
+  `LocalDockerComposeRunner`)
+- `syncWorkspaceFiles()` runs `mkdir -p {remote}` (no rm-rf) then scp ONLY the
+  `.openclaw/workspace/` directory — never touches `compose.yaml`, `config/openclaw.json`,
+  or any other credentials
+- `goLive()` now calls `syncWorkspaceFiles()` instead of `syncRuntime()`
+- `syncRuntime()` is unchanged and still used by `OpenClawProvisioner` (initial provisioning
+  only, where a clean slate is actually desired)
+
+**Key files changed:**
+- `app/Contracts/DockerComposeRunner.php`
+- `app/Services/SshDockerComposeRunner.php`
+- `app/Services/LocalDockerComposeRunner.php`
+- `app/Services/TenantAgentSyncService.php`
+
+---
+
+### Feature: AI Identity Guardrails
+
+Added a CRITICAL IDENTITY RULE to `buildHeartbeatMarkdown()` in `TenantAgentSyncService`.
+The rule is injected into every tenant's `HEARTBEAT.md` and instructs the AI never to
+mention "OpenClaw", "OpenAI", "Claude", or any other backend platform. It presents itself
+only as an employee of the business.
+
+---
+
+### Fix: Responded Widget — Sessions Not Messages
+
+`ConversationsController::$conversationStats['replied']` now uses
+`COUNT(DISTINCT COALESCE(session_id, CAST(id AS TEXT)))` instead of a flat row count.
+The widget number now matches the "Replied" badge count visible on the session cards.
+Description text updated from "Messages where…" to "Sessions where…".
+
+---
+
+### Fix: AI Summary Prompt + Stale Summary Regeneration
+
+- `ConversationSummaryService`: rewrote system prompt as a CRM one-liner writer focused
+  on the customer's specific outcome (not the assistant's full offer list)
+- Assistant turns truncated to 250 chars before passing to LLM to prevent long service
+  lists from dominating context
+- `SyncConversationReplies`: added `SYNC360_REFRESH_SUMMARIES` env flag that clears and
+  regenerates stale summaries in one scheduler pass (flip back to false after done)
+- `config/sync360.php`: `sync360.refresh_summaries` config key added
+
+---
+
+## 2026-04-14 — Session-Grouped Conversation History + AI Summaries
+
+Date: 2026-04-14
+Branch: `cdx-feature/hot-fixes` → `codex/control-app-prod-deploy`
+Status: Deployed to production)
+
 Primary working deployment branch:
 
 - `codex/control-app-prod-deploy`
@@ -529,13 +604,56 @@ Certbot stores certs under `/etc/letsencrypt/live/`. If a cert was issued but Ap
 
 The VPS client SSH/sudo password (`roApoxDY5K9lAae8ngzey4M`) is for client workspace VPSes only. The control server (`161.97.74.128`) `serveradmin` user has a separate sudo password. Keep it in your password manager, not in `.env`.
 
+### 12. `goLive()` must NEVER call `syncRuntime()` — it would overwrite provisioned credentials
+
+`syncRuntime()` does a destructive `rm -rf {remote} && scp {local}/*` replacing the entire
+runtime directory on the workspace VPS with whatever is locally cached in the control-app
+container. The local `compose.yaml` contains the **original provisioning-time LiteLLM key**
+and will be stale if the tenant key has been regenerated since.
+
+After this bug caused a production 401 outage, `goLive()` was changed to call
+`syncWorkspaceFiles()` which only syncs the `.openclaw/workspace/*.md` files and never
+touches `compose.yaml` or `config/openclaw.json`.
+
+**Rule:** `syncRuntime()` must only be called from `OpenClawProvisioner::provision()` (clean
+first-time setup). Everywhere else, use `syncWorkspaceFiles()` for workspace file updates.
+
+### 13. LiteLLM 401 diagnosis steps
+
+If OpenClaw workspace reports `Invalid proxy server token`:
+1. Check what key is in the workspace `compose.yaml`:
+   ```
+   grep OPENAI_API_KEY /srv/sync360/runtime/tenants/{slug}/compose.yaml
+   ```
+2. Check what key the DB has:
+   ```php
+   Tenant::where('slug','...')->value('litellm_virtual_key')
+   ```
+3. If they differ, patch `compose.yaml` locally then rsync + restart via tinker:
+   - Read and regex-replace the key in the local runtime file
+   - Call `dockerCompose->syncWorkspaceFiles(...)` (NOT syncRuntime)
+   - Call `dockerCompose->runCommand(...)` with `docker compose restart`
+4. If the key itself is missing from LiteLLM (`/key/info` returns 404), call
+   `LiteLlmTenantKeyService::generateTenantKey($tenant)` to create a new one,
+   then repeat step 3 with the new key.
+
+### 14. AI identity guardrail — never expose backend platform names
+
+The `HEARTBEAT.md` injected into every tenant workspace includes a CRITICAL IDENTITY RULE
+that forbids the AI from mentioning "OpenClaw", "OpenAI", "Claude", or any backend system.
+If this rule is missing or a tenant's workspace has a stale `HEARTBEAT.md`, calling
+`goLive()` from the Onboarding UI (or manually) will push the updated file via
+`syncWorkspaceFiles()`. Never remove or weaken this rule — it is a commercial / brand
+protection guardrail that prevents end customers from knowing what backend is powering
+the assistant.
+
 ---
 
 ## 16. Suggested New-Thread Prompt
 
 If starting a fresh thread, say something like:
 
-> Read [MEMORY.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/MEMORY.md), [ARCHITECTURE.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/ARCHITECTURE.md), and [RELEASE_NOTES.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/RELEASE_NOTES.md) first. We are on `codex/control-app-prod-deploy` (latest commit `26d1d12`). Phase 1 channel communication is strictly owner↔assistant. OpenClaw uses native Telegram polling — no webhook, no WebhookController involvement. Conversations are synced from workspace session log files every 10 min by `sync360:sync-replies` running in the `scheduler` container. Session threads are grouped by UUID with AI summaries via LiteLLM `claude-sonnet-4-6` (platform virtual key, not tenant key). Trial lifecycle (14 days / $5) is fully implemented. Scheduler container was missing and was added 2026-04-14. Continue from there.
+> Read [MEMORY.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/MEMORY.md), [ARCHITECTURE.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/ARCHITECTURE.md), and [RELEASE_NOTES.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/RELEASE_NOTES.md) first. We are on `codex/control-app-prod-deploy` (latest commit `415505f`). Phase 1 channel communication is strictly owner↔assistant. OpenClaw uses native Telegram polling — no webhook, no WebhookController involvement. Conversations are synced from workspace session log files every 10 min by `sync360:sync-replies` running in the `scheduler` container. Session threads are grouped by UUID with AI summaries via LiteLLM `claude-sonnet-4-6` (platform virtual key, not tenant key). Trial lifecycle (14 days / $5) is fully implemented. Scheduler container was missing and was added 2026-04-14. CRITICAL: `goLive()` must never call `syncRuntime()` — only `syncWorkspaceFiles()` — or it overwrites the provisioned LiteLLM key in `compose.yaml`. AI agents must never expose "OpenClaw" or backend platform names (enforced via HEARTBEAT.md guardrail). Continue from there.
 
 ## 14. Trial Lifecycle Quick Reference
 
