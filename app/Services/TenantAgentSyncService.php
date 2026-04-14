@@ -61,7 +61,15 @@ class TenantAgentSyncService
             if (app()->environment('local')) {
                 Log::info('[GoLive] Local dev mode — skipping remote sync for tenant '.$tenant->slug);
             } else {
-                $this->dockerCompose->syncRuntime($tenant->server, $localRuntimePath, $remoteRuntimePath);
+                /* Sync ONLY the .openclaw/workspace/ markdown files — never touch compose.yaml
+                   or config/openclaw.json which hold provisioned credentials (LiteLLM key,
+                   gateway token). Using syncRuntime() here previously overwrote those files
+                   with stale local copies and broke LiteLLM authentication. */
+                $localWorkspacePath  = $workspacePath;
+                $remoteWorkspacePath = rtrim($remoteRuntimePath, DIRECTORY_SEPARATOR)
+                    .DIRECTORY_SEPARATOR.'.openclaw'.DIRECTORY_SEPARATOR.'workspace';
+
+                $this->dockerCompose->syncWorkspaceFiles($tenant->server, $localWorkspacePath, $remoteWorkspacePath);
                 $this->dockerCompose->up($tenant->server, $composeFile, $projectName);
             }
 

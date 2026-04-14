@@ -28,6 +28,19 @@ class SshDockerComposeRunner implements DockerComposeRunner
         $this->runScp($server, $localRuntimePath, $remoteRuntimePath);
     }
 
+    public function syncWorkspaceFiles(Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void
+    {
+        /* Ensure the remote workspace directory exists (don't delete anything). */
+        $this->runSsh($server, sprintf(
+            'mkdir -p %s',
+            $this->shellQuote($remoteWorkspacePath),
+        ));
+
+        /* Copy ONLY the workspace markdown files — never touches compose.yaml or
+           config/openclaw.json so provisioning credentials are always preserved. */
+        $this->runScp($server, $localWorkspacePath, $remoteWorkspacePath);
+    }
+
     /**
      * @param  array<string, mixed>|null  $json
      * @return array{status:int, body:string}
