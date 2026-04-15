@@ -8,7 +8,7 @@ Sync360 Control App is a Laravel monolith that acts as the control plane for ten
 
 Implemented product boundary:
 
-- marketing site and custom auth
+- marketing site and custom auth, including self-serve password reset
 - signup and tenant creation
 - tenant runtime provisioning and placement
 - onboarding and go-live sync
@@ -155,6 +155,18 @@ Key concerns:
 7. increments the server’s `current_clients`
 8. logs the user in
 9. dispatches `ProcessTenantProvisioning` after commit
+
+### Authentication recovery flow
+
+Guest password recovery is handled by `ForgotPasswordController` and `ResetPasswordController`.
+
+Flow:
+
+1. the customer requests a reset link from `/forgot-password`
+2. Laravel's password broker stores a token in `password_reset_tokens`
+3. the user receives the standard reset notification through the configured mail driver
+4. `/reset-password/{token}` accepts the token, email, and new password
+5. the password is updated, the remember token is rotated, and the user is redirected back to login
 
 ### Provisioning flow
 
