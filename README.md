@@ -81,6 +81,7 @@ The control plane runs as one Laravel app with:
 
 - web routes and Blade pages
 - self-serve account recovery via Laravel's password broker
+- Brevo-backed password reset delivery when Brevo is enabled
 - Redis-backed queue workers
 - scheduled jobs
 - provisioning and runtime orchestration services
