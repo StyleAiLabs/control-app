@@ -1,690 +1,144 @@
 # Sync360 Control App Memory
 
-This file is the durable project memory for the Sync360 Control App as of `2026-04-14`.
+Last verified: `2026-04-15`
 
-It is meant to help a new thread recover the important context quickly without losing the engineering decisions, deployment model, branch history, and verified behaviors we established together.
+This memory is based on the current repo code and current canonical docs. It is not a guarantee about live production state.
 
-Use this alongside:
+## 1. What this project is
 
-- [ARCHITECTURE.md](/Users/gayanhewage/Projects/openclaw-saas/ARCHITECTURE.md)
-- [RELEASE_NOTES.md](/Users/gayanhewage/Projects/openclaw-saas/RELEASE_NOTES.md)
-- [README.md](/Users/gayanhewage/Projects/openclaw-saas/README.md)
+Sync360 Control App is a Laravel control plane for provisioning and managing tenant-specific OpenClaw workspaces.
 
-## 1. What This Project Is
+The control plane owns:
 
-Sync360 Control App is a Laravel-based control plane for provisioning and managing multi-tenant OpenClaw workspaces.
+- signup, login, dashboard, onboarding, and profile flows
+- tenant creation and server placement
+- async tenant provisioning through queues
+- private runtime management for each tenant workspace
+- conversation-log sync and summaries
+- trial lifecycle tracking and notification emails
+- local-only super-admin monitoring and operational controls
 
-It currently supports:
+It is not just a landing page plus provisioner anymore; onboarding, runtime sync, conversation visibility, health checks, and trial enforcement are all part of the implemented product.
 
-- public landing page and signup flow
-- custom auth with admin support
-- user -> tenant -> provisioning job creation
-- async provisioning through Laravel queues
-- per-tenant OpenClaw deployments
-- remote client-VPS provisioning over SSH
-- tenant runtime file generation
-- tenant-specific LiteLLM virtual key provisioning
-- workspace-ready email sending through Brevo
-- super-admin control-plane deployment from the admin UI
+## 2. Read this first
 
-The current product goal is still MVP validation, but the codebase has now evolved into a practical production-ready control plane for:
+Use the docs in this order:
 
-- a primary control server
-- one or more client workspace servers
+1. this file
+2. [`ARCHITECTURE.md`](ARCHITECTURE.md)
+3. [`RELEASE_NOTES.md`](RELEASE_NOTES.md)
 
-## 2. Current Branch + Repo State
+Canonical docs:
 
-## 2026-04-14 — Hot Fixes: Credential Overwrite, Identity Guardrails, Conversation UI
+- `artifacts/MEMORY.md` is the durable new-chat starter
+- `artifacts/ARCHITECTURE.md` is the technical deep dive
+- `artifacts/RELEASE_NOTES.md` is the historical changelog
 
-Date: 2026-04-14
-Branch: `cdx-feature/hot-fixes` → `codex/control-app-prod-deploy`
-Status: Deployed to production
+Historical/reference material only:
 
-### Bug Fix: `goLive()` Overwrote Provisioned LiteLLM Key (Critical)
+- `artifacts/PLAN*.md`
+- `artifacts/walkthrough/`
+- `todo/`
+- `clientSvr/`
+- `onboarding-codex-prompts/`
 
-**Problem:** `TenantAgentSyncService::goLive()` called `DockerComposeRunner::syncRuntime()` which
-did a destructive `rm -rf {remote} + scp {local}` of the entire runtime directory. The local
-copy of `compose.yaml` inside the control-app container contained the **original provisioning-time
-LiteLLM key**. If the tenant's key had been rotated or regenerated since provisioning, the local
-copy was stale. Every subsequent `goLive()` call overwrote the remote workspace VPS `compose.yaml`
-with the stale key, causing immediate LiteLLM 401 authentication failures on the workspace.
+If those files conflict with the codebase, trust:
 
-**Diagnosis checklist:**
-- `HTTP 401: Invalid proxy server token` from OpenClaw → LiteLLM key mismatch
-- Key in workspace `compose.yaml` ≠ `tenant->litellm_virtual_key` in DB
-- `/key/info?key=<value>` on LiteLLM API returns `Key not found in database`
+1. code
+2. canonical docs
+3. release notes
 
-**Fix:**
-- Added `syncWorkspaceFiles(Server, localWorkspacePath, remoteWorkspacePath)` to the
-  `DockerComposeRunner` contract and both implementations (`SshDockerComposeRunner`,
-  `LocalDockerComposeRunner`)
-- `syncWorkspaceFiles()` runs `mkdir -p {remote}` (no rm-rf) then scp ONLY the
-  `.openclaw/workspace/` directory — never touches `compose.yaml`, `config/openclaw.json`,
-  or any other credentials
-- `goLive()` now calls `syncWorkspaceFiles()` instead of `syncRuntime()`
-- `syncRuntime()` is unchanged and still used by `OpenClawProvisioner` (initial provisioning
-  only, where a clean slate is actually desired)
+## 3. Current system snapshot
 
-**Key files changed:**
-- `app/Contracts/DockerComposeRunner.php`
-- `app/Services/SshDockerComposeRunner.php`
-- `app/Services/LocalDockerComposeRunner.php`
-- `app/Services/TenantAgentSyncService.php`
+- App shape: Laravel monolith with Blade, PostgreSQL, Redis, queues, and scheduler-backed commands
+- Infrastructure modes: `local` and `ssh`
+- Tenant runtime staging: `runtime/tenants/<slug>/`
+- Tenant runtime deployment: one OpenClaw runtime per tenant
+- Workspace URL model: customer-facing Sync360 URL on the tenant hostname; private gateway stays behind the control plane
+- Onboarding model: signup provisions the runtime in the background, while the customer completes business/profile/channel setup in the app
+- Conversation model: Telegram history is synced from workspace session logs with AI summaries; the control plane no longer exposes channel webhook ingress
+- Trial model: 14-day / budget-capped trial with scheduled expiry checks and email notifications
+- Admin model: super-admin area is behind `auth`, `admin`, and `local.only` middleware
 
----
+## 4. Core flows at a glance
 
-### Feature: AI Identity Guardrails
+### Signup and provisioning
 
-Added a CRITICAL IDENTITY RULE to `buildHeartbeatMarkdown()` in `TenantAgentSyncService`.
-The rule is injected into every tenant's `HEARTBEAT.md` and instructs the AI never to
-mention "OpenClaw", "OpenAI", "Claude", or any other backend platform. It presents itself
-only as an employee of the business.
+1. `RegisterController` creates `User`, `Tenant`, `BusinessProfile`, `BusinessProfileFiles`, and `ProvisioningJob`.
+2. `ServerPlacementService` selects a server.
+3. `ProcessTenantProvisioning` dispatches after commit.
+4. `OpenClawProvisioner` allocates a port, ensures a LiteLLM tenant key, prepares the runtime, writes OpenClaw and Compose config, syncs the runtime, starts the tenant container, checks private readiness, then checks the public workspace login URL.
+5. `WorkspaceReadyEmailService` sends the workspace-ready email after provisioning succeeds.
 
----
+### Onboarding and go-live
 
-### Fix: Responded Widget — Sessions Not Messages
+1. Customer works through `/onboarding` steps for business info, tone, capabilities, and channel setup.
+2. `BusinessExtractionService` handles website extraction and initial markdown generation.
+3. `TenantAgentSyncService::goLive()` writes the full workspace artifact set into `.openclaw/workspace/` (`IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`, `PROFILE.md`, and `HEARTBEAT.md`) and syncs only workspace markdown files.
+4. The tenant runtime is restarted without overwriting provisioned credentials.
 
-`ConversationsController::$conversationStats['replied']` now uses
-`COUNT(DISTINCT COALESCE(session_id, CAST(id AS TEXT)))` instead of a flat row count.
-The widget number now matches the "Replied" badge count visible on the session cards.
-Description text updated from "Messages where…" to "Sessions where…".
+### Conversation logging and summaries
 
----
+1. Telegram is currently configured in `TenantAgentSyncService::configureChannel()` as an OpenClaw polling-mode channel using `botToken` in `openclaw.json`, not as a control-app webhook-first channel.
+2. Live tenant conversation history is treated as session-based history.
+3. `sync360:sync-replies` reads workspace session logs through `WorkspaceSessionLogReader`.
+4. The command upserts `ConversationLog` records and groups them by `session_id`.
+5. `ConversationSummaryService` generates one short AI summary per session and stores it on the session’s records.
 
-### Fix: AI Summary Prompt + Stale Summary Regeneration
+### Trial lifecycle
 
-- `ConversationSummaryService`: rewrote system prompt as a CRM one-liner writer focused
-  on the customer's specific outcome (not the assistant's full offer list)
-- Assistant turns truncated to 250 chars before passing to LLM to prevent long service
-  lists from dominating context
-- `SyncConversationReplies`: added `SYNC360_REFRESH_SUMMARIES` env flag that clears and
-  regenerates stale summaries in one scheduler pass (flip back to false after done)
-- `config/sync360.php`: `sync360.refresh_summaries` config key added
+1. Signup sets `trial_ends_at`.
+2. `sync360:check-trial-expiry` refreshes LiteLLM spend, evaluates time and budget expiry, sends warning/expired emails, and suspends expired tenants.
+3. Dashboard and admin views read the cached trial fields from `Tenant`.
 
----
+## 5. Critical invariants / gotchas
 
-## 2026-04-14 — Session-Grouped Conversation History + AI Summaries
+- `goLive()` must never do a full runtime sync. It must use `DockerComposeRunner::syncWorkspaceFiles()` and not `syncRuntime()`, or provisioned credentials in `compose.yaml` and `config/openclaw.json` can be overwritten.
+- `workspace_url` is the customer-facing Sync360 URL, not a public OpenClaw URL.
+- Private gateway calls should go through `TenantGatewayService` and the runner’s `httpRequest()` contract, not through the public tenant hostname.
+- Production needs the scheduler path running. The scheduled commands in `routes/console.php` are part of the live product.
+- Historical docs include implementation plans and rollout notes that are no longer safe to treat as current truth.
+- Customer-facing language should not expose backend platform names. The current tenant heartbeat sync includes identity guardrails for that reason.
 
-Date: 2026-04-14
-Branch: `cdx-feature/hot-fixes` → `codex/control-app-prod-deploy`
-Status: Deployed to production)
+## 6. Known mismatches to verify
 
-Primary working deployment branch:
+Verified current code behavior:
 
-- `codex/control-app-prod-deploy`
+- Telegram onboarding currently calls `TenantAgentSyncService::configureChannel()`, which writes polling-mode Telegram config into `openclaw.json` and restarts the tenant runtime.
+- Telegram no longer exposes a control-app webhook path in the current codebase.
+- WhatsApp is not implemented as a live channel integration. The onboarding UI only keeps a disabled "Coming Soon" placeholder.
+- The control plane no longer exposes WhatsApp or Telegram webhook routes.
 
-Active feature/hotfix branch:
+Remaining documentation mismatch:
 
-- `cdx-feature/hot-fixes` (merged into `codex/control-app-prod-deploy` after each session)
+- Older release notes, plans, and walkthroughs still describe webhook-driven Telegram and WhatsApp flows that have now been removed or left unimplemented.
 
-Important recent commits on the deployment branch:
+## 7. Where to look in code first
 
-- `26d1d12` `fix: add scheduler container + fix pagination SVG size; compact conversation summary cards`
-- `fef03ed` `fix: use claude-sonnet-4-6 (platform virtual key only allows this model for AI summaries)`
-- `49360ed` `fix: use LiteLLM virtual key for conversation summary (not OpenAI directly)`
-- `f8045f4` `feat: session-grouped conversations — DB migration, parser, sync, summary, UI`
-- `781aa40` `fix: use config('app.url') for webhook URLs`
-- `8ee02f6` `feat: notification bell in sidebar — workspace & trial alerts`
-- `a3b15e3` `feat: trial lifecycle management — expiry enforcement, AI usage widget, email notifications`
+- [`routes/web.php`](../routes/web.php) — route map for public, auth, onboarding, tenant, conversations, profile, and admin flows
+- [`routes/console.php`](../routes/console.php) — scheduled commands and client-VPS bootstrap helper
+- [`config/sync360.php`](../config/sync360.php) — provisioning, runtime, workspace, LiteLLM, and deploy settings
+- [`app/Http/Controllers/Auth/RegisterController.php`](../app/Http/Controllers/Auth/RegisterController.php) — signup transaction
+- [`app/Jobs/ProcessTenantProvisioning.php`](../app/Jobs/ProcessTenantProvisioning.php) — provisioning job orchestration
+- [`app/Services/OpenClawProvisioner.php`](../app/Services/OpenClawProvisioner.php) — runtime preparation and deployment
+- [`app/Services/TenantRuntimeService.php`](../app/Services/TenantRuntimeService.php) — paths, ports, workspace URL, runtime generation
+- [`app/Services/TenantAgentSyncService.php`](../app/Services/TenantAgentSyncService.php) — go-live sync, channel config, heartbeat/profile sync
+- [`app/Console/Commands/SyncConversationReplies.php`](../app/Console/Commands/SyncConversationReplies.php) — session-log conversation sync
+- [`app/Services/TenantGatewayService.php`](../app/Services/TenantGatewayService.php) and [`app/Services/TenantHealthCheckService.php`](../app/Services/TenantHealthCheckService.php) — private gateway access and readiness checks
 
-Important note:
+## 8. Current priorities / open work
 
-- a temporary git worktree was used during deploy-flow hardening at `/private/tmp/sync360-deploy-fix`
-- the actual repo root remains `/Users/gayanhewage/Projects/openclaw-saas`
+The repo still has historical/open planning around:
 
-## 3. High-Level Architecture
+- channel connection polish and broader channel support
+- onboarding UX refinement
+- skill-pack and productization work
+- production hardening such as SSH key migration, secret management, and monitoring
 
-### Control Plane
+Treat `todo/`, `clientSvr/`, and `artifacts/PLAN*.md` as inputs for future work, not as the current architecture.
 
-The control plane is a Laravel monolith with:
+## 9. Suggested new-chat prompt
 
-- `app`
-- `worker`
-- `postgres`
-- `redis`
+Use a prompt like this in a fresh chat:
 
-It owns:
-
-- user signup
-- tenant creation
-- provisioning job dispatch
-- admin monitoring
-- remote client-VPS provisioning
-- control-plane self-deploy trigger
-
-### Tenant Runtime
-
-Each tenant gets:
-
-- its own runtime directory
-- its own OpenClaw deployment
-- its own LiteLLM virtual key
-- its own workspace URL
-
-No tenant shares an OpenClaw instance or LiteLLM key.
-
-## 4. Deployment Topology We Settled On
-
-### Primary control server
-
-- host: `161.97.74.128`
-- public app URL: `app.sync360.co.nz`
-- current deployment path on server: `/opt/sync360/control-app`
-- host user used by the UI deploy flow: `serveradmin`
-
-### Client workspace VPS
-
-- host: `89.116.28.191`
-- tenant wildcard domain: `*.workspace.sync360.co.nz`
-- remote runtime root: `/srv/sync360/runtime`
-- current provisioning user: `deploy`
-- current SSH mode: password auth
-
-### Reverse proxy
-
-- Caddy runs on the client VPS
-- tenant URLs are served over HTTPS through Caddy
-- per-tenant OpenClaw containers bind to loopback high ports on the client VPS
-- Caddy routes hostname -> tenant loopback port
-
-### Important current reality
-
-Password-based SSH is still being used temporarily for both:
-
-- client VPS provisioning
-- control-plane deploy trigger
-
-This works, but it is explicitly temporary and should be replaced with SSH keys.
-
-## 5. Core Runtime Flow
-
-### Signup and provisioning flow
-
-1. Visitor lands on landing page.
-2. Visitor signs up (`/signup`).
-3. App creates:
-   - `User`
-   - `Tenant`
-   - `ProvisioningJob`
-   - `BusinessProfile`
-   - `BusinessProfileFiles`
-4. User is logged in immediately and redirected to `/onboarding`.
-5. Queue worker picks up provisioning in the background (the owner can complete onboarding while provisioning runs).
-6. Tenant is assigned to a `Server`.
-7. Runtime files are generated locally under:
-   - `runtime/tenants/<slug>/`
-8. LiteLLM tenant key is generated before startup.
-9. Runtime is copied to the assigned client VPS.
-10. Tenant-specific OpenClaw container is started remotely with Docker Compose.
-11. Readiness is checked.
-12. Public hostname is checked.
-13. Tenant is marked `ready`.
-14. Workspace-ready email is sent.
-
-If provisioning fails at any point:
-
-- job is marked failed
-- tenant is marked failed
-- error message is stored
-- admin can retry
-
-### LiteLLM flow
-
-Before starting a tenant instance:
-
-- app calls LiteLLM `/key/generate`
-- generated tenant key is stored encrypted on the tenant
-- `OPENAI_API_KEY` is injected into:
-  - tenant `.env`
-  - tenant `compose.yaml`
-- `OPENAI_BASE_URL` is set to the LiteLLM proxy URL
-
-Lifecycle rules implemented:
-
-- generate on provisioning
-- update budget on plan change
-- suspend by setting budget to zero
-- delete on cancellation
-
-Important rule:
-
-- provisioning must abort if LiteLLM key generation fails
-- do not start OpenClaw without a valid tenant LiteLLM key
-
-### Workspace-ready email flow
-
-After successful provisioning:
-
-- app sends a professional workspace-created email using Brevo
-- email includes:
-  - workspace URL
-  - username
-  - initial password
-
-Behavior:
-
-- password is stored encrypted in provisioning job payload until used
-- it is removed after successful email send
-- Brevo failure does not tear down an already-ready workspace
-
-## 6. Admin / Super Admin Capabilities
-
-Super admin can currently:
-
-- access `/admin`
-- view users
-- view tenants
-- view jobs
-- retry provisioning
-- start/stop tenant workspace containers
-- trigger control-plane deployments
-- watch deploy state live
-- see deployed commit SHA and commit message
-
-Admin deploy panel now supports:
-
-- live polling
-- current deployed commit
-- current branch-tip comparison
-- `Up-to-date` state when deployed commit matches branch tip
-- `Fetch Latest And Deploy` when branch tip is newer
-- `Deploying...` while a deploy is running
-
-## 7. Control-Plane Deploy Architecture
-
-This area was tricky and important.
-
-### Original problem
-
-The control-plane deploy button was trying to update the same repo whose host-side deploy script was already running from disk.
-
-That created a self-update trap:
-
-- UI said deploy succeeded
-- but the running deploy script itself was still the older version
-- latest commit and deploy state could drift or lie
-
-### Final working design
-
-The deploy flow now works like this:
-
-1. UI calls Laravel deploy trigger.
-2. Laravel SSHes to the primary server.
-3. Trigger fetches the target branch first.
-4. Trigger executes the deploy script content directly from `FETCH_HEAD`.
-5. Host-side deploy script resolves the target remote branch head.
-6. Script fast-forwards local branch to `FETCH_HEAD`.
-7. Script verifies local `HEAD` exactly matches intended remote commit.
-8. Only then does it rebuild containers and run Laravel maintenance commands.
-9. Script writes status + deployed commit metadata to a status file.
-10. Admin panel reads that status file and compares deployed commit vs branch tip.
-
-This is the important lesson:
-
-- the deploy script must not trust the already-checked-out copy on disk when self-updating
-- it must bootstrap from freshly fetched branch content
-
-### Required Laravel commands during deploy
-
-The deploy script runs:
-
-```bash
-docker compose -f docker-compose.prod.yml up --build -d
-docker compose -f docker-compose.prod.yml exec -T app php artisan migrate --force
-docker compose -f docker-compose.prod.yml exec -T app php artisan optimize:clear
-docker compose -f docker-compose.prod.yml exec -T app php artisan optimize
-```
-
-Those cache-clear / optimize steps are intentionally part of the deploy path.
-
-## 8. What Has Been Verified
-
-### Local MVP verification
-
-Verified:
-
-- signup works
-- user, tenant, and provisioning job are created
-- queue worker processes provisioning
-- tenant becomes ready
-- workspace-ready pages work
-- admin pages work
-
-### VPS provisioning verification
-
-Verified:
-
-- remote tenant provisioning to `89.116.28.191`
-- runtime directories created on client VPS
-- remote Docker Compose startup works
-- Caddy routing works
-- public HTTPS tenant hostname works
-- tenant can be marked `ready`
-
-### LiteLLM verification
-
-Live verification completed:
-
-- a real tenant was provisioned
-- a real LiteLLM tenant key was generated
-- key was stored on the tenant
-- key was injected into runtime `.env`
-- key was injected into tenant `compose.yaml`
-- OpenClaw instance came up successfully with that key
-
-### Brevo verification
-
-Verified:
-
-- Brevo accepted workspace-ready emails
-- sender was switched to `hello@sync360.co.nz`
-- professional email content was updated
-
-### Control-plane deploy verification
-
-Verified in the end:
-
-- UI deploy can bring production branch current
-- panel can show correct deployed commit
-- panel can show `Up-to-date`
-- panel can compare deployed commit vs branch tip
-
-Current healthy expected state in UI:
-
-- deploy state: `succeeded`
-- button: `Up-to-date`
-- latest commit: `cbb8050`
-- commit message: `Run latest fetched deploy script from UI`
-
-## 9. Important Gotchas We Already Learned
-
-### 1. Self-updating deploy scripts are dangerous
-
-The control-plane deploy script must bootstrap from fetched branch content, not from the stale checked-out file already on disk.
-
-### 2. Deploy success is meaningless without commit verification
-
-A deploy should not be considered successful unless:
-
-- remote branch tip was resolved
-- local branch fast-forwarded
-- local `HEAD` equals the expected remote commit
-
-### 3. Production `.env` is not auto-updated
-
-Git deploys update code only.
-
-Any new or changed env variables must still be updated manually on the server.
-
-### 4. Password-auth SSH is only a temporary bridge
-
-It works right now, but it should be replaced with SSH keys.
-
-### 5. Secrets were shared in-thread
-
-Multiple secrets were pasted during setup:
-
-- SSH passwords
-- Brevo API key
-- LiteLLM master key
-
-Do not preserve them in docs or code.
-
-Treat them as compromised and rotate them.
-
-## 10. Channel Scope — Phase 1 Design Decision
-
-**Critical context for any future work involving channel copy, feature design, or UX:**
-
-In Phase 1 of Sync360, the Telegram and WhatsApp channel connection is **strictly owner↔assistant**.
-
-- The business owner connects their own personal Telegram or WhatsApp to their digital employee
-- Messages on that channel flow between the **business owner** and the **AI digital employee only**
-- There are **no public-facing end customers** messaging through the channel in this phase
-- `ConversationLog` records are owner-initiated sessions, not inbound customer queries
-- All copy, UI labels, help text, and onboarding instructions must reflect this — never say "customers will message you" or "your assistant will reply to customers"
-
-This decision is confirmed and intentional for Phase 1. Future phases may add a true customer-facing channel, but that is a separate engineering scope and must be explicitly planned.
-
----
-
-## 11. Conversation Logging Pipeline — Polling Mode (Current Architecture)
-
-**OpenClaw does NOT use a Telegram webhook.** It runs in native `getUpdates` polling mode. The `WebhookController` is not part of the live conversation flow.
-
-**Actual message flow:**
-```
-Telegram user → OpenClaw polls getUpdates → workspace agent processes + replies
-   → session log written to {runtime_path}/.openclaw/workspace/memory/*.md
-   → sync360:sync-replies (every 10 min) reads session files via SSH
-   → ConversationLog records upserted with session_id
-   → ConversationSummaryService generates ai_summary via LiteLLM
-```
-
-**No `webhookUrl`** should be written into `openclaw.json`. `configureChannel()` writes only `botToken`, `dmPolicy`, `enabled`.
-
-**Session log format:** OpenClaw writes `# Session: {uuid}` block headers in workspace memory Markdown files. The `WorkspaceSessionLogReader` splits on these headers to group message turns into their session UUID.
-
-**AI Summaries:** `ConversationSummaryService` calls LiteLLM using `LITELLM_VIRTUAL_KEY` (platform key, not tenant key). Model: `claude-sonnet-4-6` (only model the platform key allows). Summary is ≤25 words focused on business outcome.
-
-**Scheduler:** `sync360:sync-replies` runs every 10 minutes via the `scheduler` Docker container (`php artisan schedule:work`). The `scheduler` service was added to `docker-compose.prod.yml` — previously it was missing entirely and no scheduled commands ever ran in production.
-
-**Key files:**
-- `app/Services/WorkspaceSessionLogReader.php` — session-block log parser
-- `app/Console/Commands/SyncConversationReplies.php` — upsert + session grouping + summary trigger
-- `app/Services/ConversationSummaryService.php` — LiteLLM `claude-sonnet-4-6` summariser
-- `app/Http/Controllers/ConversationsController.php` — paginate by session
-- `resources/views/conversations/index.blade.php` — session summary card UI
-- `docker-compose.prod.yml` — `scheduler` service
-- `docker/start-prod-scheduler.sh` — scheduler entrypoint
-
----
-
-## 12. Sidebar Notification Bell
-
-A persistent notification bell renders in the sidebar footer on every authenticated tenant page.
-
-- **DB-level alerts** (all pages): View composer in `AppServiceProvider::boot()` builds `$sidebarAlerts` from tenant DB state — trial expired, urgency `critical`, health check `failed`.
-- **Live Docker alerts** (dashboard only): `DashboardController::index()` runs `workspaceState()` (live Docker SSH call), builds a workspace alert, injects it via `$request->attributes->set('_workspaceAlert', [...])` before view renders. Composer merges it.
-- Bell shows red dot badge + count when alerts exist. Clicking opens a dark dropdown. Closes on outside click.
-
-**Key files:**
-- `app/Providers/AppServiceProvider.php` — View composer
-- `app/Http/Controllers/DashboardController.php` — `workspaceState()`, alert injection
-- `resources/views/components/layouts/app.blade.php` — bell CSS + HTML + JS
-
----
-
-These are the main future areas, not active failures:
-
-- move fully from password SSH auth to SSH key auth
-- keep production `.env` synchronized with new required variables
-- possibly merge `codex/control-app-prod-deploy` back to `main` when stable
-- eventually deploy the control app cleanly as the permanent control plane on `161.97.74.128`
-- add a safer env/config drift check in admin UI
-- further harden operational monitoring and rollback paths
-
-## 14. Practical Commands Worth Remembering
-
-### Manual bootstrap deploy on control server
-
-```bash
-cd /opt/sync360/control-app
-git fetch origin
-git checkout codex/control-app-prod-deploy
-git pull --ff-only origin codex/control-app-prod-deploy
-docker compose -f docker-compose.prod.yml up -d --build --force-recreate app worker
-docker compose -f docker-compose.prod.yml exec app php artisan migrate --force
-docker compose -f docker-compose.prod.yml exec app php artisan optimize:clear
-docker compose -f docker-compose.prod.yml exec app php artisan optimize
-```
-
-### Re-register Telegram webhook manually (if OpenClaw overrides it)
-
-```bash
-curl -s -X POST 'https://api.telegram.org/bot<TOKEN>/setWebhook' \
-  -H 'Content-Type: application/json' \
-  -d '{"url": "https://app.sync360.co.nz/webhooks/telegram/<tenant_id>", "allowed_updates": ["message"]}'
-```
-
-### Verify Telegram webhook registration
-
-```bash
-curl -s 'https://api.telegram.org/bot<TOKEN>/getWebhookInfo' | python3 -m json.tool
-```
-
-### Reload Apache on control server (requires sudo)
-
-```bash
-sudo systemctl reload apache2
-sudo apache2ctl -S  # verify no syntax errors
-```
-
-### Check deployed branch commit manually
-
-```bash
-cd /opt/sync360/control-app
-git rev-parse --short HEAD
-git rev-parse --short origin/codex/control-app-prod-deploy
-```
-
-### Expected result when fully current
-
-Both should match.
-
-## 15. Gotchas We Already Learned
-
-### 1. Self-updating deploy scripts are dangerous
-
-The control-plane deploy script must bootstrap from fetched branch content, not from the stale checked-out file already on disk.
-
-### 2. Deploy success is meaningless without commit verification
-
-A deploy should not be considered successful unless:
-
-- remote branch tip was resolved
-- local branch fast-forwarded
-- local `HEAD` equals the expected remote commit
-
-### 3. Production `.env` is not auto-updated
-
-Git deploys update code only.
-
-Any new or changed env variables must still be updated manually on the server.
-
-### 4. Password-auth SSH is only a temporary bridge
-
-It works right now, but it should be replaced with SSH keys.
-
-### 5. Secrets were shared in-thread
-
-Multiple secrets were pasted during setup. Do not preserve them in docs or code. Treat them as compromised and rotate them.
-
-### 6. OpenClaw runs in polling mode — no Telegram webhook needed
-
-OpenClaw uses `getUpdates` long-polling. It does NOT register a Telegram webhook and does NOT need a `webhookUrl` in `openclaw.json`. The `WebhookController` is not part of the live conversation flow. Conversation logs are backfilled from session files via the `sync360:sync-replies` scheduler command. Never add `webhookUrl` back to `configureChannel()` unless switching to a deliberate webhook architecture with full control-app message processing.
-
-### 7. The platform LiteLLM virtual key only allows `claude-sonnet-4-6`
-
-`LITELLM_VIRTUAL_KEY` is restricted to `claude-sonnet-4-6` on the LiteLLM instance. Any call to `gpt-4o-mini` or other models will return 401. Use `claude-sonnet-4-6` for any platform-level AI calls (summaries, extraction, etc.).
-
-### 8. The scheduler was missing from production for the entire initial deployment
-
-`docker-compose.prod.yml` only had `app` and `worker` services. No scheduler ran. All `routes/console.php` scheduled commands (`sync360:sync-replies`, `sync360:check-trial-expiry`, `tenants:health-check`) were never executing automatically. The `scheduler` container was added 2026-04-14. Always confirm the `scheduler` service is in the compose file.
-
-### 9. Use `config('app.url')` not `route()` for webhook URLs in the UI
-
-Requests proxied through the workspace VPS (`89.116.28.191`) don't set `X-Forwarded-Host` correctly. Laravel's `route()` picks up the wrong host and generates workspace subdomain URLs. Explicitly building from `config('app.url')` is safe.
-
-### 10. Apache needs a reload after certbot issues a new cert
-
-Certbot stores certs under `/etc/letsencrypt/live/`. If a cert was issued but Apache was not reloaded, the old (missing) cert path remains active and Telegram's strict TLS validation will reject webhook registration.
-
-### 11. Sudo password for `serveradmin` on the control server
-
-The VPS client SSH/sudo password (`roApoxDY5K9lAae8ngzey4M`) is for client workspace VPSes only. The control server (`161.97.74.128`) `serveradmin` user has a separate sudo password. Keep it in your password manager, not in `.env`.
-
-### 12. `goLive()` must NEVER call `syncRuntime()` — it would overwrite provisioned credentials
-
-`syncRuntime()` does a destructive `rm -rf {remote} && scp {local}/*` replacing the entire
-runtime directory on the workspace VPS with whatever is locally cached in the control-app
-container. The local `compose.yaml` contains the **original provisioning-time LiteLLM key**
-and will be stale if the tenant key has been regenerated since.
-
-After this bug caused a production 401 outage, `goLive()` was changed to call
-`syncWorkspaceFiles()` which only syncs the `.openclaw/workspace/*.md` files and never
-touches `compose.yaml` or `config/openclaw.json`.
-
-**Rule:** `syncRuntime()` must only be called from `OpenClawProvisioner::provision()` (clean
-first-time setup). Everywhere else, use `syncWorkspaceFiles()` for workspace file updates.
-
-### 13. LiteLLM 401 diagnosis steps
-
-If OpenClaw workspace reports `Invalid proxy server token`:
-1. Check what key is in the workspace `compose.yaml`:
-   ```
-   grep OPENAI_API_KEY /srv/sync360/runtime/tenants/{slug}/compose.yaml
-   ```
-2. Check what key the DB has:
-   ```php
-   Tenant::where('slug','...')->value('litellm_virtual_key')
-   ```
-3. If they differ, patch `compose.yaml` locally then rsync + restart via tinker:
-   - Read and regex-replace the key in the local runtime file
-   - Call `dockerCompose->syncWorkspaceFiles(...)` (NOT syncRuntime)
-   - Call `dockerCompose->runCommand(...)` with `docker compose restart`
-4. If the key itself is missing from LiteLLM (`/key/info` returns 404), call
-   `LiteLlmTenantKeyService::generateTenantKey($tenant)` to create a new one,
-   then repeat step 3 with the new key.
-
-### 14. AI identity guardrail — never expose backend platform names
-
-The `HEARTBEAT.md` injected into every tenant workspace includes a CRITICAL IDENTITY RULE
-that forbids the AI from mentioning "OpenClaw", "OpenAI", "Claude", or any backend system.
-If this rule is missing or a tenant's workspace has a stale `HEARTBEAT.md`, calling
-`goLive()` from the Onboarding UI (or manually) will push the updated file via
-`syncWorkspaceFiles()`. Never remove or weaken this rule — it is a commercial / brand
-protection guardrail that prevents end customers from knowing what backend is powering
-the assistant.
-
----
-
-## 16. Suggested New-Thread Prompt
-
-If starting a fresh thread, say something like:
-
-> Read [MEMORY.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/MEMORY.md), [ARCHITECTURE.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/ARCHITECTURE.md), and [RELEASE_NOTES.md](/Users/gayanhewage/Projects/openclaw-saas/artifacts/RELEASE_NOTES.md) first. We are on `codex/control-app-prod-deploy` (latest commit `415505f`). Phase 1 channel communication is strictly owner↔assistant. OpenClaw uses native Telegram polling — no webhook, no WebhookController involvement. Conversations are synced from workspace session log files every 10 min by `sync360:sync-replies` running in the `scheduler` container. Session threads are grouped by UUID with AI summaries via LiteLLM `claude-sonnet-4-6` (platform virtual key, not tenant key). Trial lifecycle (14 days / $5) is fully implemented. Scheduler container was missing and was added 2026-04-14. CRITICAL: `goLive()` must never call `syncRuntime()` — only `syncWorkspaceFiles()` — or it overwrites the provisioned LiteLLM key in `compose.yaml`. AI agents must never expose "OpenClaw" or backend platform names (enforced via HEARTBEAT.md guardrail). Continue from there.
-
-## 14. Trial Lifecycle Quick Reference
-
-**Two expiry conditions (first wins):**
-- Time: 14 days from `created_at` (UTC)
-- Budget: LiteLLM spend ≥ `litellm_max_budget` (default $5)
-
-**Scheduler:** `sync360:check-trial-expiry` every 30 min
-
-**Emails (all idempotent via guard columns):**
-- 80% budget used → budget warning
-- ≤ 3 days left → time warning
-- Either expired → expired email + `suspendTenant()`
-
-**Expired state:** `trial_status = trial_expired`, LiteLLM budget = 0, Go Live disabled, dashboard banner shown
-
-**Upgrade path (Phase 1):** `mailto:hello@sync360.co.nz` — no self-serve billing yet
-
-**Existing tenants:** Backfill migration sets `trial_ends_at = created_at + 14 days` for pre-existing rows.
-Both `Tenant::trialDaysLeft()` and the scheduler command fall back to `created_at + 14 days` if `trial_ends_at` is NULL — safe for any missed rows.
-
-**Admin visibility:**
-- `/admin/tenants` — Trial column: badge (Nd left / expired) + spend/budget hint
-- `/admin/tenants/{slug}` — Full Trial & AI Usage section: progress bars, raw timestamps, all 3 notification guards, plan name
-
-**Key files:**
-- `app/Services/TrialNotificationEmailService.php`
-- `app/Services/LiteLlmTenantKeyService.php::getKeyInfo()`
-- `app/Models/Tenant.php` — accessors: `isTrialExpired`, `trialDaysLeft`, `trialBudgetPercent`, `trialTimePercent`, `trialUrgency`
-- `routes/console.php` — command + schedule
-- `database/migrations/2026_04_13_123342_add_trial_and_spend_fields_to_tenants.php`
-- `database/migrations/2026_04_13_125055_backfill_trial_ends_at_for_existing_tenants.php`
-- `resources/views/admin/tenants.blade.php` — Trial column
-- `resources/views/admin/tenant-show.blade.php` — Trial & AI Usage section
+> Read `artifacts/MEMORY.md` first, then `artifacts/ARCHITECTURE.md`, then `artifacts/RELEASE_NOTES.md`. Ground answers in current repo code, especially `routes/web.php`, `routes/console.php`, `config/sync360.php`, and the provisioning/onboarding/conversation services. Assume the canonical docs win over historical plans, but code wins over docs. Pay special attention to the private gateway model, session-log conversation sync, and the rule that `goLive()` must sync workspace files only, never the full runtime.

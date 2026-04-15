@@ -198,12 +198,7 @@ class ProfileController extends Controller
             && $tenant->capabilities !== []
             && filled($tenant->runtime_path)
             && filled($tenant->workspace_url)
-            && match ($tenant->channel) {
-                'whatsapp' => filled($channelConfig['whatsapp_phone_number_id'] ?? null)
-                    && filled($channelConfig['whatsapp_access_token'] ?? null)
-                    && filled($channelConfig['whatsapp_verify_token'] ?? null),
-                'telegram' => filled($channelConfig['telegram_bot_token'] ?? null),
-                default => false,
-            };
+            && $tenant->channel === 'telegram'
+            && filled($channelConfig['telegram_bot_token'] ?? null);
     }
 }

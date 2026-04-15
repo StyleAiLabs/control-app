@@ -1,5 +1,8 @@
 # Founder's Roadmap: The Next 10 Tasks to Onboard 10 Clients
 
+> [!IMPORTANT]
+> Historical roadmap. Canonical current truth is in [`artifacts/MEMORY.md`](MEMORY.md) and [`artifacts/ARCHITECTURE.md`](ARCHITECTURE.md). Telegram webhook flow described here is no longer current, and WhatsApp integration references may describe planned or scaffolded work rather than fully implemented behavior.
+
 Based on a thorough review of your project's `MEMORY.md`, `ARCHITECTURE.md`, `RELEASE_NOTES.md`, and the `architecture.html` visual layout, you have brilliantly solved the hardest infrastructure challenge: remote Docker orchestration and tenant isolation. 
 
 However, `architecture.html` reveals two massive missing pieces that prevent a paying customer from actually using the product: The **Skill Registry** and the **Channel Connection Wizard**. 

@@ -107,7 +107,7 @@ class ProfileFlowTest extends TestCase
         ])->save();
 
         $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
-        File::ensureDirectoryExists($localRuntimePath.'/workspace');
+        File::ensureDirectoryExists($localRuntimePath.'/.openclaw/workspace');
         File::put($localRuntimePath.'/compose.yaml', 'services: {}');
 
         $runnerSpy = new class implements DockerComposeRunner
@@ -118,6 +118,11 @@ class ProfileFlowTest extends TestCase
             public function syncRuntime(Server $server, string $localRuntimePath, string $remoteRuntimePath): void
             {
                 $this->syncCalls[] = compact('localRuntimePath', 'remoteRuntimePath');
+            }
+
+            public function syncWorkspaceFiles(Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void
+            {
+                $this->syncCalls[] = compact('localWorkspacePath', 'remoteWorkspacePath');
             }
 
             public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array
@@ -183,8 +188,8 @@ class ProfileFlowTest extends TestCase
         $this->assertNotNull($files->generated_at);
         $this->assertNotNull($files->synced_at);
         $this->assertNotNull($profile->last_synced_to_agent);
-        $this->assertStringContainsString('GST-123', File::get($localRuntimePath.'/workspace/PROFILE.md'));
-        $this->assertStringContainsString('Mon-Fri: 8am - 5pm', File::get($localRuntimePath.'/workspace/PROFILE.md'));
+        $this->assertStringContainsString('GST-123', File::get($localRuntimePath.'/.openclaw/workspace/PROFILE.md'));
+        $this->assertStringContainsString('Mon-Fri: 8am - 5pm', File::get($localRuntimePath.'/.openclaw/workspace/PROFILE.md'));
         $this->assertCount(1, $runnerSpy->syncCalls);
         $this->assertCount(1, $runnerSpy->upCalls);
     }

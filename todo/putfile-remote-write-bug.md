@@ -1,5 +1,8 @@
 # Bug: SshDockerComposeRunner::putFile — remote VPS file not updated
 
+> [!IMPORTANT]
+> Historical debugging note. Canonical current truth is in [`artifacts/MEMORY.md`](../artifacts/MEMORY.md) and [`artifacts/ARCHITECTURE.md`](../artifacts/ARCHITECTURE.md). Telegram webhook configuration described here is no longer current, and WhatsApp integration references in older material may reflect planned or scaffolded work rather than a complete implementation.
+
 **Status:** Deferred  
 **Priority:** Medium (blocks automated channel re-configuration for live tenants)  
 **Discovered:** 2026-04-13 during Telegram webhook mode investigation  

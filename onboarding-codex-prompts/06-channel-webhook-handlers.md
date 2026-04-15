@@ -1,5 +1,8 @@
 # Codex Agent Prompt — 06: Channel Webhooks And Conversation Logging
 
+> [!WARNING]
+> Superseded historical prompt. The Telegram webhook path described here has been removed from the current codebase. Current canonical truth lives in [`artifacts/MEMORY.md`](../artifacts/MEMORY.md) and [`artifacts/ARCHITECTURE.md`](../artifacts/ARCHITECTURE.md). WhatsApp remains scaffolded for inbound logging and verification, not full production channel handling.
+
 ## Context
 
 Once a customer is live, end-user messages should flow like this:
@@ -20,7 +23,7 @@ Do not rely on per-tenant SSH fields like `tenant.ssh_host`.
 
 ## Task
 
-Build WhatsApp and Telegram webhook handlers plus conversation logging.
+This file records the original webhook-first design direction for channels and conversation logging. It should not be used as the current implementation guide.
 
 ---
 
@@ -31,7 +34,6 @@ Add public routes in `routes/web.php`:
 ```php
 Route::get('/webhooks/whatsapp/{tenantId}', ...);
 Route::post('/webhooks/whatsapp/{tenantId}', ...);
-Route::post('/webhooks/telegram/{tenantId}', ...);
 ```
 
 Route parameter should resolve against `tenants.tenant_id`.
@@ -104,21 +106,6 @@ against the stored tenant config.
 
 ---
 
-## Telegram
-
-Store in `channel_config`:
-
-- `telegram_bot_token`
-
-Webhook route should:
-
-- parse the incoming update
-- ignore unsupported non-text messages with a polite fallback if desired
-- deduplicate by update/message id
-- dispatch the same message-processing job
-
----
-
 ## Job: `ProcessIncomingMessage`
 
 Suggested responsibilities:
@@ -166,4 +153,3 @@ These should read decrypted channel credentials from `tenant.channel_config`.
 - replies go back out on the same channel
 - every handled conversation is logged
 - no tenant-level SSH routing assumptions remain in the design
-

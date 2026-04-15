@@ -1,5 +1,8 @@
 # Feature: Sync Conversation Replies from OpenClaw Session Logs
 
+> [!IMPORTANT]
+> Historical planning note. Canonical current truth is in [`artifacts/MEMORY.md`](../artifacts/MEMORY.md) and [`artifacts/ARCHITECTURE.md`](../artifacts/ARCHITECTURE.md). Telegram webhook flow described in older docs is no longer current, and WhatsApp integration references in historical material may be planned or scaffolded rather than fully implemented.
+
 **Status:** Planned  
 **Priority:** High — causes "No reply" to show on all conversations in the dashboard  
 **Discovered:** 2026-04-13 while debugging conversation history  

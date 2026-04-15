@@ -1,0 +1,63 @@
+Here’s the core business idea about this project in plain terms:
+
+We are building a vertical AI operations platform for service businesses, starting with trades and similar admin-heavy businesses.
+
+The product works like this:
+
+A business signs up, gets its own Digital Employee / AI Office Manager, and that AI handles repetitive back-office work such as:
+	•	email triage
+	•	booking coordination
+	•	quote drafting
+	•	invoice/admin follow-up
+	•	customer communication workflows
+
+Under the hood, each customer gets a provisioned tenant environment with preconfigured skills and workflows, so they do not need to build anything themselves.
+
+So the business model is:
+
+sign up → business onboarding → auto-provision tenant → enable workflows and skill modules -> start using AI staff workflows immediately 
+
+The key strategic idea we refined was this:
+
+It should not be sold as a generic “AI skills marketplace.”
+
+It should be sold as:
+
+industry-specific, ready-to-use AI skills & workflow packs for service businesses.
+
+So instead of saying:
+	•	“Pick your AI skills”
+
+you say:
+	•	“Get an AI Office Manager for tradies”
+	•	“Automate quote follow-up”
+	•	“Handle inbox and bookings automatically”
+
+Technically, the platform has two layers:
+
+1. Control App
+This is your SaaS layer that manages:
+	•	signup
+	•	tenant creation
+	•	provisioning
+	•	skill & workflow module management 
+	•	admin oversight
+	•	status/health
+	•	future billing and lifecycle management
+
+2. Tenant Runtime
+Each client gets their own isolated runtime, where OpenClaw powers (we never expose OpenClaw to the customer) the actual AI assistant/workflows.
+
+That means your long-term model is:
+	•	one shared control plane
+	•	one isolated AI runtime per customer
+	•	reusable skill modules and workflow packs by industry
+	•	eventually self-serve onboarding
+
+In one sentence:
+
+We are creating a SaaS platform that gives service businesses their own ready-to-use AI employee, starting with high-value admin workflows and delivered through industry-specific tenant environments.
+
+A tighter pitch version would be:
+
+Sync360 gives service businesses a preconfigured AI Office Manager that handles quotes, inboxes, bookings, and admin work through a self-serve multi-tenant platform.

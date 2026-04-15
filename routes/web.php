@@ -9,7 +9,6 @@ use App\Http\Controllers\LandingController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TenantSetupController;
-use App\Http\Controllers\WebhookController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [LandingController::class, 'show'])->name('landing');
@@ -20,10 +19,6 @@ Route::middleware('guest')->group(function (): void {
     Route::get('/login', [LoginController::class, 'create'])->name('login');
     Route::post('/login', [LoginController::class, 'store'])->name('login.store');
 });
-
-Route::get('/webhooks/whatsapp/{tenantId}', [WebhookController::class, 'verifyWhatsApp'])->name('webhooks.whatsapp.verify');
-Route::post('/webhooks/whatsapp/{tenantId}', [WebhookController::class, 'handleWhatsApp'])->name('webhooks.whatsapp.handle');
-Route::post('/webhooks/telegram/{tenantId}', [WebhookController::class, 'handleTelegram'])->name('webhooks.telegram.handle');
 
 Route::middleware('auth')->group(function (): void {
     Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
