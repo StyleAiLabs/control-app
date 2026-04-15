@@ -1,0 +1,10 @@
+# Founder-Only Documentation
+# These files contain strategic planning and product roadmaps
+# Do not commit these to shared repositories; they are founder context only
+
+founder-architecture.html
+founder-roadmap.md
+
+# Archived planning documents
+archive/
+walkthrough/
