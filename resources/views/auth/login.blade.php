@@ -70,6 +70,10 @@
                     </label>
                 </div>
 
+                <p class="hint" style="margin-top: -4px; margin-bottom: 4px; text-align: right;">
+                    <a href="{{ route('password.request') }}" style="color: var(--accent-dark); font-weight: 700;">Forgot your password?</a>
+                </p>
+
                 <label style="display: flex; align-items: center; gap: 10px; font-weight: 500; cursor: pointer;">
                     <input type="checkbox" name="remember" value="1" style="width: auto; accent-color: var(--accent);">
                     Keep me signed in

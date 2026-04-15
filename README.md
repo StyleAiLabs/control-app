@@ -4,7 +4,7 @@ Sync360 Control App is a Laravel monolith that provisions and manages tenant-spe
 
 It currently covers the full control-plane loop:
 
-- marketing site, signup, login, and dashboard
+- marketing site, signup, login, self-serve password reset, and dashboard
 - tenant creation, server assignment, and async provisioning
 - local and SSH-based tenant runtime deployment
 - guided onboarding and go-live sync
@@ -79,6 +79,7 @@ If those files conflict with the codebase, the source of truth is:
 The control plane runs as one Laravel app with:
 
 - web routes and Blade pages
+- self-serve account recovery via Laravel's password broker
 - Redis-backed queue workers
 - scheduled jobs
 - provisioning and runtime orchestration services
@@ -205,7 +206,7 @@ The repo includes feature and unit coverage for provisioning, admin flows, onboa
 This repo does not treat the following as complete product areas yet:
 
 - billing and subscription automation
-- password reset and email verification
+- email verification
 - full secret-management hardening
 - automated DNS management
 - multi-region scheduling and placement

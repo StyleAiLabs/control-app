@@ -4,6 +4,34 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-15 — Self-Serve Client Password Reset
+
+Date: 2026-04-15
+Branch: `cdx-feature/tenant-password-reset`
+Status: Implemented
+
+### Overview
+
+Added Laravel's standard self-serve password reset flow for customer accounts so forgotten passwords no longer require manual intervention. The flow uses the existing mail setup, so reset emails go through the configured mail driver and fit the current auth stack instead of introducing a separate support-only recovery path.
+
+### What Changed
+
+- added guest routes for:
+  - `GET /forgot-password`
+  - `POST /forgot-password`
+  - `GET /reset-password/{token}`
+  - `POST /reset-password`
+- added `ForgotPasswordController` to request reset links through the Laravel password broker
+- added `ResetPasswordController` to validate tokens, update the password, rotate the remember token, and redirect back to login
+- added branded guest views for the forgot-password and reset-password screens
+- added a recovery link to the existing login screen
+
+### Notes
+
+- reset tokens use the existing `password_reset_tokens` table
+- delivery uses the existing application mail configuration, which already points at the deployed mail provider setup
+- the implementation follows the current guest auth design system rather than introducing a starter-kit UI
+
 ## 2026-04-14 — Session-Grouped Conversation History + AI Summaries
 
 Date: 2026-04-14

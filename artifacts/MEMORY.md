@@ -10,7 +10,7 @@ Sync360 Control App is a Laravel control plane for provisioning and managing ten
 
 The control plane owns:
 
-- signup, login, dashboard, onboarding, and profile flows
+- signup, login, password reset, dashboard, onboarding, and profile flows
 - tenant creation and server placement
 - async tenant provisioning through queues
 - private runtime management for each tenant workspace
@@ -50,7 +50,7 @@ If those files conflict with the codebase, trust:
 
 ## 3. Current system snapshot
 
-- App shape: Laravel monolith with Blade, PostgreSQL, Redis, queues, and scheduler-backed commands
+- App shape: Laravel monolith with Blade, PostgreSQL, Redis, queues, scheduler-backed commands, and Laravel password-broker auth recovery
 - Infrastructure modes: `local` and `ssh`
 - Tenant runtime staging: `runtime/tenants/<slug>/`
 - Tenant runtime deployment: one OpenClaw runtime per tenant
