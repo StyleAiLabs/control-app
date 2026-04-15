@@ -1,5 +1,8 @@
 # Onboarding Integration
 
+> [!IMPORTANT]
+> Historical planning note. Canonical current truth is in [`artifacts/MEMORY.md`](../../MEMORY.md) and [`artifacts/ARCHITECTURE.md`](../../ARCHITECTURE.md). The current implementation supports Telegram as the live channel path. WhatsApp remains unimplemented beyond a disabled onboarding placeholder, and older webhook-oriented setup language in this file is no longer current.
+
 Status: Open
 Updated: 2026-04-12
 Branch: `cdx-feature/client-onbarding-wizard`

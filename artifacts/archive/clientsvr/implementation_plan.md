@@ -1,5 +1,8 @@
 # Server Hardening Plan — Ubuntu 22.04 Docker Host
 
+> [!IMPORTANT]
+> Historical infrastructure note. Canonical current truth for the app is in [`artifacts/MEMORY.md`](../../MEMORY.md) and [`artifacts/ARCHITECTURE.md`](../../ARCHITECTURE.md). This file is operational background for host hardening, not the current application architecture.
+
 ## Current State (Audit Summary)
 
 | Area | Status | Risk |

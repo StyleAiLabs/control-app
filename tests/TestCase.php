@@ -78,6 +78,10 @@ abstract class TestCase extends BaseTestCase
             {
             }
 
+            public function syncWorkspaceFiles(Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void
+            {
+            }
+
             public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array
             {
                 $request = Http::timeout($timeoutSeconds)->acceptJson();

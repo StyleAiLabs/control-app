@@ -12,7 +12,6 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Throwable;
 
@@ -256,10 +255,7 @@ class OnboardingController extends Controller
     public function saveChannel(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'channel' => ['required', Rule::in(['whatsapp', 'telegram'])],
-            'whatsapp_phone_number_id' => ['nullable', 'string', 'max:255'],
-            'whatsapp_access_token' => ['nullable', 'string', 'max:2000'],
-            'whatsapp_verify_token' => ['nullable', 'string', 'max:255'],
+            'channel' => ['required', Rule::in(['telegram'])],
             'telegram_bot_token' => ['nullable', 'string', 'max:2000'],
         ]);
 
@@ -273,15 +269,11 @@ class OnboardingController extends Controller
         }
 
         $channel = $validated['channel'];
-        $channelConfig = match ($channel) {
-            'whatsapp' => $this->whatsAppChannelConfig($request, $tenant),
-            'telegram' => $this->telegramChannelConfig($request),
-        };
+        $channelConfig = $this->telegramChannelConfig($request);
 
         $tenant->forceFill([
             'channel' => $channel,
             'channel_config' => $channelConfig,
-            'webhook_secret' => $tenant->webhook_secret ?: Str::random(48),
             'onboarding_status' => $tenant->onboarding_status === 'complete' ? 'complete' : 'in_progress',
             'onboarding_step' => max((int) $tenant->onboarding_step, 5),
         ])->save();
@@ -447,7 +439,7 @@ class OnboardingController extends Controller
             ],
             'tone' => $tenant->tone,
             'capabilities' => $capabilities,
-            'channel' => $tenant->channel,
+            'channel' => $tenant->channel === 'telegram' ? 'telegram' : null,
             'channel_setup' => $this->channelSetupPayload($tenant, $channelConfig),
             'files' => [
                 'generated_at' => $files?->generated_at?->toIso8601String(),
@@ -486,19 +478,10 @@ class OnboardingController extends Controller
      */
     private function channelSetupPayload(Tenant $tenant, array $channelConfig): array
     {
-        $appUrl = rtrim((string) config('app.url'), '/');
-
         return [
-            'selected_channel' => $tenant->channel,
+            'selected_channel' => $tenant->channel === 'telegram' ? 'telegram' : null,
             'status' => $this->stepFiveComplete($tenant, $channelConfig) ? 'connected' : 'pending',
-            'whatsapp' => [
-                'webhook_url'      => $appUrl . '/webhooks/whatsapp/' . $tenant->tenant_id . '/verify',
-                'verify_token'     => $channelConfig['whatsapp_verify_token'] ?? null,
-                'phone_number_id'  => $channelConfig['whatsapp_phone_number_id'] ?? null,
-                'access_token_saved' => filled($channelConfig['whatsapp_access_token'] ?? null),
-            ],
             'telegram' => [
-                'webhook_url'    => $appUrl . '/webhooks/telegram/' . $tenant->tenant_id,
                 'bot_token_saved' => filled($channelConfig['telegram_bot_token'] ?? null),
             ],
         ];
@@ -515,35 +498,9 @@ class OnboardingController extends Controller
             return false;
         }
 
-        return (int) $tenant->onboarding_step >= 5 && match ($channel) {
-            'whatsapp' => filled($channelConfig['whatsapp_phone_number_id'] ?? null)
-                && filled($channelConfig['whatsapp_access_token'] ?? null)
-                && filled($channelConfig['whatsapp_verify_token'] ?? null),
-            'telegram' => filled($channelConfig['telegram_bot_token'] ?? null),
-            default => $channelConfig !== [],
-        };
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function whatsAppChannelConfig(Request $request, Tenant $tenant): array
-    {
-        $validated = $request->validate([
-            'whatsapp_phone_number_id' => ['required', 'string', 'max:255'],
-            'whatsapp_access_token' => ['required', 'string', 'max:2000'],
-            'whatsapp_verify_token' => ['nullable', 'string', 'max:255'],
-        ]);
-
-        $verifyToken = is_string($validated['whatsapp_verify_token'] ?? null)
-            ? trim($validated['whatsapp_verify_token'])
-            : '';
-
-        $validated['whatsapp_verify_token'] = $verifyToken !== ''
-            ? $verifyToken
-            : 'sync360-'.$tenant->tenant_id.'-'.Str::lower(Str::random(8));
-
-        return $validated;
+        return (int) $tenant->onboarding_step >= 5
+            && $channel === 'telegram'
+            && filled($channelConfig['telegram_bot_token'] ?? null);
     }
 
     /**

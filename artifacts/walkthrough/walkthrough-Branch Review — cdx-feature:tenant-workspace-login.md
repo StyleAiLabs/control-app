@@ -1,5 +1,8 @@
 # Branch Review — `cdx-feature/tenant-workspace-login`
 
+> [!IMPORTANT]
+> Historical walkthrough. Canonical current truth is in [`artifacts/MEMORY.md`](../MEMORY.md) and [`artifacts/ARCHITECTURE.md`](../ARCHITECTURE.md). The Telegram webhook flow described below is no longer current, and WhatsApp details in older docs may reflect planned or scaffolded work rather than fully implemented behavior.
+
 **Commits reviewed:** `d8f38af` (Route tenant workspace URLs into Sync360 and privatize gateway) + `afc6453` (Track artifact plan documents)
 
 ---

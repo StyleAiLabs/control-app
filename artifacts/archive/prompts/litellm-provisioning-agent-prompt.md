@@ -1,5 +1,8 @@
 # LiteLLM Key Provisioning — Codex Agent Instruction
 
+> [!IMPORTANT]
+> Historical agent prompt. Canonical current truth is in [`artifacts/MEMORY.md`](../../MEMORY.md), [`artifacts/ARCHITECTURE.md`](../../ARCHITECTURE.md), and the implemented service code in [`app/Services/LiteLlmTenantKeyService.php`](../../../app/Services/LiteLlmTenantKeyService.php). This prompt is retained as historical scaffolding and may not reflect all current code paths or config details.
+
 When provisioning a new OpenClaw client instance, you must generate a dedicated LiteLLM virtual key for that tenant before starting the instance.
 
 ## Configuration

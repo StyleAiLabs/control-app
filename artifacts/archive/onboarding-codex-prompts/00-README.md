@@ -1,9 +1,12 @@
 # Sync360 Onboarding Wizard — Practical Prompt Pack
 
+> [!IMPORTANT]
+> Archived historical build scaffold only. This prompt pack is superseded by the implemented code and the canonical docs in [`artifacts/MEMORY.md`](../../MEMORY.md) and [`artifacts/ARCHITECTURE.md`](../../ARCHITECTURE.md). Use current code under `app/`, `routes/`, and `resources/views/` for implementation truth.
+
 ## Purpose
 
-This prompt pack defines the practical implementation path for customer onboarding in the
-current Sync360 Control App codebase.
+This prompt pack records how the onboarding system was originally decomposed for implementation.
+It is retained as historical build scaffolding, not as current guidance for how the system works today.
 
 The customer experience stays simple:
 
@@ -46,7 +49,7 @@ Do not design this as a separate SPA, separate frontend repo, or per-tenant SSH 
 - Do not store tenant-specific SSH credentials on the `tenants` table.
 - Server SSH and runtime settings belong to `servers`, not tenants.
 
-## Recommended Build Order
+## Historical Build Order
 
 | # | Prompt File | What It Builds |
 |---|-------------|----------------|
@@ -55,12 +58,12 @@ Do not design this as a separate SPA, separate frontend repo, or per-tenant SSH 
 | 03 | `03-profile-md-writer.md` | Runtime file sync + go-live service using existing server/runtime model |
 | 04 | `04-onboarding-wizard-api.md` | Authenticated onboarding JSON endpoints inside the monolith |
 | 05 | `05-frontend-onboarding-wizard.md` | Blade-first 6-step onboarding wizard |
-| 06 | `06-channel-webhook-handlers.md` | WhatsApp/Telegram webhooks + conversation logs |
+| 06 | `06-channel-webhook-handlers.md` | Historical webhook-oriented channel plan, now superseded |
 | 07 | `07-dashboard-integration.md` | Dashboard status, onboarding progress, recent conversations |
 | 08 | `08-signup-flow.md` | Extend current signup flow without replacing it |
 | 09 | `09-tenant-ssh-provisioning.md` | Server admin + tenant health/resync operations |
 
-## What This Pack Builds
+## Historical Scope Snapshot
 
 ### Signup
 
@@ -109,7 +112,6 @@ All of the above should live behind `auth` middleware and return JSON except the
 
 - `GET /webhooks/whatsapp/{tenant_id}`
 - `POST /webhooks/whatsapp/{tenant_id}`
-- `POST /webhooks/telegram/{tenant_id}`
 
 Use the existing external tenant identifier (`tenants.tenant_id`) instead of inventing a second public UUID.
 
@@ -133,6 +135,9 @@ Use the existing external tenant identifier (`tenants.tenant_id`) instead of inv
 - `TelegramSender`
 
 ## Important Practical Notes
+
+> [!NOTE]
+> Some channel and webhook details in this pack no longer match the implemented system. Telegram webhook handling has been removed from the control plane, and WhatsApp remains scaffolded rather than fully integrated end to end.
 
 ### 1. Signup and onboarding are separate concerns
 
@@ -179,4 +184,3 @@ The customer should not see:
 - server names
 - provisioning jobs
 - LiteLLM
-

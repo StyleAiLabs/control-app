@@ -27,10 +27,6 @@ return Application::configure(basePath: dirname(__DIR__))
             );
         }
 
-        $middleware->validateCsrfTokens(except: [
-            'webhooks/*',
-        ]);
-
         $middleware->alias([
             'admin' => \App\Http\Middleware\EnsureAdminUser::class,
             'local.only' => \App\Http\Middleware\EnsureLocalEnvironment::class,

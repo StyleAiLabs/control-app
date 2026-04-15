@@ -1,5 +1,8 @@
 # Tenant Workspace URL Becomes Sync360 Login, Gateway Goes Private
 
+> [!IMPORTANT]
+> Historical implementation plan. Canonical current truth is in [`artifacts/MEMORY.md`](../../MEMORY.md) and [`artifacts/ARCHITECTURE.md`](../../ARCHITECTURE.md). This plan captures an important architectural shift, but some details reflect the state of the project at the time it was written. If it conflicts with current code or canonical docs, code and canonical docs win.
+
 ## Status
 Implemented on `2026-04-12` on branch `cdx-feature/tenant-workspace-login`.
 

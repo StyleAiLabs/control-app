@@ -1,9 +1,13 @@
 # Bug: SshDockerComposeRunner::putFile — remote VPS file not updated
 
-**Status:** Deferred  
-**Priority:** Medium (blocks automated channel re-configuration for live tenants)  
+> [!IMPORTANT]
+> Historical debugging note. Canonical current truth is in [`artifacts/MEMORY.md`](../../MEMORY.md) and [`artifacts/ARCHITECTURE.md`](../../ARCHITECTURE.md). Telegram webhook configuration described here is no longer current, and WhatsApp integration references in older material may reflect planned or scaffolded work rather than a complete implementation.
+
+**Status:** ✅ Resolved  
+**Priority:** ~~Medium~~ — fixed  
 **Discovered:** 2026-04-13 during Telegram webhook mode investigation  
-**Workaround:** Manual `python3` config patch + container restart on the workspace VPS  
+**Resolved:** 2026-04-15 — live test confirmed end-to-end write on production VPS  
+**Workaround (no longer needed):** ~~Manual `python3` config patch + container restart~~  
 
 ---
 
@@ -42,13 +46,32 @@ All three steps use `runLocalProcess()` with `throwOnFailure: true` — so a sil
 
 ---
 
-## Evidence
+## Evidence (original)
 
 - `configureChannel()` completed with no exception (returned `"OK"` in Tinker)
 - `cat /srv/sync360/runtime/tenants/style-software/config/openclaw.json` showed old content after `putFile` ran
 - The **local** config file on the control app (`/var/www/html/runtime/tenants/style-software/config/openclaw.json`) also showed old content (no `webhookUrl`)
 - Direct `array_filter` test in Tinker confirmed `webhookUrl` IS present in `$config` before the write
 - Manual `python3` patch to the VPS directly DID work and OpenClaw picked it up correctly
+
+## Resolution
+
+The two-step SCP → remote `install` pattern introduced in `SshDockerComposeRunner::putFile()` fixed the issue:
+
+1. Write content to a local `tempnam()` file
+2. `scp` local temp → `/tmp/{uuid}-{filename}` on the remote VPS
+3. SSH: `mkdir -p {dir} && install -m 0644 /tmp/{uuid} {dest} && rm -f /tmp/{uuid}`
+4. Clean up local temp file in `finally` block
+
+**Live test (2026-04-15)** against `litellm-live-1775898445` on `89.116.28.191`:
+
+- MD5 before: `5556b91cd1d5d8e0290e7d9393d85771`
+- Triggered `putFile()` via `php artisan tinker` inside production `control-app-app-1` container
+- MD5 after: `fd72db2c8f252292a82a1f0a9a99cc85` — changed ✅
+- New content (`putfile-verification-2026-04-15T10:18:26+00:00`) confirmed on VPS ✅
+- No exception thrown, `runLocalProcess()` correctly propagated exit codes ✅
+
+The `sshpass` exit-code masking risk does not manifest in the Docker production environment for this server/auth configuration.
 
 ---
 

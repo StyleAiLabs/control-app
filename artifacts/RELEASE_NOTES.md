@@ -1,8 +1,48 @@
 # Release Notes
 
+> [!IMPORTANT]
+> Canonical historical changelog. Use this file to understand what changed and when, not as the primary source for current architecture. For current truth, start with [`artifacts/MEMORY.md`](MEMORY.md) and [`artifacts/ARCHITECTURE.md`](ARCHITECTURE.md). Older entries may describe Telegram webhook-era experiments or broader WhatsApp plans that no longer match the implemented system.
+
 This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
+
+## 2026-04-15 — Canonical Docs Refresh, Archive Cleanup, and Local Doc Guardrails
+
+Date: 2026-04-15
+Branch: `cdx-feature/project-memory-update`
+Status: Ready for merge
+
+### Overview
+
+Refreshed the repo’s canonical documentation set so a new chat can recover current project truth from `README.md`, `artifacts/MEMORY.md`, and `artifacts/ARCHITECTURE.md` without relying on older plans first. This pass also moved superseded planning material into a dedicated archive area and added local git hook guardrails so core implementation changes require canonical doc updates before commit or push.
+
+### Canonical Docs
+
+- tightened `README.md` into a repo entrypoint with a docs map and doc-status guidance
+- kept `artifacts/MEMORY.md` focused on durable new-chat startup context
+- kept `artifacts/ARCHITECTURE.md` as the code-backed as-built technical reference
+- clarified `artifacts/RELEASE_NOTES.md` as the historical changelog rather than the primary architecture source
+
+### Archive Cleanup
+
+- moved older plans, TODO-style implementation notes, client-server planning docs, and the onboarding prompt pack into `artifacts/archive/`
+- preserved the founder HTML architecture artifact separately instead of treating it as canonical current architecture
+- reduced duplicate onboarding and webhook-era guidance from the repo root so canonical docs and code are easier to trust first
+
+### Local Documentation Guardrails
+
+- added `scripts/check-canonical-docs.sh`
+- added repo-local `.githooks/pre-commit` and `.githooks/pre-push`
+- added `composer docs:check` and `composer hooks:install`
+- enforced that core code changes under `app/`, `routes/`, `config/`, or `resources/views/` must be accompanied by updates to:
+  - `artifacts/MEMORY.md`
+  - `artifacts/ARCHITECTURE.md`
+  - `artifacts/RELEASE_NOTES.md` with a descriptive new entry
+
+### Product Impact
+
+No runtime routes, APIs, or schema changed in this pass. The main effect is better project memory hygiene, clearer trust boundaries between canonical and historical docs, and stronger local discipline around keeping docs current with implementation changes.
 
 ## 2026-04-14 — Session-Grouped Conversation History + AI Summaries
 

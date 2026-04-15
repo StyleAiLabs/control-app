@@ -275,13 +275,9 @@ class DashboardController extends Controller
             ],
             5 => [
                 'label' => 'Channel',
-                'status' => ((int) $tenant->onboarding_step >= 5 && match ($tenant->channel) {
-                    'whatsapp' => filled($channelConfig['whatsapp_phone_number_id'] ?? null)
-                        && filled($channelConfig['whatsapp_access_token'] ?? null)
-                        && filled($channelConfig['whatsapp_verify_token'] ?? null),
-                    'telegram' => filled($channelConfig['telegram_bot_token'] ?? null),
-                    default => false,
-                }) ? 'complete' : 'incomplete',
+                'status' => ((int) $tenant->onboarding_step >= 5
+                    && $tenant->channel === 'telegram'
+                    && filled($channelConfig['telegram_bot_token'] ?? null)) ? 'complete' : 'incomplete',
             ],
             6 => [
                 'label' => 'Go Live',

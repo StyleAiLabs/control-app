@@ -1,5 +1,8 @@
 # Client VPS Production-First Plan
 
+> [!IMPORTANT]
+> Historical implementation plan. Canonical current truth is in [`artifacts/MEMORY.md`](../../MEMORY.md) and [`artifacts/ARCHITECTURE.md`](../../ARCHITECTURE.md). This file captures an earlier rollout stage for remote tenant deployment and should be used as background only.
+
 ## Summary
 
 We will make `89.116.28.191` the first production tenant host and validate remote tenant deployment from your local control app before touching the primary control-app server at `161.97.74.128`.

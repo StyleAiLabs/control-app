@@ -33,8 +33,9 @@ class OnboardingFlowTest extends TestCase
             ->assertSee('Confirm your business details')
             ->assertSee('Connect your messaging channel')
             ->assertSee('Bring it live')
-            ->assertSee('WhatsApp Webhook URL')
-            ->assertSee('Telegram Webhook URL');
+            ->assertSee('WhatsApp')
+            ->assertSee('Coming Soon')
+            ->assertSee('Bot Token');
     }
 
     public function test_onboarding_state_returns_resume_information_for_new_signup_data(): void
@@ -341,7 +342,59 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('Answer common questions', $files->soul_markdown);
     }
 
-    public function test_save_channel_persists_whatsapp_configuration_generates_verify_token_and_marks_step_five_complete(): void
+    public function test_save_channel_persists_telegram_configuration_and_marks_step_five_complete(): void
+    {
+        [$user, $tenant, $profile] = $this->seedTenantWithProfile();
+
+        $profile->forceFill([
+            'website_url' => 'https://acme.example',
+            'description' => 'Acme Plumbing helps homeowners with urgent repairs and scheduled installs.',
+            'services' => ['Emergency plumbing', 'Hot water cylinder installs'],
+        ])->save();
+
+        $tenant->forceFill([
+            'onboarding_status' => 'in_progress',
+            'onboarding_step' => 4,
+            'tone' => 'friendly',
+            'capabilities' => ['faqs', 'messages'],
+        ])->save();
+
+        $tenant->businessProfileFiles->forceFill([
+            'identity_markdown' => '# Identity',
+            'soul_markdown' => '# Soul',
+            'user_markdown' => '# User',
+            'bootstrap_markdown' => '# Bootstrap',
+            'generated_at' => now(),
+        ])->save();
+
+        $this->actingAs($user);
+
+        $this->postJson('/onboarding/channel', [
+            'channel' => 'telegram',
+            'telegram_bot_token' => 'telegram-bot-token',
+        ])
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('state.onboarding_status', 'in_progress')
+            ->assertJsonPath('state.onboarding_step', 5)
+            ->assertJsonPath('state.resume_from_step', 6)
+            ->assertJsonPath('state.channel', 'telegram')
+            ->assertJsonPath('state.steps.5.label', 'Channel')
+            ->assertJsonPath('state.steps.5.status', 'complete')
+            ->assertJsonPath('state.steps.6.label', 'Go Live')
+            ->assertJsonPath('state.steps.6.status', 'incomplete')
+            ->assertJsonPath('state.channel_setup.selected_channel', 'telegram')
+            ->assertJsonPath('state.channel_setup.status', 'connected')
+            ->assertJsonPath('state.channel_setup.telegram.bot_token_saved', true);
+
+        $tenant->refresh();
+
+        $this->assertSame('telegram', $tenant->channel);
+        $this->assertSame(5, $tenant->onboarding_step);
+        $this->assertSame('telegram-bot-token', $tenant->channel_config['telegram_bot_token']);
+    }
+
+    public function test_save_channel_rejects_unsupported_whatsapp_configuration(): void
     {
         [$user, $tenant, $profile] = $this->seedTenantWithProfile();
 
@@ -372,84 +425,12 @@ class OnboardingFlowTest extends TestCase
             'channel' => 'whatsapp',
             'whatsapp_phone_number_id' => '1234567890',
             'whatsapp_access_token' => 'wa-access-token',
-        ])
-            ->assertOk()
-            ->assertJsonPath('success', true)
-            ->assertJsonPath('state.onboarding_status', 'in_progress')
-            ->assertJsonPath('state.onboarding_step', 5)
-            ->assertJsonPath('state.resume_from_step', 6)
-            ->assertJsonPath('state.channel', 'whatsapp')
-            ->assertJsonPath('state.steps.5.label', 'Channel')
-            ->assertJsonPath('state.steps.5.status', 'complete')
-            ->assertJsonPath('state.steps.6.label', 'Go Live')
-            ->assertJsonPath('state.steps.6.status', 'incomplete')
-            ->assertJsonPath('state.channel_setup.selected_channel', 'whatsapp')
-            ->assertJsonPath('state.channel_setup.status', 'connected')
-            ->assertJsonPath('state.channel_setup.whatsapp.phone_number_id', '1234567890')
-            ->assertJsonPath('state.channel_setup.whatsapp.access_token_saved', true);
+        ])->assertStatus(422);
 
         $tenant->refresh();
 
-        $this->assertSame('whatsapp', $tenant->channel);
-        $this->assertSame(5, $tenant->onboarding_step);
-        $this->assertNotNull($tenant->webhook_secret);
-        $this->assertSame('1234567890', $tenant->channel_config['whatsapp_phone_number_id']);
-        $this->assertSame('wa-access-token', $tenant->channel_config['whatsapp_access_token']);
-        $this->assertIsString($tenant->channel_config['whatsapp_verify_token']);
-        $this->assertStringStartsWith('sync360-'.$tenant->tenant_id.'-', $tenant->channel_config['whatsapp_verify_token']);
-    }
-
-    public function test_onboarding_state_exposes_channel_setup_urls_for_saved_connections(): void
-    {
-        [$user, $tenant, $profile] = $this->seedTenantWithProfile();
-
-        $profile->forceFill([
-            'website_url' => 'https://acme.example',
-            'description' => 'Acme Plumbing helps homeowners with urgent repairs and scheduled installs.',
-            'services' => ['Emergency plumbing', 'Hot water cylinder installs'],
-        ])->save();
-
-        $tenant->forceFill([
-            'onboarding_status' => 'in_progress',
-            'onboarding_step' => 5,
-            'tone' => 'friendly',
-            'capabilities' => ['faqs', 'messages'],
-            'channel' => 'whatsapp',
-            'channel_config' => [
-                'whatsapp_phone_number_id' => '1234567890',
-                'whatsapp_access_token' => 'wa-access-token',
-                'whatsapp_verify_token' => 'verify-me',
-            ],
-        ])->save();
-
-        $tenant->businessProfileFiles->forceFill([
-            'identity_markdown' => '# Identity',
-            'soul_markdown' => '# Soul',
-            'user_markdown' => '# User',
-            'bootstrap_markdown' => '# Bootstrap',
-            'generated_at' => now(),
-        ])->save();
-
-        $this->actingAs($user);
-
-        $response = $this->get('/onboarding/state')
-            ->assertOk()
-            ->assertJson([
-                'channel_setup' => [
-                    'selected_channel' => 'whatsapp',
-                    'status' => 'connected',
-                    'whatsapp' => [
-                        'verify_token' => 'verify-me',
-                        'phone_number_id' => '1234567890',
-                        'access_token_saved' => true,
-                    ],
-                ],
-            ]);
-
-        $state = $response->json();
-
-        $this->assertStringEndsWith('/webhooks/whatsapp/'.$tenant->tenant_id, $state['channel_setup']['whatsapp']['webhook_url']);
-        $this->assertStringEndsWith('/webhooks/telegram/'.$tenant->tenant_id, $state['channel_setup']['telegram']['webhook_url']);
+        $this->assertNull($tenant->channel);
+        $this->assertNull($tenant->channel_config);
     }
 
     public function test_go_live_requires_workspace_to_be_ready(): void
@@ -524,7 +505,7 @@ class OnboardingFlowTest extends TestCase
         ])->save();
 
         $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
-        File::ensureDirectoryExists($localRuntimePath.'/workspace');
+        File::ensureDirectoryExists($localRuntimePath.'/.openclaw/workspace');
         File::put($localRuntimePath.'/compose.yaml', 'services: {}');
 
         $runnerSpy = new class implements DockerComposeRunner
@@ -541,6 +522,15 @@ class OnboardingFlowTest extends TestCase
                     'server_id' => $server->id,
                     'local' => $localRuntimePath,
                     'remote' => $remoteRuntimePath,
+                ];
+            }
+
+            public function syncWorkspaceFiles(Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void
+            {
+                $this->syncCalls[] = [
+                    'server_id' => $server->id,
+                    'local' => $localWorkspacePath,
+                    'remote' => $remoteWorkspacePath,
                 ];
             }
 
@@ -632,12 +622,12 @@ class OnboardingFlowTest extends TestCase
         $this->assertNotNull($tenant->agent_last_synced_at);
         $this->assertNotNull($profile->last_synced_to_agent);
         $this->assertNotNull($files->synced_at);
-        $this->assertStringContainsString('Acme Plumbing', File::get($localRuntimePath.'/workspace/IDENTITY.md'));
-        $this->assertStringContainsString('Business Profile', File::get($localRuntimePath.'/workspace/PROFILE.md'));
-        $this->assertStringContainsString('Heartbeat Rules', File::get($localRuntimePath.'/workspace/HEARTBEAT.md'));
+        $this->assertStringContainsString('Acme Plumbing', File::get($localRuntimePath.'/.openclaw/workspace/IDENTITY.md'));
+        $this->assertStringContainsString('Business Profile', File::get($localRuntimePath.'/.openclaw/workspace/PROFILE.md'));
+        $this->assertStringContainsString('Heartbeat Rules', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertCount(1, $runnerSpy->syncCalls);
         $this->assertCount(1, $runnerSpy->upCalls);
-        $this->assertSame('/srv/sync360/runtime/tenants/acme-plumbing', $runnerSpy->syncCalls[0]['remote']);
+        $this->assertSame('/srv/sync360/runtime/tenants/acme-plumbing/.openclaw/workspace', $runnerSpy->syncCalls[0]['remote']);
         $this->assertSame('/srv/sync360/runtime/tenants/acme-plumbing/compose.yaml', $runnerSpy->upCalls[0]['compose_file']);
     }
 
