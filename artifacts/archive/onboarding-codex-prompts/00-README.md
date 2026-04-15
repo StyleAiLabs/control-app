@@ -1,7 +1,7 @@
 # Sync360 Onboarding Wizard — Practical Prompt Pack
 
 > [!IMPORTANT]
-> Archived historical build scaffold only. This prompt pack is superseded by the implemented code and the canonical docs in [`artifacts/MEMORY.md`](../artifacts/MEMORY.md) and [`artifacts/ARCHITECTURE.md`](../artifacts/ARCHITECTURE.md). Use current code under `app/`, `routes/`, and `resources/views/` for implementation truth.
+> Archived historical build scaffold only. This prompt pack is superseded by the implemented code and the canonical docs in [`artifacts/MEMORY.md`](../../MEMORY.md) and [`artifacts/ARCHITECTURE.md`](../../ARCHITECTURE.md). Use current code under `app/`, `routes/`, and `resources/views/` for implementation truth.
 
 ## Purpose
 

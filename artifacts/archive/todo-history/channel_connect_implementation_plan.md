@@ -1,5 +1,8 @@
 # Managed Channel Connection — Brainstorm
 
+> [!IMPORTANT]
+> Historical brainstorming note. Canonical current truth is in [`artifacts/MEMORY.md`](../../MEMORY.md) and [`artifacts/ARCHITECTURE.md`](../../ARCHITECTURE.md). This file describes a fuller future channel-management vision than the current code implements. Telegram is the only live channel path today, and WhatsApp is not implemented beyond a disabled onboarding placeholder.
+
 ## The Goal
 
 Customers click a button in the Control App, follow a simple visual flow, and their WhatsApp/Telegram channel is connected. They never see a terminal, CLI command, config file, or the word "OpenClaw".

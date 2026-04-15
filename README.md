@@ -33,17 +33,18 @@ Canonical/core docs:
 
 Archived historical build notes:
 
-- `onboarding-codex-prompts/`
+- `artifacts/archive/`
 
 Historical/reference inputs:
 
 - `artifacts/walkthrough/`
 - [`artifacts/founder_roadmap.md`](artifacts/founder_roadmap.md)
-- `clientSvr/`
+- [`artifacts/archive/README.md`](artifacts/archive/README.md)
 
-Planning/backlog inputs:
+Local enforcement helpers:
 
-- `todo/`
+- `composer docs:check` or `bash scripts/check-canonical-docs.sh --staged` — verify required canonical docs and release notes were updated alongside core code changes
+- `composer hooks:install` — install local `pre-commit` and `pre-push` hooks from `.githooks/`
 
 If those files conflict with the codebase, the source of truth is:
 
@@ -199,6 +200,27 @@ php artisan test
 ```
 
 The repo includes feature and unit coverage for provisioning, admin flows, onboarding, health checks, gateway/runtime services, and conversation flows.
+
+## Local Git Hooks
+
+Install the repo-local hooks once:
+
+```bash
+composer hooks:install
+```
+
+After that:
+
+- `pre-commit` checks staged changes
+- `pre-push` checks changes against your upstream branch when one exists
+
+The hooks fail if code changes land under `app/`, `routes/`, `config/`, or `resources/views/` without all of the following:
+
+- updates to `artifacts/MEMORY.md`
+- updates to `artifacts/ARCHITECTURE.md`
+- a descriptive added entry in `artifacts/RELEASE_NOTES.md`
+
+`README.md` remains optional and should be updated when repo entrypoint, setup, or operator guidance changed.
 
 ## Scope Notes
 

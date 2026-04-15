@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sync360 Control App — Architecture v3</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; }
+
+  /* ── HEADER ── */
+  .header {
+    background: linear-gradient(135deg, #1A1A1A 0%, #2d1810 60%, #3d1f0a 100%);
+    color: white; padding: 40px 48px 32px;
+  }
+  .header-top { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+  .header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .header h1 span { color: #FF6B35; }
+  .header p { margin-top: 8px; color: #94a3b8; font-size: 15px; }
+  .header-meta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+  .hbadge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 20px; }
+  .hbadge-orange { background: rgba(255,107,53,0.2); color: #FF6B35; border: 1px solid rgba(255,107,53,0.3); }
+  .hbadge-green  { background: rgba(16,185,129,0.2); color: #10B981; border: 1px solid rgba(16,185,129,0.3); }
+  .hbadge-blue   { background: rgba(59,130,246,0.2); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
+  .hbadge-grey   { background: rgba(255,255,255,0.1); color: #94a3b8; border: 1px solid rgba(255,255,255,0.15); }
+
+  .content { max-width: 1200px; margin: 0 auto; padding: 40px 24px 100px; }
+
+  /* ── LEGEND ── */
+  .legend { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 32px; background: white; border-radius: 10px; padding: 14px 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #374151; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+  .dot-built   { background: #16a34a; }
+  .dot-partial { background: #d97706; }
+  .dot-next    { background: #3b82f6; }
+  .dot-todo    { background: #9ca3af; }
+
+  /* ── STATUS PILLS ── */
+  .status { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.4px; padding: 2px 8px; border-radius: 20px; vertical-align: middle; margin-left: 6px; }
+  .status-built   { background: #dcfce7; color: #15803d; }
+  .status-partial { background: #fef9c3; color: #a16207; }
+  .status-next    { background: #dbeafe; color: #1d4ed8; }
+  .status-todo    { background: #f3f4f6; color: #6b7280; }
+
+  /* ── SECTION TITLES ── */
+  .section-title {
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.4px;
+    color: #64748b; margin-bottom: 16px; margin-top: 52px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
+
+  /* ── CALLOUT BOXES ── */
+  .info-box  { background: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 0 8px 8px 0; padding: 16px 20px; margin-bottom: 28px; font-size: 14px; line-height: 1.6; color: #1e40af; }
+  .info-box strong { display: block; margin-bottom: 4px; font-size: 15px; }
+  .warn-box  { background: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 0 8px 8px 0; padding: 16px 20px; margin: 20px 0 28px; font-size: 14px; line-height: 1.6; color: #92400e; }
+  .good-box  { background: #f0fdf4; border-left: 4px solid #22c55e; border-radius: 0 8px 8px 0; padding: 16px 20px; margin: 20px 0 28px; font-size: 14px; line-height: 1.6; color: #14532d; }
+  .next-box  { background: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 0 8px 8px 0; padding: 16px 20px; margin: 20px 0 28px; font-size: 14px; line-height: 1.6; color: #1e40af; }
+
+  /* ── ARCHITECTURE LAYERS ── */
+  .arch-diagram { display: flex; flex-direction: column; gap: 8px; }
+
+  .layer { border-radius: 12px; padding: 22px 24px; display: grid; gap: 12px; position: relative; margin-top: 14px; }
+  .layer-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+    position: absolute; top: -12px; left: 20px; padding: 3px 12px; border-radius: 20px;
+  }
+
+  /* Layer palette */
+  .layer-users    { background: #f0fdf4; border: 2px solid #86efac; }
+  .layer-users .layer-label    { background: #16a34a; color: white; }
+  .layer-frontend { background: #fff7ed; border: 2px solid #fed7aa; }
+  .layer-frontend .layer-label { background: #FF6B35; color: white; }
+  .layer-control  { background: #faf5ff; border: 2px solid #c4b5fd; }
+  .layer-control .layer-label  { background: #7c3aed; color: white; }
+  .layer-queue    { background: #f0f9ff; border: 2px solid #7dd3fc; }
+  .layer-queue .layer-label    { background: #0284c7; color: white; }
+  .layer-provisioning { background: #fff1f2; border: 2px solid #fda4af; }
+  .layer-provisioning .layer-label { background: #be123c; color: white; }
+  .layer-infrastructure { background: #f1f5f9; border: 2px solid #cbd5e1; }
+  .layer-infrastructure .layer-label { background: #475569; color: white; }
+  .layer-runtime  { background: #fff7ed; border: 2px solid #fdba74; }
+  .layer-runtime .layer-label  { background: #ea580c; color: white; }
+  .layer-skills   { background: #eff6ff; border: 2px solid #93c5fd; }
+  .layer-skills .layer-label   { background: #1d4ed8; color: white; }
+  .layer-external { background: #fdf4ff; border: 2px solid #e879f9; }
+  .layer-external .layer-label { background: #a21caf; color: white; }
+  .layer-schedule { background: #f0fdf4; border: 2px solid #6ee7b7; }
+  .layer-schedule .layer-label { background: #059669; color: white; }
+
+  /* Boxes */
+  .boxes { display: flex; flex-wrap: wrap; gap: 10px; }
+  .box {
+    background: white; border-radius: 8px; padding: 12px 16px;
+    flex: 1; min-width: 170px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .box-title { font-size: 13px; font-weight: 700; color: #1e293b; }
+  .box-desc  { font-size: 11px; color: #64748b; line-height: 1.45; }
+  .box-file  { font-size: 10px; color: #94a3b8; font-family: 'Menlo', 'Consolas', monospace; margin-top: 4px; }
+
+  .box-built   { border-top: 3px solid #16a34a; }
+  .box-partial { border-top: 3px solid #d97706; }
+  .box-next    { border-top: 3px solid #3b82f6; border-style: solid; }
+  .box-todo    { border-top: 3px dashed #9ca3af; }
+
+  /* Arrow connector */
+  .arrow { text-align: center; font-size: 20px; color: #94a3b8; line-height: 1; margin: 2px 0; }
+
+  /* ── SERVER TOPOLOGY ── */
+  .servers-grid { display: grid; grid-template-columns: 1fr 100px 1fr; gap: 0; align-items: center; margin: 24px 0; }
+  .server-block { border-radius: 12px; border: 2px solid; padding: 24px 20px; }
+  .server-control { border-color: #7c3aed; background: #faf5ff; }
+  .server-client  { border-color: #ea580c; background: #fff7ed; }
+  .server-title {
+    font-size: 12px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
+    padding: 3px 12px; border-radius: 20px; display: inline-block; margin-bottom: 14px;
+  }
+  .server-control .server-title { background: #7c3aed; color: white; }
+  .server-client  .server-title { background: #ea580c; color: white; }
+  .server-ip { font-size: 11px; font-family: monospace; color: #64748b; margin-bottom: 14px; }
+  .server-services { display: flex; flex-direction: column; gap: 6px; }
+  .service-row {
+    background: white; border-radius: 6px; padding: 8px 12px;
+    font-size: 12px; display: flex; justify-content: space-between; align-items: center;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  }
+  .service-name { font-weight: 600; color: #1e293b; }
+  .service-detail { font-size: 11px; color: #64748b; font-family: monospace; }
+  .arrow-connector { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .arrow-label { font-size: 10px; font-weight: 600; color: #94a3b8; letter-spacing: 0.5px; text-transform: uppercase; text-align: center; }
+
+  /* ── PROVISIONING FLOW ── */
+  .flow { display: flex; flex-direction: column; gap: 0; }
+  .flow-step { display: grid; grid-template-columns: 36px 1fr; gap: 14px; align-items: start; }
+  .flow-num {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; flex-shrink: 0;
+    background: #FF6B35; color: white;
+  }
+  .flow-connector { width: 2px; background: #fed7aa; height: 24px; margin-left: 15px; }
+  .flow-body { padding-bottom: 8px; }
+  .flow-title { font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 3px; }
+  .flow-detail { font-size: 12px; color: #64748b; line-height: 1.5; }
+  .flow-file { font-size: 10px; color: #94a3b8; font-family: monospace; margin-top: 4px; }
+
+  /* ── DATA MODEL ── */
+  .models-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .model-card { background: white; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); overflow: hidden; }
+  .model-header { padding: 12px 16px; font-size: 13px; font-weight: 700; color: white; }
+  .model-header-purple { background: #7c3aed; }
+  .model-header-orange { background: #FF6B35; }
+  .model-header-blue   { background: #0284c7; }
+  .model-header-slate  { background: #475569; }
+  .model-header-green  { background: #16a34a; }
+  .model-header-teal   { background: #0d9488; }
+  .model-fields { padding: 12px 16px; display: flex; flex-direction: column; gap: 5px; }
+  .field-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; }
+  .field-name { font-weight: 600; color: #1e293b; font-family: monospace; }
+  .field-type { color: #64748b; font-size: 11px; }
+  .field-key  { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; margin-left: 6px; }
+  .field-pk   { background: #fef9c3; color: #a16207; }
+  .field-fk   { background: #eff6ff; color: #1d4ed8; }
+  .field-uq   { background: #fdf4ff; color: #7e22ce; }
+
+  /* ── SERVICES TABLE ── */
+  .services-table { width: 100%; border-collapse: collapse; font-size: 13px; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .services-table th { background: #1A1A1A; color: white; padding: 12px 16px; text-align: left; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .services-table td { padding: 11px 16px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  .services-table tr:last-child td { border-bottom: none; }
+  .services-table tr:hover td { background: #fafafa; }
+  .svc-name { font-weight: 700; color: #1e293b; font-family: monospace; font-size: 12px; }
+  .svc-role { color: #64748b; line-height: 1.5; }
+  .svc-lines { font-family: monospace; font-size: 11px; color: #94a3b8; }
+
+  /* ── TENANT RUNTIME GRID ── */
+  .runtime-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 4px; }
+  .runtime-card { background: white; border-radius: 8px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .runtime-card-title { font-size: 12px; font-weight: 700; color: #ea580c; margin-bottom: 8px; font-family: monospace; }
+  .runtime-card ul { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+  .runtime-card li { font-size: 11px; color: #64748b; padding-left: 12px; position: relative; }
+  .runtime-card li::before { content: '·'; position: absolute; left: 0; color: #94a3b8; }
+
+  /* ── PORT BAR ── */
+  .port-bar-wrap { background: white; border-radius: 10px; padding: 20px 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .port-bar-label { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 12px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px; }
+  .port-bar-track { height: 16px; background: #f1f5f9; border-radius: 8px; overflow: hidden; }
+  .port-bar-fill { height: 100%; background: linear-gradient(90deg, #FF6B35, #e55a25); border-radius: 8px; display: flex; align-items: center; padding-left: 8px; font-size: 10px; font-weight: 700; color: white; }
+  .port-bar-ticks { display: flex; justify-content: space-between; margin-top: 6px; font-size: 10px; color: #94a3b8; }
+
+  /* ── GAPS TABLE ── */
+  .gaps-table { width: 100%; border-collapse: collapse; font-size: 13px; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .gaps-table th { background: #1A1A1A; color: white; padding: 12px 16px; text-align: left; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .gaps-table td { padding: 11px 16px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  .gaps-table tr:last-child td { border-bottom: none; }
+  .pri { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+  .pri-next { background: #dbeafe; color: #1d4ed8; }
+  .pri-p1 { background: #fee2e2; color: #b91c1c; }
+  .pri-p2 { background: #fef9c3; color: #a16207; }
+  .pri-p3 { background: #f3f4f6; color: #6b7280; }
+
+  /* ── SCHEDULE TABLE ── */
+  .schedule-table { width: 100%; border-collapse: collapse; font-size: 13px; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .schedule-table th { background: #059669; color: white; padding: 10px 16px; text-align: left; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .schedule-table td { padding: 10px 16px; border-bottom: 1px solid #f1f5f9; vertical-align: top; font-size: 12px; }
+  .schedule-table tr:last-child td { border-bottom: none; }
+  .schedule-table tr:hover td { background: #f9fafb; }
+
+  /* ── ENV VARS ── */
+  .env-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 700px) { .env-grid { grid-template-columns: 1fr; } .servers-grid { grid-template-columns: 1fr; } }
+  .env-card { background: white; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); overflow: hidden; }
+  .env-card-header { padding: 10px 16px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+  .env-card-header-dev  { background: #eff6ff; color: #1d4ed8; }
+  .env-card-header-prod { background: #f0fdf4; color: #15803d; }
+  .env-vars { padding: 12px 16px; display: flex; flex-direction: column; gap: 6px; }
+  .env-row { display: flex; gap: 8px; align-items: baseline; font-size: 11px; }
+  .env-key { font-family: monospace; font-weight: 600; color: #1e293b; white-space: nowrap; }
+  .env-val { color: #64748b; }
+
+  /* ── MILESTONE CARDS ── */
+  .milestone-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 8px; }
+  @media (max-width: 700px) { .milestone-grid { grid-template-columns: 1fr; } }
+  .milestone-card { background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); overflow: hidden; border: 2px solid #93c5fd; }
+  .milestone-header { background: #1d4ed8; color: white; padding: 14px 20px; }
+  .milestone-num { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #93c5fd; margin-bottom: 4px; }
+  .milestone-title { font-size: 16px; font-weight: 700; }
+  .milestone-sub { font-size: 12px; color: #93c5fd; margin-top: 4px; }
+  .milestone-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+  .milestone-item { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: #374151; line-height: 1.5; }
+  .milestone-item::before { content: '→'; color: #3b82f6; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+  .milestone-note { font-size: 11px; color: #64748b; background: #f8fafc; border-radius: 6px; padding: 8px 12px; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div>
+      <h1>Sync360 <span>Control App</span> — Architecture</h1>
+      <p>Multi-tenant AI digital employee platform · AI Office Manager for service businesses</p>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:22px; font-weight:800; color:#FF6B35;">v3</div>
+      <div style="font-size:11px; color:#94a3b8; margin-top:2px;">April 2026</div>
+    </div>
+  </div>
+  <div class="header-meta">
+    <span class="hbadge hbadge-orange">Laravel 13 · PHP 8.3</span>
+    <span class="hbadge hbadge-orange">PostgreSQL 17 · Redis 7</span>
+    <span class="hbadge hbadge-green">Control plane live · 161.97.74.128</span>
+    <span class="hbadge hbadge-green">Client runtime live · 89.116.28.191</span>
+    <span class="hbadge hbadge-green">Telegram polling · live</span>
+    <span class="hbadge hbadge-green">LiteLLM per-tenant keys · live</span>
+    <span class="hbadge hbadge-grey">Brevo email · live</span>
+    <span class="hbadge hbadge-blue">Next: Email (Gmail) + Skill Registry</span>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- LEGEND -->
+  <div class="legend">
+    <div class="legend-item"><div class="dot dot-built"></div> Built &amp; deployed</div>
+    <div class="legend-item"><div class="dot dot-partial"></div> Partial / in progress</div>
+    <div class="legend-item"><div class="dot dot-next"></div> Next milestone</div>
+    <div class="legend-item"><div class="dot dot-todo"></div> Planned / not yet built</div>
+  </div>
+
+  <div class="good-box">
+    <strong>🚀 Full product loop live in production</strong>
+    Signup → 6-step onboarding wizard → auto-provisioned OpenClaw workspace → Telegram polling channel → AI agent replies to customers → conversation history with AI summaries synced to dashboard → 14-day trial with spend tracking and email lifecycle notifications. Control plane (161.97.74.128) provisions OpenClaw containers onto the client runtime VPS (89.116.28.191) over SSH. LiteLLM provides per-tenant virtual API keys and spend control.
+  </div>
+
+  <div class="next-box">
+    <strong>⚡ Next two architectural milestones</strong>
+    <strong>Milestone 1 — Email Integration (Google/Gmail at MVP scope):</strong> connect a business Gmail account as a live channel; inbox polling, triage, and owner digest.<br>
+    <strong>Milestone 2 — Skill Registry + Workflow Deployment Engine:</strong> versioned skill bundles deployable to any tenant runtime on demand. Once these exist, every future capability (bookings, quotes, follow-ups) ships as a skill pack — no platform rebuilds.
+  </div>
+
+  <!-- ════════════════════════════════════════════════
+       NEXT MILESTONES DETAIL
+  ═════════════════════════════════════════════════ -->
+  <div class="section-title">Next Two Architectural Milestones</div>
+
+  <div class="milestone-grid">
+    <div class="milestone-card">
+      <div class="milestone-header">
+        <div class="milestone-num">Milestone 1</div>
+        <div class="milestone-title">Email Integration</div>
+        <div class="milestone-sub">Google / Gmail at MVP scope</div>
+      </div>
+      <div class="milestone-body">
+        <div class="milestone-item">Gmail OAuth flow — capture and store encrypted refresh token per tenant in the channel config</div>
+        <div class="milestone-item">Gmail API inbox polling via scheduler — reads unread threads, extracts sender, subject, body snippet</div>
+        <div class="milestone-item">AI triage per email — classify as lead / support / spam using LiteLLM platform key; store classification in <code>email_threads</code> table</div>
+        <div class="milestone-item">Daily digest email to business owner — AI-summarised inbox with top actions needed (via Brevo)</div>
+        <div class="milestone-item">Dashboard "Inbox" tab — shows triaged email threads with classification badges, read/unread state, and owner action buttons</div>
+        <div class="milestone-note">⚠ Gmail scopes (<code>gmail.modify</code>) are restricted by Google and require security assessment for production apps. Use IMAP/app-password as a simpler MVP path first; upgrade to OAuth later. IMAP works with Gmail and avoids Google review delays.</div>
+      </div>
+    </div>
+    <div class="milestone-card">
+      <div class="milestone-header">
+        <div class="milestone-num">Milestone 2</div>
+        <div class="milestone-title">Skill Registry + Deployment Engine</div>
+        <div class="milestone-sub">The platform moat</div>
+      </div>
+      <div class="milestone-body">
+        <div class="milestone-item"><code>skills</code> table — versioned skill manifests (id, slug, name, version, required_channels, openclaw_config_snippet JSON, workspace_files JSON)</div>
+        <div class="milestone-item"><code>tenant_skills</code> table — tracks which skills are deployed to each tenant (skill_id, tenant_id, deployed_at, status)</div>
+        <div class="milestone-item"><code>SkillDeployerService</code> — merges skill config into <code>openclaw.json</code> via <code>putFile()</code>, writes skill markdown files via <code>syncWorkspaceFiles()</code>, restarts container. Uses existing proven deployment primitives.</div>
+        <div class="milestone-item">Skill Selector UI — dashboard tab for browsing and toggling installed skills; triggers background deployment job</div>
+        <div class="milestone-item">First skills shipped: Email Triage (Milestone 1 becomes the first skill), Lead Capture / Quote Request, After-Hours Auto-Reply</div>
+        <div class="milestone-note">The deployment primitive already exists — <code>configureChannel()</code> proves the pattern: putFile + restart. Skill deployment is a generalisation of that loop.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════
+       SECTION 0: CUSTOMERS
+  ═════════════════════════════════════════════════ -->
+  <div class="section-title">Your Customers</div>
+
+  <div class="arch-diagram">
+    <div class="layer layer-users">
+      <div class="layer-label">Your Customers</div>
+      <div class="boxes">
+        <div class="box box-built">
+          <div class="box-title">Business Owner <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Signs up, completes 6-step onboarding wizard (website extraction → business info → personality → capabilities → channel → go live). Gets a provisioned AI Digital Employee on Telegram. Views conversation history, manages business profile, monitors workspace health from dashboard.</div>
+          <div class="box-file">landing → signup → /onboarding → /dashboard → /conversations → /profile</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">End-User (Telegram) <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Customer messages the business's Telegram bot. OpenClaw polls Telegram for updates, processes the message with the AI agent, replies in the same thread. Conversation is synced to the Sync360 dashboard every 10 minutes with an AI summary.</div>
+          <div class="box-file">Telegram polling mode → OpenClaw agent → session log → sync360:sync-replies</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">Billing Portal <span class="status status-todo">NOT BUILT</span></div>
+          <div class="box-desc">No Stripe checkout. All accounts start as 14-day trial. Trial enforcement via LiteLLM spend + time expiry is built, but there is no paid conversion path. Required before public launch.</div>
+          <div class="box-file">Stripe Checkout + webhook handler needed</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════
+       LAYER 1: CUSTOMER-FACING WEB APP
+  ═════════════════════════════════════════════════ -->
+  <div class="section-title">Layer 1 — Customer-Facing Web App (Laravel + Blade + Tailwind CSS 4)</div>
+
+  <div class="arch-diagram">
+    <div class="layer layer-frontend">
+      <div class="layer-label">Layer 1 · Customer-Facing Web App</div>
+      <div class="boxes">
+        <div class="box box-built">
+          <div class="box-title">Landing Page <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Benefit-led marketing copy targeting service business owners. Stat tiles, pain-point story, CTA to signup.</div>
+          <div class="box-file">landing.blade.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Signup / Login <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Custom auth — no Breeze/Jetstream. Captures name, email, password, business name, industry. On signup: creates User, Tenant, BusinessProfile, ProvisioningJob in a DB transaction; dispatches provisioning job; redirects to /tenant/setup.</div>
+          <div class="box-file">auth/signup.blade.php · RegisterController.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Onboarding Wizard <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">6-step resumable wizard. Step 1: website URL → AI extraction. Step 2: business info form (17 fields). Step 3: tone/personality. Step 4: capabilities selection. Step 5: Telegram bot token connect. Step 6: go-live sync. State persisted per step; non-technical language throughout.</div>
+          <div class="box-file">onboarding/show.blade.php · OnboardingController.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Dashboard <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Trial status (days + spend vs budget), workspace health, digital employee status (live/deploying/failed), onboarding progress steps, recent conversation activity (count today/week, recent sessions). Persists health check result to DB for global alert visibility across all pages.</div>
+          <div class="box-file">dashboard.blade.php · DashboardController.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Conversations <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Session-grouped conversation history. Each card: channel badge, sender, replied/no-reply badge, AI summary, message count, session UUID. Filter by channel, reply status, date range, keyword. Custom pagination. Synced from workspace session logs every 10 minutes.</div>
+          <div class="box-file">conversations/index.blade.php · ConversationsController.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Business Profile <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Edit all 25 business fields post-onboarding. "Sync to agent" button pushes updated profile to the live workspace (writes workspace markdown files + restarts container) without overwriting provisioned credentials.</div>
+          <div class="box-file">profile/show.blade.php · ProfileController.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Provisioning Status <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Polls /tenant/status every 3s with human-friendly status labels. Auto-redirects on ready. "What We're Setting Up" panel. Workspace-ready confirmation screen.</div>
+          <div class="box-file">tenant/setup.blade.php · tenant/workspace-ready.blade.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Admin Panel <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Super-admin only (local.only + admin middleware). Users, Tenants, Jobs tables. Per-tenant workspace start/stop/restart, health-check, resync-agent. Retry failed provisioning. Live deploy trigger + log tail. Delete tenant.</div>
+          <div class="box-file">admin/{index,users,tenants,jobs}.blade.php · AdminController.php</div>
+        </div>
+        <div class="box box-next">
+          <div class="box-title">Inbox Tab <span class="status status-next">MILESTONE 1</span></div>
+          <div class="box-desc">Dashboard tab showing triaged email threads from the connected Gmail/IMAP inbox. Classification badges (lead / support / spam), AI summary, owner action buttons. Built as part of Email Integration milestone.</div>
+          <div class="box-file">Planned — email_threads table + InboxController needed</div>
+        </div>
+        <div class="box box-next">
+          <div class="box-title">Skill Selector <span class="status status-next">MILESTONE 2</span></div>
+          <div class="box-desc">Browse and toggle installed skill packs from the dashboard. Triggers background SkillDeployerService job. skill_pack column already exists on tenants table.</div>
+          <div class="box-file">Planned — depends on Skill Registry (Milestone 2)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════
+       LAYER 2: CONTROL PLANE / BACKEND
+  ═════════════════════════════════════════════════ -->
+  <div class="section-title">Layer 2 — Control Plane / Backend (Laravel 13, PHP 8.3+)</div>
+
+  <div class="arch-diagram">
+    <div class="layer layer-control">
+      <div class="layer-label">Layer 2 · Control Plane / Backend</div>
+      <div class="boxes">
+        <div class="box box-built">
+          <div class="box-title">Provisioning Service <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">ProcessTenantProvisioning job → OpenClawProvisioner: port allocation → LiteLLM key creation → runtime scaffold → SSH sync → docker compose up → private /readyz poll → public /login poll → mark ready → workspace-ready email.</div>
+          <div class="box-file">Jobs/ProcessTenantProvisioning.php · Services/OpenClawProvisioner.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Agent Sync Service <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">TenantAgentSyncService: goLive() writes 6 markdown identity files into .openclaw/workspace/ and calls syncWorkspaceFiles() ONLY (never syncRuntime — would overwrite credentials). configureChannel() patches openclaw.json + restarts container for channel changes. syncProfile() and syncHeartbeat() for post-onboarding updates.</div>
+          <div class="box-file">Services/TenantAgentSyncService.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Business Extraction <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">BusinessExtractionService: fetches website HTML, calls LiteLLM (platform key, not tenant key) to extract structured business data (name, description, services, FAQs, hours, contacts). Used in onboarding Step 1.</div>
+          <div class="box-file">Services/BusinessExtractionService.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">LiteLLM Tenant Keys <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">LiteLlmTenantKeyService: creates per-tenant virtual API keys with budget caps at provisioning. getKeyInfo() refreshes spend data. suspendTenant() zeros the budget at trial expiry. Per-plan budget config in config/sync360.php.</div>
+          <div class="box-file">Services/LiteLlmTenantKeyService.php · config/sync360.php litellm section</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Conversation Summary <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">ConversationSummaryService: calls LiteLLM platform key (model: claude-sonnet-4-6) to generate ≤25-word business-outcome summary per session. Silent failure — records kept without summary until next sync cycle.</div>
+          <div class="box-file">Services/ConversationSummaryService.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Session Log Reader <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">WorkspaceSessionLogReader: reads workspace memory/*.md files from VPS over SSH. Splits on # Session: block headers to extract session UUID, inbound messages, and assistant replies per turn.</div>
+          <div class="box-file">Services/WorkspaceSessionLogReader.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Health Check Service <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">TenantHealthCheckService: checks server/runtime prereqs → container running → private /readyz via TenantGatewayService. Persists last_health_check_status + health_check_message on tenant. Dashboard reads this for global offline alert on every page.</div>
+          <div class="box-file">Services/TenantHealthCheckService.php · Services/TenantGatewayService.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Trial Lifecycle <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">sync360:check-trial-expiry (every 30 min): refreshes LiteLLM spend, evaluates budget + time expiry, suspends expired tenants, sends warning emails (80% budget, ≤3 days) and expired emails. Each notification fired at most once via notified_at timestamp guards.</div>
+          <div class="box-file">routes/console.php · Services/TrialNotificationEmailService.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Runtime Service <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">TenantRuntimeService: port allocation (4100–4199 per server), workspace URL generation, local staging scaffold, writes .env + metadata.json + config/openclaw.json + compose.yaml. remoteRuntimePath() resolves VPS path from server.runtime_root.</div>
+          <div class="box-file">Services/TenantRuntimeService.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Server Placement <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">ServerPlacementService: selects active VPS with spare capacity (current_clients &lt; max_clients) ordered by load. Validates SSH + Caddy config present. Multi-server horizontal scale needs only new DB records.</div>
+          <div class="box-file">Services/ServerPlacementService.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Email Services <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">WorkspaceReadyEmailService: HTML+text workspace-ready email via Brevo with decrypted credentials. TrialNotificationEmailService: warning (80% budget, 3-day) and expired emails. BREVO_ENABLED toggle.</div>
+          <div class="box-file">Services/WorkspaceReadyEmailService.php · Services/TrialNotificationEmailService.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Self-Deploy Service <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">ControlAppDeploymentService: SSH nohup to trigger host-side deploy script on control VPS. Reads deploy status file + git commit hash + log tail for admin panel live feedback.</div>
+          <div class="box-file">Services/ControlAppDeploymentService.php</div>
+        </div>
+        <div class="box box-next">
+          <div class="box-title">Skill Deployer <span class="status status-next">MILESTONE 2</span></div>
+          <div class="box-desc">SkillDeployerService: reads skill manifest, merges skill-specific openclaw.json config via putFile(), writes skill markdown files via syncWorkspaceFiles(), restarts container. Uses the same primitives as configureChannel(). No reprovisioning needed.</div>
+          <div class="box-file">Planned · deployment primitives already exist</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">Billing — Stripe <span class="status status-todo">NOT BUILT</span></div>
+          <div class="box-desc">No Stripe integration. Laravel Cashier needed for checkout, subscription management, webhook-driven suspend/resume on payment failure, and plan upgrade/downgrade.</div>
+          <div class="box-file">Laravel Cashier + Stripe webhook handler needed</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════
+       LAYER 3: SHARED INFRASTRUCTURE
+  ═════════════════════════════════════════════════ -->
+  <div class="section-title">Layer 3 — Shared Infrastructure (Docker Compose)</div>
+
+  <div class="arch-diagram">
+    <div class="layer layer-infrastructure">
+      <div class="layer-label">Layer 3 · Shared Infrastructure</div>
+      <div class="boxes">
+        <div class="box box-built">
+          <div class="box-title">PostgreSQL 17 <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Tables: users, tenants, servers, provisioning_jobs, business_profiles, business_profile_files, conversation_logs, cache, jobs (queue). Named volume postgres-data. Migrations auto-run on startup.</div>
+          <div class="box-file">docker-compose.prod.yml → postgres service</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Redis 7 <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Queue broker for provisioning jobs. Cache and session driver in production. Named volume redis-data. Worker and scheduler containers consume the queue and schedule.</div>
+          <div class="box-file">docker-compose.prod.yml → redis service</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Scheduler Container <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Dedicated scheduler service in docker-compose.prod.yml running php artisan schedule:work. Runs health-check (5 min), trial-expiry (30 min), and conversation sync (10 min) automatically. Without this container none of the scheduled commands run.</div>
+          <div class="box-file">docker-compose.prod.yml → scheduler · docker/start-prod-scheduler.sh</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Routing / Proxy <span class="status status-built">BUILT</span></div>
+          <div class="box-desc">Apache on control plane (161.97.74.128) reverse proxies to Laravel :8000. Caddy on client runtime (89.116.28.191) handles wildcard HTTPS for *.workspace.sync360.co.nz → per-tenant ports 4100–4199. Per-tenant .caddy site files installed by provisioner.</div>
+          <div class="box-file">Apache (control VPS) · Caddy + /etc/caddy/sites/{slug}.caddy (client VPS)</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">Monitoring <span class="status status-todo">NOT BUILT</span></div>
+          <div class="box-desc">No alerting or metrics dashboard. Health checks run on schedule and persist to DB but no proactive push alerts on container crashes or queue backlogs to the operator.</div>
+          <div class="box-file">Alert integration (email/Slack) needed for operator</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════
+       SCHEDULED COMMANDS
+  ═════════════════════════════════════════════════ -->
+  <div class="section-title">Scheduled Commands (routes/console.php)</div>
+
+  <table class="schedule-table">
+    <thead>
+      <tr>
+        <th style="width:220px">Command</th>
+        <th style="width:110px">Frequency</th>
+        <th>What it does</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>tenants:health-check</code></td>
+        <td>Every 5 min</td>
+        <td>For all live/failed tenants: check container running → private /readyz via TenantGatewayService → persist last_health_check_status + health_check_message on tenant. Dashboard global alert reads this on every page.</td>
+      </tr>
+      <tr>
+        <td><code>sync360:sync-replies</code></td>
+        <td>Every 10 min</td>
+        <td>For all live tenants: read workspace memory/*.md session logs via SSH → parse # Session: blocks → upsert ConversationLog rows → generate AI summary per session missing one (LiteLLM claude-sonnet-4-6, ≤25 words, silent failure).</td>
+      </tr>
+      <tr>
+        <td><code>sync360:check-trial-expiry</code></td>
+        <td>Every 30 min</td>
+        <td>For active trial tenants: refresh LiteLLM spend → evaluate budget + time expiry → suspend + expired email (once). Send 80%-budget and ≤3-days warnings (each at most once, guarded by notified_at timestamps).</td>
+      </tr>
+      <tr>
+        <td><code>sync360:bootstrap-client-vps</code></td>
+        <td>On demand</td>
+        <td>Install Caddy on client VPS, create runtime/sites dirs, add SSH user to docker group, import /etc/caddy/sites/*.caddy, enable and reload Caddy. Requires SYNC360_INFRASTRUCTURE_DRIVER=ssh.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ════════════════════════════════════════════════
+       SERVER TOPOLOGY
+  ═════════════════════════════════════════════════ -->
+  <div class="section-title">Deployed Server Topology</div>
+
+  <div class="servers-grid">
+    <div class="server-block server-control">
+      <div class="server-title">Control Plane</div>
+      <div class="server-ip">161.97.74.128 · Apache reverse proxy → :8000</div>
+      <div class="server-services">
+        <div class="service-row"><span class="service-name">app (Laravel 13)</span><span class="service-detail">127.0.0.1:8000</span></div>
+        <div class="service-row"><span class="service-name">worker (queue)</span><span class="service-detail">redis-backed</span></div>
+        <div class="service-row"><span class="service-name">scheduler</span><span class="service-detail">php artisan schedule:work</span></div>
+        <div class="service-row"><span class="service-name">postgres:17</span><span class="service-detail">postgres-data volume</span></div>
+        <div class="service-row"><span class="service-name">redis:7</span><span class="service-detail">redis-data volume</span></div>
+        <div class="service-row" style="border-top:1px solid #e9d5ff; margin-top:4px;"><span class="service-name">deploy script</span><span class="service-detail">SSH nohup self-redeploy</span></div>
+      </div>
+    </div>
+    <div class="arrow-connector">
+      <div class="arrow-label">SSH / rsync / SCP</div>
+      <div style="width:100%; height:2px; background:#94a3b8; margin: 6px 0; position:relative;">
+        <div style="position:absolute; right:-6px; top:-6px; font-size:14px; color:#94a3b8;">▶</div>
+      </div>
+      <div style="font-size:10px; color:#6b7280; text-align:center; line-height:1.8; margin-top:4px;">
+        rsync runtime<br>SCP config files<br>docker compose up<br>curl /readyz<br>read session logs
+      </div>
+    </div>
+    <div class="server-block server-client">
+      <div class="server-title">Client Runtime</div>
+      <div class="server-ip">89.116.28.191 · *.workspace.sync360.co.nz → Caddy → :4100–4199</div>
+      <div class="server-services">
+        <div class="service-row"><span class="service-name">Caddy (reverse proxy)</span><span class="service-detail">/etc/caddy/sites/{slug}.caddy</span></div>
+        <div class="service-row"><span class="service-name">LiteLLM proxy</span><span class="service-detail">per-tenant virtual keys</span></div>
+        <div class="service-row"><span class="service-name">OpenClaw container × N</span><span class="service-detail">127.0.0.1:4100–4199</span></div>
+        <div class="service-row"><span class="service-name">Tenant runtime files</span><span class="service-detail">/srv/sync360/runtime/tenants/{slug}/</span></div>
+        <div class="service-row" style="border-top:1px solid #fed7aa; margin-top:4px;"><span class="service-name">Readiness probe</span><span class="service-detail">GET /readyz per container</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════
+       LAYER 4: TENANT CONTAINERS
+  ═════════════════════════════════════════════════ -->
+  <div class="section-title">Layer 4 — Tenant Containers (One per Customer · Ports 4100–4199)</div>
+
+  <div class="arch-diagram">
+    <div class="layer layer-runtime">
+      <div class="layer-label">Layer 4 · Tenant Containers</div>
+      <p style="font-size:13px; color:#64748b; line-height:1.6; margin-bottom: 12px;">
+        Each tenant gets an isolated Docker container on the client runtime VPS. The provisioner creates
+        <code style="background:#fff3e8; padding:2px 6px; border-radius:4px; font-size:12px;">/srv/sync360/runtime/tenants/{slug}/</code>
+        locally, syncs it over SSH, installs a Caddy site config, then starts the container.
+        After go-live, workspace markdown files are synced independently without touching credentials.
+      </p>
+      <div class="runtime-grid">
+        <div class="runtime-card">
+          <div class="runtime-card-title">runtime/{slug}/</div>
+          <ul>
+            <li><strong>.env</strong> — tenant slug, port, workspace URL</li>
+            <li><strong>metadata.json</strong> — tenant/server/job snapshot</li>
+            <li><strong>config/openclaw.json</strong> — gateway, channels, LiteLLM (immutable post-provision)</li>
+            <li><strong>compose.yaml</strong> — container definition (immutable post-provision)</li>
+            <li><strong>data/</strong> — OpenClaw persistent data</li>
+            <li><strong>logs/</strong> — container logs</li>
+          </ul>
+        </div>
+        <div class="runtime-card">
+          <div class="runtime-card-title">.openclaw/workspace/</div>
+          <ul>
+            <li><strong>IDENTITY.md</strong> — who the agent is</li>
+            <li><strong>SOUL.md</strong> — values and principles</li>
+            <li><strong>USER.md</strong> — user instructions</li>
+            <li><strong>BOOTSTRAP.md</strong> — init context + capabilities</li>
+            <li><strong>PROFILE.md</strong> — business info, hours, services</li>
+            <li><strong>HEARTBEAT.md</strong> — core rules, tone, escalation</li>
+            <li><strong>memory/*.md</strong> — session conversation logs (read by control plane)</li>
+          </ul>
+        </div>
+        <div class="runtime-card">
+          <div class="runtime-card-title">Sync boundary (critical)</div>
+          <ul>
+            <li><strong>syncRuntime()</strong> — full sync; used for initial provisioning only</li>
+            <li><strong>syncWorkspaceFiles()</strong> — workspace markdown only; used by goLive() and profile sync</li>
+            <li><strong>putFile()</strong> — single file write; used by configureChannel()</li>
+            <li>Never call syncRuntime() post-provision — overwrites credentials</li>
+          </ul>
+        </div>
+        <div class="runtime-card">
+          <div class="runtime-card-title">Container lifecycle</div>
+          <ul>
+            <li>Started by OpenClawProvisioner via SSH</li>
+            <li>restart: unless-stopped policy</li>
+            <li>Readiness: private /readyz (45s) then public /login (120s)</li>
+            <li>Admin: start/stop/restart via panel</li>
+            <li>Channel config change → putFile + restart (no reprovision)</li>
+            <li>Telegram polling mode — no webhook required</li>
+          </ul>
+        </div>
+      </div>
+      <div style="margin-top: 16px;">
+        <div class="port-bar-wrap">
+          <div class="port-bar-label">
+            <span>Port allocation per server · 4100–4199 (100 slots)</span>
+            <span style="color:#FF6B35; font-weight:600;">⚠ Add server before hitting ~70 tenants</span>
+          </div>
+          <div class="port-bar-track">
+            <div class="port-bar-fill" style="width:10%;">~10</div>
+          </div>
+          <div class="port-bar-ticks">
+            <span>4100 (first)</span>
+            <span>4125</span>
+            <span>4150</span>
+            <span>⚠ ~70 add server</span>
+            <span>4199 (100th)</span>
+          </div>
+        </div>
+        <p style="font-size:12px; color:#92400e; margin-top:8px; padding: 10px 14px; background:#fffbeb; border-radius:6px;">
+          Multi-server is architecturally supported today — add a new record to the <code>servers</code> table and ServerPlacementService routes there automatically. No code changes required.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════
+       LAYER 5: SKILL REGISTRY (NEXT MILESTONE)
+  ═════════════════════════════════════════════════ -->
+  <div class="section-title">Layer 5 — Skill Registry + Workflow Engine (Next Milestone 2)</div>
+
+  <div class="arch-diagram">
+    <div class="layer layer-skills">
+      <div class="layer-label">Layer 5 · Skill Registry — Next Milestone 2</div>
+      <p style="font-size:13px; color:#374151; line-height:1.6; margin-bottom: 12px;">
+        Once built, every future capability (bookings, quote generation, inbox triage, follow-ups) ships as a versioned skill pack deployed to tenant runtimes on demand — no platform rebuilds required.
+        The deployment primitive already exists: <code style="background:#dbeafe; padding:2px 6px; border-radius:4px; font-size:12px;">configureChannel()</code> proves the pattern.
+        Skill deployment = putFile(skill config snippet into openclaw.json) + syncWorkspaceFiles(skill markdown) + restart.
+      </p>
+      <div class="boxes">
+        <div class="box box-next">
+          <div class="box-title">Skill Registry DB <span class="status status-next">MILESTONE 2</span></div>
+          <div class="box-desc"><code>skills</code> table: id, slug, name, version, required_channels, openclaw_config_snippet (JSON), workspace_files (JSON paths → content). <code>tenant_skills</code>: tenant_id, skill_id, deployed_at, status.</div>
+          <div class="box-file">New migration: create_skills_table + create_tenant_skills_table</div>
+        </div>
+        <div class="box box-next">
+          <div class="box-title">SkillDeployerService <span class="status status-next">MILESTONE 2</span></div>
+          <div class="box-desc">Reads skill manifest → merges openclaw.json config snippet via putFile() → writes skill markdown files via syncWorkspaceFiles() → restarts container. Safe: never touches compose.yaml or LiteLLM credentials.</div>
+          <div class="box-file">New: Services/SkillDeployerService.php</div>
+        </div>
+        <div class="box box-next">
+          <div class="box-title">Email Triage Skill <span class="status status-next">MILESTONE 1+2</span></div>
+          <div class="box-desc">First production skill pack. Built in Milestone 1 as standalone; migrated into the Skill Registry framework in Milestone 2. Triage logic: lead / support / spam classification, owner digest, inbox dashboard tab.</div>
+          <div class="box-file">First skill in registry after Milestone 2</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">Lead Capture Skill <span class="status status-todo">PLANNED</span></div>
+          <div class="box-desc">Detects quote-request intent in Telegram messages → extracts job type, location, contact details → creates quote_requests record → notifies owner by email → surfaces in dashboard Leads tab.</div>
+          <div class="box-file">Second skill after Skill Registry is built</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">Booking Skill <span class="status status-todo">PLANNED</span></div>
+          <div class="box-desc">Integrates with Cal.com or Google Calendar API. Agent checks availability, offers time slots, confirms booking. Per-tenant OAuth config captured at skill install time.</div>
+          <div class="box-file">Third skill · Cal.com / Google Calendar integration needed</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">Workflow Engine <span class="status status-todo">FUTURE</span></div>
+          <div class="box-desc">Multi-step async workflows triggered by conversation events. Requires a push/callback mechanism: either OpenClaw webhook back to control plane, or structured event markers in session logs parsed by scheduler. Distinct from static skill manifests.</div>
+          <div class="box-file">Design needed — pull model (session log polling) is safe starting point</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════
+       LAYER 6: EXTERNAL SERVICES
+  ═════════════════════════════════════════════════ -->
+  <div class="section-title">Layer 6 — External Services</div>
+
+  <div class="arch-diagram">
+    <div class="layer layer-external">
+      <div class="layer-label">Layer 6 · External Services</div>
+      <div class="boxes">
+        <div class="box box-built">
+          <div class="box-title">Brevo <span class="status status-built">LIVE</span></div>
+          <div class="box-desc">Transactional email API. Workspace-ready email, trial warning emails (80% budget, 3-day), trial-expired email. BREVO_ENABLED toggle for dev/prod.</div>
+          <div class="box-file">Services/WorkspaceReadyEmailService.php · Services/TrialNotificationEmailService.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">LiteLLM <span class="status status-built">LIVE</span></div>
+          <div class="box-desc">Two roles: (1) per-tenant virtual keys for OpenClaw agent operation with budget caps; (2) platform key for control-plane AI calls (website extraction, conversation summaries). Hosted on client VPS. Spend data refreshed every 30 min.</div>
+          <div class="box-file">Services/LiteLlmTenantKeyService.php · Services/ConversationSummaryService.php · Services/BusinessExtractionService.php</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Telegram <span class="status status-built">LIVE</span></div>
+          <div class="box-desc">Polling mode via OpenClaw's native getUpdates long-poll. Bot token stored in openclaw.json. No control-app webhook route. Conversations synced to control plane via session log reader every 10 min.</div>
+          <div class="box-file">Configured in openclaw.json channels.telegram.botToken · TenantAgentSyncService::configureChannel()</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Caddy (Client VPS) <span class="status status-built">LIVE</span></div>
+          <div class="box-desc">Wildcard HTTPS for *.workspace.sync360.co.nz. Per-tenant .caddy site files written by provisioner via SCP. Auto TLS via Let's Encrypt.</div>
+          <div class="box-file">SshDockerComposeRunner::putFile() + runCommand("caddy reload")</div>
+        </div>
+        <div class="box box-built">
+          <div class="box-title">Apache (Control VPS) <span class="status status-built">LIVE</span></div>
+          <div class="box-desc">Reverse proxy on 161.97.74.128. TLS termination, proxy to Laravel :8000.</div>
+          <div class="box-file">deploy/apache/app.sync360.co.nz.conf</div>
+        </div>
+        <div class="box box-next">
+          <div class="box-title">Gmail / IMAP Email <span class="status status-next">MILESTONE 1</span></div>
+          <div class="box-desc">Gmail IMAP (app password) at MVP scope — simpler than OAuth, no Google review required. Inbox polling via scheduler. AI triage per email (LiteLLM). Owner digest via Brevo. Gmail OAuth upgrade path after validation.</div>
+          <div class="box-file">Planned — new channel type in tenant config</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">WhatsApp <span class="status status-todo">POST-MVP</span></div>
+          <div class="box-desc">OpenClaw WS RPC (web.login.start / web.login.wait) for QR-based linking. More complex than Telegram. Requires multi-channel schema (tenant_channels table). Planned after core product loop (intake → leads → billing) is validated.</div>
+          <div class="box-file">todo/channel_connect_implementation_plan.md · post-MVP</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">Stripe <span class="status status-todo">NOT CONNECTED</span></div>
+          <div class="box-desc">No payment integration. Laravel Cashier needed. Required before public launch to convert trials to paid plans.</div>
+          <div class="box-file">Laravel Cashier + Stripe webhook handler needed</div>
+        </div>
+        <div class="box box-todo">
+          <div class="box-title">Calendar (Cal.com / Google) <span class="status status-todo">PLANNED</span></div>
+          <div class="box-desc">Required by the Booking skill. Per-tenant OAuth or API key at skill install time. Not yet integrated.</div>
+          <div class="box-file">Needed by Booking Skill (Layer 5)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════
+       PROVISIONING FLOW
+  ═════════════════════════════════════════════════ -->
+  <div class="section-title">Full Provisioning Flow (Signup → Live Workspace)</div>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-num">1</div>
+      <div class="flow-body">
+        <div class="flow-title">Signup form submitted</div>
+        <div class="flow-detail">RegisterController validates → DB transaction: User + Tenant (pending) + BusinessProfile + BusinessProfileFiles + ProvisioningJob (queued). ServerPlacementService selects VPS with spare capacity. Increments server.current_clients. Dispatches ProcessTenantProvisioning after commit. Redirects to /tenant/setup.</div>
+        <div class="flow-file">RegisterController → ServerPlacementService → ProcessTenantProvisioning::dispatchAfterCommit()</div>
+      </div>
+    </div>
+    <div class="flow-connector"></div>
+    <div class="flow-step">
+      <div class="flow-num">2</div>
+      <div class="flow-body">
+        <div class="flow-title">Queue worker picks up job → provisioner starts</div>
+        <div class="flow-detail">ProcessTenantProvisioning resolves OpenClawProvisioner via DI. Marks job running, marks tenant provisioning.</div>
+        <div class="flow-file">ProcessTenantProvisioning → OpenClawProvisioner::provision()</div>
+      </div>
+    </div>
+    <div class="flow-connector"></div>
+    <div class="flow-step">
+      <div class="flow-num">3</div>
+      <div class="flow-body">
+        <div class="flow-title">Port allocation + LiteLLM tenant key</div>
+        <div class="flow-detail">TenantRuntimeService allocates next free port (4100–4199 unique per server) and generates workspace URL ({slug}.workspace.sync360.co.nz). LiteLlmTenantKeyService creates a virtual API key for this tenant with plan-appropriate budget cap.</div>
+        <div class="flow-file">TenantRuntimeService::allocatePort() · LiteLlmTenantKeyService::ensureTenantKey()</div>
+      </div>
+    </div>
+    <div class="flow-connector"></div>
+    <div class="flow-step">
+      <div class="flow-num">4</div>
+      <div class="flow-body">
+        <div class="flow-title">Local runtime staging</div>
+        <div class="flow-detail">Scaffolds runtime/tenants/{slug}/ from templates/tenant/. Writes: .env (port, slug, workspace URL), metadata.json (tenant/server/job snapshot), config/openclaw.json (gateway + agent + LiteLLM model config), compose.yaml (tenant container definition). Creates .openclaw/workspace/ directory.</div>
+        <div class="flow-file">TenantRuntimeService::prepareRuntime() → OpenClawProvisioner writes 4 files</div>
+      </div>
+    </div>
+    <div class="flow-connector"></div>
+    <div class="flow-step">
+      <div class="flow-num">5</div>
+      <div class="flow-body">
+        <div class="flow-title">Sync to remote VPS + Caddy</div>
+        <div class="flow-detail">SshDockerComposeRunner::syncRuntime() rsyncs full local staging to /srv/sync360/runtime/tenants/{slug}/ on client VPS. Writes {slug}.caddy to /etc/caddy/sites/ via putFile(). Runs caddy reload. Subdomain now routes to the allocated port.</div>
+        <div class="flow-file">SshDockerComposeRunner::syncRuntime() + putFile() + runCommand("caddy reload")</div>
+      </div>
+    </div>
+    <div class="flow-connector"></div>
+    <div class="flow-step">
+      <div class="flow-num">6</div>
+      <div class="flow-body">
+        <div class="flow-title">Container started → two-stage readiness</div>
+        <div class="flow-detail">docker compose up -d on client VPS via SSH. Stage 1: poll private 127.0.0.1:{port}/readyz on VPS via SSH-tunnelled curl (timeout 45s). Stage 2: poll public HTTPS {slug}.workspace.sync360.co.nz/login directly (timeout 120s). Both must pass.</div>
+        <div class="flow-file">SshDockerComposeRunner::up() + waitForHttpReady()</div>
+      </div>
+    </div>
+    <div class="flow-connector"></div>
+    <div class="flow-step">
+      <div class="flow-num">7</div>
+      <div class="flow-body">
+        <div class="flow-title">Mark ready + send workspace-ready email</div>
+        <div class="flow-detail">Tenant marked ready. ProvisioningJob marked completed. WorkspaceReadyEmailService sends HTML+text email via Brevo with workspace URL + initial credentials. Customer's /tenant/setup polling auto-redirects to workspace-ready screen.</div>
+        <div class="flow-file">WorkspaceReadyEmailService::send() → Brevo API</div>
+      </div>
+    </div>
+    <div class="flow-connector"></div>
+    <div class="flow-step">
+      <div class="flow-num">8</div>
+      <div class="flow-body">
+        <div class="flow-title">Customer completes onboarding → go-live</div>
+        <div class="flow-detail">Customer works through 6-step wizard. On go-live: TenantAgentSyncService::goLive() generates 6 markdown identity files (IDENTITY/SOUL/USER/BOOTSTRAP/PROFILE/HEARTBEAT), writes to .openclaw/workspace/, calls syncWorkspaceFiles() ONLY (never syncRuntime — would overwrite credentials), restarts container. Agent is now live with business personality.</div>
+        <div class="flow-file">OnboardingController::goLive() → TenantAgentSyncService::goLive() → syncWorkspaceFiles() + restart</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════
+       DATA MODEL
+  ═════════════════════════════════════════════════ -->
+  <div class="section-title">Core Data Model</div>
+
+  <div class="models-grid">
+    <div class="model-card">
+      <div class="model-header model-header-purple">users</div>
+      <div class="model-fields">
+        <div class="field-row"><span class="field-name">id</span><span class="field-type">bigint <span class="field-key field-pk">PK</span></span></div>
+        <div class="field-row"><span class="field-name">name</span><span class="field-type">string</span></div>
+        <div class="field-row"><span class="field-name">email</span><span class="field-type">string <span class="field-key field-uq">UQ</span></span></div>
+        <div class="field-row"><span class="field-name">password</span><span class="field-type">hashed</span></div>
+        <div class="field-row"><span class="field-name">is_admin</span><span class="field-type">boolean</span></div>
+        <div class="field-row"><span class="field-name">tenant_id</span><span class="field-type">FK → tenants <span class="field-key field-fk">FK</span></span></div>
+      </div>
+    </div>
+    <div class="model-card">
+      <div class="model-header model-header-orange">tenants</div>
+      <div class="model-fields">
+        <div class="field-row"><span class="field-name">tenant_id</span><span class="field-type">ULID <span class="field-key field-pk">PK</span></span></div>
+        <div class="field-row"><span class="field-name">slug</span><span class="field-type">string <span class="field-key field-uq">UQ</span></span></div>
+        <div class="field-row"><span class="field-name">server_id</span><span class="field-type">FK → servers <span class="field-key field-fk">FK</span></span></div>
+        <div class="field-row"><span class="field-name">provisioning_status</span><span class="field-type">enum</span></div>
+        <div class="field-row"><span class="field-name">assigned_port</span><span class="field-type">int <span class="field-key field-uq">UQ/server</span></span></div>
+        <div class="field-row"><span class="field-name">workspace_url</span><span class="field-type">string, nullable</span></div>
+        <div class="field-row"><span class="field-name">onboarding_status / step</span><span class="field-type">enum / int</span></div>
+        <div class="field-row"><span class="field-name">tone / capabilities</span><span class="field-type">string / JSON</span></div>
+        <div class="field-row"><span class="field-name">channel / channel_config</span><span class="field-type">string / JSON enc.</span></div>
+        <div class="field-row"><span class="field-name">agent_status</span><span class="field-type">enum</span></div>
+        <div class="field-row"><span class="field-name">trial_status / trial_ends_at</span><span class="field-type">enum / timestamp</span></div>
+        <div class="field-row"><span class="field-name">litellm_virtual_key</span><span class="field-type">string enc., nullable</span></div>
+        <div class="field-row"><span class="field-name">litellm_spend / max_budget</span><span class="field-type">float</span></div>
+        <div class="field-row"><span class="field-name">last_health_check_status</span><span class="field-type">string, nullable</span></div>
+      </div>
+    </div>
+    <div class="model-card">
+      <div class="model-header model-header-green">business_profiles</div>
+      <div class="model-fields">
+        <div class="field-row"><span class="field-name">id</span><span class="field-type">bigint <span class="field-key field-pk">PK</span></span></div>
+        <div class="field-row"><span class="field-name">tenant_id</span><span class="field-type">FK → tenants <span class="field-key field-fk">FK</span></span></div>
+        <div class="field-row"><span class="field-name">business_name</span><span class="field-type">string</span></div>
+        <div class="field-row"><span class="field-name">industry / website</span><span class="field-type">string</span></div>
+        <div class="field-row"><span class="field-name">description</span><span class="field-type">text</span></div>
+        <div class="field-row"><span class="field-name">services / faqs</span><span class="field-type">JSON</span></div>
+        <div class="field-row"><span class="field-name">hours / pricing</span><span class="field-type">text</span></div>
+        <div class="field-row"><span class="field-name">contact_email / phone</span><span class="field-type">string</span></div>
+        <div class="field-row"><span class="field-name">address / tax_number</span><span class="field-type">string</span></div>
+        <div class="field-row"><span class="field-name">last_synced_at</span><span class="field-type">timestamp</span></div>
+      </div>
+    </div>
+    <div class="model-card">
+      <div class="model-header model-header-teal">conversation_logs</div>
+      <div class="model-fields">
+        <div class="field-row"><span class="field-name">id</span><span class="field-type">bigint <span class="field-key field-pk">PK</span></span></div>
+        <div class="field-row"><span class="field-name">tenant_id</span><span class="field-type">FK → tenants <span class="field-key field-fk">FK</span></span></div>
+        <div class="field-row"><span class="field-name">session_id</span><span class="field-type">UUID, indexed</span></div>
+        <div class="field-row"><span class="field-name">external_message_id</span><span class="field-type">string <span class="field-key field-uq">UQ</span></span></div>
+        <div class="field-row"><span class="field-name">channel</span><span class="field-type">string (telegram)</span></div>
+        <div class="field-row"><span class="field-name">sender_id</span><span class="field-type">string</span></div>
+        <div class="field-row"><span class="field-name">message_in</span><span class="field-type">text</span></div>
+        <div class="field-row"><span class="field-name">message_out</span><span class="field-type">text, nullable</span></div>
+        <div class="field-row"><span class="field-name">ai_summary</span><span class="field-type">text, nullable</span></div>
+        <div class="field-row"><span class="field-name">responded_at</span><span class="field-type">timestamp, nullable</span></div>
+      </div>
+    </div>
+    <div class="model-card">
+      <div class="model-header model-header-blue">servers</div>
+      <div class="model-fields">
+        <div class="field-row"><span class="field-name">id</span><span class="field-type">bigint <span class="field-key field-pk">PK</span></span></div>
+        <div class="field-row"><span class="field-name">name / host</span><span class="field-type">string</span></div>
+        <div class="field-row"><span class="field-name">ssh_host / ssh_user</span><span class="field-type">string</span></div>
+        <div class="field-row"><span class="field-name">ssh_auth_mode</span><span class="field-type">password | key</span></div>
+        <div class="field-row"><span class="field-name">runtime_root</span><span class="field-type">/srv/sync360/runtime</span></div>
+        <div class="field-row"><span class="field-name">caddy_sites_path</span><span class="field-type">string</span></div>
+        <div class="field-row"><span class="field-name">workspace_base_domain</span><span class="field-type">*.sync360.co.nz</span></div>
+        <div class="field-row"><span class="field-name">max_clients / current_clients</span><span class="field-type">int</span></div>
+        <div class="field-row"><span class="field-name">status</span><span class="field-type">active | inactive</span></div>
+      </div>
+    </div>
+    <div class="model-card">
+      <div class="model-header model-header-slate">provisioning_jobs</div>
+      <div class="model-fields">
+        <div class="field-row"><span class="field-name">id</span><span class="field-type">bigint <span class="field-key field-pk">PK</span></span></div>
+        <div class="field-row"><span class="field-name">tenant_id</span><span class="field-type">FK → tenants <span class="field-key field-fk">FK</span></span></div>
+        <div class="field-row"><span class="field-name">job_type</span><span class="field-type">string</span></div>
+        <div class="field-row"><span class="field-name">status</span><span class="field-type">queued → running → completed | failed</span></div>
+        <div class="field-row"><span class="field-name">payload_json</span><span class="field-type">JSON (encrypted creds)</span></div>
+        <div class="field-row"><span class="field-name">error_message</span><span class="field-type">text, nullable</span></div>
+        <div class="field-row"><span class="field-name">started_at / completed_at</span><span class="field-type">timestamp</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════
+       SERVICES CATALOGUE
+  ═════════════════════════════════════════════════ -->
+  <div class="section-title">Services Catalogue</div>
+
+  <table class="services-table">
+    <thead>
+      <tr>
+        <th style="width:250px">Service</th>
+        <th>Role</th>
+        <th style="width:80px">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><div class="svc-name">OpenClawProvisioner</div></td>
+        <td><div class="svc-role">Full provisioning: port alloc → LiteLLM key → runtime scaffold → SSH sync → Caddy install → docker compose up → two-stage readiness → mark ready → email</div></td>
+        <td><span class="status status-built">live</span></td>
+      </tr>
+      <tr>
+        <td><div class="svc-name">TenantAgentSyncService</div></td>
+        <td><div class="svc-role">goLive(): generates + syncs 6 markdown identity files via syncWorkspaceFiles() only. configureChannel(): patches openclaw.json + restart. syncProfile() / syncHeartbeat() for post-onboarding updates.</div></td>
+        <td><span class="status status-built">live</span></td>
+      </tr>
+      <tr>
+        <td><div class="svc-name">BusinessExtractionService</div></td>
+        <td><div class="svc-role">Fetches website HTML → LiteLLM (platform key) → structured business JSON (name, services, FAQs, hours, contacts). Used in onboarding Step 1.</div></td>
+        <td><span class="status status-built">live</span></td>
+      </tr>
+      <tr>
+        <td><div class="svc-name">LiteLlmTenantKeyService</div></td>
+        <td><div class="svc-role">Creates per-tenant virtual API keys with plan budget caps. Refreshes spend. suspendTenant() zeros budget on trial expiry.</div></td>
+        <td><span class="status status-built">live</span></td>
+      </tr>
+      <tr>
+        <td><div class="svc-name">TenantHealthCheckService</div></td>
+        <td><div class="svc-role">Prereqs → container running → private /readyz via TenantGatewayService. Persists health status. Dashboard reads for global offline alert.</div></td>
+        <td><span class="status status-built">live</span></td>
+      </tr>
+      <tr>
+        <td><div class="svc-name">TenantGatewayService</div></td>
+        <td><div class="svc-role">Private gateway access via runner httpRequest(). All internal OpenClaw API calls go through here — never via the public hostname.</div></td>
+        <td><span class="status status-built">live</span></td>
+      </tr>
+      <tr>
+        <td><div class="svc-name">WorkspaceSessionLogReader</div></td>
+        <td><div class="svc-role">Reads workspace memory/*.md over SSH. Splits on # Session: headers. Returns structured [session_id → [turns]] per file.</div></td>
+        <td><span class="status status-built">live</span></td>
+      </tr>
+      <tr>
+        <td><div class="svc-name">ConversationSummaryService</div></td>
+        <td><div class="svc-role">Calls LiteLLM (platform key, claude-sonnet-4-6) → ≤25-word business-outcome summary per session. Silent failure.</div></td>
+        <td><span class="status status-built">live</span></td>
+      </tr>
+      <tr>
+        <td><div class="svc-name">TrialNotificationEmailService</div></td>
+        <td><div class="svc-role">Sends 80%-budget warning, 3-day expiry warning, and trial-expired emails via Brevo. Each fires at most once via notified_at guards.</div></td>
+        <td><span class="status status-built">live</span></td>
+      </tr>
+      <tr>
+        <td><div class="svc-name">TenantRuntimeService</div></td>
+        <td><div class="svc-role">Port allocation, workspace URL generation, local staging scaffold. remoteRuntimePath() resolves VPS path from server.runtime_root.</div></td>
+        <td><span class="status status-built">live</span></td>
+      </tr>
+      <tr>
+        <td><div class="svc-name">ServerPlacementService</div></td>
+        <td><div class="svc-role">Active server selection ordered by load. Validates SSH + Caddy config. Multi-server scale = add DB records only.</div></td>
+        <td><span class="status status-built">live</span></td>
+      </tr>
+      <tr>
+        <td><div class="svc-name">SshDockerComposeRunner</div></td>
+        <td><div class="svc-role">Remote SSH: syncRuntime() (full, provision only), syncWorkspaceFiles() (markdown only, safe), putFile() (single file), runCommand(), up/restart/stop/start, httpRequest() for private gateway calls.</div></td>
+        <td><span class="status status-built">live</span></td>
+      </tr>
+      <tr>
+        <td><div class="svc-name">WorkspaceReadyEmailService</div></td>
+        <td><div class="svc-role">HTML+text workspace-ready email via Brevo. Decrypts initial password from job payload.</div></td>
+        <td><span class="status status-built">live</span></td>
+      </tr>
+      <tr>
+        <td><div class="svc-name">ControlAppDeploymentService</div></td>
+        <td><div class="svc-role">SSH nohup to trigger host-side deploy script. Reads status file + git commit + log tail for admin panel feedback.</div></td>
+        <td><span class="status status-built">live</span></td>
+      </tr>
+      <tr>
+        <td><div class="svc-name">SkillDeployerService</div></td>
+        <td><div class="svc-role">Reads skill manifest → merges openclaw.json config snippet via putFile() → writes skill markdown files via syncWorkspaceFiles() → restarts container. Generalises the configureChannel() pattern.</div></td>
+        <td><span class="status status-next">milestone 2</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ════════════════════════════════════════════════
+       GAPS / NEXT WORK
+  ═════════════════════════════════════════════════ -->
+  <div class="section-title">Remaining Gaps — Prioritised</div>
+
+  <table class="gaps-table">
+    <thead>
+      <tr>
+        <th style="width:90px">Priority</th>
+        <th style="width:210px">Gap</th>
+        <th>Description</th>
+        <th style="width:160px">Impact</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="pri pri-next">NEXT M1</span></td>
+        <td><strong>Email Integration (Gmail/IMAP)</strong></td>
+        <td>Connect business email inbox as a live channel. IMAP/app-password at MVP (avoids Google OAuth review delays). Inbox polling, AI triage, owner digest, dashboard Inbox tab. First step toward the full "AI Office Manager" promise.</td>
+        <td>First real AI workflow for customers</td>
+      </tr>
+      <tr>
+        <td><span class="pri pri-next">NEXT M2</span></td>
+        <td><strong>Skill Registry + Deployer</strong></td>
+        <td>skills + tenant_skills tables, SkillDeployerService (putFile + syncWorkspaceFiles + restart — existing primitives). Skill Selector UI. Once built, every future capability ships as a skill pack with no platform changes.</td>
+        <td>Platform moat — enables all future capabilities</td>
+      </tr>
+      <tr>
+        <td><span class="pri pri-p1">P1</span></td>
+        <td><strong>Stripe billing</strong></td>
+        <td>No payment gate. Laravel Cashier + checkout + webhook for payment-triggered events, trial enforcement, plan upgrades. Must exist before public launch.</td>
+        <td>Blocks monetisation</td>
+      </tr>
+      <tr>
+        <td><span class="pri pri-p1">P1</span></td>
+        <td><strong>Self-serve password reset</strong></td>
+        <td>Customers who forget their password need manual IT intervention. Brevo is already wired. Standard Laravel password reset flow (~1 day).</td>
+        <td>Customer support burden</td>
+      </tr>
+      <tr>
+        <td><span class="pri pri-p2">P2</span></td>
+        <td><strong>SSH key authentication</strong></td>
+        <td>Password-based SSH via sshpass works but is not production best practice. Server model already has ssh_auth_mode = key support. Rotate all shared secrets (LiteLLM master key, Brevo API key).</td>
+        <td>Security hardening</td>
+      </tr>
+      <tr>
+        <td><span class="pri pri-p2">P2</span></td>
+        <td><strong>WhatsApp channel</strong></td>
+        <td>OpenClaw WS RPC QR flow is feasible (see todo/channel_connect_implementation_plan.md). Requires multi-channel schema (tenant_channels table). Planned post-MVP once core product loop is validated.</td>
+        <td>Channel expansion</td>
+      </tr>
+      <tr>
+        <td><span class="pri pri-p2">P2</span></td>
+        <td><strong>VPS resource monitoring</strong></td>
+        <td>No alerting if a container crashes silently or the VPS approaches capacity. Scheduler health checks persist to DB but no push notification to the operator.</td>
+        <td>Reliability / ops</td>
+      </tr>
+      <tr>
+        <td><span class="pri pri-p3">P3</span></td>
+        <td><strong>Calendar integrations</strong></td>
+        <td>Cal.com / Google Calendar needed by the Booking skill. Per-tenant OAuth at skill install time. Not yet built.</td>
+        <td>Booking skill activation</td>
+      </tr>
+      <tr>
+        <td><span class="pri pri-p3">P3</span></td>
+        <td><strong>Workspace backup</strong></td>
+        <td>No automated backup of tenant data/ and workspace/ volumes on client VPS, or the control-plane PostgreSQL database.</td>
+        <td>Data safety</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ════════════════════════════════════════════════
+       ENV CONFIG
+  ═════════════════════════════════════════════════ -->
+  <div class="section-title">Key Environment Variables</div>
+
+  <div class="env-grid">
+    <div class="env-card">
+      <div class="env-card-header env-card-header-dev">Local Development (.env)</div>
+      <div class="env-vars">
+        <div class="env-row"><span class="env-key">SYNC360_INFRASTRUCTURE_DRIVER</span><span class="env-val">= local</span></div>
+        <div class="env-row"><span class="env-key">TENANT_PROVISIONING_DRIVER</span><span class="env-val">= local</span></div>
+        <div class="env-row"><span class="env-key">SYNC360_ADMIN_LOCAL_ONLY</span><span class="env-val">= false</span></div>
+        <div class="env-row"><span class="env-key">BREVO_ENABLED</span><span class="env-val">= false</span></div>
+        <div class="env-row"><span class="env-key">DB_CONNECTION</span><span class="env-val">= pgsql (Docker)</span></div>
+        <div class="env-row"><span class="env-key">QUEUE_CONNECTION</span><span class="env-val">= redis</span></div>
+        <div class="env-row"><span class="env-key">LITELLM_BASE_URL</span><span class="env-val">= http://litellm:4000</span></div>
+      </div>
+    </div>
+    <div class="env-card">
+      <div class="env-card-header env-card-header-prod">Production (.env.production)</div>
+      <div class="env-vars">
+        <div class="env-row"><span class="env-key">SYNC360_INFRASTRUCTURE_DRIVER</span><span class="env-val">= ssh</span></div>
+        <div class="env-row"><span class="env-key">TENANT_PROVISIONING_DRIVER</span><span class="env-val">= openclaw</span></div>
+        <div class="env-row"><span class="env-key">BREVO_ENABLED</span><span class="env-val">= true</span></div>
+        <div class="env-row"><span class="env-key">SESSION_DRIVER</span><span class="env-val">= database</span></div>
+        <div class="env-row"><span class="env-key">SYNC360_CONTROL_DEPLOY_ENABLED</span><span class="env-val">= true</span></div>
+        <div class="env-row"><span class="env-key">SYNC360_CONTROL_DEPLOY_BRANCH</span><span class="env-val">= codex/control-app-prod-deploy</span></div>
+        <div class="env-row"><span class="env-key">LITELLM_BASE_URL</span><span class="env-val">= https://litellm.stylesoftware.co.nz</span></div>
+        <div class="env-row"><span class="env-key">SYNC360_REFRESH_SUMMARIES</span><span class="env-val">= false (flip true to regenerate)</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top: 48px; padding: 20px 24px; background: white; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); font-size: 13px; color: #64748b; line-height: 1.7;">
+    <strong style="color: #1e293b; display: block; margin-bottom: 6px;">Architecture summary — v3 · April 2026</strong>
+    Full product loop is live in production: signup → 6-step onboarding wizard → auto-provisioned OpenClaw workspace with LiteLLM per-tenant key → Telegram polling channel → AI agent with business identity → conversation history with session-grouped AI summaries → trial lifecycle enforcement. Control plane (161.97.74.128) + client runtime (89.116.28.191) + scheduler container for automated health checks, trial expiry, and conversation sync.<br><br>
+    <strong style="color: #1e293b;">Next two architectural milestones</strong> define the product's growth path: <strong>Milestone 1 — Email Integration</strong> (Gmail IMAP at MVP scope: inbox polling, AI triage, owner digest, Inbox dashboard tab) and <strong>Milestone 2 — Skill Registry + Deployment Engine</strong> (versioned skill manifests, SkillDeployerService using existing deployment primitives, Skill Selector UI). Once these two pillars exist, every future promised capability — bookings, quotes, follow-ups, invoice management — ships as a skill pack that deploys to any tenant runtime on demand. The platform stays clean and the moat compounds with every new skill published.
+  </div>
+
+</div><!-- /content -->
+</body>
+</html>

@@ -1,7 +1,7 @@
 # Codex Agent Prompt — 06: Channel Webhooks And Conversation Logging
 
 > [!WARNING]
-> Superseded historical prompt. The Telegram webhook path described here has been removed from the current codebase. Current canonical truth lives in [`artifacts/MEMORY.md`](../artifacts/MEMORY.md) and [`artifacts/ARCHITECTURE.md`](../artifacts/ARCHITECTURE.md). WhatsApp remains scaffolded for inbound logging and verification, not full production channel handling.
+> Superseded historical prompt. The Telegram webhook path described here has been removed from the current codebase. Current canonical truth lives in [`artifacts/MEMORY.md`](../../MEMORY.md) and [`artifacts/ARCHITECTURE.md`](../../ARCHITECTURE.md). WhatsApp remains scaffolded for inbound logging and verification, not full production channel handling.
 
 ## Context
 

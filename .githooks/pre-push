@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+upstream=""
+if upstream="$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null)"; then
+  bash scripts/check-canonical-docs.sh --range "${upstream}..HEAD"
+else
+  echo "pre-push: no upstream configured yet; checking current worktree against HEAD."
+  bash scripts/check-canonical-docs.sh --worktree
+fi

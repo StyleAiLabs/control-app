@@ -1,5 +1,8 @@
 # Superadmin Tenant Detail + Permanent Delete
 
+> [!IMPORTANT]
+> Historical implementation plan. Canonical current truth is in [`artifacts/MEMORY.md`](../../MEMORY.md) and [`artifacts/ARCHITECTURE.md`](../../ARCHITECTURE.md). Use this file as planning history only; if it conflicts with current code or canonical docs, code and canonical docs win.
+
 ## Status
 Planned artifact. Not yet implemented as of `2026-04-12`.
 

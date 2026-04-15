@@ -36,11 +36,9 @@ Canonical docs:
 
 Historical/reference material only:
 
-- `artifacts/PLAN*.md`
+- `artifacts/archive/`
 - `artifacts/walkthrough/`
-- `todo/`
-- `clientSvr/`
-- `onboarding-codex-prompts/`
+- `artifacts/founder_roadmap.md`
 
 If those files conflict with the codebase, trust:
 
@@ -135,10 +133,10 @@ The repo still has historical/open planning around:
 - skill-pack and productization work
 - production hardening such as SSH key migration, secret management, and monitoring
 
-Treat `todo/`, `clientSvr/`, and `artifacts/PLAN*.md` as inputs for future work, not as the current architecture.
+Treat `artifacts/archive/` and other historical docs as inputs for future work, not as the current architecture.
 
 ## 9. Suggested new-chat prompt
 
 Use a prompt like this in a fresh chat:
 
-> Read `artifacts/MEMORY.md` first, then `artifacts/ARCHITECTURE.md`, then `artifacts/RELEASE_NOTES.md`. Ground answers in current repo code, especially `routes/web.php`, `routes/console.php`, `config/sync360.php`, and the provisioning/onboarding/conversation services. Assume the canonical docs win over historical plans, but code wins over docs. Pay special attention to the private gateway model, session-log conversation sync, and the rule that `goLive()` must sync workspace files only, never the full runtime.
+> Read `artifacts/MEMORY.md` first, then `artifacts/ARCHITECTURE.md`, then `artifacts/RELEASE_NOTES.md`. Ground answers in current repo code, especially `routes/web.php`, `routes/console.php`, `config/sync360.php`, and the provisioning/onboarding/conversation services. Assume the canonical docs win over historical plans, but code wins over docs. Pay special attention to the private gateway model, session-log conversation sync, and the rule that `goLive()` must sync workspace files only, never the full runtime. Before ending each chat session, update `artifacts/MEMORY.md`, `artifacts/ARCHITECTURE.md`, and `README.md` if the current project truth changed, and update `artifacts/RELEASE_NOTES.md` if the session introduced a user-facing or architectural change worth recording chronologically.

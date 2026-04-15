@@ -1,5 +1,8 @@
 # Trial Lifecycle Management — Implementation Plan
 
+> [!IMPORTANT]
+> Historical implementation plan. Canonical current truth is in [`artifacts/MEMORY.md`](../../MEMORY.md) and [`artifacts/ARCHITECTURE.md`](../../ARCHITECTURE.md). The trial lifecycle is now implemented in code; this file is retained as planning history only.
+
 ## Goal
 
 Enforce the two trial-end conditions (14 days OR $5 spend), surface credit/trial
