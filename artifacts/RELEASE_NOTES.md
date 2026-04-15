@@ -4,6 +4,30 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-16 — Password Reset Delivery Fixed To Use Brevo
+
+Date: 2026-04-16
+Branch: `cdx-feature/tenant-password-reset`
+Status: Implemented
+
+### Overview
+
+Fixed the password reset email delivery path after discovering that reset links were not actually being sent. The reset flow itself was working, but the broker was still using Laravel's default notification mail path while the environment had `MAIL_MAILER=log`, so reset emails were written to logs instead of delivered.
+
+### Root Cause
+
+- the app already had Brevo wired for other transactional emails through direct HTTP API services
+- password reset was using Laravel's default `ResetPassword` notification path
+- `MAIL_MAILER` was set to `log`, so no real outbound mail transport was used for reset emails
+
+### Fix
+
+- added `PasswordResetEmailService`
+- overrode `User::sendPasswordResetNotification()` to use that service
+- when Brevo is enabled, reset emails now go through Brevo's `/smtp/email` API
+- if Brevo is unavailable or disabled, the code falls back to Laravel's standard reset notification
+- added test coverage proving the forgot-password flow hits Brevo when enabled
+
 ## 2026-04-15 — Self-Serve Client Password Reset
 
 Date: 2026-04-15

@@ -1,6 +1,6 @@
 # Sync360 Control App Memory
 
-Last verified: `2026-04-15`
+Last verified: `2026-04-16`
 
 This memory is based on the current repo code and current canonical docs. It is not a guarantee about live production state.
 
@@ -51,6 +51,7 @@ If those files conflict with the codebase, trust:
 ## 3. Current system snapshot
 
 - App shape: Laravel monolith with Blade, PostgreSQL, Redis, queues, scheduler-backed commands, and Laravel password-broker auth recovery
+- Password reset delivery: uses Brevo's HTTP email API when Brevo is enabled; falls back to Laravel's default notification pipeline otherwise
 - Infrastructure modes: `local` and `ssh`
 - Tenant runtime staging: `runtime/tenants/<slug>/`
 - Tenant runtime deployment: one OpenClaw runtime per tenant

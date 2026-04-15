@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\PasswordResetEmailService;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -49,5 +50,10 @@ class User extends Authenticatable
     public function tenant(): HasOne
     {
         return $this->hasOne(Tenant::class);
+    }
+
+    public function sendPasswordResetNotification($token): void
+    {
+        app(PasswordResetEmailService::class)->send($this, (string) $token);
     }
 }

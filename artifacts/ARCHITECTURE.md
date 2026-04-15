@@ -164,9 +164,10 @@ Flow:
 
 1. the customer requests a reset link from `/forgot-password`
 2. Laravel's password broker stores a token in `password_reset_tokens`
-3. the user receives the standard reset notification through the configured mail driver
-4. `/reset-password/{token}` accepts the token, email, and new password
-5. the password is updated, the remember token is rotated, and the user is redirected back to login
+3. `User::sendPasswordResetNotification()` routes delivery through `PasswordResetEmailService`
+4. when Brevo is enabled, the reset email is sent through Brevo's `/smtp/email` API; otherwise Laravel's standard reset notification is used as fallback
+5. `/reset-password/{token}` accepts the token, email, and new password
+6. the password is updated, the remember token is rotated, and the user is redirected back to login
 
 ### Provisioning flow
 
