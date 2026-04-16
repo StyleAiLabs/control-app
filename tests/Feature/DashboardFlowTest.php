@@ -33,8 +33,12 @@ class DashboardFlowTest extends TestCase
             ->assertSee('Setup Progress')
             ->assertSee('Continue Setup')
             ->assertSee('step 4 is next', escape: false)
-            ->assertSee('Business Website')
-            ->assertSee('Capabilities');
+            ->assertSee('Website')
+            ->assertSee('Business Info')
+            ->assertSee('Tone')
+            ->assertSee('Skills')
+            ->assertDontSee('Business Website')
+            ->assertDontSee('Capabilities');
     }
 
     public function test_dashboard_shows_live_agent_and_recent_conversations(): void
@@ -47,7 +51,7 @@ class DashboardFlowTest extends TestCase
             'onboarding_step' => 6,
             'agent_status' => 'live',
             'workspace_url' => 'https://acme-plumbing.workspace.test',
-            'channel' => 'whatsapp',
+            'channel' => 'telegram',
             'tone' => 'professional',
             'capabilities' => ['faqs', 'messages'],
         ])->save();
@@ -60,12 +64,12 @@ class DashboardFlowTest extends TestCase
 
         ConversationLog::query()->create([
             'tenant_id' => $tenant->id,
-            'channel' => 'whatsapp',
-            'external_message_id' => 'wamid.1',
-            'from_identifier' => '64215550101',
+            'channel' => 'telegram',
+            'external_message_id' => 'telegram.1',
+            'from_identifier' => '@acme_owner',
             'message_in' => 'Do you do emergency callouts?',
             'message_out' => 'Yes, we do emergency callouts across Auckland.',
-            'meta_json' => ['provider' => 'whatsapp'],
+            'meta_json' => ['provider' => 'telegram'],
             'responded_at' => now()->subMinutes(5),
         ]);
 
@@ -78,10 +82,11 @@ class DashboardFlowTest extends TestCase
             ->assertSee('Open Sync360 Workspace')
             ->assertSee('Do you do emergency callouts?')
             ->assertSee('Yes, we do emergency callouts across Auckland.')
-            ->assertSee('WhatsApp')
+            ->assertSee('Telegram')
             ->assertSee('support@acme.example')
             ->assertSee('Total')
-            ->assertSee('1');
+            ->assertSee('1')
+            ->assertDontSee('customer messages start arriving');
     }
 
     /**

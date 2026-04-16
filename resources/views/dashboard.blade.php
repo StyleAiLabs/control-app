@@ -291,10 +291,7 @@
                     <div class="meta-item">
                         <small>Channel</small>
                         @if ($tenant->channel === 'whatsapp')
-                            <span style="display: inline-flex; align-items: center; gap: 6px;">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" fill="#25D366"/><path d="M12.004 2C6.489 2 2 6.489 2 12.004c0 1.762.46 3.476 1.333 4.99L2 22l5.233-1.237A9.956 9.956 0 0012.004 22C17.52 22 22 17.52 22 12.004 22 6.489 17.52 2 12.004 2zm0 18.15A8.14 8.14 0 017.55 18.8l-.35-.21-3.1.73.82-3-.23-.36a8.108 8.108 0 01-1.24-4.35C3.45 7.29 7.29 3.45 12 3.45c2.27 0 4.4.88 6.01 2.49a8.453 8.453 0 012.49 6.01c.01 4.72-3.84 8.56-8.5 8.56v-.01z" fill="#25D366"/></svg>
-                                WhatsApp
-                            </span>
+                            <span style="color: var(--text-muted, #9ca3af);">WhatsApp (coming soon)</span>
                         @elseif ($tenant->channel === 'telegram')
                             <span style="display: inline-flex; align-items: center; gap: 6px;">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-.98-.19-1.46-.35-.59-.2-1.06-.3-1.02-.64.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z" fill="#229ED9"/></svg>
@@ -309,7 +306,7 @@
                         {{ $tenant->tone ? ucfirst($tenant->tone) : 'Not set yet' }}
                     </div>
                     <div class="meta-item">
-                        <small>Capabilities</small>
+                        <small>Skills</small>
                         {{ is_array($tenant->capabilities) && $tenant->capabilities !== [] ? implode(', ', $tenant->capabilities) : 'Not selected yet' }}
                     </div>
                     <div class="meta-item">
@@ -399,11 +396,8 @@
                         </strong>
                         <p>Your connected channel.</p>
                     @elseif ($tenant->channel === 'whatsapp')
-                        <strong style="display: inline-flex; align-items: center; gap: 5px; font-size: 1rem;">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" fill="#25D366"/><path d="M12.004 2C6.489 2 2 6.489 2 12.004c0 1.762.46 3.476 1.333 4.99L2 22l5.233-1.237A9.956 9.956 0 0012.004 22C17.52 22 22 17.52 22 12.004 22 6.489 17.52 2 12.004 2zm0 18.15A8.14 8.14 0 017.55 18.8l-.35-.21-3.1.73.82-3-.23-.36a8.108 8.108 0 01-1.24-4.35C3.45 7.29 7.29 3.45 12 3.45c2.27 0 4.4.88 6.01 2.49a8.453 8.453 0 012.49 6.01c.01 4.72-3.84 8.56-8.5 8.56v-.01z" fill="#25D366"/></svg>
-                            WhatsApp
-                        </strong>
-                        <p>Your connected channel.</p>
+                        <strong style="color: var(--text-muted, #9ca3af); font-size: 0.9rem;">Coming Soon</strong>
+                        <p>WhatsApp is not live in this onboarding phase.</p>
                     @else
                         <strong style="color: var(--text-muted, #9ca3af); font-size: 0.9rem;">Not connected</strong>
                         <p><a href="{{ route('onboarding.show') }}" style="color: var(--accent, #FF6B35);">Connect a channel →</a></p>
@@ -441,11 +435,11 @@
                 </div>
             @elseif ($tenant->agent_status === 'live')
                 <div class="note" style="margin-top: 18px;">
-                    Your assistant is live, but no customer conversations have been logged yet. Once messages start coming in through the connected channel, they’ll show up here.
+                    Your digital employee is live, but no owner sessions have been logged yet. Once you start messaging it on Telegram, they’ll show up here.
                 </div>
             @else
                 <div class="note" style="margin-top: 18px;">
-                    Conversation history will appear here after the assistant is live and customer messages start arriving.
+                    Conversation history will appear here after your digital employee is live and you start using Telegram.
                 </div>
             @endif
         </div>

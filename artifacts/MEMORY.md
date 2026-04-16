@@ -130,7 +130,6 @@ Remaining documentation mismatch:
 The repo still has historical/open planning around:
 
 - channel connection polish and broader channel support
-- onboarding UX refinement
 - skill-pack and productization work
 - production hardening such as SSH key migration, secret management, and monitoring
 
