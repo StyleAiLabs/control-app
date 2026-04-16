@@ -40,6 +40,14 @@ class OpenClawProvisionerTest extends TestCase
             ->once()
             ->withArgs(fn (Server $server, string $composeFile, string $projectName): bool => $server->name === 'test-vps' && $composeFile === '/srv/sync360/runtime/tenants/acme-plumbing/compose.yaml' && $projectName === 'sync360-acme-plumbing')
             ->andReturnNull();
+        $runner->shouldReceive('runCommand')
+            ->once()
+            ->withArgs(function (Server $server, string $command, bool $sudo = false): bool {
+                return $server->name === 'test-vps'
+                    && $command === "docker rm -f 'sync360-acme-plumbing' >/dev/null 2>&1 || true"
+                    && $sudo === false;
+            })
+            ->andReturnNull();
         $runner->shouldReceive('syncRuntime')
             ->once()
             ->withArgs(fn (Server $server, string $localRuntimePath, string $remoteRuntimePath): bool => $server->name === 'test-vps' && str_contains($localRuntimePath, '/runtime/acme-plumbing') && $remoteRuntimePath === '/srv/sync360/runtime/tenants/acme-plumbing')
@@ -126,9 +134,17 @@ class OpenClawProvisionerTest extends TestCase
         $runner = Mockery::mock(DockerComposeRunner::class);
         $runner->shouldReceive('isHostPortInUse')->once()->andReturnFalse();
         $runner->shouldReceive('down')->twice()->andReturnNull();
+        $runner->shouldReceive('runCommand')
+            ->twice()
+            ->withArgs(function (Server $server, string $command, bool $sudo = false): bool {
+                return $server->name === 'test-vps'
+                    && $command === "docker rm -f 'sync360-acme-plumbing' >/dev/null 2>&1 || true"
+                    && $sudo === false;
+            })
+            ->andReturnNull();
         $runner->shouldReceive('syncRuntime')->once()->andReturnNull();
         $runner->shouldReceive('putFile')->once()->andReturnNull();
-        $runner->shouldReceive('runCommand')->twice()->andReturnNull();
+        $runner->shouldReceive('runCommand')->twice()->withArgs(fn (Server $server, string $command, bool $sudo = false): bool => $server->name === 'test-vps' && $command === 'systemctl reload caddy' && $sudo === true)->andReturnNull();
         $runner->shouldReceive('up')->once()->andReturnNull();
         $runner->shouldReceive('waitForHttpReady')
             ->once()
@@ -171,9 +187,17 @@ class OpenClawProvisionerTest extends TestCase
         $runner = Mockery::mock(DockerComposeRunner::class);
         $runner->shouldReceive('isHostPortInUse')->once()->andReturnFalse();
         $runner->shouldReceive('down')->twice()->andReturnNull();
+        $runner->shouldReceive('runCommand')
+            ->twice()
+            ->withArgs(function (Server $server, string $command, bool $sudo = false): bool {
+                return $server->name === 'test-vps'
+                    && $command === "docker rm -f 'sync360-acme-plumbing' >/dev/null 2>&1 || true"
+                    && $sudo === false;
+            })
+            ->andReturnNull();
         $runner->shouldReceive('syncRuntime')->once()->andReturnNull();
         $runner->shouldReceive('putFile')->once()->andReturnNull();
-        $runner->shouldReceive('runCommand')->twice()->andReturnNull();
+        $runner->shouldReceive('runCommand')->twice()->withArgs(fn (Server $server, string $command, bool $sudo = false): bool => $server->name === 'test-vps' && $command === 'systemctl reload caddy' && $sudo === true)->andReturnNull();
         $runner->shouldReceive('up')->once()->andReturnNull();
         $runner->shouldReceive('waitForHttpReady')->once()->andReturnNull();
         $runner->shouldReceive('removeFile')->twice()->andReturnNull();

@@ -85,6 +85,11 @@ class TenantDeletionService
             ),
         );
 
+        $this->dockerCompose->runCommand(
+            $tenant->server,
+            sprintf('docker rm -f %s >/dev/null 2>&1 || true', escapeshellarg($this->containerName($tenant))),
+        );
+
         if ($this->shouldManageCaddy($tenant)) {
             $this->dockerCompose->removeFile($tenant->server, $this->runtime->caddySitePath($tenant), sudo: true);
             $this->dockerCompose->runCommand($tenant->server, trim((string) $tenant->server->caddy_reload_command), sudo: true);
@@ -124,6 +129,15 @@ class TenantDeletionService
             }
         }
 
+        $removeContainerResult = Process::run(sprintf(
+            'docker rm -f %s >/dev/null 2>&1 || true',
+            escapeshellarg($this->containerName($tenant)),
+        ));
+
+        if (! $removeContainerResult->successful()) {
+            throw new RuntimeException('Failed to remove the local tenant container during cleanup: '.$removeContainerResult->errorOutput());
+        }
+
         foreach ($runtimePaths as $path) {
             $this->files->deleteDirectory($path);
         }
@@ -137,5 +151,10 @@ class TenantDeletionService
     private function shouldManageCaddy(Tenant $tenant): bool
     {
         return (bool) ($tenant->server?->workspace_base_domain && $tenant->server?->caddy_sites_path && $tenant->server?->caddy_reload_command);
+    }
+
+    private function containerName(Tenant $tenant): string
+    {
+        return 'sync360-'.$tenant->slug;
     }
 }

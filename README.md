@@ -61,6 +61,7 @@ If those files conflict with the codebase, the source of truth is:
 5. The tenant gets a customer-facing workspace URL and a private gateway runtime.
 6. The customer completes onboarding, can optionally connect Google Workspace through Sync360's OAuth flow, and then syncs business/agent files into the workspace.
 7. The app re-seeds runtime Google auth from DB when needed and tracks conversations, trial state, health status, and admin operations from the control plane.
+8. Delete-and-recreate provisioning remains safe because runtime cleanup removes stale fixed-name tenant containers before reprovisioning.
 
 ## Stack
 

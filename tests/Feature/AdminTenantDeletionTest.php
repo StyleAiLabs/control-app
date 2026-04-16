@@ -36,6 +36,11 @@ class AdminTenantDeletionTest extends TestCase
             ->ordered()
             ->withArgs(fn (Server $server, string $command, bool $sudo = false): bool => $server->is($tenant->server) && str_contains($command, 'down --remove-orphans') && ! $sudo)
             ->andReturnNull();
+        $runner->shouldReceive('runCommand')
+            ->once()
+            ->ordered()
+            ->withArgs(fn (Server $server, string $command, bool $sudo = false): bool => $server->is($tenant->server) && $command === "docker rm -f 'sync360-delete-me' >/dev/null 2>&1 || true" && ! $sudo)
+            ->andReturnNull();
         $runner->shouldReceive('removeFile')
             ->once()
             ->ordered()
@@ -112,7 +117,7 @@ class AdminTenantDeletionTest extends TestCase
         [$user, $tenant] = $this->seedTenantForDeletion();
 
         $runner = Mockery::mock(DockerComposeRunner::class);
-        $runner->shouldReceive('runCommand')->twice()->andReturnNull();
+        $runner->shouldReceive('runCommand')->times(3)->andReturnNull();
         $runner->shouldReceive('removeFile')->once()->andReturnNull();
         $runner->shouldReceive('removeDirectory')->once()->andReturnNull();
 
@@ -149,7 +154,7 @@ class AdminTenantDeletionTest extends TestCase
         ]);
 
         $runner = Mockery::mock(DockerComposeRunner::class);
-        $runner->shouldReceive('runCommand')->twice()->andReturnNull();
+        $runner->shouldReceive('runCommand')->times(3)->andReturnNull();
         $runner->shouldReceive('removeFile')->once()->andReturnNull();
         $runner->shouldReceive('removeDirectory')
             ->once()
@@ -231,7 +236,7 @@ class AdminTenantDeletionTest extends TestCase
 
         app(TenantDeletionService::class)->deletePermanently($tenant);
 
-        Process::assertRanTimes(fn () => true, 1);
+        Process::assertRanTimes(fn () => true, 2);
         $this->assertDatabaseMissing('users', ['id' => $user->id]);
         $this->assertDatabaseMissing('tenants', ['id' => $tenant->id]);
     }

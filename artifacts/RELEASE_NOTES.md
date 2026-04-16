@@ -7,6 +7,21 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-17 — Reprovisioning Fix For Deleted Tenant Slug Reuse
+
+Date: 2026-04-17
+Status: Implemented
+
+### Overview
+
+Fixed a provisioning failure that occurred when a customer deleted a tenant, signed up again with the same business name, and the runtime host still had a stale Docker container using the old slug-derived container name.
+
+### What Changed
+
+- added explicit stale-container cleanup for the fixed tenant container name (`sync360-<slug>`) during provisioning cleanup before `docker compose up`
+- added the same explicit named-container cleanup to tenant deletion so runtime teardown is resilient even when compose-managed cleanup was incomplete
+- covered the reprovisioning and deletion paths with focused tests so delete-and-recreate flows remain safe
+
 ## 2026-04-17 — Onboarding Flow Friction Fixes
 
 Date: 2026-04-17

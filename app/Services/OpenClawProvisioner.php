@@ -308,6 +308,15 @@ class OpenClawProvisioner implements TenantProvisioner
             // A failed cleanup should not hide the original provisioning error.
         }
 
+        try {
+            $this->dockerCompose->runCommand(
+                $tenant->server,
+                sprintf('docker rm -f %s >/dev/null 2>&1 || true', escapeshellarg($this->containerName($tenant))),
+            );
+        } catch (Throwable) {
+            // Best-effort stale container cleanup.
+        }
+
         if (! $this->shouldManageCaddy($tenant)) {
             return;
         }
@@ -331,6 +340,11 @@ class OpenClawProvisioner implements TenantProvisioner
     private function projectName(Tenant $tenant): string
     {
         return Str::limit('sync360-'.$tenant->slug, 63, '');
+    }
+
+    private function containerName(Tenant $tenant): string
+    {
+        return 'sync360-'.$tenant->slug;
     }
 
     private function yamlQuote(string $value): string

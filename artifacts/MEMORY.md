@@ -103,6 +103,7 @@ If those files conflict with the codebase, trust:
 - Google Workspace auth sync must never piggyback on `goLive()` or use a full runtime sync. `TenantAgentSyncService::configureGoogleWorkspace()` uses targeted runner writes under `.openclaw/gogcli/` and can always re-seed runtime auth from the DB row.
 - In local Docker development, private gateway checks must not use container-local `127.0.0.1`; they must go through the configured host alias (`host.docker.internal` in the shipped `docker-compose.yml`) so the app container can reach tenant ports published on the Docker host.
 - When tenant `compose.yaml` env changes, local/remote Google runtime reload must recreate the tenant container (`up -d --force-recreate` / equivalent), not just `restart`, or `XDG_CONFIG_HOME` and keyring env updates will not take effect.
+- Tenant runtimes use a fixed Docker container name derived from the slug (`sync360-<slug>`), so deletion and provisioning must explicitly remove stale named containers as part of cleanup to support delete-and-recreate flows safely.
 - `workspace_url` is the customer-facing Sync360 URL, not a public OpenClaw URL.
 - Private gateway calls should go through `TenantGatewayService` and the runner’s `httpRequest()` contract, not through the public tenant hostname.
 - Production needs the scheduler path running. The scheduled commands in `routes/console.php` are part of the live product.

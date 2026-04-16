@@ -211,6 +211,8 @@ Provisioning flow:
 
 For local Docker dev, the private readiness check targets the Docker host alias configured by `sync360.host_port_probe_host`, not container-local loopback.
 
+Because the tenant container name is fixed to `sync360-<slug>`, provisioning cleanup also force-removes any stale same-name container before bring-up. This protects delete-and-recreate flows when a prior runtime cleanup was incomplete on the target host.
+
 ### Onboarding flow
 
 Authenticated onboarding is handled by `OnboardingController`.
