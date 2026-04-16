@@ -2,6 +2,8 @@
 
 > [!IMPORTANT]
 > Historical roadmap. Canonical current truth is in [`artifacts/MEMORY.md`](MEMORY.md) and [`artifacts/ARCHITECTURE.md`](ARCHITECTURE.md). Telegram webhook flow described here is no longer current, and WhatsApp integration references may describe planned or scaffolded work rather than fully implemented behavior.
+>
+> **Current active priority (April 2026):** Phase B = Email Integration (M1). Connect Gmail/IMAP inbox, AI triage, morning digest, Inbox dashboard tab. This is the first capability that delivers the "AI Office Manager" promise. Tradie Intake / Lead Capture (originally proposed as Phase B) is deferred to Phase D as the first skill pack once the Skill Registry (M2) is built. See the product plan for the full Phase A–F breakdown.
 
 Based on a thorough review of your project's `MEMORY.md`, `ARCHITECTURE.md`, `RELEASE_NOTES.md`, and the `architecture.html` visual layout, you have brilliantly solved the hardest infrastructure challenge: remote Docker orchestration and tenant isolation. 
 
@@ -60,9 +62,11 @@ You cannot successfully run a SaaS without capturing value.
 You must automate what happens when a client churns or fails to pay.
 *   **Action**: Implement webhook listeners that trigger Laravel Jobs to suspend (stop container + set LiteLLM budget to 0) or destroy a workspace when a subscription is cancelled or a trial expires.
 
-### Task 9: Implement Self-Serve Password Reset
-Thanks to the recent Release Notes, you already have Brevo integrated and delivering emails reliably.
-*   **Action**: Implement the standard Laravel password reset flows (using Brevo) to avoid doing manual IT support for the first 10 clients.
+### ~~Task 9: Implement Self-Serve Password Reset~~ ✅ COMPLETE
+~~Thanks to the recent Release Notes, you already have Brevo integrated and delivering emails reliably.~~
+~~*   **Action**: Implement the standard Laravel password reset flows (using Brevo) to avoid doing manual IT support for the first 10 clients.~~
+
+*Delivered: Standard Laravel password broker flow with Brevo transactional email. Customers can reset their own passwords without IT intervention.*
 
 ---
 
@@ -95,11 +99,13 @@ Bridge onboarding completion to a live digital employee using the existing serve
 *   **Action**: Build `AgentProfileSyncService::goLive()` — render markdown files, write into tenant runtime, sync to assigned server via existing `DockerComposeRunner`, restart workspace, verify readiness, mark tenant `live`.
 *   **Action**: Create queued `GoLiveTenantAgent` job, dispatched from `POST /onboarding/go-live` only when `provisioning_status === ready`.
 
-### Task 14: Onboarding Wizard API & Frontend
-Build the 6-step wizard inside the existing Blade app with authenticated JSON endpoints.
-*   **Action**: Build endpoints: `GET /onboarding/state`, `POST /onboarding/extract-business`, `POST /onboarding/business-info`, `POST /onboarding/personality`, `POST /onboarding/capabilities`, `POST /onboarding/channel`, `POST /onboarding/go-live`, `POST /onboarding/skip`.
-*   **Action**: Build Blade view `onboarding/show.blade.php` with lightweight JS — 6-step wizard that is resumable, non-technical (no mention of OpenClaw/LiteLLM/SSH), and uses customer-friendly language ("digital employee", "go live").
-*   **Action**: Modify signup flow to create `BusinessProfile` + `BusinessProfileFiles` at registration and redirect to `/onboarding` instead of `/tenant/setup`.
+### ~~Task 14: Onboarding Wizard API & Frontend~~ ✅ COMPLETE
+~~Build the 6-step wizard inside the existing Blade app with authenticated JSON endpoints.~~
+~~*   **Action**: Build endpoints: `GET /onboarding/state`, `POST /onboarding/extract-business`, `POST /onboarding/business-info`, `POST /onboarding/personality`, `POST /onboarding/capabilities`, `POST /onboarding/channel`, `POST /onboarding/go-live`, `POST /onboarding/skip`.~~
+~~*   **Action**: Build Blade view `onboarding/show.blade.php` with lightweight JS — 6-step wizard that is resumable, non-technical (no mention of OpenClaw/LiteLLM/SSH), and uses customer-friendly language ("digital employee", "go live").~~
+~~*   **Action**: Modify signup flow to create `BusinessProfile` + `BusinessProfileFiles` at registration and redirect to `/onboarding` instead of `/tenant/setup`.~~
+
+*Delivered: All 8 endpoints built. 6-step resumable wizard with UX polish pass on Steps 5–6 (channel setup language, go-live success state, resume-from-partial). Signup flow redirects to `/onboarding`.*
 
 ### Task 15: Channel Webhook Handlers & Conversation Logging
 Connect live digital employees to real customer messaging channels.
@@ -107,11 +113,12 @@ Connect live digital employees to real customer messaging channels.
 *   **Action**: Create `conversation_logs` table and `ProcessIncomingMessage` queued job for reliable message processing.
 *   **Action**: Build `WhatsAppSender` and `TelegramSender` services reading decrypted credentials from `tenant.channel_config`.
 
-### Task 16: Dashboard Integration & Profile Editing
+### Task 16: Dashboard Integration & Profile Editing *(Partially complete)*
 Wire the existing dashboard to real onboarding and conversation data.
-*   **Action**: Extend `/dashboard` to show onboarding progress, digital employee status, recent conversations, and business profile summary.
-*   **Action**: Build profile editing routes (`GET /profile`, `PATCH /profile`, `POST /profile/sync-agent`) so customers can update business details post-onboarding with background agent resync.
-*   **Action**: Build `TenantHealthCheckService` and admin resync/restart actions for live tenant support.
+*   **Action**: ~~Extend `/dashboard` to show onboarding progress, digital employee status, recent conversations, and business profile summary.~~ ✅ Done — dashboard shows onboarding steps, workspace health, trial status, and recent conversation activity.
+*   **Action**: ~~Build profile editing routes (`GET /profile`, `PATCH /profile`, `POST /profile/sync-agent`) so customers can update business details post-onboarding with background agent resync.~~ ✅ Done — profile edit with agent sync delivered.
+*   **Action**: ~~Build `TenantHealthCheckService` and admin resync/restart actions for live tenant support.~~ ✅ Done — health check service and admin restart/resync actions shipped.
+*   **Deferred**: Channel status dashboard widget (show Telegram connected/disconnected/last message timestamp) — deprioritised; scheduled for Phase F (Dashboard Polish & Monitoring) after Phase B leads feature is validated.
 
 ---
 

@@ -17,6 +17,7 @@ class PasswordResetFlowTest extends TestCase
 
     public function test_guest_can_request_a_password_reset_link(): void
     {
+        config()->set('services.brevo.enabled', false);
         Notification::fake();
 
         $user = User::query()->create([

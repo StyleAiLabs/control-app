@@ -7,6 +7,7 @@ use App\Enums\TrialStatus;
 use App\Models\BusinessProfile;
 use App\Models\ConversationLog;
 use App\Models\Tenant;
+use App\Models\TenantGoogleCredential;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -116,9 +117,14 @@ class ConversationBrowserFlowTest extends TestCase
             'trial_status' => TrialStatus::Active,
             'provisioning_status' => TenantProvisioningStatus::Ready,
             'onboarding_status' => 'complete',
-            'onboarding_step' => 6,
+            'onboarding_step' => 7,
             'agent_status' => 'live',
             'channel' => 'telegram',
+        ]);
+        TenantGoogleCredential::query()->create([
+            'tenant_id' => $tenant->id,
+            'status' => TenantGoogleCredential::STATUS_SKIPPED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_PENDING,
         ]);
 
         BusinessProfile::query()->create([

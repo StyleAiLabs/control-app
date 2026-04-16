@@ -7,6 +7,7 @@ use App\Enums\TrialStatus;
 use App\Models\BusinessProfile;
 use App\Models\ConversationLog;
 use App\Models\Tenant;
+use App\Models\TenantGoogleCredential;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -28,7 +29,9 @@ class DashboardFlowTest extends TestCase
 
         $this->actingAs($user);
 
-        $this->get('/dashboard')
+        $response = $this->get('/dashboard');
+
+        $response
             ->assertOk()
             ->assertSee('Setup Progress')
             ->assertSee('Continue Setup')
@@ -39,6 +42,12 @@ class DashboardFlowTest extends TestCase
             ->assertSee('Skills')
             ->assertDontSee('Business Website')
             ->assertDontSee('Capabilities');
+
+        $this->assertSame('no-cache', $response->headers->get('Pragma'));
+        $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
+        $this->assertStringContainsString('no-cache', (string) $response->headers->get('Cache-Control'));
+        $this->assertStringContainsString('must-revalidate', (string) $response->headers->get('Cache-Control'));
+        $this->assertStringContainsString('private', (string) $response->headers->get('Cache-Control'));
     }
 
     public function test_dashboard_shows_live_agent_and_recent_conversations(): void
@@ -48,13 +57,18 @@ class DashboardFlowTest extends TestCase
         $tenant->forceFill([
             'provisioning_status' => TenantProvisioningStatus::Ready,
             'onboarding_status' => 'complete',
-            'onboarding_step' => 6,
+            'onboarding_step' => 7,
             'agent_status' => 'live',
             'workspace_url' => 'https://acme-plumbing.workspace.test',
             'channel' => 'telegram',
             'tone' => 'professional',
             'capabilities' => ['faqs', 'messages'],
         ])->save();
+        TenantGoogleCredential::query()->create([
+            'tenant_id' => $tenant->id,
+            'status' => TenantGoogleCredential::STATUS_SKIPPED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_PENDING,
+        ]);
 
         $profile->forceFill([
             'contact_email' => 'support@acme.example',
@@ -75,7 +89,9 @@ class DashboardFlowTest extends TestCase
 
         $this->actingAs($user);
 
-        $this->get('/dashboard')
+        $response = $this->get('/dashboard');
+
+        $response
             ->assertOk()
             ->assertSee('Live')
             ->assertSee('Conversation Activity')
@@ -87,6 +103,8 @@ class DashboardFlowTest extends TestCase
             ->assertSee('Total')
             ->assertSee('1')
             ->assertDontSee('customer messages start arriving');
+
+        $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
     }
 
     /**

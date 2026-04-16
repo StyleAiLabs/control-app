@@ -6,8 +6,11 @@ use App\Exceptions\ExtractionFailedException;
 use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
 use App\Models\Tenant;
+use App\Models\TenantGoogleCredential;
 use App\Services\BusinessExtractionService;
+use App\Services\GoogleWorkspaceOAuthService;
 use App\Services\TenantAgentSyncService;
+use App\Support\GoogleWorkspaceFeature;
 use App\Support\OnboardingStepCatalog;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -21,6 +24,7 @@ class OnboardingController extends Controller
     public function __construct(
         private readonly BusinessExtractionService $businessExtraction,
         private readonly TenantAgentSyncService $agentSync,
+        private readonly GoogleWorkspaceOAuthService $googleOAuth,
     ) {
     }
 
@@ -97,7 +101,7 @@ class OnboardingController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'We’ve pulled in what we can from your website. Please review and adjust anything that needs fixing.',
-            'state' => $this->statePayload($tenant->fresh(['businessProfile', 'businessProfileFiles'])),
+            'state' => $this->statePayload($tenant->fresh(GoogleWorkspaceFeature::tenantRelations(['businessProfile', 'businessProfileFiles']))),
         ]);
     }
 
@@ -164,7 +168,7 @@ class OnboardingController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Your business details are saved.',
-            'state' => $this->statePayload($tenant->fresh(['businessProfile', 'businessProfileFiles'])),
+            'state' => $this->statePayload($tenant->fresh(GoogleWorkspaceFeature::tenantRelations(['businessProfile', 'businessProfileFiles']))),
         ]);
     }
 
@@ -194,7 +198,7 @@ class OnboardingController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'We’ve saved how your digital employee should sound.',
-            'state' => $this->statePayload($tenant->fresh(['businessProfile', 'businessProfileFiles'])),
+            'state' => $this->statePayload($tenant->fresh(GoogleWorkspaceFeature::tenantRelations(['businessProfile', 'businessProfileFiles']))),
         ]);
     }
 
@@ -249,7 +253,7 @@ class OnboardingController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Your digital employee capabilities are saved and the internal setup files are ready.',
-            'state' => $this->statePayload($tenant->fresh(['businessProfile', 'businessProfileFiles'])),
+            'state' => $this->statePayload($tenant->fresh(GoogleWorkspaceFeature::tenantRelations(['businessProfile', 'businessProfileFiles']))),
         ]);
     }
 
@@ -301,7 +305,7 @@ class OnboardingController extends Controller
         return response()->json([
             'success' => true,
             'message' => $message,
-            'state' => $this->statePayload($tenant->fresh(['businessProfile', 'businessProfileFiles'])),
+            'state' => $this->statePayload($tenant->fresh(GoogleWorkspaceFeature::tenantRelations(['businessProfile', 'businessProfileFiles']))),
         ]);
     }
 
@@ -324,7 +328,7 @@ class OnboardingController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Channel disconnected.',
-            'state' => $this->statePayload($tenant->fresh(['businessProfile', 'businessProfileFiles'])),
+            'state' => $this->statePayload($tenant->fresh(GoogleWorkspaceFeature::tenantRelations(['businessProfile', 'businessProfileFiles']))),
         ]);
     }
 
@@ -341,6 +345,7 @@ class OnboardingController extends Controller
 
         try {
             $this->agentSync->goLive($tenant);
+            $this->agentSync->syncConnectedGoogleWorkspace($tenant->fresh(GoogleWorkspaceFeature::tenantRelations(['server'])));
         } catch (Throwable $exception) {
             return response()->json([
                 'success' => false,
@@ -351,14 +356,14 @@ class OnboardingController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Your digital employee is now live and ready to start helping customers.',
-            'state' => $this->statePayload($tenant->fresh(['businessProfile', 'businessProfileFiles'])),
+            'state' => $this->statePayload($tenant->fresh(GoogleWorkspaceFeature::tenantRelations(['businessProfile', 'businessProfileFiles']))),
         ]);
     }
 
     private function tenantFor(Request $request): Tenant
     {
         return $request->user()->tenant()
-            ->with(['businessProfile', 'businessProfileFiles'])
+            ->with(GoogleWorkspaceFeature::tenantRelations(['businessProfile', 'businessProfileFiles']))
             ->firstOrFail();
     }
 
@@ -372,6 +377,7 @@ class OnboardingController extends Controller
         $services = is_array($profile?->services) ? array_values(array_filter($profile->services, fn (mixed $value): bool => is_string($value) && trim($value) !== '')) : [];
         $capabilities = is_array($tenant->capabilities) ? array_values(array_filter($tenant->capabilities, fn (mixed $value): bool => is_string($value) && trim($value) !== '')) : [];
         $channelConfig = is_array($tenant->channel_config) ? $tenant->channel_config : [];
+        $googleCredential = GoogleWorkspaceFeature::isAvailable() ? $tenant->googleCredential : null;
         $stepLabels = OnboardingStepCatalog::labels();
 
         $steps = [
@@ -397,11 +403,15 @@ class OnboardingController extends Controller
             ],
             6 => [
                 'label' => $stepLabels[6],
+                'status' => $this->stepSixComplete($googleCredential) ? 'complete' : 'incomplete',
+            ],
+            7 => [
+                'label' => $stepLabels[7],
                 'status' => $tenant->agent_status === 'live' ? 'complete' : 'incomplete',
             ],
         ];
 
-        $resumeFromStep = 6;
+        $resumeFromStep = 7;
 
         foreach ($steps as $stepNumber => $step) {
             if ($step['status'] === 'incomplete') {
@@ -443,6 +453,7 @@ class OnboardingController extends Controller
             'capabilities' => $capabilities,
             'channel' => $tenant->channel === 'telegram' ? 'telegram' : null,
             'channel_setup' => $this->channelSetupPayload($tenant, $channelConfig),
+            'google_workspace' => $this->googleWorkspacePayload($tenant, $googleCredential),
             'files' => [
                 'generated_at' => $files?->generated_at?->toIso8601String(),
                 'synced_at' => $files?->synced_at?->toIso8601String(),
@@ -503,6 +514,57 @@ class OnboardingController extends Controller
         return (int) $tenant->onboarding_step >= 5
             && $channel === 'telegram'
             && filled($channelConfig['telegram_bot_token'] ?? null);
+    }
+
+    private function stepSixComplete(?TenantGoogleCredential $credential): bool
+    {
+        if (! GoogleWorkspaceFeature::isAvailable()) {
+            return true;
+        }
+
+        return $credential?->unblocksOnboarding() ?? false;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function googleWorkspacePayload(Tenant $tenant, ?TenantGoogleCredential $credential): array
+    {
+        if (! GoogleWorkspaceFeature::isAvailable()) {
+            return [
+                'status' => 'unavailable',
+                'runtime_sync_status' => 'unavailable',
+                'connected_email' => null,
+                'scopes' => $this->googleOAuth->scopes(),
+                'can_connect' => false,
+                'can_reconnect' => false,
+                'connected' => false,
+                'pending_sync' => false,
+                'requires_action' => false,
+                'workspace_ready' => $tenant->provisioning_status->value === 'ready',
+                'available' => false,
+            ];
+        }
+
+        $configured = filled(config('services.google.client_id'))
+            && filled(config('services.google.client_secret'))
+            && filled(config('services.google.redirect_uri'));
+        $status = $credential?->status ?? TenantGoogleCredential::STATUS_PENDING;
+
+        return [
+            'status' => $status,
+            'runtime_sync_status' => $credential?->runtime_sync_status ?? TenantGoogleCredential::RUNTIME_SYNC_PENDING,
+            'connected_email' => $credential?->google_email,
+            'scopes' => is_array($credential?->scopes) ? $credential->scopes : $this->googleOAuth->scopes(),
+            'can_connect' => $configured,
+            'can_reconnect' => $status === TenantGoogleCredential::STATUS_DISCONNECTED,
+            'connected' => $status === TenantGoogleCredential::STATUS_CONNECTED,
+            'pending_sync' => $status === TenantGoogleCredential::STATUS_CONNECTED
+                && ($credential?->runtime_sync_status ?? null) !== TenantGoogleCredential::RUNTIME_SYNC_SYNCED,
+            'requires_action' => $status === TenantGoogleCredential::STATUS_PENDING,
+            'workspace_ready' => $tenant->provisioning_status->value === 'ready',
+            'available' => true,
+        ];
     }
 
     /**

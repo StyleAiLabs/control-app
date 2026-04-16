@@ -5,6 +5,7 @@ use App\Enums\TrialStatus;
 use App\Models\Tenant;
 use App\Models\Server;
 use App\Services\LiteLlmTenantKeyService;
+use App\Services\TenantGoogleWorkspaceSmokeTestService;
 use App\Services\TrialNotificationEmailService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -236,3 +237,41 @@ Schedule::command('sync360:check-trial-expiry')->everyThirtyMinutes();
 // The command class lives in app/Console/Commands/SyncConversationReplies.php
 // and is registered via withCommands() in bootstrap/app.php.
 Schedule::command('sync360:sync-replies')->everyTenMinutes();
+
+Artisan::command('sync360:test-google-workspace {tenantSelector : Tenant id, tenant_id, or slug}', function (string $tenantSelector) {
+    $tenant = Tenant::query()
+        ->with(['server', 'googleCredential'])
+        ->where(function ($query) use ($tenantSelector): void {
+            if (ctype_digit($tenantSelector)) {
+                $query->where('id', (int) $tenantSelector);
+            }
+
+            $query->orWhere('tenant_id', $tenantSelector)
+                ->orWhere('slug', $tenantSelector);
+        })
+        ->first();
+
+    if (! $tenant) {
+        throw new RuntimeException('No matching tenant was found for the Google Workspace smoke test.');
+    }
+
+    /** @var TenantGoogleWorkspaceSmokeTestService $smokeTests */
+    $smokeTests = app(TenantGoogleWorkspaceSmokeTestService::class);
+    $result = $smokeTests->run($tenant);
+
+    $this->components->info(sprintf('Google Workspace smoke test passed for [%s].', $tenant->slug));
+    $this->components->twoColumnDetail('Connected email', (string) ($result['google_email'] ?? 'unknown'));
+    $this->components->twoColumnDetail('Compose file', (string) ($result['compose_file'] ?? 'unknown'));
+    $this->components->twoColumnDetail('Expected XDG config home', (string) ($result['xdg_config_home_expected'] ?? 'unknown'));
+    $this->components->twoColumnDetail('Runtime artifacts', ($result['runtime_artifacts_verified'] ?? false) ? 'verified' : 'missing');
+    $this->components->twoColumnDetail('Container smoke', ($result['container_smoke_passed'] ?? false) ? 'passed' : 'failed');
+
+    if (is_array($result['container_result'] ?? null)) {
+        $containerResult = $result['container_result'];
+
+        $this->components->twoColumnDetail('Container account', (string) ($containerResult['account'] ?? 'unknown'));
+        $this->components->twoColumnDetail('Gmail address', (string) ($containerResult['gmail_email_address'] ?? 'unknown'));
+        $this->components->twoColumnDetail('Gmail messages total', isset($containerResult['gmail_messages_total']) ? (string) $containerResult['gmail_messages_total'] : 'unknown');
+        $this->components->twoColumnDetail('Calendars returned', isset($containerResult['calendar_items_returned']) ? (string) $containerResult['calendar_items_returned'] : 'unknown');
+    }
+})->purpose('Run a tenant-side Google Workspace smoke test against the mounted OpenClaw runtime auth');

@@ -37,6 +37,8 @@ The control plane is a Laravel application with:
 - PostgreSQL
 - Redis
 
+Authenticated dashboard responses are intentionally marked `no-store` / `no-cache` so browser caching does not preserve stale tenant workspace status cards after local runtime state changes.
+
 The repo supports a Docker Compose development stack and a production control-plane stack in `docker-compose.prod.yml`.
 
 ### Infrastructure modes
@@ -46,6 +48,9 @@ The repo supports a Docker Compose development stack and a production control-pl
 - app, worker, Postgres, and Redis run locally in Docker Compose
 - tenant runtimes are staged under `runtime/tenants/<slug>/`
 - tenant containers run on the local Docker host
+- the local Docker Compose stack pins `SYNC360_INFRASTRUCTURE_DRIVER=local`
+- app and worker use `SYNC360_LOCAL_DOCKER_COMPOSE_BIN=docker-compose` inside their containers
+- private tenant host-port checks use `host.docker.internal` from inside the app container so local gateway calls reach the Docker host rather than the app container loopback
 
 #### `ssh`
 
@@ -60,6 +65,7 @@ The repo supports a Docker Compose development stack and a production control-pl
 - the tenant hostname proxies to the control app upstream
 - the OpenClaw gateway binds privately and is reached by the control plane through `TenantGatewayService`
 - private gateway requests use `DockerComposeRunner::httpRequest()`
+- in local Docker dev, `TenantRuntimeService::gatewayBaseUrl()` resolves to the configured host alias instead of container-local `127.0.0.1`
 
 ## 3. Domain model
 
@@ -140,6 +146,19 @@ Key concerns:
 - `ai_summary` per session
 - response timestamp and meta payload
 
+### `TenantGoogleCredential`
+
+Stores the canonical Google Workspace OAuth state for a tenant.
+
+Key concerns:
+
+- Google account status (`pending`, `connected`, `skipped`, `disconnected`)
+- runtime sync status (`pending`, `synced`, `failed`)
+- encrypted `access_token` and `refresh_token`
+- connected Google email and granted scopes
+- transient OAuth `state` and PKCE verifier storage
+- last sync/error timestamps used to re-seed tenant runtime auth
+
 ## 4. Core request and async flows
 
 ### Signup and tenant creation
@@ -190,6 +209,8 @@ Provisioning flow:
 13. mark tenant/job ready/completed
 14. send workspace-ready email
 
+For local Docker dev, the private readiness check targets the Docker host alias configured by `sync360.host_port_probe_host`, not container-local loopback.
+
 ### Onboarding flow
 
 Authenticated onboarding is handled by `OnboardingController`.
@@ -201,15 +222,48 @@ Implemented steps:
 3. personality/tone
 4. capabilities
 5. channel configuration
-6. go live
+6. Google Workspace
+7. go live
 
 Services involved:
 
 - `BusinessExtractionService`
 - `TenantAgentSyncService`
+- `GoogleWorkspaceOAuthService`
 - `OnboardingStepCatalog` for the shared step-label contract used by the onboarding wizard and dashboard summaries
 
 `TenantProfileSyncService` is used for later profile/admin regeneration and resync work, not the main onboarding controller flow.
+
+### Google Workspace connect flow
+
+Sync360 owns the full Google OAuth web flow rather than delegating it to the tenant runtime or `gog`.
+
+Flow:
+
+1. the authenticated customer starts connect from Step 6
+2. `GoogleWorkspaceOAuthService::begin()` stores OAuth `state` and PKCE verifier in `tenant_google_credentials`
+3. `GoogleOAuthController` redirects the browser to Google's consent screen using `services.google.*`
+4. Google redirects to `/auth/google/callback`
+5. `GoogleOAuthController::callback()` resolves the tenant by stored `oauth_state`, exchanges the code server-to-server, fetches the Google email, and stores encrypted tokens/scopes in `tenant_google_credentials`
+6. if the runtime already exists, `TenantAgentSyncService::configureGoogleWorkspace()` immediately re-seeds runtime auth
+7. if the runtime is not ready yet, the row stays `connected` with runtime sync `pending` until provisioning/profile sync completes
+
+V1 scope set:
+
+- identity: `openid`, `email`, `profile`
+- Gmail: `gmail.readonly`, `gmail.send`, `gmail.compose`
+- Calendar: `calendar`
+- Drive: `drive.file`
+- Contacts: `contacts.readonly`
+- Sheets: `spreadsheets`
+- Docs: `documents`
+
+The database is the source of truth. Runtime Google auth files are treated as disposable cache and are recreated from DB after restart, rebuild, reprovision, or manual resync.
+
+Runtime reload rule:
+
+- if Google auth only changes `.openclaw/gogcli/` files, the tenant runtime can restart normally
+- if Google sync also changes tenant `compose.yaml` env such as `XDG_CONFIG_HOME`, `GOG_KEYRING_BACKEND`, or `GOG_KEYRING_PASSWORD`, the tenant container must be recreated with `up -d --force-recreate` (or remote equivalent) because `restart` does not reload container env
 
 ### Go-live sync flow
 
@@ -269,6 +323,7 @@ The base template comes from:
 - `logs/`
 - `workspace/`
 - `.openclaw/workspace/`
+- `.openclaw/gogcli/keyring/`
 
 ### Core generated files
 
@@ -277,6 +332,8 @@ The base template comes from:
 - `config/openclaw.json` — gateway, agent, and model/provider config
 - `compose.yaml` — tenant container definition
 - `config/workspace.caddy` — tenant hostname reverse-proxy config when Caddy is managed
+- `.openclaw/gogcli/credentials.json` — Google OAuth client payload rewrapped for `gog`
+- `.openclaw/gogcli/config.json` and `keyring/*` — file-backed `gog` auth cache derived from `tenant_google_credentials`
 
 ### Remote layout
 
@@ -292,6 +349,10 @@ There are two separate sync shapes in the runner contract:
 
 - `syncRuntime()` — full runtime sync used for initial provisioning
 - `syncWorkspaceFiles()` — markdown-only sync used by go-live/profile sync to avoid overwriting credentials
+
+Google auth sync is a third shape:
+
+- targeted `putFile()` / `removeDirectory()` writes under `.openclaw/gogcli/`, plus a runtime restart when auth artifacts change
 
 ## 6. External integrations
 
@@ -338,6 +399,17 @@ Important nuance:
 - the conversation-sync architecture relies on workspace session logs plus scheduled sync
 - current code/comments describe polling/session-log sync as the primary live Telegram conversation-history path
 
+### Google Workspace
+
+Google Workspace connect uses Sync360's shared Google OAuth app and direct HTTP token exchange in the control plane.
+
+Key runtime details:
+
+- the same platform client is transformed from `{"web": ...}` to `{"installed": ...}` for `gog` compatibility
+- `TenantRuntimeService` provisions `XDG_CONFIG_HOME`, `GOG_KEYRING_BACKEND=file`, and a per-tenant `GOG_KEYRING_PASSWORD`
+- the file-backed keyring lives under the mounted tenant runtime path so it survives normal container restarts
+- the runtime keyring is still treated as cache only because `tenant_google_credentials` remains canonical
+
 ### SSH and remote orchestration
 
 Remote runtime operations are abstracted by `DockerComposeRunner`.
@@ -373,6 +445,7 @@ Public routes:
 - `/`
 - `/signup`
 - `/login`
+- `/auth/google/callback`
 
 Authenticated customer routes:
 
@@ -391,6 +464,9 @@ Authenticated customer routes:
 - `POST /onboarding/capabilities`
 - `POST /onboarding/channel`
 - `POST /onboarding/channel/disconnect`
+- `GET /onboarding/google/connect`
+- `POST /onboarding/google/skip`
+- `POST /onboarding/google/disconnect`
 - `POST /onboarding/go-live`
 - `/tenant/setup`
 - `/tenant/status`
@@ -484,6 +560,13 @@ Additional supporting config lives in:
 - `config/session.php`
 - `config/database.php`
 
+Notable current additions:
+
+- `services.google.client_id`
+- `services.google.client_secret`
+- `services.google.redirect_uri`
+- `services.google.project_id`
+
 ## 10. Constraints and known gaps
 
 - Billing is not implemented.
@@ -501,9 +584,12 @@ Start with these files:
 - `config/sync360.php`
 - `app/Http/Controllers/Auth/RegisterController.php`
 - `app/Http/Controllers/OnboardingController.php`
+- `app/Http/Controllers/GoogleOAuthController.php`
 - `app/Http/Controllers/AdminController.php`
 - `app/Jobs/ProcessTenantProvisioning.php`
 - `app/Services/OpenClawProvisioner.php`
+- `app/Services/GoogleWorkspaceOAuthService.php`
+- `app/Services/GogAuthStorageService.php`
 - `app/Services/TenantRuntimeService.php`
 - `app/Services/TenantAgentSyncService.php`
 - `app/Services/TenantGatewayService.php`
@@ -518,5 +604,6 @@ The most useful models for orientation are:
 - `Tenant`
 - `Server`
 - `ProvisioningJob`
+- `TenantGoogleCredential`
 - `BusinessProfile`
 - `ConversationLog`

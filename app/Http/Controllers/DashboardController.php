@@ -7,13 +7,16 @@ use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
 use App\Models\ConversationLog;
 use App\Models\Tenant;
+use App\Models\TenantGoogleCredential;
 use App\Services\LiteLlmTenantKeyService;
 use App\Services\TenantRuntimeService;
+use App\Support\GoogleWorkspaceFeature;
 use App\Support\OnboardingStepCatalog;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
@@ -28,14 +31,14 @@ class DashboardController extends Controller
         private readonly TenantRuntimeService $runtime,
     ) {}
 
-    public function index(Request $request): View|RedirectResponse
+    public function index(Request $request): Response|RedirectResponse
     {
         if ($request->user()->is_admin && ! $request->user()->tenant) {
             return redirect()->route('admin.index');
         }
 
         $tenant = $request->user()->tenant()
-            ->with(['businessProfile', 'businessProfileFiles'])
+            ->with(GoogleWorkspaceFeature::tenantRelations(['businessProfile', 'businessProfileFiles']))
             ->firstOrFail();
         $recentConversations = $tenant->conversationLogs()
             ->latest('created_at')
@@ -78,7 +81,7 @@ class DashboardController extends Controller
             ]]);
         }
 
-        return view('dashboard', [
+        return response()->view('dashboard', [
             'tenant'              => $tenant,
             'businessProfile'     => $tenant->businessProfile,
             'businessFiles'       => $tenant->businessProfileFiles,
@@ -91,7 +94,9 @@ class DashboardController extends Controller
             'provisioningContent' => $this->provisioningContent($tenant->provisioning_status),
             'trialData'           => $this->trialData($tenant),
             'workspaceState'      => $workspaceState,
-        ]);
+        ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, private')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', 'Fri, 01 Jan 1990 00:00:00 GMT');
     }
 
     public function refreshTrialUsage(Request $request): JsonResponse
@@ -196,7 +201,7 @@ class DashboardController extends Controller
         if ($tenant->onboarding_status !== 'complete') {
             return [
                 'label' => 'Setup in progress',
-                'description' => 'Finish the guided setup to bring your digital employee live on Telegram.',
+                'description' => 'Finish the guided setup to bring your digital employee live.',
                 'badge' => 'pending',
                 'primary_cta_label' => 'Continue Setup',
                 'primary_cta_route' => route('onboarding.show'),
@@ -256,6 +261,7 @@ class DashboardController extends Controller
             ->values()
             ->all();
         $channelConfig = is_array($tenant->channel_config) ? $tenant->channel_config : [];
+        $googleCredential = GoogleWorkspaceFeature::isAvailable() ? $tenant->googleCredential : null;
         $stepLabels = OnboardingStepCatalog::labels();
 
         $steps = [
@@ -283,11 +289,15 @@ class DashboardController extends Controller
             ],
             6 => [
                 'label' => $stepLabels[6],
+                'status' => (! GoogleWorkspaceFeature::isAvailable() || ($googleCredential?->unblocksOnboarding() ?? false)) ? 'complete' : 'incomplete',
+            ],
+            7 => [
+                'label' => $stepLabels[7],
                 'status' => $tenant->agent_status === 'live' ? 'complete' : 'incomplete',
             ],
         ];
 
-        $resumeFromStep = 6;
+        $resumeFromStep = 7;
 
         foreach ($steps as $stepNumber => $step) {
             if ($step['status'] === 'incomplete') {
@@ -342,7 +352,8 @@ class DashboardController extends Controller
 
             $projectName = Str::limit('sync360-' . $tenant->slug, 63, '');
             $result = Process::run(sprintf(
-                'docker compose -f %s -p %s ps --format json',
+                '%s -f %s -p %s ps --format json',
+                $this->runtime->localDockerComposeShellPrefix(),
                 escapeshellarg($localCompose),
                 escapeshellarg($projectName),
             ));

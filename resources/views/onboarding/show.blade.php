@@ -50,7 +50,7 @@
             <div>
                 <span class="eyebrow">Guided Setup</span>
                 <h2>Set up your digital employee</h2>
-                <p style="margin-top: 4px;">Tell us about your business, choose how your digital employee should communicate, and connect the messaging app you use to reach it.</p>
+                <p style="margin-top: 4px;">Tell us about your business, choose how your digital employee should communicate, connect your messaging channel, and optionally add Google Workspace access.</p>
             </div>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                 <a href="{{ route('dashboard') }}" class="button button--secondary">Back to Dashboard</a>
@@ -417,12 +417,88 @@
             </div>
         </div>
 
-        {{-- ═══════════════════ STEP 6 — Go Live ═══════════════════ --}}
+        {{-- ═══════════════════ STEP 6 — Google Workspace ═══════════════════ --}}
         <div class="wizard-panel panel" data-wizard-step="6" id="wizard-step-6" style="display: none;">
             <span class="eyebrow">Step 6</span>
+            <h3 style="margin-top: 16px; font-size: 1.35rem;">Connect Google Workspace</h3>
+            <p style="margin-top: 8px;">
+                Optionally connect Google Workspace so your digital employee can work with Gmail, Calendar, Drive, Contacts, Sheets, and Docs.
+            </p>
+
+            <div class="meta" style="margin-top: 18px;">
+                <div class="meta-item">
+                    <small>Status</small>
+                    <span id="google-workspace-status">
+                        {{ ucfirst($state['google_workspace']['status'] ?? 'pending') }}
+                    </span>
+                </div>
+                <div class="meta-item">
+                    <small>Connected Account</small>
+                    <span id="google-workspace-email">
+                        {{ $state['google_workspace']['connected_email'] ?? 'Not connected yet' }}
+                    </span>
+                </div>
+                <div class="meta-item">
+                    <small>Runtime Sync</small>
+                    <span id="google-workspace-runtime-sync">
+                        {{ ucfirst($state['google_workspace']['runtime_sync_status'] ?? 'pending') }}
+                    </span>
+                </div>
+            </div>
+
+            <div class="note" style="margin-top: 18px;" id="google-workspace-note">
+                @if (($state['google_workspace']['available'] ?? true) === false)
+                    Google Workspace connect is temporarily unavailable in this environment until the latest database migration has been run.
+                @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['pending_sync'] ?? false))
+                    Google Workspace is connected. We'll sync the runtime access automatically as soon as the workspace is ready.
+                @elseif (($state['google_workspace']['status'] ?? null) === 'connected')
+                    Google Workspace is connected and ready for the tenant runtime.
+                @elseif (($state['google_workspace']['status'] ?? null) === 'disconnected')
+                    Google Workspace was disconnected. You can reconnect this account at any time.
+                @else
+                    This step is optional and never blocks Go Live. You can skip it now and come back later.
+                @endif
+            </div>
+
+            <div class="note" style="margin-top: 18px;" id="google-workspace-scopes-note">
+                Requested access includes Gmail read/send/compose, Calendar, Drive file access, Contacts read-only, Sheets, and Docs.
+            </div>
+
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px;" id="google-workspace-actions">
+                <div id="google-workspace-connect-wrapper" style="display: {{ ($state['google_workspace']['connected'] ?? false) ? 'none' : 'block' }};">
+                    <a
+                        href="{{ ($state['google_workspace']['can_connect'] ?? false) ? route('onboarding.google.connect') : '#' }}"
+                        id="google-workspace-connect-link"
+                        class="button button--primary"
+                        style="{{ ($state['google_workspace']['can_connect'] ?? false) ? '' : 'pointer-events:none; opacity:0.45;' }}"
+                    >
+                        {{ ($state['google_workspace']['can_reconnect'] ?? false) ? 'Reconnect Google Workspace' : 'Connect Google Workspace' }}
+                    </a>
+                </div>
+
+                <form method="POST" action="{{ route('onboarding.google.skip') }}" id="google-workspace-skip-form" style="display: {{ (($state['google_workspace']['status'] ?? 'pending') === 'pending') ? 'block' : 'none' }};">
+                    @csrf
+                    <button type="submit" class="button button--secondary">Skip For Now</button>
+                </form>
+
+                <form method="POST" action="{{ route('onboarding.google.disconnect') }}" id="google-workspace-disconnect-form" style="display: {{ (($state['google_workspace']['status'] ?? 'pending') === 'connected') ? 'block' : 'none' }};">
+                    @csrf
+                    <button type="submit" class="button button--secondary">Disconnect</button>
+                </form>
+            </div>
+
+            <div class="wizard-nav">
+                <button type="button" class="button button--secondary" data-wizard-prev>← Back</button>
+                <button type="button" class="button button--primary" data-wizard-next>Next →</button>
+            </div>
+        </div>
+
+        {{-- ═══════════════════ STEP 7 — Go Live ═══════════════════ --}}
+        <div class="wizard-panel panel" data-wizard-step="7" id="wizard-step-7" style="display: none;">
+            <span class="eyebrow">Step 7</span>
             <h3 style="margin-top: 16px; font-size: 1.35rem;">Bring it live</h3>
             <p style="margin-top: 8px;">
-                Once your business details, communication style, skills, and channel are in place, we'll activate your digital employee.
+                Once your business details, communication style, skills, and channel are in place, we'll activate your digital employee. Google Workspace is optional.
             </p>
 
             <div class="meta" style="margin-top: 18px;">
@@ -520,6 +596,14 @@
         const goLiveForm = document.getElementById('go-live-form');
         const goLiveSuccess = document.getElementById('go-live-success');
         const goLiveError = document.getElementById('go-live-error');
+        const googleWorkspaceStatus = document.getElementById('google-workspace-status');
+        const googleWorkspaceEmail = document.getElementById('google-workspace-email');
+        const googleWorkspaceRuntimeSync = document.getElementById('google-workspace-runtime-sync');
+        const googleWorkspaceNote = document.getElementById('google-workspace-note');
+        const googleWorkspaceConnectLink = document.getElementById('google-workspace-connect-link');
+        const googleWorkspaceConnectWrapper = document.getElementById('google-workspace-connect-wrapper');
+        const googleWorkspaceSkipForm = document.getElementById('google-workspace-skip-form');
+        const googleWorkspaceDisconnectForm = document.getElementById('google-workspace-disconnect-form');
         const goLiveWorkspaceStatus = document.getElementById('go-live-workspace-status');
         const goLiveChannelStatus = document.getElementById('go-live-channel-status');
         const goLiveAgentStatus = document.getElementById('go-live-agent-status');
@@ -545,7 +629,7 @@
            ══════════════════════════════════════════════════════════════════ */
         const wizardPanels = document.querySelectorAll('.wizard-panel');
         const wizardBarItems = document.querySelectorAll('#wizard-steps-bar li');
-        let currentStep = {{ $state['resume_from_step'] ?? 1 }};
+        let currentStep = {{ request()->integer('step', (int) ($state['resume_from_step'] ?? 1)) }};
 
         function showWizardStep(step) {
             currentStep = step;
@@ -563,7 +647,7 @@
         /* next / prev buttons */
         document.querySelectorAll('[data-wizard-next]').forEach(btn => {
             btn.addEventListener('click', () => {
-                if (currentStep < 6) showWizardStep(currentStep + 1);
+                if (currentStep < 7) showWizardStep(currentStep + 1);
             });
         });
         document.querySelectorAll('[data-wizard-prev]').forEach(btn => {
@@ -663,6 +747,13 @@
             updateChannelFields();
         }
 
+        function formatStatus(value) {
+            if (!value) return 'Pending';
+            return value
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, (char) => char.toUpperCase());
+        }
+
         function applyState(state) {
             /* update step bar */
             Object.entries(state.steps ?? {}).forEach(([stepNumber, step]) => {
@@ -680,6 +771,38 @@
             goLiveChannelStatus.textContent = state.channel === 'telegram'
                 ? 'Telegram'
                 : 'Not connected yet';
+            googleWorkspaceStatus.textContent = formatStatus(state.google_workspace?.status || 'pending');
+            googleWorkspaceEmail.textContent = state.google_workspace?.connected_email || 'Not connected yet';
+            googleWorkspaceRuntimeSync.textContent = formatStatus(state.google_workspace?.runtime_sync_status || 'pending');
+            googleWorkspaceConnectLink.textContent = state.google_workspace?.can_reconnect
+                ? 'Reconnect Google Workspace'
+                : 'Connect Google Workspace';
+            const googleStatus = state.google_workspace?.status || 'pending';
+            const googleIsConnected = googleStatus === 'connected';
+            const googleIsDisconnected = googleStatus === 'disconnected';
+
+            googleWorkspaceConnectWrapper.style.display = googleIsConnected ? 'none' : 'block';
+            googleWorkspaceSkipForm.style.display = googleStatus === 'pending' ? 'block' : 'none';
+            googleWorkspaceDisconnectForm.style.display = googleIsConnected ? 'block' : 'none';
+
+            if (state.google_workspace?.can_connect) {
+                googleWorkspaceConnectLink.style.pointerEvents = '';
+                googleWorkspaceConnectLink.style.opacity = '';
+            } else {
+                googleWorkspaceConnectLink.style.pointerEvents = 'none';
+                googleWorkspaceConnectLink.style.opacity = '0.45';
+            }
+            if (state.google_workspace?.available === false) {
+                googleWorkspaceNote.textContent = 'Google Workspace connect is temporarily unavailable in this environment until the latest database migration has been run.';
+            } else if (state.google_workspace?.status === 'connected' && state.google_workspace?.pending_sync) {
+                googleWorkspaceNote.textContent = 'Google Workspace is connected. We will sync the runtime access automatically as soon as the workspace is ready.';
+            } else if (state.google_workspace?.status === 'connected') {
+                googleWorkspaceNote.textContent = 'Google Workspace is connected and ready for the tenant runtime.';
+            } else if (googleIsDisconnected) {
+                googleWorkspaceNote.textContent = 'Google Workspace was disconnected. You can reconnect this account at any time.';
+            } else {
+                googleWorkspaceNote.textContent = 'This step is optional and never blocks Go Live. You can skip it now and come back later.';
+            }
             goLiveAgentStatus.textContent = state.agent_status
                 ? `${state.agent_status.charAt(0).toUpperCase()}${state.agent_status.slice(1)}`
                 : 'Offline';
@@ -963,7 +1086,7 @@
         });
 
         /* ══════════════════════════════════════════════════════════════════
-           STEP 6 — GO LIVE
+           STEP 7 — GO LIVE
            ══════════════════════════════════════════════════════════════════ */
         goLiveForm.addEventListener('submit', async (event) => {
             event.preventDefault();

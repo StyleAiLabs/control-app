@@ -1,6 +1,6 @@
 # Sync360 Control App Memory
 
-Last verified: `2026-04-16`
+Last verified: `2026-04-17`
 
 This memory is based on the current repo code and current canonical docs. It is not a guarantee about live production state.
 
@@ -49,12 +49,15 @@ If those files conflict with the codebase, trust:
 ## 3. Current system snapshot
 
 - App shape: Laravel monolith with Blade, PostgreSQL, Redis, queues, scheduler-backed commands, and Laravel password-broker auth recovery
+- Authenticated dashboard responses are now sent with no-cache headers so workspace status cards do not get stuck on stale browser snapshots
 - Password reset delivery: uses Brevo's HTTP email API when Brevo is enabled; falls back to Laravel's default notification pipeline otherwise
 - Infrastructure modes: `local` and `ssh`
 - Tenant runtime staging: `runtime/tenants/<slug>/`
 - Tenant runtime deployment: one OpenClaw runtime per tenant
 - Workspace URL model: customer-facing Sync360 URL on the tenant hostname; private gateway stays behind the control plane
-- Onboarding model: signup provisions the runtime in the background, while the customer completes business/profile/channel setup in the app
+- Local dev runtime model: the Docker Compose dev stack forces `SYNC360_INFRASTRUCTURE_DRIVER=local`, uses `docker-compose` inside the app/worker containers, and reaches tenant host ports through `host.docker.internal`
+- Onboarding model: signup provisions the runtime in the background, while the customer completes a seven-step setup flow ending in optional Google Workspace connect and Go Live
+- Google auth model: Sync360 owns the Google OAuth web flow; `tenant_google_credentials` is the source of truth and tenant `.openclaw/gogcli/` auth artifacts are a re-seedable runtime cache
 - Conversation model: Telegram history is synced from workspace session logs with AI summaries; the control plane no longer exposes channel webhook ingress
 - Trial model: 14-day / budget-capped trial with scheduled expiry checks and email notifications
 - Admin model: super-admin area is behind `auth`, `admin`, and `local.only` middleware
@@ -66,15 +69,17 @@ If those files conflict with the codebase, trust:
 1. `RegisterController` creates `User`, `Tenant`, `BusinessProfile`, `BusinessProfileFiles`, and `ProvisioningJob`.
 2. `ServerPlacementService` selects a server.
 3. `ProcessTenantProvisioning` dispatches after commit.
-4. `OpenClawProvisioner` allocates a port, ensures a LiteLLM tenant key, prepares the runtime, writes OpenClaw and Compose config, syncs the runtime, starts the tenant container, checks private readiness, then checks the public workspace login URL.
+4. `OpenClawProvisioner` allocates a port, ensures a LiteLLM tenant key, prepares the runtime, writes OpenClaw and Compose config, syncs the runtime, starts the tenant container, checks private readiness through `TenantRuntimeService::gatewayBaseUrl()`, then checks the public workspace login URL.
 5. `WorkspaceReadyEmailService` sends the workspace-ready email after provisioning succeeds.
 
 ### Onboarding and go-live
 
-1. Customer works through `/onboarding` steps for business info, tone, capabilities, and channel setup.
+1. Customer works through `/onboarding` steps for website extraction, business info, tone, capabilities, channel setup, optional Google Workspace connect, and Go Live.
 2. `BusinessExtractionService` handles website extraction and initial markdown generation.
-3. `TenantAgentSyncService::goLive()` writes the full workspace artifact set into `.openclaw/workspace/` (`IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`, `PROFILE.md`, and `HEARTBEAT.md`) and syncs only workspace markdown files.
-4. The tenant runtime is restarted without overwriting provisioned credentials.
+3. `GoogleOAuthController` and `GoogleWorkspaceOAuthService` own the Google OAuth flow, store encrypted tokens in `tenant_google_credentials`, and trigger runtime reseeding when the workspace is ready.
+4. `TenantAgentSyncService::goLive()` writes the full workspace artifact set into `.openclaw/workspace/` (`IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`, `PROFILE.md`, and `HEARTBEAT.md`) and syncs only workspace markdown files.
+5. Google auth reseeding writes `.openclaw/gogcli/` artifacts from DB state and force-recreates the tenant container when `compose.yaml` env changed, because a plain restart does not reload container env.
+6. `goLive()` still only syncs workspace markdown files and restarts the tenant without overwriting provisioned credentials.
 
 ### Conversation logging and summaries
 
@@ -93,6 +98,9 @@ If those files conflict with the codebase, trust:
 ## 5. Critical invariants / gotchas
 
 - `goLive()` must never do a full runtime sync. It must use `DockerComposeRunner::syncWorkspaceFiles()` and not `syncRuntime()`, or provisioned credentials in `compose.yaml` and `config/openclaw.json` can be overwritten.
+- Google Workspace auth sync must never piggyback on `goLive()` or use a full runtime sync. `TenantAgentSyncService::configureGoogleWorkspace()` uses targeted runner writes under `.openclaw/gogcli/` and can always re-seed runtime auth from the DB row.
+- In local Docker development, private gateway checks must not use container-local `127.0.0.1`; they must go through the configured host alias (`host.docker.internal` in the shipped `docker-compose.yml`) so the app container can reach tenant ports published on the Docker host.
+- When tenant `compose.yaml` env changes, local/remote Google runtime reload must recreate the tenant container (`up -d --force-recreate` / equivalent), not just `restart`, or `XDG_CONFIG_HOME` and keyring env updates will not take effect.
 - `workspace_url` is the customer-facing Sync360 URL, not a public OpenClaw URL.
 - Private gateway calls should go through `TenantGatewayService` and the runner’s `httpRequest()` contract, not through the public tenant hostname.
 - Production needs the scheduler path running. The scheduled commands in `routes/console.php` are part of the live product.
@@ -105,6 +113,7 @@ Verified current code behavior:
 
 - Telegram onboarding currently calls `TenantAgentSyncService::configureChannel()`, which writes polling-mode Telegram config into `openclaw.json` and restarts the tenant runtime.
 - Telegram no longer exposes a control-app webhook path in the current codebase.
+- Google Workspace onboarding is now a separate optional step before Go Live. The control plane owns the OAuth redirect, callback, token exchange, and DB persistence, then re-seeds GOG runtime auth from `tenant_google_credentials`.
 - WhatsApp is not implemented as a live channel integration. The onboarding UI only keeps a disabled "Coming Soon" placeholder.
 - The control plane no longer exposes WhatsApp or Telegram webhook routes.
 

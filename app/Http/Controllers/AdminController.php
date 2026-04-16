@@ -261,7 +261,8 @@ class AdminController extends Controller
 
             $projectName = Str::limit('sync360-'.$tenant->slug, 63, '');
             $result = Process::run(sprintf(
-                'docker compose -f %s -p %s ps --format json',
+                '%s -f %s -p %s ps --format json',
+                $this->runtime->localDockerComposeShellPrefix(),
                 escapeshellarg($localCompose),
                 escapeshellarg($projectName),
             ));
@@ -289,7 +290,8 @@ class AdminController extends Controller
         $projectName = Str::limit('sync360-'.$tenant->slug, 63, '');
 
         $command = sprintf(
-            'docker compose -f %s -p %s %s',
+            '%s -f %s -p %s %s',
+            $this->runtime->localDockerComposeShellPrefix(),
             escapeshellarg($localCompose),
             escapeshellarg($projectName),
             $action,

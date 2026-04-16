@@ -7,6 +7,87 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-17 — Local Runtime Reachability Fixes + Tenant Google Smoke Test
+
+Date: 2026-04-17
+Status: Implemented
+
+### Overview
+
+Fixed the local Docker development runtime path so tenant health checks, admin workspace status, Google auth reseeding, and tenant-side GOG smoke tests work from inside the Laravel app container instead of failing against the wrong Docker/gateway assumptions.
+
+### What Changed
+
+- updated the local Docker Compose stack to force:
+  - `SYNC360_INFRASTRUCTURE_DRIVER=local`
+  - `SYNC360_LOCAL_DOCKER_COMPOSE_BIN=docker-compose`
+  - `SYNC360_HOST_PORT_PROBE_HOST=host.docker.internal`
+- removed local-only hardcoded `docker compose` assumptions from dashboard/admin/runtime-smoke paths and switched them to the configured local compose binary
+- changed local private gateway access so `TenantRuntimeService::gatewayBaseUrl()` uses the configured Docker-host alias rather than container-local `127.0.0.1`
+- updated local readiness checks to use that same gateway base URL during provisioning and later health checks
+- corrected Google runtime reload behavior so tenant container env changes require a recreate (`up -d --force-recreate`) instead of a plain restart
+- added no-cache headers to the authenticated dashboard response so the workspace status card does not stay stuck on stale browser renders after a local runtime state change
+
+### Verification
+
+- local host Docker confirmed `style-software` was running and healthy
+- direct tenant health check now reports `healthy` / `running`
+- `sync360:test-google-workspace style-software` passed from inside the tenant runtime with:
+  - connected account `gayan.ssw@gmail.com`
+  - Gmail profile access
+  - Calendar list access
+  - expected `XDG_CONFIG_HOME=/home/node/.openclaw/.openclaw`
+
+## 2026-04-16 — Optional Google Workspace Onboarding + DB-Backed OAuth Sync
+
+Date: 2026-04-16
+Status: Implemented
+
+### Overview
+
+Added an optional Google Workspace connect step to onboarding and moved Google auth ownership into the Sync360 control plane. The database now holds the canonical Google refresh/access tokens and runtime `gog` auth files are treated as disposable cache that can be re-seeded after restart, rebuild, or reprovision.
+
+### What Changed
+
+- expanded onboarding from six steps to seven:
+  - `1 Website`
+  - `2 Business Info`
+  - `3 Tone`
+  - `4 Skills`
+  - `5 Channel`
+  - `6 Google Workspace`
+  - `7 Go Live`
+- added `tenant_google_credentials` as the source-of-truth table for Google auth state, encrypted tokens, scopes, runtime sync status, and transient OAuth state/PKCE values
+- added `TenantGoogleCredential`, `GoogleWorkspaceOAuthService`, `GogAuthStorageService`, and `GoogleOAuthController`
+- added direct Google OAuth config in `config/services.php` using `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, and optional `GOOGLE_PROJECT_ID`
+- implemented Sync360-owned OAuth start and callback routes instead of delegating the web flow to `gog`
+- added onboarding Step 6 UI with connect, skip, disconnect, reconnect state, runtime-sync messaging, and non-blocking progression to Step 7
+- added the explicit v1 scope set:
+  - identity: `openid`, `email`, `profile`
+  - Gmail: `gmail.readonly`, `gmail.send`, `gmail.compose`
+  - Calendar: `calendar`
+  - Drive: `drive.file`
+  - Contacts: `contacts.readonly`
+  - Sheets: `spreadsheets`
+  - Docs: `documents`
+- added `TenantAgentSyncService::configureGoogleWorkspace()`, `disconnectGoogleWorkspace()`, and `syncConnectedGoogleWorkspace()` to write tenant `.openclaw/gogcli/` auth artifacts from DB state and restart the runtime when needed
+- provisioned file-backed GOG keyring settings into tenant runtime env so the mounted runtime path holds the auth cache across normal container restarts
+- added automatic Google auth reseeding after OAuth callback when the runtime is ready, after provisioning completes, and after later profile/go-live sync paths
+
+### Important Invariants Preserved
+
+- `TenantAgentSyncService::goLive()` still syncs workspace markdown files only and does not perform a full runtime sync
+- Google auth sync uses targeted runner file writes under `.openclaw/gogcli/`; it does not use `syncRuntime()` and is not coupled to `goLive()`
+- conversation history remains session-log based through `sync360:sync-replies`
+- private runtime access still goes through the control plane's private gateway helpers
+
+### Notes
+
+- v1 relies on `gog` self-refreshing the runtime access token from the runtime keyring refresh token during normal operation
+- the DB refresh token is retained as the long-lived recovery source for reseeding runtime auth after rebuilds or deletes
+- rollout can use Google OAuth test-user mode while verification is in progress by adding early customers as allowed test users in Google Cloud Console
+- the current `gog` storage contract is isolated in `GogAuthStorageService` so fixture-based tests can fail loudly if upstream storage expectations change
+
 ## 2026-04-16 — Onboarding UX Copy and Progress Alignment
 
 Date: 2026-04-16

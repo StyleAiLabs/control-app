@@ -7,10 +7,14 @@ use App\Enums\TenantProvisioningStatus;
 use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
 use App\Models\Tenant;
+use App\Models\TenantGoogleCredential;
+use App\Support\GoogleWorkspaceFeature;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Symfony\Component\Process\Exception\ProcessFailedException;
+use Symfony\Component\Process\Process;
 use Throwable;
 
 class TenantAgentSyncService
@@ -19,6 +23,7 @@ class TenantAgentSyncService
         private readonly Filesystem $files,
         private readonly TenantRuntimeService $runtime,
         private readonly DockerComposeRunner $dockerCompose,
+        private readonly GogAuthStorageService $gogAuthStorage,
     ) {
     }
 
@@ -85,7 +90,7 @@ class TenantAgentSyncService
 
             $tenant->forceFill([
                 'onboarding_status' => 'complete',
-                'onboarding_step' => max((int) $tenant->onboarding_step, 6),
+                'onboarding_step' => max((int) $tenant->onboarding_step, 7),
                 'agent_status' => 'live',
                 'agent_last_synced_at' => $syncedAt,
             ])->save();
@@ -242,6 +247,132 @@ class TenantAgentSyncService
         Log::info('[RemoveChannelConfig] Channels removed and gateway restarted for tenant '.$tenant->slug);
     }
 
+    public function configureGoogleWorkspace(Tenant $tenant): void
+    {
+        if (! GoogleWorkspaceFeature::isAvailable()) {
+            return;
+        }
+
+        $tenant->loadMissing(['server', 'googleCredential']);
+
+        $credential = $tenant->googleCredential;
+
+        if (! $credential || ! $credential->isConnected()) {
+            throw new RuntimeException('A connected Google Workspace account is required before syncing GOG credentials.');
+        }
+
+        if ($tenant->provisioning_status !== TenantProvisioningStatus::Ready || ! filled($tenant->runtime_path)) {
+            $credential->forceFill([
+                'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_PENDING,
+                'last_error' => null,
+            ])->save();
+
+            return;
+        }
+
+        $localConfigRoot = $this->gogAuthStorage->localConfigRoot($tenant);
+        $localArtifacts = $this->gogAuthStorage->localArtifacts($tenant, $credential);
+        $composeUpdate = $this->ensureGoogleRuntimeEnvironment($tenant);
+
+        $this->files->deleteDirectory($localConfigRoot);
+
+        foreach ($localArtifacts as $path => $contents) {
+            $this->files->ensureDirectoryExists(dirname($path));
+            $this->files->put($path, $contents);
+        }
+
+        if (! app()->environment('local')) {
+            $remoteConfigRoot = $this->gogAuthStorage->remoteConfigRoot($tenant);
+            $remoteArtifacts = $this->gogAuthStorage->remoteArtifacts($tenant, $credential);
+
+            $this->dockerCompose->removeDirectory($tenant->server, $remoteConfigRoot);
+
+            foreach ($remoteArtifacts as $path => $contents) {
+                $this->dockerCompose->putFile($tenant->server, $path, $contents);
+            }
+
+            if ($composeUpdate['changed']) {
+                $this->dockerCompose->putFile($tenant->server, $composeUpdate['remote_compose_file'], $composeUpdate['contents']);
+            }
+
+            $this->reloadRuntime($tenant, $composeUpdate['changed']);
+        } else {
+            $this->reloadRuntime($tenant, $composeUpdate['changed']);
+        }
+
+        $credential->forceFill([
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_SYNCED,
+            'last_synced_at' => now(),
+            'last_error' => null,
+        ])->save();
+    }
+
+    public function disconnectGoogleWorkspace(Tenant $tenant): void
+    {
+        if (! GoogleWorkspaceFeature::isAvailable()) {
+            return;
+        }
+
+        $tenant->loadMissing(['server', 'googleCredential']);
+
+        $credential = $tenant->googleCredential ?: $tenant->googleCredential()->create();
+        $localConfigRoot = $this->gogAuthStorage->localConfigRoot($tenant);
+
+        $this->files->deleteDirectory($localConfigRoot);
+
+        if ($tenant->server && filled($tenant->runtime_path)) {
+            if (! app()->environment('local')) {
+                $this->dockerCompose->removeDirectory($tenant->server, $this->gogAuthStorage->remoteConfigRoot($tenant));
+            }
+
+            $this->reloadRuntime($tenant);
+        }
+
+        $credential->forceFill([
+            'status' => TenantGoogleCredential::STATUS_DISCONNECTED,
+            'runtime_sync_status' => filled($tenant->runtime_path)
+                ? TenantGoogleCredential::RUNTIME_SYNC_SYNCED
+                : TenantGoogleCredential::RUNTIME_SYNC_PENDING,
+            'access_token' => null,
+            'refresh_token' => null,
+            'expires_at' => null,
+            'scopes' => null,
+            'oauth_state' => null,
+            'oauth_code_verifier' => null,
+            'oauth_state_expires_at' => null,
+            'disconnected_at' => now(),
+            'last_synced_at' => now(),
+            'last_error' => null,
+        ])->save();
+    }
+
+    public function syncConnectedGoogleWorkspace(Tenant $tenant): void
+    {
+        if (! GoogleWorkspaceFeature::isAvailable()) {
+            return;
+        }
+
+        $tenant->loadMissing(['server', 'googleCredential']);
+
+        if (! $tenant->googleCredential?->isConnected()) {
+            return;
+        }
+
+        try {
+            $this->configureGoogleWorkspace($tenant);
+        } catch (Throwable $exception) {
+            $tenant->googleCredential?->forceFill([
+                'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_FAILED,
+                'last_error' => $exception->getMessage(),
+            ])->save();
+
+            Log::warning('[GoogleWorkspaceSync] Failed to sync Google Workspace auth for tenant '.$tenant->slug, [
+                'tenant_id' => $tenant->tenant_id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+    }
+
     private function ensureTenantCanGoLive(Tenant $tenant, ?BusinessProfile $profile, ?BusinessProfileFiles $profileFiles): void
     {
         if (! $tenant->server) {
@@ -264,6 +395,156 @@ class TenantAgentSyncService
 
         if (! filled($tenant->runtime_path)) {
             throw new RuntimeException('The workspace runtime path is missing, so we cannot sync the final setup files yet.');
+        }
+    }
+
+    private function reloadRuntime(Tenant $tenant, bool $recreate = false): void
+    {
+        $runtimePath = app()->environment('local')
+            ? $this->runtime->localRuntimePath($tenant)
+            : rtrim((string) $tenant->runtime_path, DIRECTORY_SEPARATOR);
+        $composeFile = rtrim($runtimePath, DIRECTORY_SEPARATOR)
+            .DIRECTORY_SEPARATOR
+            .(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
+        $projectName = Str::limit('sync360-'.$tenant->slug, 63, '');
+
+        if (app()->environment('local')) {
+            $this->runLocalComposeCommand($tenant, $composeFile, $projectName, $recreate ? ['up', '-d', '--force-recreate'] : ['restart']);
+
+            return;
+        }
+
+        if ($recreate) {
+            $this->dockerCompose->runCommand(
+                $tenant->server,
+                sprintf('docker compose -f %s -p %s up -d --force-recreate', escapeshellarg($composeFile), escapeshellarg($projectName)),
+            );
+
+            return;
+        }
+
+        $this->dockerCompose->runCommand(
+            $tenant->server,
+            sprintf('docker compose -f %s -p %s restart', escapeshellarg($composeFile), escapeshellarg($projectName)),
+        );
+    }
+
+    /**
+     * @return array{changed:bool, contents:string, remote_compose_file:string}
+     */
+    private function ensureGoogleRuntimeEnvironment(Tenant $tenant): array
+    {
+        $localComposeFile = $this->runtime->localRuntimePath($tenant)
+            .DIRECTORY_SEPARATOR
+            .(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
+
+        if (! $this->files->exists($localComposeFile)) {
+            throw new RuntimeException('The tenant compose file does not exist yet, so Google Workspace env settings cannot be applied.');
+        }
+
+        $existingContents = $this->files->get($localComposeFile);
+        $updatedContents = $this->syncComposeEnvironment($existingContents, [
+            'XDG_CONFIG_HOME' => $this->yamlQuote($this->runtime->containerGogConfigHome()),
+            'GOG_KEYRING_BACKEND' => $this->yamlQuote('file'),
+            'GOG_KEYRING_PASSWORD' => $this->yamlQuote($this->runtime->googleKeyringPassword($tenant)),
+        ]);
+
+        $changed = $updatedContents !== $existingContents;
+
+        if ($changed) {
+            $this->files->put($localComposeFile, $updatedContents);
+        }
+
+        return [
+            'changed' => $changed,
+            'contents' => $updatedContents,
+            'remote_compose_file' => rtrim((string) $tenant->runtime_path, DIRECTORY_SEPARATOR)
+                .DIRECTORY_SEPARATOR
+                .(string) config('sync360.openclaw.compose_filename', 'compose.yaml'),
+        ];
+    }
+
+    /**
+     * @param  array<string, string>  $desiredEntries
+     */
+    private function syncComposeEnvironment(string $contents, array $desiredEntries): string
+    {
+        $lines = preg_split("/\r?\n/", $contents) ?: [];
+        $environmentLine = null;
+
+        foreach ($lines as $index => $line) {
+            if (trim($line) === 'environment:') {
+                $environmentLine = $index;
+                break;
+            }
+        }
+
+        if ($environmentLine === null) {
+            throw new RuntimeException('The tenant compose file is missing an environment block.');
+        }
+
+        $blockStart = $environmentLine + 1;
+        $blockEnd = count($lines);
+
+        for ($index = $blockStart; $index < count($lines); $index++) {
+            $line = $lines[$index];
+
+            if ($line !== '' && ! str_starts_with($line, '      ')) {
+                $blockEnd = $index;
+                break;
+            }
+        }
+
+        $existingEntries = [];
+        $existingOrder = [];
+
+        for ($index = $blockStart; $index < $blockEnd; $index++) {
+            if (preg_match('/^\s{6}([A-Z0-9_]+):\s*(.+)$/', $lines[$index], $matches) === 1) {
+                $existingEntries[$matches[1]] = $matches[2];
+                $existingOrder[] = $matches[1];
+            }
+        }
+
+        foreach ($desiredEntries as $key => $value) {
+            if (! in_array($key, $existingOrder, true)) {
+                $existingOrder[] = $key;
+            }
+
+            $existingEntries[$key] = $value;
+        }
+
+        $replacementLines = array_map(
+            static fn (string $key): string => sprintf('      %s: %s', $key, $existingEntries[$key]),
+            $existingOrder,
+        );
+
+        array_splice($lines, $blockStart, $blockEnd - $blockStart, $replacementLines);
+
+        return implode(PHP_EOL, $lines);
+    }
+
+    private function yamlQuote(string $value): string
+    {
+        return '"'.str_replace(['\\', '"'], ['\\\\', '\\"'], $value).'"';
+    }
+
+    /**
+     * @param  list<string>  $subCommand
+     */
+    private function runLocalComposeCommand(Tenant $tenant, string $composeFile, string $projectName, array $subCommand): void
+    {
+        $process = new Process([
+            ...$this->runtime->localDockerComposeCommandParts(),
+            '-f',
+            $composeFile,
+            '-p',
+            $projectName,
+            ...$subCommand,
+        ], timeout: (int) config('sync360.openclaw.compose_timeout_seconds', 120));
+        $process->run();
+
+        if (! $process->isSuccessful()) {
+            throw new ProcessFailedException($process);
         }
     }
 

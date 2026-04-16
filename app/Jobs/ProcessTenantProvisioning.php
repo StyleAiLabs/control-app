@@ -7,7 +7,9 @@ use App\Enums\ProvisioningJobStatus;
 use App\Enums\TenantProvisioningStatus;
 use App\Models\ProvisioningJob;
 use App\Models\Tenant;
+use App\Services\TenantAgentSyncService;
 use App\Services\WorkspaceReadyEmailService;
+use App\Support\GoogleWorkspaceFeature;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
@@ -31,13 +33,18 @@ class ProcessTenantProvisioning implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(TenantProvisioner $provisioner, WorkspaceReadyEmailService $workspaceReadyEmail): void
+    public function handle(
+        TenantProvisioner $provisioner,
+        WorkspaceReadyEmailService $workspaceReadyEmail,
+        TenantAgentSyncService $agentSync,
+    ): void
     {
         $tenant = Tenant::query()->findOrFail($this->tenantId);
         $provisioningJob = ProvisioningJob::query()->findOrFail($this->provisioningJobId);
 
         try {
             $provisioner->provision($tenant, $provisioningJob);
+            $agentSync->syncConnectedGoogleWorkspace($tenant->fresh(GoogleWorkspaceFeature::tenantRelations(['server'])));
             $workspaceReadyEmail->sendWorkspaceReadyEmail($tenant->fresh('user'), $provisioningJob->fresh());
         } catch (Throwable $exception) {
             $this->markAsFailed($tenant, $provisioningJob, $exception);
