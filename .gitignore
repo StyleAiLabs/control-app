@@ -16,6 +16,8 @@
 /public/build
 /public/hot
 /public/storage
+/artifacts/founder-architecture.html
+/artifacts/founder_roadmap.md
 /runtime/tenants/*
 !/runtime/tenants/.gitkeep
 /storage/*.key
