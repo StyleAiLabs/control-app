@@ -56,7 +56,7 @@ If those files conflict with the codebase, trust:
 - Tenant runtime deployment: one OpenClaw runtime per tenant
 - Workspace URL model: customer-facing Sync360 URL on the tenant hostname; private gateway stays behind the control plane
 - Local dev runtime model: the Docker Compose dev stack forces `SYNC360_INFRASTRUCTURE_DRIVER=local`, uses `docker-compose` inside the app/worker containers, and reaches tenant host ports through `host.docker.internal`
-- Onboarding model: signup provisions the runtime in the background, while the customer completes a seven-step setup flow ending in optional Google Workspace connect and Go Live; the onboarding UI polls server state without wiping in-progress drafts and now advances automatically after successful saves on the main setup steps
+- Onboarding model: signup provisions the runtime in the background, while the customer completes a seven-step setup flow ending in optional Google Workspace connect and Go Live; the onboarding UI shows explicit wizard/background progress, polls server state without wiping in-progress drafts, and advances automatically after successful saves on the main setup steps
 - Google auth model: Sync360 owns the Google OAuth web flow; `tenant_google_credentials` is the source of truth and tenant `.openclaw/gogcli/` auth artifacts are a re-seedable runtime cache
 - Conversation model: Telegram history is synced from workspace session logs with AI summaries; the control plane no longer exposes channel webhook ingress
 - Trial model: 14-day / budget-capped trial with scheduled expiry checks and email notifications
@@ -75,13 +75,15 @@ If those files conflict with the codebase, trust:
 ### Onboarding and go-live
 
 1. Customer works through `/onboarding` steps for website extraction, business info, tone, capabilities, channel setup, optional Google Workspace connect, and Go Live.
-2. The onboarding Blade polls `/onboarding/state`, but the client preserves unsaved local drafts so background refreshes do not collapse or clear in-progress setup.
-3. Successful saves on website extraction, business info, tone, capabilities, and channel setup advance the wizard to the next step automatically.
-4. `BusinessExtractionService` handles website extraction and initial markdown generation.
-5. `GoogleOAuthController` and `GoogleWorkspaceOAuthService` own the Google OAuth flow, store encrypted tokens in `tenant_google_credentials`, and trigger runtime reseeding when the workspace is ready.
-6. `TenantAgentSyncService::goLive()` writes the full workspace artifact set into `.openclaw/workspace/` (`IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`, `PROFILE.md`, and `HEARTBEAT.md`) and syncs only workspace markdown files.
-7. Google auth reseeding writes `.openclaw/gogcli/` artifacts from DB state and force-recreates the tenant container when `compose.yaml` env changed, because a plain restart does not reload container env.
-8. `goLive()` still only syncs workspace markdown files and restarts the tenant without overwriting provisioned credentials.
+2. The onboarding Blade surfaces explicit step progress plus a background-setup status card so customers can see what step they are on and whether workspace provisioning is still running behind the scenes.
+3. The onboarding Blade polls `/onboarding/state`, but the client preserves unsaved local drafts so background refreshes do not collapse or clear in-progress setup.
+4. Successful saves on website extraction, business info, tone, capabilities, and channel setup advance the wizard to the next step automatically, so the customer does not need to save and then click Next separately.
+5. Navigating back and forth through onboarding or polling `/onboarding/state` does not regenerate the tenant LiteLLM key; key creation remains part of provisioning only.
+6. `BusinessExtractionService` handles website extraction and initial markdown generation.
+7. `GoogleOAuthController` and `GoogleWorkspaceOAuthService` own the Google OAuth flow, store encrypted tokens in `tenant_google_credentials`, and trigger runtime reseeding when the workspace is ready.
+8. `TenantAgentSyncService::goLive()` writes the full workspace artifact set into `.openclaw/workspace/` (`IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`, `PROFILE.md`, and `HEARTBEAT.md`) and syncs only workspace markdown files.
+9. Google auth reseeding writes `.openclaw/gogcli/` artifacts from DB state and force-recreates the tenant container when `compose.yaml` env changed, because a plain restart does not reload container env.
+10. `goLive()` still only syncs workspace markdown files and restarts the tenant without overwriting provisioned credentials.
 
 ### Conversation logging and summaries
 

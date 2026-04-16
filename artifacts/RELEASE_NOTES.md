@@ -33,13 +33,16 @@ Smoothed the onboarding wizard so background state refreshes no longer wipe in-p
 
 ### What Changed
 
+- added an explicit wizard progress card and a background-setup status card so customers can see where they are in the flow and what is still happening behind the scenes
 - preserved in-progress website, business-details, communication-style, capabilities, and channel selections while the onboarding state poll refreshes the page state
 - stopped the client-side refresh from clearing unsaved tone and capability choices before they are submitted
 - advanced the wizard automatically after successful website read, business save, communication-style save, capability save, and channel connect actions
+- removed the extra save-then-next friction on the main setup steps by auto-advancing after save and dropping the redundant Next actions there
 - preserved unsaved Telegram selection and bot-token entry UI while the onboarding state poll refreshes the page state
 - stopped the client-side refresh from clearing the local channel radio selection when the server has not yet saved a channel
 - reset the local channel draft only after an explicit disconnect action
 - replaced the repeated `Telegram is available now...` note with a contextual helper message shown only when Telegram is selected and still needs a bot token
+- added onboarding coverage confirming that viewing and polling the wizard does not regenerate or mutate an existing tenant LiteLLM key
 
 ## 2026-04-17 — Local Runtime Reachability Fixes + Tenant Google Smoke Test
 

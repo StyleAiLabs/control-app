@@ -31,6 +31,8 @@ class OnboardingFlowTest extends TestCase
             ->assertOk()
             ->assertSee('Guided Setup')
             ->assertSee('Set up your digital employee')
+            ->assertSee('Wizard Progress')
+            ->assertSee('Behind The Scenes')
             ->assertSee('Read your business website')
             ->assertSee('Confirm your business details')
             ->assertSee('Connect your messaging channel')
@@ -39,6 +41,36 @@ class OnboardingFlowTest extends TestCase
             ->assertSee('WhatsApp')
             ->assertSee('Coming Soon')
             ->assertSee('Bot Token');
+    }
+
+    public function test_onboarding_shell_and_state_do_not_regenerate_or_mutate_existing_tenant_litellm_key(): void
+    {
+        [$user, $tenant] = $this->seedTenantWithProfile();
+
+        $tenant->forceFill([
+            'litellm_virtual_key' => 'existing-tenant-key',
+            'litellm_key_alias' => 'openclaw-'.$tenant->tenant_id,
+            'litellm_plan_name' => 'trial',
+            'litellm_max_budget' => 25,
+            'litellm_budget_duration' => 'monthly',
+            'litellm_last_synced_at' => now()->subHour(),
+        ])->save();
+
+        $originalLastSyncedAt = $tenant->litellm_last_synced_at?->toISOString();
+
+        $this->actingAs($user);
+
+        $this->get('/onboarding')->assertOk();
+        $this->get('/onboarding/state')->assertOk();
+
+        $tenant->refresh();
+
+        $this->assertSame('existing-tenant-key', $tenant->litellm_virtual_key);
+        $this->assertSame('openclaw-'.$tenant->tenant_id, $tenant->litellm_key_alias);
+        $this->assertSame('trial', $tenant->litellm_plan_name);
+        $this->assertSame('25.00', $tenant->litellm_max_budget);
+        $this->assertSame('monthly', $tenant->litellm_budget_duration);
+        $this->assertSame($originalLastSyncedAt, $tenant->litellm_last_synced_at?->toISOString());
     }
 
     public function test_onboarding_gracefully_degrades_when_google_credentials_table_is_missing(): void

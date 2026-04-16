@@ -39,9 +39,59 @@
         }
         .wizard-nav .spacer { flex: 1; }
 
+        .wizard-status {
+            display: grid;
+            grid-template-columns: minmax(0, 1.3fr) minmax(260px, 0.7fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .wizard-status-card {
+            border: 1px solid var(--border, #e5e7eb);
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.88);
+            padding: 18px 20px;
+        }
+        .wizard-status-track {
+            width: 100%;
+            height: 10px;
+            border-radius: 999px;
+            background: #f1f5f9;
+            overflow: hidden;
+            margin-top: 12px;
+        }
+        .wizard-status-track span {
+            display: block;
+            height: 100%;
+            width: 0;
+            background: linear-gradient(90deg, #ff6b35 0%, #ef4444 100%);
+            transition: width 0.25s ease;
+        }
+        .wizard-status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 999px;
+            padding: 8px 12px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            background: #fff7ed;
+            color: #c2410c;
+        }
+        .wizard-auto-note {
+            margin-top: 12px;
+            font-size: 0.84rem;
+            color: var(--text-muted, #6b7280);
+        }
+
         /* ── progress spinner from Step 1 ── */
         @keyframes spin { to { transform: rotate(360deg); } }
         .progress-step { transition: opacity 0.4s ease; }
+
+        @media (max-width: 980px) {
+            .wizard-status {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 
     <div class="wizard-wrapper">
@@ -70,6 +120,35 @@
                 </li>
             @endforeach
         </ul>
+
+        <div class="wizard-status">
+            <div class="wizard-status-card">
+                <span class="eyebrow">Wizard Progress</span>
+                <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-top: 12px;">
+                    <div>
+                        <strong id="wizard-step-counter" style="display: block; font-size: 1.15rem;">Step 1 of 7</strong>
+                        <span id="wizard-step-name" class="hint" style="display: block; margin-top: 4px;">Website</span>
+                    </div>
+                    <strong id="wizard-progress-percent" style="font-size: 0.92rem;">14%</strong>
+                </div>
+                <div class="wizard-status-track">
+                    <span id="wizard-progress-fill"></span>
+                </div>
+                <div class="wizard-auto-note" id="wizard-progress-note">
+                    Move through the setup at your own pace. We’ll keep your place and carry on with the background workspace setup while you complete these steps.
+                </div>
+            </div>
+
+            <div class="wizard-status-card">
+                <span class="eyebrow">Behind The Scenes</span>
+                <div style="margin-top: 12px;">
+                    <span class="wizard-status-pill" id="workspace-setup-badge">Workspace setup in progress</span>
+                    <p id="workspace-setup-note" style="margin-top: 12px; color: var(--text-muted, #6b7280);">
+                        Your workspace is being prepared in the background. Moving around this wizard will not restart that setup.
+                    </p>
+                </div>
+            </div>
+        </div>
 
         {{-- ═══════════════════ STEP 1 — Read Website ═══════════════════ --}}
         <div class="wizard-panel panel" data-wizard-step="1" id="wizard-step-1" style="display: none;">
@@ -122,7 +201,6 @@
 
             <div class="wizard-nav">
                 <span class="spacer"></span>
-                <button type="button" class="button button--primary" data-wizard-next>Next →</button>
             </div>
         </div>
 
@@ -206,13 +284,14 @@
                 </div>
 
                 <button type="submit">Save Business Details</button>
+                <div class="wizard-auto-note">We’ll move you straight to the next step after saving.</div>
             </form>
             <div class="note" style="margin-top: 18px; display: none;" id="business-success"></div>
             <div class="note error" style="margin-top: 18px; display: none;" id="business-error"></div>
 
             <div class="wizard-nav">
                 <button type="button" class="button button--secondary" data-wizard-prev>← Back</button>
-                <button type="button" class="button button--primary" data-wizard-next>Next →</button>
+                <span class="spacer"></span>
             </div>
         </div>
 
@@ -248,13 +327,14 @@
                     @endforeach
                 </div>
                 <button type="submit">Save Communication Style</button>
+                <div class="wizard-auto-note">We’ll move you straight to the next step after saving.</div>
             </form>
             <div class="note" style="margin-top: 18px; display: none;" id="personality-success"></div>
             <div class="note error" style="margin-top: 18px; display: none;" id="personality-error"></div>
 
             <div class="wizard-nav">
                 <button type="button" class="button button--secondary" data-wizard-prev>← Back</button>
-                <button type="button" class="button button--primary" data-wizard-next>Next →</button>
+                <span class="spacer"></span>
             </div>
         </div>
 
@@ -292,6 +372,7 @@
                     @endforeach
                 </div>
                 <button type="submit">Save &amp; Prepare Files</button>
+                <div class="wizard-auto-note">We’ll move you straight to the next step after saving.</div>
             </form>
             <div class="note" style="margin-top: 18px; display: none;" id="capabilities-success"></div>
             <div class="note error" style="margin-top: 18px; display: none;" id="capabilities-error"></div>
@@ -305,7 +386,7 @@
 
             <div class="wizard-nav">
                 <button type="button" class="button button--secondary" data-wizard-prev>← Back</button>
-                <button type="button" class="button button--primary" data-wizard-next>Next →</button>
+                <span class="spacer"></span>
             </div>
         </div>
 
@@ -391,6 +472,7 @@
                 </div>
 
                 <button type="submit">Connect Channel</button>
+                <div class="wizard-auto-note">We’ll move you straight to the next step after saving.</div>
             </form>
             <div class="note" style="margin-top: 18px; display: none;" id="channel-success"></div>
             <div class="note error" style="margin-top: 18px; display: none;" id="channel-error"></div>
@@ -411,7 +493,7 @@
 
             <div class="wizard-nav">
                 <button type="button" class="button button--secondary" data-wizard-prev>← Back</button>
-                <button type="button" class="button button--primary" data-wizard-next>Next →</button>
+                <span class="spacer"></span>
             </div>
         </div>
 
@@ -487,7 +569,7 @@
 
             <div class="wizard-nav">
                 <button type="button" class="button button--secondary" data-wizard-prev>← Back</button>
-                <button type="button" class="button button--primary" data-wizard-next>Next →</button>
+                <button type="button" class="button button--primary" data-wizard-next>Continue To Go Live →</button>
             </div>
         </div>
 
@@ -608,6 +690,13 @@
         const goLiveNote = document.getElementById('go-live-note');
         const manualFocusButton = document.getElementById('manual-focus-button');
         const filesNote = document.getElementById('files-note');
+        const wizardStepCounter = document.getElementById('wizard-step-counter');
+        const wizardStepName = document.getElementById('wizard-step-name');
+        const wizardProgressPercent = document.getElementById('wizard-progress-percent');
+        const wizardProgressFill = document.getElementById('wizard-progress-fill');
+        const wizardProgressNote = document.getElementById('wizard-progress-note');
+        const workspaceSetupBadge = document.getElementById('workspace-setup-badge');
+        const workspaceSetupNote = document.getElementById('workspace-setup-note');
 
         const businessNameInput = document.getElementById('business-name-input');
         const tradingNameInput = document.getElementById('trading-name-input');
@@ -647,6 +736,7 @@
                 li.classList.remove('active');
                 if (parseInt(li.dataset.step) === step) li.classList.add('active');
             });
+            updateWizardStatus(latestOnboardingState || {});
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
@@ -727,6 +817,62 @@
 
         function advanceAfterSave(nextStep) {
             showWizardStep(nextStep);
+        }
+
+        function withButtonBusy(button, busyLabel) {
+            const originalLabel = button?.dataset.originalLabel || button?.textContent || '';
+
+            if (button) {
+                button.dataset.originalLabel = originalLabel;
+                button.disabled = true;
+                button.textContent = busyLabel;
+            }
+
+            return () => {
+                if (!button) {
+                    return;
+                }
+
+                button.disabled = false;
+                button.textContent = button.dataset.originalLabel || originalLabel;
+            };
+        }
+
+        function updateWizardStatus(state) {
+            const steps = state?.steps || {};
+            const totalSteps = Object.keys(steps).length || 7;
+            const currentStepMeta = steps[String(currentStep)] || steps[currentStep] || {};
+            const progressPercent = Math.round((currentStep / totalSteps) * 100);
+            const completedCount = Object.values(steps).filter((step) => step?.status === 'complete').length;
+
+            wizardStepCounter.textContent = `Step ${currentStep} of ${totalSteps}`;
+            wizardStepName.textContent = currentStepMeta.label || 'Setup';
+            wizardProgressPercent.textContent = `${progressPercent}%`;
+            wizardProgressFill.style.width = `${progressPercent}%`;
+            wizardProgressNote.textContent = completedCount > 0
+                ? `${completedCount} of ${totalSteps} steps completed. You can move around the wizard without restarting the background setup.`
+                : `Start anywhere that feels easiest. We’ll keep your place and carry on with the background workspace setup while you complete these steps.`;
+
+            if (state?.agent_status === 'live') {
+                workspaceSetupBadge.textContent = 'Digital employee is live';
+                workspaceSetupNote.textContent = 'Everything behind the scenes is ready. You can return to any step to refine details and resync when needed.';
+                return;
+            }
+
+            if (state?.provisioning_status === 'ready') {
+                workspaceSetupBadge.textContent = 'Workspace is ready';
+                workspaceSetupNote.textContent = 'Your workspace is ready in the background. Finish the remaining setup steps and go live when you’re ready.';
+                return;
+            }
+
+            if (state?.provisioning_status === 'failed') {
+                workspaceSetupBadge.textContent = 'Workspace setup needs attention';
+                workspaceSetupNote.textContent = 'The background workspace setup hit an issue. You can still review your details here while support checks the runtime setup.';
+                return;
+            }
+
+            workspaceSetupBadge.textContent = 'Workspace setup in progress';
+            workspaceSetupNote.textContent = 'Your workspace is being prepared in the background. Moving around this wizard will not restart that setup.';
         }
 
         function showMessage(element, message) {
@@ -995,6 +1141,7 @@
 
         websiteForm.addEventListener('submit', async (event) => {
             event.preventDefault();
+            const releaseBusy = withButtonBusy(readWebsiteBtn, 'Reading Website…');
             showWebsiteProgress();
 
             try {
@@ -1010,6 +1157,8 @@
             } catch (error) {
                 hideWebsiteProgress(false);
                 showMessage(websiteError, error.message);
+            } finally {
+                releaseBusy();
             }
         });
 
@@ -1020,6 +1169,8 @@
             event.preventDefault();
             hideMessage(businessSuccess);
             hideMessage(businessError);
+            const submitButton = businessForm.querySelector('button[type="submit"]');
+            const releaseBusy = withButtonBusy(submitButton, 'Saving Details…');
 
             try {
                 const data = await fetchJson(onboardingBusinessInfoEndpoint, {
@@ -1043,6 +1194,8 @@
                 advanceAfterSave(3);
             } catch (error) {
                 showMessage(businessError, error.message);
+            } finally {
+                releaseBusy();
             }
         });
 
@@ -1053,6 +1206,8 @@
             event.preventDefault();
             hideMessage(personalitySuccess);
             hideMessage(personalityError);
+            const submitButton = personalityForm.querySelector('button[type="submit"]');
+            const releaseBusy = withButtonBusy(submitButton, 'Saving Style…');
 
             const selectedTone = personalityForm.querySelector('input[name="tone"]:checked');
 
@@ -1067,6 +1222,8 @@
                 advanceAfterSave(4);
             } catch (error) {
                 showMessage(personalityError, error.message);
+            } finally {
+                releaseBusy();
             }
         });
 
@@ -1077,6 +1234,8 @@
             event.preventDefault();
             hideMessage(capabilitiesSuccess);
             hideMessage(capabilitiesError);
+            const submitButton = capabilitiesForm.querySelector('button[type="submit"]');
+            const releaseBusy = withButtonBusy(submitButton, 'Preparing Skills…');
 
             const selectedCapabilities = Array.from(capabilitiesForm.querySelectorAll('input[name="capabilities[]"]:checked'))
                 .map((input) => input.value);
@@ -1092,6 +1251,8 @@
                 advanceAfterSave(5);
             } catch (error) {
                 showMessage(capabilitiesError, error.message);
+            } finally {
+                releaseBusy();
             }
         });
 
@@ -1107,6 +1268,8 @@
             event.preventDefault();
             hideMessage(channelSuccess);
             hideMessage(channelError);
+            const submitButton = channelForm.querySelector('button[type="submit"]');
+            const releaseBusy = withButtonBusy(submitButton, 'Connecting Channel…');
 
             const payload = {
                 channel: selectedChannelValue(),
@@ -1122,6 +1285,8 @@
                 advanceAfterSave(6);
             } catch (error) {
                 showMessage(channelError, error.message);
+            } finally {
+                releaseBusy();
             }
         });
 
@@ -1153,6 +1318,8 @@
             event.preventDefault();
             hideMessage(goLiveSuccess);
             hideMessage(goLiveError);
+            const submitButton = goLiveForm.querySelector('button[type="submit"]');
+            const releaseBusy = withButtonBusy(submitButton, 'Going Live…');
 
             try {
                 const data = await fetchJson(onboardingGoLiveEndpoint, {});
@@ -1161,6 +1328,8 @@
                 showMessage(goLiveSuccess, data.message || 'Your digital employee is now live.');
             } catch (error) {
                 showMessage(goLiveError, error.message);
+            } finally {
+                releaseBusy();
             }
         });
 

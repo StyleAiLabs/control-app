@@ -7,7 +7,7 @@ It currently covers the full control-plane loop:
 - marketing site, signup, login, self-serve password reset, and dashboard
 - tenant creation, server assignment, and async provisioning
 - local and SSH-based tenant runtime deployment
-- guided onboarding with draft-safe state refresh, optional Google Workspace connect, and go-live sync
+- guided onboarding with visible progress, draft-safe state refresh, optional Google Workspace connect, and go-live sync
 - private gateway access for health checks and runtime integration
 - conversation history sync from workspace session logs
 - trial lifecycle tracking and notification emails
