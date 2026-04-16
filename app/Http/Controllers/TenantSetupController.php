@@ -94,12 +94,12 @@ class TenantSetupController extends Controller
                 'description' => 'Bring in your FAQs, service details, pricing, and tone so responses sound like your team.',
             ],
             [
-                'title' => 'Connect your channels',
-                'description' => 'Hook up the channels you want this workspace to support first, such as WhatsApp or email.',
+                'title' => 'Connect Telegram',
+                'description' => 'Finish the Telegram connection in onboarding so you can message your digital employee directly.',
             ],
             [
                 'title' => 'Run a live test',
-                'description' => 'Send a few sample customer messages and confirm the answers, actions, and handoff flow.',
+                'description' => 'Send a few sample owner-to-assistant messages and confirm the answers and behavior feel right.',
             ],
         ];
     }

@@ -130,7 +130,7 @@ Key concerns:
 
 ### `ConversationLog`
 
-Stores customer-visible conversation history.
+Stores owner-visible conversation history synced back from tenant runtimes.
 
 Key concerns:
 
@@ -207,6 +207,7 @@ Services involved:
 
 - `BusinessExtractionService`
 - `TenantAgentSyncService`
+- `OnboardingStepCatalog` for the shared step-label contract used by the onboarding wizard and dashboard summaries
 
 `TenantProfileSyncService` is used for later profile/admin regeneration and resync work, not the main onboarding controller flow.
 

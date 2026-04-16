@@ -3,12 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Contracts\DockerComposeRunner;
-use App\Models\ConversationLog;
-use App\Models\Tenant;
 use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
+use App\Models\ConversationLog;
+use App\Models\Tenant;
 use App\Services\LiteLlmTenantKeyService;
 use App\Services\TenantRuntimeService;
+use App\Support\OnboardingStepCatalog;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -195,7 +196,7 @@ class DashboardController extends Controller
         if ($tenant->onboarding_status !== 'complete') {
             return [
                 'label' => 'Setup in progress',
-                'description' => 'Finish the guided setup to bring your digital employee live for customers.',
+                'description' => 'Finish the guided setup to bring your digital employee live on Telegram.',
                 'badge' => 'pending',
                 'primary_cta_label' => 'Continue Setup',
                 'primary_cta_route' => route('onboarding.show'),
@@ -226,7 +227,7 @@ class DashboardController extends Controller
             ],
             default => [
                 'label' => 'Offline',
-                'description' => 'The workspace exists, but the customer-facing assistant has not been brought live yet.',
+                'description' => 'The workspace exists, but your digital employee has not been brought live yet.',
                 'badge' => 'pending',
                 'primary_cta_label' => 'Continue Setup',
                 'primary_cta_route' => route('onboarding.show'),
@@ -255,32 +256,33 @@ class DashboardController extends Controller
             ->values()
             ->all();
         $channelConfig = is_array($tenant->channel_config) ? $tenant->channel_config : [];
+        $stepLabels = OnboardingStepCatalog::labels();
 
         $steps = [
             1 => [
-                'label' => 'Business Website',
+                'label' => $stepLabels[1],
                 'status' => filled($profile?->website_url) || ((int) $tenant->onboarding_step >= 2 && filled($profile?->business_name) && filled($profile?->description) && $services !== []) ? 'complete' : 'incomplete',
             ],
             2 => [
-                'label' => 'Business Info',
+                'label' => $stepLabels[2],
                 'status' => ((int) $tenant->onboarding_step >= 2 && filled($profile?->business_name) && filled($profile?->description) && $services !== []) ? 'complete' : 'incomplete',
             ],
             3 => [
-                'label' => 'Personality',
+                'label' => $stepLabels[3],
                 'status' => ((int) $tenant->onboarding_step >= 3 && filled($tenant->tone)) ? 'complete' : 'incomplete',
             ],
             4 => [
-                'label' => 'Capabilities',
+                'label' => $stepLabels[4],
                 'status' => ((int) $tenant->onboarding_step >= 4 && $capabilities !== [] && $files?->generated_at !== null) ? 'complete' : 'incomplete',
             ],
             5 => [
-                'label' => 'Channel',
+                'label' => $stepLabels[5],
                 'status' => ((int) $tenant->onboarding_step >= 5
                     && $tenant->channel === 'telegram'
                     && filled($channelConfig['telegram_bot_token'] ?? null)) ? 'complete' : 'incomplete',
             ],
             6 => [
-                'label' => 'Go Live',
+                'label' => $stepLabels[6],
                 'status' => $tenant->agent_status === 'live' ? 'complete' : 'incomplete',
             ],
         ];

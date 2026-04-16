@@ -3,7 +3,7 @@
         <div>
             <span class="eyebrow">Conversations</span>
             <h2>Messages with Your Digital Employee</h2>
-            <p>Session-level log of customer conversations across your connected channels.</p>
+            <p>Session-level history of your conversations with your digital employee on the connected channel.</p>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <a href="{{ route('dashboard') }}" class="button button--secondary">Back to Dashboard</a>
@@ -26,7 +26,7 @@
             <div class="hint">Telegram</div>
             @if ($tenant->channel === 'telegram')
                 <strong>{{ $conversationStats['telegram'] }}</strong>
-                <p>Messages through your Telegram connection.</p>
+                <p>Messages synced from your Telegram connection.</p>
             @else
                 <strong style="color: var(--text-muted, #9ca3af); font-size: 0.95rem;">Not connected</strong>
                 <p>Telegram is not connected for this workspace.</p>
@@ -34,13 +34,8 @@
         </div>
         <div class="stat">
             <div class="hint">WhatsApp</div>
-            @if ($tenant->channel === 'whatsapp')
-                <strong>{{ $conversationStats['whatsapp'] }}</strong>
-                <p>Messages through your WhatsApp connection.</p>
-            @else
-                <strong style="color: var(--text-muted, #9ca3af); font-size: 0.95rem;">Not connected</strong>
-                <p>WhatsApp is not connected for this workspace.</p>
-            @endif
+            <strong style="color: var(--text-muted, #9ca3af); font-size: 0.95rem;">Coming Soon</strong>
+            <p>WhatsApp support is not live in this onboarding phase.</p>
         </div>
     </section>
 
@@ -54,7 +49,7 @@
                         type="text"
                         name="search"
                         value="{{ $filters['search'] }}"
-                        placeholder="Customer number, message text, session ID"
+                        placeholder="Phone, handle, message text, or session ID"
                     >
                 </label>
                 <label>
@@ -63,8 +58,6 @@
                         <option value="">All channels</option>
                         @if ($tenant->channel === 'telegram')
                             <option value="telegram" @selected($filters['channel'] === 'telegram')>Telegram</option>
-                        @elseif ($tenant->channel === 'whatsapp')
-                            <option value="whatsapp" @selected($filters['channel'] === 'whatsapp')>WhatsApp</option>
                         @else
                             <option value="" disabled>No channel connected yet</option>
                         @endif
@@ -110,7 +103,7 @@
 
         @if ($sessions->isEmpty())
             <div class="note" style="margin-top: 18px;">
-                No sessions recorded yet. Once your customers start a conversation through your connected channel, the history will appear here.
+                No sessions recorded yet. Once you start messaging your digital employee on Telegram, the history will appear here.
             </div>
         @else
             <div style="margin-top: 18px; display: grid; gap: 12px;">

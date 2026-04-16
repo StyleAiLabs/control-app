@@ -8,6 +8,7 @@ use App\Models\BusinessProfileFiles;
 use App\Models\Tenant;
 use App\Services\BusinessExtractionService;
 use App\Services\TenantAgentSyncService;
+use App\Support\OnboardingStepCatalog;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -371,30 +372,31 @@ class OnboardingController extends Controller
         $services = is_array($profile?->services) ? array_values(array_filter($profile->services, fn (mixed $value): bool => is_string($value) && trim($value) !== '')) : [];
         $capabilities = is_array($tenant->capabilities) ? array_values(array_filter($tenant->capabilities, fn (mixed $value): bool => is_string($value) && trim($value) !== '')) : [];
         $channelConfig = is_array($tenant->channel_config) ? $tenant->channel_config : [];
+        $stepLabels = OnboardingStepCatalog::labels();
 
         $steps = [
             1 => [
-                'label' => 'Website',
+                'label' => $stepLabels[1],
                 'status' => $this->stepOneComplete($tenant, $profile, $services) ? 'complete' : 'incomplete',
             ],
             2 => [
-                'label' => 'Business Info',
+                'label' => $stepLabels[2],
                 'status' => $this->stepTwoComplete($tenant, $profile, $services) ? 'complete' : 'incomplete',
             ],
             3 => [
-                'label' => 'Tone',
+                'label' => $stepLabels[3],
                 'status' => ((int) $tenant->onboarding_step >= 3 && filled($tenant->tone)) ? 'complete' : 'incomplete',
             ],
             4 => [
-                'label' => 'Skills',
+                'label' => $stepLabels[4],
                 'status' => ((int) $tenant->onboarding_step >= 4 && $capabilities !== [] && $files?->generated_at !== null) ? 'complete' : 'incomplete',
             ],
             5 => [
-                'label' => 'Channel',
+                'label' => $stepLabels[5],
                 'status' => $this->stepFiveComplete($tenant, $channelConfig) ? 'complete' : 'incomplete',
             ],
             6 => [
-                'label' => 'Go Live',
+                'label' => $stepLabels[6],
                 'status' => $tenant->agent_status === 'live' ? 'complete' : 'incomplete',
             ],
         ];

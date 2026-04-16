@@ -21,22 +21,24 @@ class ConversationBrowserFlowTest extends TestCase
 
         ConversationLog::query()->create([
             'tenant_id' => $tenant->id,
-            'channel' => 'whatsapp',
-            'external_message_id' => 'wamid.1',
-            'from_identifier' => '64215550101',
+            'channel' => 'telegram',
+            'external_message_id' => 'telegram.1',
+            'from_identifier' => '@acme_owner',
             'message_in' => 'Do you service West Auckland?',
             'message_out' => 'Yes, we cover West Auckland and surrounding suburbs.',
-            'meta_json' => ['provider' => 'whatsapp'],
+            'ai_summary' => 'Asked whether West Auckland is covered and received confirmation.',
+            'meta_json' => ['provider' => 'telegram'],
             'responded_at' => now()->subMinutes(5),
         ]);
 
         ConversationLog::query()->create([
             'tenant_id' => $tenant->id,
             'channel' => 'telegram',
-            'external_message_id' => 'telegram.1',
-            'from_identifier' => '@acme_customer',
+            'external_message_id' => 'telegram.2',
+            'from_identifier' => '@acme_owner_followup',
             'message_in' => 'Can someone call me back after hours?',
             'message_out' => null,
+            'ai_summary' => 'Asked about an after-hours callback and no reply has been sent yet.',
             'meta_json' => ['provider' => 'telegram'],
             'responded_at' => null,
         ]);
@@ -46,10 +48,13 @@ class ConversationBrowserFlowTest extends TestCase
         $this->get('/conversations')
             ->assertOk()
             ->assertSee('Conversations')
+            ->assertSee('Messages with Your Digital Employee')
+            ->assertSee('your conversations with your digital employee')
             ->assertSee('Back to Dashboard')
-            ->assertSee('Do you service West Auckland?')
-            ->assertSee('Can someone call me back after hours?')
-            ->assertSee('No reply was sent for this message.');
+            ->assertSee('Asked whether West Auckland is covered and received confirmation.')
+            ->assertSee('Asked about an after-hours callback and no reply has been sent yet.')
+            ->assertSee('No reply')
+            ->assertDontSee('customer conversations');
     }
 
     public function test_conversation_browser_filters_results(): void
@@ -58,34 +63,35 @@ class ConversationBrowserFlowTest extends TestCase
 
         ConversationLog::query()->create([
             'tenant_id' => $tenant->id,
-            'channel' => 'whatsapp',
-            'external_message_id' => 'wamid.1',
-            'from_identifier' => '64215550101',
+            'channel' => 'telegram',
+            'external_message_id' => 'telegram.3',
+            'from_identifier' => '@acme_owner',
             'message_in' => 'Need an urgent plumber tonight.',
             'message_out' => 'We can arrange an urgent callout tonight.',
-            'meta_json' => ['provider' => 'whatsapp'],
+            'ai_summary' => 'Urgent plumbing help was requested for tonight.',
+            'meta_json' => ['provider' => 'telegram'],
             'responded_at' => now()->subMinutes(10),
         ]);
 
         ConversationLog::query()->create([
             'tenant_id' => $tenant->id,
             'channel' => 'telegram',
-            'external_message_id' => 'telegram.2',
-            'from_identifier' => '@acme_customer',
+            'external_message_id' => 'telegram.4',
+            'from_identifier' => '@acme_owner_followup',
             'message_in' => 'Do you install hot water cylinders?',
             'message_out' => null,
+            'ai_summary' => 'Asked about hot water cylinder installs and is waiting on a reply.',
             'meta_json' => ['provider' => 'telegram'],
             'responded_at' => null,
         ]);
 
         $this->actingAs($user);
 
-        $this->get('/conversations?channel=whatsapp&reply_status=replied&search=urgent')
+        $this->get('/conversations?channel=telegram&reply_status=replied&search=urgent')
             ->assertOk()
-            ->assertSee('Need an urgent plumber tonight.')
-            ->assertSee('We can arrange an urgent callout tonight.')
-            ->assertDontSee('Do you install hot water cylinders?')
-            ->assertDontSee('No reply was sent for this message.');
+            ->assertSee('Urgent plumbing help was requested for tonight.')
+            ->assertSee('Replied')
+            ->assertDontSee('Asked about hot water cylinder installs and is waiting on a reply.');
     }
 
     /**
@@ -112,7 +118,7 @@ class ConversationBrowserFlowTest extends TestCase
             'onboarding_status' => 'complete',
             'onboarding_step' => 6,
             'agent_status' => 'live',
-            'channel' => 'whatsapp',
+            'channel' => 'telegram',
         ]);
 
         BusinessProfile::query()->create([

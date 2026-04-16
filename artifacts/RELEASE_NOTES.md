@@ -7,6 +7,24 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-16 — Onboarding UX Copy and Progress Alignment
+
+Date: 2026-04-16
+Branch: `cdx-feature/customer-onobarding-uxpolish`
+Status: Implemented
+
+### Overview
+
+Finished the remaining onboarding UX polish by aligning active customer-facing surfaces with the shipped Phase 1 owner↔assistant model and the current Telegram-only onboarding flow.
+
+### What Changed
+
+- added `OnboardingStepCatalog` as the shared source of truth for the six onboarding step labels used by the wizard and dashboard
+- updated dashboard progress summaries to use `Website`, `Business Info`, `Tone`, `Skills`, `Channel`, and `Go Live`
+- rewrote dashboard, setup-ready, and conversation-browser copy so it describes owner conversations with the digital employee instead of public/customer-facing messaging
+- kept Telegram as the only live channel path in customer-facing copy and treated WhatsApp as a disabled placeholder rather than an active connection
+- removed the stale `onboarding UX refinement` open-work note from `artifacts/MEMORY.md`
+
 ## 2026-04-16 — Password Reset Delivery Fixed To Use Brevo
 
 Date: 2026-04-16
