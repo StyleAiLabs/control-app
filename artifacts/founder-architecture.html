@@ -199,6 +199,7 @@
   .pri-p1 { background: #fee2e2; color: #b91c1c; }
   .pri-p2 { background: #fef9c3; color: #a16207; }
   .pri-p3 { background: #f3f4f6; color: #6b7280; }
+  .pri-done { background: #dcfce7; color: #15803d; }
 
   /* ── SCHEDULE TABLE ── */
   .schedule-table { width: 100%; border-collapse: collapse; font-size: 13px; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
@@ -1094,10 +1095,16 @@
         <td>Blocks monetisation</td>
       </tr>
       <tr>
-        <td><span class="pri pri-p1">P1</span></td>
-        <td><strong>Self-serve password reset</strong></td>
-        <td>Customers who forget their password need manual IT intervention. Brevo is already wired. Standard Laravel password reset flow (~1 day).</td>
-        <td>Customer support burden</td>
+        <td><span class="pri pri-done">DONE</span></td>
+        <td><strong>Self-serve password reset</strong> <span class="status status-built">SHIPPED</span></td>
+        <td>Standard Laravel password broker flow with Brevo transactional delivery. Customers reset their own password without IT intervention.</td>
+        <td>Customer support burden — ✅ resolved</td>
+      </tr>
+      <tr>
+        <td><span class="pri pri-done">DONE</span></td>
+        <td><strong>Onboarding UX polish (Steps 5–6)</strong> <span class="status status-built">SHIPPED</span></td>
+        <td>Channel setup language clarified, go-live success state added, resume-from-partial-onboarding fixed. Customers now convert more reliably from channel setup to go-live.</td>
+        <td>Trial-to-go-live conversion — ✅ resolved</td>
       </tr>
       <tr>
         <td><span class="pri pri-p2">P2</span></td>
@@ -1128,6 +1135,12 @@
         <td><strong>Workspace backup</strong></td>
         <td>No automated backup of tenant data/ and workspace/ volumes on client VPS, or the control-plane PostgreSQL database.</td>
         <td>Data safety</td>
+      </tr>
+      <tr>
+        <td><span class="pri pri-p3">P3</span></td>
+        <td><strong>Channel status dashboard widget</strong></td>
+        <td>Show Telegram connected/disconnected status and last-message timestamp on the customer dashboard so owners know their bot is alive. Deferred — scheduled for Phase F (Dashboard Polish &amp; Monitoring) after Phase B leads feature is validated.</td>
+        <td>Dashboard UX polish — deferred to Phase F</td>
       </tr>
     </tbody>
   </table>
@@ -1168,7 +1181,9 @@
   <div style="margin-top: 48px; padding: 20px 24px; background: white; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); font-size: 13px; color: #64748b; line-height: 1.7;">
     <strong style="color: #1e293b; display: block; margin-bottom: 6px;">Architecture summary — v3 · April 2026</strong>
     Full product loop is live in production: signup → 6-step onboarding wizard → auto-provisioned OpenClaw workspace with LiteLLM per-tenant key → Telegram polling channel → AI agent with business identity → conversation history with session-grouped AI summaries → trial lifecycle enforcement. Control plane (161.97.74.128) + client runtime (89.116.28.191) + scheduler container for automated health checks, trial expiry, and conversation sync.<br><br>
-    <strong style="color: #1e293b;">Next two architectural milestones</strong> define the product's growth path: <strong>Milestone 1 — Email Integration</strong> (Gmail IMAP at MVP scope: inbox polling, AI triage, owner digest, Inbox dashboard tab) and <strong>Milestone 2 — Skill Registry + Deployment Engine</strong> (versioned skill manifests, SkillDeployerService using existing deployment primitives, Skill Selector UI). Once these two pillars exist, every future promised capability — bookings, quotes, follow-ups, invoice management — ships as a skill pack that deploys to any tenant runtime on demand. The platform stays clean and the moat compounds with every new skill published.
+    <strong style="color: #15803d;">Phase A — Stabilise &amp; Activate — ✅ COMPLETE.</strong> All three stabilisation tasks shipped: putFile SCP bug fixed (reliable config propagation), self-serve password reset live (removes IT support dependency), onboarding UX polish delivered for Steps 5–6 (channel setup language, go-live success state, resume-from-partial). Every new customer can now reach go-live without friction or manual IT intervention.<br><br>
+    <strong style="color: #1e293b;">Active: Phase B — Email Integration (M1).</strong> Connect the business email inbox (Gmail/IMAP app-password at MVP), poll for new messages, classify with AI (lead / support / urgent / spam), draft suggested replies, deliver a daily morning digest to the owner via Brevo. Dashboard gains an Inbox tab. Phase C (Stripe + security hardening) runs in parallel. Tradie Intake / Quote Request (originally planned as Phase B) is deferred to Phase D as the first skill pack after the Skill Registry is built.<br><br>
+    <strong style="color: #1e293b;">Next two architectural milestones</strong> define the product's growth path: <strong>Milestone 1 — Email Integration</strong> (Gmail IMAP at MVP scope: inbox polling, AI triage, owner digest, Inbox dashboard tab) and <strong>Milestone 2 — Skill Registry + Deployment Engine</strong> (versioned skill manifests, SkillDeployerService using existing deployment primitives, Skill Selector UI — with Tradie Intake as the first deployed skill pack). Once these two pillars exist, every future promised capability — bookings, quotes, follow-ups, invoice management — ships as a skill pack that deploys to any tenant runtime on demand. The platform stays clean and the moat compounds with every new skill published.
   </div>
 
 </div><!-- /content -->

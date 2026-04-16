@@ -9,6 +9,7 @@ use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
 use App\Models\Server;
 use App\Models\Tenant;
+use App\Models\TenantGoogleCredential;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
@@ -88,7 +89,7 @@ class ProfileFlowTest extends TestCase
         $tenant->forceFill([
             'provisioning_status' => TenantProvisioningStatus::Ready,
             'onboarding_status' => 'complete',
-            'onboarding_step' => 6,
+            'onboarding_step' => 7,
             'agent_status' => 'live',
             'workspace_url' => 'https://acme-plumbing.workspace.test',
             'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
@@ -97,6 +98,11 @@ class ProfileFlowTest extends TestCase
             'channel' => 'telegram',
             'channel_config' => ['telegram_bot_token' => 'telegram-bot-token'],
         ])->save();
+        TenantGoogleCredential::query()->create([
+            'tenant_id' => $tenant->id,
+            'status' => TenantGoogleCredential::STATUS_SKIPPED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_PENDING,
+        ]);
 
         $files->forceFill([
             'identity_markdown' => '# Identity',

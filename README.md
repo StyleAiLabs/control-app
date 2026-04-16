@@ -7,7 +7,7 @@ It currently covers the full control-plane loop:
 - marketing site, signup, login, self-serve password reset, and dashboard
 - tenant creation, server assignment, and async provisioning
 - local and SSH-based tenant runtime deployment
-- guided onboarding and go-live sync
+- guided onboarding, optional Google Workspace connect, and go-live sync
 - private gateway access for health checks and runtime integration
 - conversation history sync from workspace session logs
 - trial lifecycle tracking and notification emails
@@ -59,8 +59,8 @@ If those files conflict with the codebase, the source of truth is:
 3. The app assigns the tenant to a server.
 4. A queue worker provisions the tenant runtime asynchronously.
 5. The tenant gets a customer-facing workspace URL and a private gateway runtime.
-6. The customer completes onboarding and syncs business/agent files into the workspace.
-7. The app tracks conversations, trial state, health status, and admin operations from the control plane.
+6. The customer completes onboarding, can optionally connect Google Workspace through Sync360's OAuth flow, and then syncs business/agent files into the workspace.
+7. The app re-seeds runtime Google auth from DB when needed and tracks conversations, trial state, health status, and admin operations from the control plane.
 
 ## Stack
 
@@ -94,6 +94,7 @@ Each tenant gets:
 - its own runtime directory
 - its own OpenClaw container
 - its own LiteLLM virtual key
+- optional DB-backed Google Workspace auth that is materialized into runtime `gog` files
 - its own customer-facing workspace URL
 
 The public tenant hostname is the Sync360 login/dashboard entrypoint. The OpenClaw gateway stays private and is reached by the control plane through loopback plus the infrastructure runner.
@@ -115,6 +116,11 @@ docker compose up --build
 3. Open `http://localhost:8000`
 
 The startup scripts install dependencies if needed, wait for Postgres and Redis, run migrations, seed the default admin and server records, and start the app or worker process.
+
+Local tenant note:
+
+- if you override the local Docker Compose env, preserve `SYNC360_INFRASTRUCTURE_DRIVER=local`, `SYNC360_LOCAL_DOCKER_COMPOSE_BIN=docker-compose`, and `SYNC360_HOST_PORT_PROBE_HOST=host.docker.internal` so the app container can control and health-check tenant runtimes on the local Docker host
+- authenticated dashboard responses are sent with no-cache headers so local workspace status cards do not stick on stale browser renders
 
 ## Production Shape
 
@@ -170,6 +176,8 @@ Used for local development and iterative testing.
 - Laravel app, worker, Postgres, and Redis run in Docker Compose
 - tenant runtimes are staged locally
 - tenant containers run on the local Docker host
+- the shipped local stack pins `SYNC360_INFRASTRUCTURE_DRIVER=local`
+- app and worker use `docker-compose` inside the container and reach tenant host ports through `host.docker.internal`
 
 ### `ssh`
 

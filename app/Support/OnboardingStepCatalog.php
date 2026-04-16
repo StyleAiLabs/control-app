@@ -15,7 +15,8 @@ final class OnboardingStepCatalog
             3 => 'Tone',
             4 => 'Skills',
             5 => 'Channel',
-            6 => 'Go Live',
+            6 => 'Google Workspace',
+            7 => 'Go Live',
         ];
     }
 }

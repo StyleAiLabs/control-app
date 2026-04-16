@@ -224,6 +224,9 @@ class OpenClawProvisioner implements TenantProvisioner
             sprintf('      OPENCLAW_GATEWAY_TOKEN: %s', $this->yamlQuote($gatewayToken)),
             sprintf('      OPENAI_API_KEY: %s', $this->yamlQuote($liteLlmKey)),
             sprintf('      OPENAI_BASE_URL: %s', $this->yamlQuote($liteLlmBaseUrl)),
+            sprintf('      XDG_CONFIG_HOME: %s', $this->yamlQuote($this->runtime->containerGogConfigHome())),
+            sprintf('      GOG_KEYRING_BACKEND: %s', $this->yamlQuote('file')),
+            sprintf('      GOG_KEYRING_PASSWORD: %s', $this->yamlQuote($this->runtime->googleKeyringPassword($tenant))),
             '',
         ]);
 
@@ -233,7 +236,8 @@ class OpenClawProvisioner implements TenantProvisioner
     private function waitForReadiness(Tenant $tenant, int $assignedPort): void
     {
         $readinessPath = '/'.ltrim((string) config('sync360.openclaw.readiness_path', '/readyz'), '/');
-        $readinessUrl = sprintf('http://127.0.0.1:%d%s', $assignedPort, $readinessPath);
+        $tenant->assigned_port = $assignedPort;
+        $readinessUrl = rtrim($this->runtime->gatewayBaseUrl($tenant), '/').$readinessPath;
         $timeoutSeconds = max(1, (int) config('sync360.openclaw.readiness_timeout_seconds', 45));
         $pollIntervalMs = max(100, (int) config('sync360.openclaw.readiness_poll_interval_ms', 1000));
         $this->dockerCompose->waitForHttpReady($tenant->server, $readinessUrl, $timeoutSeconds, $pollIntervalMs);

@@ -9,10 +9,12 @@ use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
 use App\Models\Server;
 use App\Models\Tenant;
+use App\Models\TenantGoogleCredential;
 use App\Models\User;
 use Illuminate\Support\Facades\File;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class OnboardingFlowTest extends TestCase
@@ -32,10 +34,31 @@ class OnboardingFlowTest extends TestCase
             ->assertSee('Read your business website')
             ->assertSee('Confirm your business details')
             ->assertSee('Connect your messaging channel')
+            ->assertSee('Connect Google Workspace')
             ->assertSee('Bring it live')
             ->assertSee('WhatsApp')
             ->assertSee('Coming Soon')
             ->assertSee('Bot Token');
+    }
+
+    public function test_onboarding_gracefully_degrades_when_google_credentials_table_is_missing(): void
+    {
+        [$user] = $this->seedTenantWithProfile();
+
+        Schema::dropIfExists('tenant_google_credentials');
+
+        $this->actingAs($user);
+
+        $this->get('/onboarding')
+            ->assertOk()
+            ->assertSee('Connect Google Workspace')
+            ->assertSee('temporarily unavailable in this environment');
+
+        $this->get('/onboarding/state')
+            ->assertOk()
+            ->assertJsonPath('google_workspace.status', 'unavailable')
+            ->assertJsonPath('google_workspace.available', false)
+            ->assertJsonPath('steps.6.status', 'complete');
     }
 
     public function test_onboarding_state_returns_resume_information_for_new_signup_data(): void
@@ -71,7 +94,8 @@ class OnboardingFlowTest extends TestCase
                     '3' => ['label' => 'Tone', 'status' => 'incomplete'],
                     '4' => ['label' => 'Skills', 'status' => 'incomplete'],
                     '5' => ['label' => 'Channel', 'status' => 'incomplete'],
-                    '6' => ['label' => 'Go Live', 'status' => 'incomplete'],
+                    '6' => ['label' => 'Google Workspace', 'status' => 'incomplete'],
+                    '7' => ['label' => 'Go Live', 'status' => 'incomplete'],
                 ],
             ]);
     }
@@ -112,7 +136,8 @@ class OnboardingFlowTest extends TestCase
                     '3' => ['label' => 'Tone', 'status' => 'complete'],
                     '4' => ['label' => 'Skills', 'status' => 'incomplete'],
                     '5' => ['label' => 'Channel', 'status' => 'incomplete'],
-                    '6' => ['label' => 'Go Live', 'status' => 'incomplete'],
+                    '6' => ['label' => 'Google Workspace', 'status' => 'incomplete'],
+                    '7' => ['label' => 'Go Live', 'status' => 'incomplete'],
                 ],
             ]);
     }
@@ -323,6 +348,7 @@ class OnboardingFlowTest extends TestCase
                     'steps' => [
                         '4' => ['label' => 'Skills', 'status' => 'complete'],
                         '5' => ['label' => 'Channel', 'status' => 'incomplete'],
+                        '6' => ['label' => 'Google Workspace', 'status' => 'incomplete'],
                     ],
                 ],
             ]);
@@ -381,8 +407,10 @@ class OnboardingFlowTest extends TestCase
             ->assertJsonPath('state.channel', 'telegram')
             ->assertJsonPath('state.steps.5.label', 'Channel')
             ->assertJsonPath('state.steps.5.status', 'complete')
-            ->assertJsonPath('state.steps.6.label', 'Go Live')
+            ->assertJsonPath('state.steps.6.label', 'Google Workspace')
             ->assertJsonPath('state.steps.6.status', 'incomplete')
+            ->assertJsonPath('state.steps.7.label', 'Go Live')
+            ->assertJsonPath('state.steps.7.status', 'incomplete')
             ->assertJsonPath('state.channel_setup.selected_channel', 'telegram')
             ->assertJsonPath('state.channel_setup.status', 'connected')
             ->assertJsonPath('state.channel_setup.telegram.bot_token_saved', true);
@@ -392,6 +420,224 @@ class OnboardingFlowTest extends TestCase
         $this->assertSame('telegram', $tenant->channel);
         $this->assertSame(5, $tenant->onboarding_step);
         $this->assertSame('telegram-bot-token', $tenant->channel_config['telegram_bot_token']);
+    }
+
+    public function test_google_connect_redirect_persists_pending_oauth_state(): void
+    {
+        [$user, $tenant] = $this->seedTenantWithProfile();
+
+        config()->set('services.google.client_id', 'google-client-id');
+        config()->set('services.google.client_secret', 'google-client-secret');
+        config()->set('services.google.redirect_uri', 'https://app.sync360.test/auth/google/callback');
+        $this->actingAs($user);
+
+        $this->get('/onboarding/google/connect')
+            ->assertRedirect();
+
+        $tenant->refresh();
+        $credential = $tenant->googleCredential;
+
+        $this->assertNotNull($credential);
+        $this->assertSame(TenantGoogleCredential::STATUS_PENDING, $credential->status);
+        $this->assertSame(TenantGoogleCredential::RUNTIME_SYNC_PENDING, $credential->runtime_sync_status);
+        $this->assertNotEmpty($credential->oauth_state);
+        $this->assertNotEmpty($credential->oauth_code_verifier);
+        $this->assertNotNull($credential->oauth_state_expires_at);
+    }
+
+    public function test_google_callback_stores_tokens_and_marks_runtime_sync_pending_when_workspace_is_not_ready(): void
+    {
+        [$user, $tenant] = $this->seedTenantWithProfile();
+
+        config()->set('services.google.client_id', 'google-client-id');
+        config()->set('services.google.client_secret', 'google-client-secret');
+        config()->set('services.google.redirect_uri', 'https://app.sync360.test/auth/google/callback');
+
+        $this->actingAs($user)->get('/onboarding/google/connect');
+
+        $credential = $tenant->fresh('googleCredential')->googleCredential;
+        $state = $credential?->oauth_state;
+
+        Http::fake([
+            'https://oauth2.googleapis.com/token' => Http::response([
+                'access_token' => 'google-access-token',
+                'refresh_token' => 'google-refresh-token',
+                'expires_in' => 3600,
+                'scope' => implode(' ', [
+                    'openid',
+                    'email',
+                    'profile',
+                    'https://www.googleapis.com/auth/gmail.readonly',
+                ]),
+                'token_type' => 'Bearer',
+            ], 200),
+            'https://openidconnect.googleapis.com/v1/userinfo' => Http::response([
+                'email' => 'owner@example.com',
+            ], 200),
+        ]);
+
+        $this->get('/auth/google/callback?state='.urlencode((string) $state).'&code=test-code')
+            ->assertRedirect('/onboarding?step=6');
+
+        $credential = $tenant->fresh('googleCredential')->googleCredential;
+
+        $this->assertSame(TenantGoogleCredential::STATUS_CONNECTED, $credential?->status);
+        $this->assertSame(TenantGoogleCredential::RUNTIME_SYNC_PENDING, $credential?->runtime_sync_status);
+        $this->assertSame('owner@example.com', $credential?->google_email);
+        $this->assertSame(6, $tenant->fresh()->onboarding_step);
+        $this->assertNotNull($credential?->connected_at);
+        $this->assertNull($credential?->oauth_state);
+    }
+
+    public function test_google_callback_syncs_runtime_artifacts_when_workspace_is_ready(): void
+    {
+        [$user, $tenant] = $this->seedTenantWithProfile();
+
+        config()->set('services.google.client_id', 'google-client-id');
+        config()->set('services.google.client_secret', 'google-client-secret');
+        config()->set('services.google.redirect_uri', 'https://app.sync360.test/auth/google/callback');
+
+        $tenant->forceFill([
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
+        ])->save();
+
+        $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
+        File::ensureDirectoryExists($localRuntimePath);
+        File::put($localRuntimePath.'/compose.yaml', implode(PHP_EOL, [
+            'services:',
+            '  openclaw-gateway:',
+            '    environment:',
+            '      OPENCLAW_HOME: "/home/node/.openclaw"',
+            '      OPENCLAW_STATE_DIR: "/home/node/.openclaw/data"',
+            '      OPENCLAW_CONFIG_PATH: "/home/node/.openclaw/config/openclaw.json"',
+            '      OPENCLAW_GATEWAY_TOKEN: "test-token"',
+            '',
+        ]));
+
+        $this->actingAs($user)->get('/onboarding/google/connect');
+        $credential = $tenant->fresh('googleCredential')->googleCredential;
+
+        Http::fake([
+            'https://oauth2.googleapis.com/token' => Http::response([
+                'access_token' => 'google-access-token',
+                'refresh_token' => 'google-refresh-token',
+                'expires_in' => 3600,
+                'scope' => implode(' ', [
+                    'openid',
+                    'email',
+                    'profile',
+                    'https://www.googleapis.com/auth/gmail.readonly',
+                    'https://www.googleapis.com/auth/gmail.send',
+                ]),
+                'token_type' => 'Bearer',
+            ], 200),
+            'https://openidconnect.googleapis.com/v1/userinfo' => Http::response([
+                'email' => 'owner@example.com',
+            ], 200),
+        ]);
+
+        $this->get('/auth/google/callback?state='.urlencode((string) $credential?->oauth_state).'&code=test-code')
+            ->assertRedirect('/onboarding?step=6');
+
+        $credential = $tenant->fresh('googleCredential')->googleCredential;
+        $localGogPath = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/gogcli';
+
+        $this->assertSame(TenantGoogleCredential::RUNTIME_SYNC_SYNCED, $credential?->runtime_sync_status);
+        $this->assertFileExists($localGogPath.'/credentials.json');
+        $this->assertFileExists($localGogPath.'/config.json');
+        $this->assertFileExists($localGogPath.'/keyring/token:default:owner@example.com');
+        $this->assertStringContainsString('"installed"', File::get($localGogPath.'/credentials.json'));
+        $this->assertStringContainsString('owner@example.com', File::get($localGogPath.'/config.json'));
+        $this->assertStringContainsString('XDG_CONFIG_HOME: "/home/node/.openclaw/.openclaw"', File::get($localRuntimePath.'/compose.yaml'));
+        $this->assertStringContainsString('GOG_KEYRING_BACKEND: "file"', File::get($localRuntimePath.'/compose.yaml'));
+    }
+
+    public function test_google_skip_marks_step_six_complete_without_blocking_go_live(): void
+    {
+        [$user, $tenant] = $this->seedTenantWithProfile();
+
+        config()->set('services.google.client_id', 'google-client-id');
+        config()->set('services.google.client_secret', 'google-client-secret');
+        config()->set('services.google.redirect_uri', 'https://app.sync360.test/auth/google/callback');
+        $this->actingAs($user);
+
+        $this->post('/onboarding/google/skip')
+            ->assertRedirect('/onboarding?step=6');
+
+        $tenant->refresh();
+
+        $this->assertSame(6, $tenant->onboarding_step);
+        $this->assertSame(TenantGoogleCredential::STATUS_SKIPPED, $tenant->googleCredential?->status);
+    }
+
+    public function test_google_disconnect_clears_runtime_artifacts_and_marks_status_disconnected(): void
+    {
+        [$user, $tenant] = $this->seedTenantWithProfile();
+
+        config()->set('services.google.client_id', 'google-client-id');
+        config()->set('services.google.client_secret', 'google-client-secret');
+        config()->set('services.google.redirect_uri', 'https://app.sync360.test/auth/google/callback');
+
+        $tenant->forceFill([
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
+        ])->save();
+
+        $tenant->googleCredential()->create([
+            'status' => TenantGoogleCredential::STATUS_CONNECTED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_SYNCED,
+            'google_email' => 'owner@example.com',
+            'access_token' => 'google-access-token',
+            'refresh_token' => 'google-refresh-token',
+            'scopes' => ['openid', 'email'],
+            'connected_at' => now(),
+        ]);
+
+        $localGogPath = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/gogcli';
+        File::ensureDirectoryExists($localGogPath.'/keyring');
+        File::put($localGogPath.'/credentials.json', '{}');
+        File::put($localGogPath.'/config.json', '{}');
+        File::put($localGogPath.'/keyring/token:default:owner@example.com', '{}');
+
+        $this->actingAs($user)
+            ->post('/onboarding/google/disconnect')
+            ->assertRedirect('/onboarding?step=6');
+
+        $credential = $tenant->fresh('googleCredential')->googleCredential;
+
+        $this->assertSame(TenantGoogleCredential::STATUS_DISCONNECTED, $credential?->status);
+        $this->assertNull($credential?->access_token);
+        $this->assertNull($credential?->refresh_token);
+        $this->assertDirectoryDoesNotExist($localGogPath);
+    }
+
+    public function test_connected_google_workspace_hides_connect_and_skip_actions_in_initial_render(): void
+    {
+        [$user, $tenant] = $this->seedTenantWithProfile();
+
+        config()->set('services.google.client_id', 'google-client-id');
+        config()->set('services.google.client_secret', 'google-client-secret');
+        config()->set('services.google.redirect_uri', 'https://app.sync360.test/auth/google/callback');
+
+        $tenant->googleCredential()->create([
+            'status' => TenantGoogleCredential::STATUS_CONNECTED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_SYNCED,
+            'google_email' => 'owner@example.com',
+            'access_token' => 'google-access-token',
+            'refresh_token' => 'google-refresh-token',
+            'scopes' => ['openid', 'email'],
+            'connected_at' => now(),
+        ]);
+
+        $this->actingAs($user);
+
+        $this->get('/onboarding?step=6')
+            ->assertOk()
+            ->assertSee('Google Workspace is connected and ready for the tenant runtime.')
+            ->assertSee('id="google-workspace-connect-wrapper" style="display: none;"', false)
+            ->assertSee('id="google-workspace-skip-form" style="display: none;"', false)
+            ->assertSee('id="google-workspace-disconnect-form" style="display: block;"', false);
     }
 
     public function test_save_channel_rejects_unsupported_whatsapp_configuration(): void
@@ -453,7 +699,7 @@ class OnboardingFlowTest extends TestCase
 
         $tenant->forceFill([
             'onboarding_status' => 'in_progress',
-            'onboarding_step' => 5,
+            'onboarding_step' => 6,
             'tone' => 'friendly',
             'capabilities' => ['faqs'],
             'channel' => 'telegram',
@@ -494,7 +740,7 @@ class OnboardingFlowTest extends TestCase
 
         $tenant->forceFill([
             'onboarding_status' => 'in_progress',
-            'onboarding_step' => 5,
+            'onboarding_step' => 6,
             'tone' => 'friendly',
             'capabilities' => ['faqs', 'after_hours'],
             'channel' => 'telegram',
@@ -503,6 +749,11 @@ class OnboardingFlowTest extends TestCase
             'workspace_url' => 'https://acme-plumbing.workspace.test',
             'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
         ])->save();
+        TenantGoogleCredential::query()->create([
+            'tenant_id' => $tenant->id,
+            'status' => TenantGoogleCredential::STATUS_SKIPPED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_PENDING,
+        ]);
 
         $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
         File::ensureDirectoryExists($localRuntimePath.'/.openclaw/workspace');
@@ -602,12 +853,13 @@ class OnboardingFlowTest extends TestCase
                 'success' => true,
                 'state' => [
                     'onboarding_status' => 'complete',
-                    'onboarding_step' => 6,
+                    'onboarding_step' => 7,
                     'agent_status' => 'live',
-                    'resume_from_step' => 6,
+                    'resume_from_step' => 7,
                     'steps' => [
                         '5' => ['label' => 'Channel', 'status' => 'complete'],
-                        '6' => ['label' => 'Go Live', 'status' => 'complete'],
+                        '6' => ['label' => 'Google Workspace', 'status' => 'complete'],
+                        '7' => ['label' => 'Go Live', 'status' => 'complete'],
                     ],
                 ],
             ]);
@@ -618,7 +870,7 @@ class OnboardingFlowTest extends TestCase
 
         $this->assertSame('live', $tenant->agent_status);
         $this->assertSame('complete', $tenant->onboarding_status);
-        $this->assertSame(6, $tenant->onboarding_step);
+        $this->assertSame(7, $tenant->onboarding_step);
         $this->assertNotNull($tenant->agent_last_synced_at);
         $this->assertNotNull($profile->last_synced_to_agent);
         $this->assertNotNull($files->synced_at);

@@ -109,7 +109,8 @@ class TenantDeletionService
 
         if ($composeFile !== '' && file_exists($composeFile)) {
             $command = sprintf(
-                'docker compose -f %s -p %s down --remove-orphans',
+                '%s -f %s -p %s down --remove-orphans',
+                $this->runtime->localDockerComposeShellPrefix(),
                 escapeshellarg($composeFile),
                 escapeshellarg($projectName),
             );

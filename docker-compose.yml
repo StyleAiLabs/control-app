@@ -6,7 +6,10 @@ services:
     working_dir: /var/www/html
     command: ["./docker/start-app.sh"]
     environment:
+      SYNC360_INFRASTRUCTURE_DRIVER: local
       SYNC360_HOST_PROJECT_ROOT: ${PWD}
+      SYNC360_HOST_PORT_PROBE_HOST: host.docker.internal
+      SYNC360_LOCAL_DOCKER_COMPOSE_BIN: docker-compose
     volumes:
       - ./:/var/www/html
       - /var/run/docker.sock:/var/run/docker.sock
@@ -30,7 +33,10 @@ services:
     working_dir: /var/www/html
     command: ["./docker/start-worker.sh"]
     environment:
+      SYNC360_INFRASTRUCTURE_DRIVER: local
       SYNC360_HOST_PROJECT_ROOT: ${PWD}
+      SYNC360_HOST_PORT_PROBE_HOST: host.docker.internal
+      SYNC360_LOCAL_DOCKER_COMPOSE_BIN: docker-compose
     volumes:
       - ./:/var/www/html
       - /var/run/docker.sock:/var/run/docker.sock

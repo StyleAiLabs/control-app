@@ -183,7 +183,7 @@ class LocalDockerComposeRunner implements DockerComposeRunner
      */
     private function composeBaseCommand(Server $server, string $projectName, string $composeFile): array
     {
-        $composeBin = preg_split('/\s+/', trim((string) ($server->docker_compose_bin ?: config('sync360.infrastructure.local_docker_compose_bin', 'docker compose')))) ?: ['docker', 'compose'];
+        $composeBin = preg_split('/\s+/', trim((string) config('sync360.infrastructure.local_docker_compose_bin', 'docker compose'))) ?: ['docker', 'compose'];
 
         return [
             ...$composeBin,

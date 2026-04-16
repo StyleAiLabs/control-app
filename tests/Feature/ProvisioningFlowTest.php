@@ -63,7 +63,7 @@ class ProvisioningFlowTest extends TestCase
         $this->get('/dashboard')
             ->assertOk()
             ->assertSee('Welcome back, Alice.')
-            ->assertSee('Workspace is live')
+            ->assertSee('workspace is live and step 1 is next', escape: false)
             ->assertDontSee($tenant->tenant_id)
             ->assertDontSee('Assigned Port')
             ->assertDontSee($tenant->runtime_path);

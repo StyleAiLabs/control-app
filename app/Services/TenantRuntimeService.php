@@ -80,7 +80,11 @@ class TenantRuntimeService
             throw new RuntimeException('Tenant assigned port is missing for the private gateway URL.');
         }
 
-        return sprintf('http://127.0.0.1:%d', $tenant->assigned_port);
+        $host = app()->environment('local')
+            ? (string) config('sync360.host_port_probe_host', '127.0.0.1')
+            : '127.0.0.1';
+
+        return sprintf('http://%s:%d', $host, $tenant->assigned_port);
     }
 
     public function workspaceHost(Tenant $tenant): ?string
@@ -132,6 +136,53 @@ class TenantRuntimeService
         return rtrim($server->caddy_sites_path, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.$tenant->slug.'.caddy';
     }
 
+    public function localGogConfigPath(Tenant $tenant): string
+    {
+        return $this->localRuntimePath($tenant).DIRECTORY_SEPARATOR.'.openclaw'.DIRECTORY_SEPARATOR.'gogcli';
+    }
+
+    public function remoteGogConfigPath(Tenant $tenant): string
+    {
+        $runtimePath = $tenant->runtime_path ?: $this->remoteRuntimePath($tenant);
+
+        return rtrim($runtimePath, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'.openclaw'.DIRECTORY_SEPARATOR.'gogcli';
+    }
+
+    public function containerGogConfigHome(): string
+    {
+        return rtrim((string) config('sync360.openclaw.container_home', '/home/node/.openclaw'), '/')
+            .DIRECTORY_SEPARATOR.'.openclaw';
+    }
+
+    public function containerGogConfigPath(): string
+    {
+        return $this->containerGogConfigHome().DIRECTORY_SEPARATOR.'gogcli';
+    }
+
+    public function googleKeyringPassword(Tenant $tenant): string
+    {
+        return hash_hmac('sha256', (string) $tenant->tenant_id, (string) config('app.key'));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function localDockerComposeCommandParts(): array
+    {
+        return preg_split(
+            '/\s+/',
+            trim((string) config('sync360.infrastructure.local_docker_compose_bin', 'docker compose'))
+        ) ?: ['docker', 'compose'];
+    }
+
+    public function localDockerComposeShellPrefix(): string
+    {
+        return implode(' ', array_map(
+            static fn (string $part): string => escapeshellarg($part),
+            $this->localDockerComposeCommandParts(),
+        ));
+    }
+
     /**
      * @param  array<string, scalar|null>  $extraEnv
      * @param  array<string, mixed>  $extraMetadata
@@ -161,7 +212,7 @@ class TenantRuntimeService
             throw new RuntimeException(sprintf('Unable to copy tenant template into [%s].', $runtimePath));
         }
 
-        foreach (['config', 'data', 'logs', 'workspace', '.openclaw/workspace'] as $directory) {
+        foreach (['config', 'data', 'logs', 'workspace', '.openclaw/workspace', '.openclaw/gogcli/keyring'] as $directory) {
             $this->files->ensureDirectoryExists($runtimePath.DIRECTORY_SEPARATOR.$directory);
         }
 
@@ -175,6 +226,9 @@ class TenantRuntimeService
             'SKILL_PACK' => $tenant->skill_pack,
             'ASSIGNED_PORT' => (string) $assignedPort,
             'WORKSPACE_URL' => $workspaceUrl,
+            'XDG_CONFIG_HOME' => $this->containerGogConfigHome(),
+            'GOG_KEYRING_BACKEND' => 'file',
+            'GOG_KEYRING_PASSWORD' => $this->googleKeyringPassword($tenant),
         ], $extraEnv);
 
         $this->files->put(

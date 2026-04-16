@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
 use App\Models\Tenant;
+use App\Support\GoogleWorkspaceFeature;
 use RuntimeException;
 
 class TenantProfileSyncService
@@ -55,7 +56,9 @@ class TenantProfileSyncService
     public function regenerateAndSync(Tenant $tenant): void
     {
         $this->regenerateFiles($tenant);
-        $this->agentSync->goLive($tenant->fresh(['businessProfile', 'businessProfileFiles', 'server']));
+        $tenant = $tenant->fresh(GoogleWorkspaceFeature::tenantRelations(['businessProfile', 'businessProfileFiles', 'server']));
+        $this->agentSync->goLive($tenant);
+        $this->agentSync->syncConnectedGoogleWorkspace($tenant->fresh(GoogleWorkspaceFeature::tenantRelations(['server'])));
     }
 
     /**

@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\ConversationsController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\GoogleOAuthController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\ProfileController;
@@ -26,6 +27,8 @@ Route::middleware('guest')->group(function (): void {
     Route::post('/reset-password', [ResetPasswordController::class, 'store'])->name('password.update');
 });
 
+Route::get('/auth/google/callback', [GoogleOAuthController::class, 'callback'])->name('google.callback');
+
 Route::middleware('auth')->group(function (): void {
     Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
 
@@ -44,6 +47,9 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/onboarding/capabilities', [OnboardingController::class, 'saveCapabilities'])->name('onboarding.capabilities');
         Route::post('/onboarding/channel', [OnboardingController::class, 'saveChannel'])->name('onboarding.channel');
         Route::post('/onboarding/channel/disconnect', [OnboardingController::class, 'disconnectChannel'])->name('onboarding.channel.disconnect');
+        Route::get('/onboarding/google/connect', [GoogleOAuthController::class, 'redirect'])->name('onboarding.google.connect');
+        Route::post('/onboarding/google/skip', [GoogleOAuthController::class, 'skip'])->name('onboarding.google.skip');
+        Route::post('/onboarding/google/disconnect', [GoogleOAuthController::class, 'disconnect'])->name('onboarding.google.disconnect');
         Route::post('/onboarding/go-live', [OnboardingController::class, 'goLive'])->name('onboarding.go-live');
         Route::get('/tenant/setup', [TenantSetupController::class, 'show'])->name('tenant.setup');
         Route::get('/tenant/status', [TenantSetupController::class, 'status'])->name('tenant.status');

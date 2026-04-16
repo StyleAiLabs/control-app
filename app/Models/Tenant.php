@@ -115,6 +115,11 @@ class Tenant extends Model
         return $this->hasOne(BusinessProfileFiles::class);
     }
 
+    public function googleCredential(): HasOne
+    {
+        return $this->hasOne(TenantGoogleCredential::class);
+    }
+
     public function workspaceHost(): string
     {
         $this->loadMissing('server');
