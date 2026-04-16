@@ -395,9 +395,7 @@
             <div class="note" style="margin-top: 18px; display: none;" id="channel-success"></div>
             <div class="note error" style="margin-top: 18px; display: none;" id="channel-error"></div>
 
-            <div class="note" style="margin-top: 18px;" id="channel-status-note">
-                Telegram is available now. WhatsApp will be added in a later phase.
-            </div>
+            <div class="note" style="margin-top: 18px; display: none;" id="channel-status-note"></div>
 
             <div id="telegram-setup-summary" style="margin-top: 18px; display: none;">
                 <div class="meta">
@@ -630,6 +628,14 @@
         const wizardPanels = document.querySelectorAll('.wizard-panel');
         const wizardBarItems = document.querySelectorAll('#wizard-steps-bar li');
         let currentStep = {{ request()->integer('step', (int) ($state['resume_from_step'] ?? 1)) }};
+        let latestOnboardingState = @json($state);
+        const draftState = {
+            website: false,
+            business: false,
+            personality: false,
+            capabilities: false,
+            channel: false,
+        };
 
         function showWizardStep(step) {
             currentStep = step;
@@ -675,11 +681,52 @@
             telegramFields.style.display = channel === 'telegram' ? 'block' : 'none';
         }
 
+        function resetChannelDraft() {
+            channelForm.querySelectorAll('input[name="channel"]').forEach((input) => {
+                input.checked = false;
+            });
+
+            const telegramBotTokenInput = channelForm.querySelector('textarea[name="telegram_bot_token"]');
+            if (telegramBotTokenInput) {
+                telegramBotTokenInput.value = '';
+            }
+        }
+
+        function updateChannelStatusNote(state) {
+            const selectedChannel = selectedChannelValue();
+            const isConnected = state?.channel_setup?.status === 'connected';
+
+            if (isConnected) {
+                channelStatusNote.textContent = '';
+                channelStatusNote.style.display = 'none';
+
+                return;
+            }
+
+            if (selectedChannel === 'telegram') {
+                channelStatusNote.textContent = 'Paste your Telegram bot token above to connect your digital employee.';
+                channelStatusNote.style.display = 'block';
+
+                return;
+            }
+
+            channelStatusNote.textContent = '';
+            channelStatusNote.style.display = 'none';
+        }
+
         function updateChannelSummaries(state) {
             const channel = state?.channel || '';
             const setup = state?.channel_setup || {};
             const tgHasSaved = !!setup.telegram?.bot_token_saved;
             telegramSetupSummary.style.display = (channel === 'telegram' && tgHasSaved) ? 'block' : 'none';
+        }
+
+        function markDraft(stepKey, isDirty = true) {
+            draftState[stepKey] = isDirty;
+        }
+
+        function advanceAfterSave(nextStep) {
+            showWizardStep(nextStep);
         }
 
         function showMessage(element, message) {
@@ -700,51 +747,56 @@
         }
 
         function fillBusinessForm(state) {
-            businessNameInput.value = state.business?.business_name || state.tenant?.business_name || '';
-            tradingNameInput.value = state.business?.trading_name || '';
-            industryInput.value = state.business?.industry || state.tenant?.industry || '';
-            taglineInput.value = state.business?.tagline || '';
-            descriptionInput.value = state.business?.description || '';
-            contactEmailInput.value = state.business?.contact_email || '';
-            contactPhoneInput.value = state.business?.contact_phone || '';
-            websiteUrlInput.value = state.business?.website_url || '';
-            ownerNameInput.value = state.business?.owner_name || '';
-            physicalAddressInput.value = state.business?.physical_address || '';
-            cityInput.value = state.business?.city || '';
-            servicesInput.value = Array.isArray(state.business?.services) ? state.business.services.join('\n') : '';
-            websiteUrlFormInput.value = state.business?.website_url || websiteUrlFormInput.value;
+            if (!draftState.business) {
+                businessNameInput.value = state.business?.business_name || state.tenant?.business_name || '';
+                tradingNameInput.value = state.business?.trading_name || '';
+                industryInput.value = state.business?.industry || state.tenant?.industry || '';
+                taglineInput.value = state.business?.tagline || '';
+                descriptionInput.value = state.business?.description || '';
+                contactEmailInput.value = state.business?.contact_email || '';
+                contactPhoneInput.value = state.business?.contact_phone || '';
+                websiteUrlInput.value = state.business?.website_url || '';
+                ownerNameInput.value = state.business?.owner_name || '';
+                physicalAddressInput.value = state.business?.physical_address || '';
+                cityInput.value = state.business?.city || '';
+                servicesInput.value = Array.isArray(state.business?.services) ? state.business.services.join('\n') : '';
+                if (!draftState.website) {
+                    websiteUrlFormInput.value = state.business?.website_url || websiteUrlFormInput.value;
+                }
+            }
 
-            const toneInput = personalityForm.querySelector(`input[name="tone"][value="${state.tone || state.business?.tone_hint || ''}"]`);
-            if (toneInput) {
-                toneInput.checked = true;
-            } else {
-                personalityForm.querySelectorAll('input[name="tone"]').forEach((input) => {
-                    input.checked = false;
+            if (!draftState.personality) {
+                const toneInput = personalityForm.querySelector(`input[name="tone"][value="${state.tone || state.business?.tone_hint || ''}"]`);
+                if (toneInput) {
+                    toneInput.checked = true;
+                } else {
+                    personalityForm.querySelectorAll('input[name="tone"]').forEach((input) => {
+                        input.checked = false;
+                    });
+                }
+            }
+
+            if (!draftState.capabilities) {
+                const selectedCapabilities = Array.isArray(state.capabilities) ? state.capabilities : [];
+                capabilitiesForm.querySelectorAll('input[name="capabilities[]"]').forEach((input) => {
+                    input.checked = selectedCapabilities.includes(input.value);
                 });
             }
 
-            const selectedCapabilities = Array.isArray(state.capabilities) ? state.capabilities : [];
-            capabilitiesForm.querySelectorAll('input[name="capabilities[]"]').forEach((input) => {
-                input.checked = selectedCapabilities.includes(input.value);
-            });
-
             /* Only overwrite channel selection from server if a channel has
-               actually been saved. Otherwise the 5-second poll would reset
+               actually been saved. Otherwise the 5-second poll must preserve
                whatever the user has locally selected / typed. */
             const serverChannel = state.channel || '';
-            if (serverChannel === 'telegram') {
+            if (serverChannel === 'telegram' && !draftState.channel) {
                 channelForm.querySelectorAll('input[name="channel"]').forEach((input) => {
                     input.checked = input.value === serverChannel;
                 });
-
-                telegramBotTokenStatus.textContent = state.channel_setup?.telegram?.bot_token_saved ? 'Saved' : 'Not saved yet';
-            } else {
-                channelForm.querySelectorAll('input[name="channel"]').forEach((input) => {
-                    input.checked = false;
-                });
             }
 
+            telegramBotTokenStatus.textContent = state.channel_setup?.telegram?.bot_token_saved ? 'Saved' : 'Not saved yet';
+
             updateChannelFields();
+            updateChannelStatusNote(state);
         }
 
         function formatStatus(value) {
@@ -755,6 +807,8 @@
         }
 
         function applyState(state) {
+            latestOnboardingState = state;
+
             /* update step bar */
             Object.entries(state.steps ?? {}).forEach(([stepNumber, step]) => {
                 const li = document.querySelector(`#wizard-steps-bar li[data-step="${stepNumber}"]`);
@@ -806,11 +860,6 @@
             goLiveAgentStatus.textContent = state.agent_status
                 ? `${state.agent_status.charAt(0).toUpperCase()}${state.agent_status.slice(1)}`
                 : 'Offline';
-            channelStatusNote.textContent = state.channel === 'telegram'
-                ? (state.channel_setup?.status === 'connected'
-                    ? `Telegram is connected — head to the final step to activate your digital employee.`
-                    : `Paste your bot token above to connect your digital employee.`)
-                : `Telegram is available now. WhatsApp will be added in a later phase.`;
             goLiveNote.textContent = state.agent_status === 'live'
                 ? `Your digital employee is active${state.files?.synced_at ? ` — last synced at ${state.files.synced_at}.` : '.'}`
                 : state.workspace?.ready
@@ -821,7 +870,6 @@
             const isConnected = state.channel_setup?.status === 'connected';
             channelConnectedPanel.style.display = isConnected ? 'block' : 'none';
             channelForm.style.display = isConnected ? 'none' : 'block';
-            channelStatusNote.style.display = isConnected ? 'none' : 'block';
             if (isConnected && state.channel) {
                 connectedChannelName.textContent = state.channel.charAt(0).toUpperCase() + state.channel.slice(1);
                 const telegramSvg = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-.98-.19-1.46-.35-.59-.2-1.06-.3-1.02-.64.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z" fill="#229ED9"/></svg>';
@@ -955,8 +1003,10 @@
                 });
 
                 hideWebsiteProgress(true);
+                markDraft('website', false);
                 applyState(data.state);
                 showMessage(websiteSuccess, data.message || `We've pulled in your website details.`);
+                advanceAfterSave(2);
             } catch (error) {
                 hideWebsiteProgress(false);
                 showMessage(websiteError, error.message);
@@ -987,8 +1037,10 @@
                     owner_name: ownerNameInput.value || null,
                 });
 
+                markDraft('business', false);
                 applyState(data.state);
                 showMessage(businessSuccess, data.message || 'Your business details are saved.');
+                advanceAfterSave(3);
             } catch (error) {
                 showMessage(businessError, error.message);
             }
@@ -1009,8 +1061,10 @@
                     tone: selectedTone ? selectedTone.value : null,
                 });
 
+                markDraft('personality', false);
                 applyState(data.state);
                 showMessage(personalitySuccess, data.message || 'Your communication style is saved.');
+                advanceAfterSave(4);
             } catch (error) {
                 showMessage(personalityError, error.message);
             }
@@ -1032,8 +1086,10 @@
                     capabilities: selectedCapabilities,
                 });
 
+                markDraft('capabilities', false);
                 applyState(data.state);
                 showMessage(capabilitiesSuccess, data.message || 'Your capabilities are saved.');
+                advanceAfterSave(5);
             } catch (error) {
                 showMessage(capabilitiesError, error.message);
             }
@@ -1044,6 +1100,7 @@
            ══════════════════════════════════════════════════════════════════ */
         channelForm.querySelectorAll('input[name="channel"]').forEach((input) => {
             input.addEventListener('change', updateChannelFields);
+            input.addEventListener('change', () => updateChannelStatusNote(latestOnboardingState || {}));
         });
 
         channelForm.addEventListener('submit', async (event) => {
@@ -1059,8 +1116,10 @@
             try {
                 const data = await fetchJson(onboardingChannelEndpoint, payload);
 
+                markDraft('channel', false);
                 applyState(data.state);
                 showMessage(channelSuccess, data.message || 'Your channel connection is saved.');
+                advanceAfterSave(6);
             } catch (error) {
                 showMessage(channelError, error.message);
             }
@@ -1074,6 +1133,8 @@
 
             try {
                 const data = await fetchJson(onboardingChannelDisconnectEndpoint, {});
+                resetChannelDraft();
+                markDraft('channel', false);
                 applyState(data.state);
                 hideMessage(channelSuccess);
                 hideMessage(channelError);
@@ -1127,6 +1188,38 @@
         manualFocusButton.addEventListener('click', () => {
             showWizardStep(2);
             businessNameInput.focus();
+        });
+
+        websiteUrlFormInput?.addEventListener('input', () => markDraft('website'));
+
+        [
+            businessNameInput,
+            tradingNameInput,
+            industryInput,
+            taglineInput,
+            descriptionInput,
+            contactEmailInput,
+            contactPhoneInput,
+            websiteUrlInput,
+            ownerNameInput,
+            physicalAddressInput,
+            cityInput,
+            servicesInput,
+        ].forEach((input) => {
+            input?.addEventListener('input', () => markDraft('business'));
+        });
+
+        personalityForm.querySelectorAll('input[name="tone"]').forEach((input) => {
+            input.addEventListener('change', () => markDraft('personality'));
+        });
+
+        capabilitiesForm.querySelectorAll('input[name="capabilities[]"]').forEach((input) => {
+            input.addEventListener('change', () => markDraft('capabilities'));
+        });
+
+        channelForm.querySelectorAll('input, textarea').forEach((input) => {
+            const eventName = input.tagName === 'TEXTAREA' ? 'input' : 'change';
+            input.addEventListener(eventName, () => markDraft('channel'));
         });
 
         updateChannelFields();

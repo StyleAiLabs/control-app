@@ -232,6 +232,8 @@ Services involved:
 - `GoogleWorkspaceOAuthService`
 - `OnboardingStepCatalog` for the shared step-label contract used by the onboarding wizard and dashboard summaries
 
+The onboarding Blade polls `/onboarding/state` in the background to refresh progress and readiness, but the client preserves unsaved local drafts for website, business details, tone, capabilities, and channel setup so in-progress edits are not wiped by refreshes. Successful saves on the main setup steps auto-advance the wizard to the next step.
+
 `TenantProfileSyncService` is used for later profile/admin regeneration and resync work, not the main onboarding controller flow.
 
 ### Google Workspace connect flow

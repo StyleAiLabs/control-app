@@ -7,6 +7,25 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-17 — Onboarding Flow Friction Fixes
+
+Date: 2026-04-17
+Status: Implemented
+
+### Overview
+
+Smoothed the onboarding wizard so background state refreshes no longer wipe in-progress edits, successful saves move customers straight into the next step, and the Telegram channel setup no longer collapses while someone is entering their bot token.
+
+### What Changed
+
+- preserved in-progress website, business-details, communication-style, capabilities, and channel selections while the onboarding state poll refreshes the page state
+- stopped the client-side refresh from clearing unsaved tone and capability choices before they are submitted
+- advanced the wizard automatically after successful website read, business save, communication-style save, capability save, and channel connect actions
+- preserved unsaved Telegram selection and bot-token entry UI while the onboarding state poll refreshes the page state
+- stopped the client-side refresh from clearing the local channel radio selection when the server has not yet saved a channel
+- reset the local channel draft only after an explicit disconnect action
+- replaced the repeated `Telegram is available now...` note with a contextual helper message shown only when Telegram is selected and still needs a bot token
+
 ## 2026-04-17 — Local Runtime Reachability Fixes + Tenant Google Smoke Test
 
 Date: 2026-04-17
