@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-17 — Admin Tenant Panel Runtime Actions
+
+Date: 2026-04-17
+Status: Implemented
+
+### Overview
+
+Extended the local-only super-admin tenant detail page so operators can run the key `gog` repair and verification flows for an individual tenant directly from the control panel instead of dropping to the CLI for every step.
+
+### What Changed
+
+- added tenant-scoped admin actions for client-VPS bootstrap, runtime-capability sync, and Google Workspace smoke testing
+- wired those admin actions to the existing artisan command paths instead of duplicating runtime-capability logic in the controller
+- updated the tenant detail page to show the new buttons alongside the existing health, resync, and workspace controls
+- surfaced Google Workspace runtime status and the latest recorded runtime error on the tenant detail page so operators can see whether the tenant is connected, verified, or needs attention before running repairs
+- preserved the existing behavior boundary: these panel actions are wrappers around the same operator commands and do not change the `goLive()` workspace-files-only invariant
+
 ## 2026-04-17 — Host-Managed Runtime Capabilities For Tenant Skills
 
 Date: 2026-04-17

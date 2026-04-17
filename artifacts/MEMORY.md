@@ -64,6 +64,7 @@ If those files conflict with the codebase, trust:
 - Conversation model: Telegram history is synced from workspace session logs with AI summaries; the control plane no longer exposes channel webhook ingress
 - Trial model: 14-day / budget-capped trial with scheduled expiry checks and email notifications
 - Admin model: super-admin area is behind `auth`, `admin`, and `local.only` middleware
+- Admin operator surface: the tenant detail screen now exposes tenant-scoped buttons for client-VPS bootstrap, runtime-capability sync, and Google Workspace smoke testing by calling the same artisan command paths used at the CLI
 
 ## 4. Core flows at a glance
 
@@ -125,6 +126,7 @@ If those files conflict with the codebase, trust:
 - Production needs the scheduler path running. The scheduled commands in `routes/console.php` are part of the live product.
 - Historical docs include implementation plans and rollout notes that are no longer safe to treat as current truth.
 - Customer-facing language should not expose backend platform names. The current tenant heartbeat sync includes identity guardrails for that reason.
+- The admin-panel runtime buttons are wrappers around the existing artisan commands, not a second implementation. If those commands change, the panel behavior should stay aligned with them rather than forking capability logic into the controller.
 
 ## 6. Known mismatches to verify
 

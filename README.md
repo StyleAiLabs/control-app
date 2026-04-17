@@ -206,6 +206,16 @@ What it does:
 
 `goLive()` still remains workspace-files-only. It must not be used to deliver host binaries or perform a full runtime resync.
 
+### Admin-panel runtime operations
+
+The local-only super-admin tenant detail page now exposes tenant-scoped runtime operator actions for SSH-managed tenants:
+
+- `Bootstrap VPS` — runs the same host bootstrap flow as `php artisan sync360:bootstrap-client-vps <server>`
+- `Sync Runtime Capabilities` — runs the same tenant repair flow as `php artisan sync360:sync-runtime-capabilities <tenant>`
+- `Test Google Workspace` — runs the same smoke test as `php artisan sync360:test-google-workspace <tenant>`
+
+These admin actions call the existing artisan command paths. They do not change the `goLive()` invariant.
+
 ### Upgrade a pinned runtime capability version
 
 For `gog` and future host-managed capabilities:

@@ -18,6 +18,7 @@ use App\Services\WorkspaceReadyEmailService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
@@ -91,6 +92,7 @@ class AdminController extends Controller
         $tenant->load([
             'user',
             'server',
+            'googleCredential',
             'businessProfile',
             'businessProfileFiles',
             'provisioningJobs' => fn ($query) => $query->latest('id'),
@@ -210,6 +212,58 @@ class AdminController extends Controller
         return back()->with('status', 'Agent resync requested.');
     }
 
+    public function bootstrapRuntimeHost(Tenant $tenant): RedirectResponse
+    {
+        try {
+            if (! $tenant->server) {
+                throw new RuntimeException('This tenant does not have an assigned client VPS.');
+            }
+
+            $result = $this->runArtisanCommand('sync360:bootstrap-client-vps', [
+                'serverSelector' => (string) $tenant->server->id,
+            ]);
+        } catch (Throwable $exception) {
+            return back()->with('status', $exception->getMessage());
+        }
+
+        return back()->with('status', $this->formatArtisanStatus(
+            sprintf('Client VPS bootstrap finished for %s.', $tenant->server->name),
+            $result['output'],
+        ));
+    }
+
+    public function syncRuntimeCapabilities(Tenant $tenant): RedirectResponse
+    {
+        try {
+            $result = $this->runArtisanCommand('sync360:sync-runtime-capabilities', [
+                'tenantSelector' => $tenant->slug,
+            ]);
+        } catch (Throwable $exception) {
+            return back()->with('status', $exception->getMessage());
+        }
+
+        return back()->with('status', $this->formatArtisanStatus(
+            sprintf('Runtime capability sync finished for %s.', $tenant->slug),
+            $result['output'],
+        ));
+    }
+
+    public function testGoogleWorkspace(Tenant $tenant): RedirectResponse
+    {
+        try {
+            $result = $this->runArtisanCommand('sync360:test-google-workspace', [
+                'tenantSelector' => $tenant->slug,
+            ]);
+        } catch (Throwable $exception) {
+            return back()->with('status', $exception->getMessage());
+        }
+
+        return back()->with('status', $this->formatArtisanStatus(
+            sprintf('Google Workspace smoke test passed for %s.', $tenant->slug),
+            $result['output'],
+        ));
+    }
+
     public function destroyTenant(Tenant $tenant): RedirectResponse
     {
         $validated = request()->validate([
@@ -324,5 +378,41 @@ class AdminController extends Controller
         $projectName = Str::limit('sync360-'.$tenant->slug, 63, '');
 
         return [$composeFile, $projectName];
+    }
+
+    /**
+     * @return array{exit_code:int, output:string}
+     */
+    private function runArtisanCommand(string $command, array $arguments = []): array
+    {
+        $exitCode = Artisan::call($command, $arguments);
+        $output = trim(Artisan::output());
+
+        if ($exitCode !== 0) {
+            throw new RuntimeException($output !== ''
+                ? $this->formatArtisanOutput($output)
+                : sprintf('The command [%s] failed with exit code %d.', $command, $exitCode));
+        }
+
+        return [
+            'exit_code' => $exitCode,
+            'output' => $output,
+        ];
+    }
+
+    private function formatArtisanStatus(string $prefix, string $output): string
+    {
+        $formattedOutput = $this->formatArtisanOutput($output);
+
+        if ($formattedOutput === '') {
+            return $prefix;
+        }
+
+        return $prefix.' '.$formattedOutput;
+    }
+
+    private function formatArtisanOutput(string $output): string
+    {
+        return Str::limit(preg_replace('/\s+/', ' ', trim($output)) ?? '', 500);
     }
 }

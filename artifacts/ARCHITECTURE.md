@@ -456,6 +456,22 @@ If capability verification fails during repair or Google sync, Sync360 explicitl
   - runtime artifacts
   - container smoke
 
+### Admin-panel operator entrypoints
+
+The local-only super-admin tenant detail page now exposes tenant-scoped wrappers around the same operator commands:
+
+- `Bootstrap VPS`
+- `Sync Runtime Capabilities`
+- `Test Google Workspace`
+
+Implementation notes:
+
+- the admin controller invokes the existing artisan commands rather than re-implementing the runtime logic
+- bootstrap targets the tenant's assigned server
+- runtime-capability sync targets the tenant slug and applies the full repair path for that tenant
+- Google smoke test targets the tenant slug and reports the existing layered verification result back through the flashed admin status message
+- this keeps the panel and CLI paths behaviorally aligned
+
 ### Future skill flow
 
 When adding a new OpenClaw skill that depends on an external host binary, the canonical flow is:
@@ -668,6 +684,9 @@ Admin routes under `local.only` and `admin`:
 - `POST /admin/jobs/{tenant}/retry`
 - `POST /admin/tenants/{tenant}/health-check`
 - `POST /admin/tenants/{tenant}/resync-agent`
+- `POST /admin/tenants/{tenant}/runtime/bootstrap`
+- `POST /admin/tenants/{tenant}/runtime/capabilities/sync`
+- `POST /admin/tenants/{tenant}/google/test`
 - `POST /admin/tenants/{tenant}/workspace/start`
 - `POST /admin/tenants/{tenant}/workspace/stop`
 - `POST /admin/tenants/{tenant}/workspace/restart`
@@ -702,6 +721,8 @@ Also present:
 ### Admin workspace controls
 
 Admin actions expose start/stop/restart and health/resync operations for tenant runtimes.
+
+They now also expose tenant-scoped runtime-capability repair/testing actions by delegating to the existing artisan commands for VPS bootstrap, runtime-capability sync, and Google Workspace smoke testing.
 
 ### Retry model
 

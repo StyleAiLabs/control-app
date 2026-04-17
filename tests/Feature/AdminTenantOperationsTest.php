@@ -7,10 +7,12 @@ use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
 use App\Models\Server;
 use App\Models\Tenant;
+use App\Models\TenantGoogleCredential;
 use App\Models\User;
 use App\Services\TenantHealthCheckService;
 use App\Services\TenantProfileSyncService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Mockery;
 use Tests\TestCase;
 
@@ -51,6 +53,16 @@ class AdminTenantOperationsTest extends TestCase
             'health_check_message' => 'Workspace readiness check passed.',
         ]);
 
+        $tenant->googleCredential()->create([
+            'status' => TenantGoogleCredential::STATUS_CONNECTED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_VERIFIED,
+            'google_email' => 'owner@example.com',
+            'access_token' => 'google-access-token',
+            'refresh_token' => 'google-refresh-token',
+            'scopes' => ['openid', 'email'],
+            'connected_at' => now(),
+        ]);
+
         $runner = Mockery::mock(DockerComposeRunner::class);
         $runner->shouldReceive('isRunning')
             ->twice()
@@ -86,6 +98,36 @@ class AdminTenantOperationsTest extends TestCase
         $this->instance(TenantHealthCheckService::class, $healthChecks);
         $this->instance(TenantProfileSyncService::class, $profileSync);
 
+        Artisan::shouldReceive('call')
+            ->once()
+            ->with('sync360:bootstrap-client-vps', [
+                'serverSelector' => (string) $tenant->server_id,
+            ])
+            ->andReturn(0);
+        Artisan::shouldReceive('output')
+            ->once()
+            ->andReturn('Runtime capability [gog] installed');
+
+        Artisan::shouldReceive('call')
+            ->once()
+            ->with('sync360:sync-runtime-capabilities', [
+                'tenantSelector' => $tenant->slug,
+            ])
+            ->andReturn(0);
+        Artisan::shouldReceive('output')
+            ->once()
+            ->andReturn('Runtime capability sync finished. Completed: 1. Failed: 0.');
+
+        Artisan::shouldReceive('call')
+            ->once()
+            ->with('sync360:test-google-workspace', [
+                'tenantSelector' => $tenant->slug,
+            ])
+            ->andReturn(0);
+        Artisan::shouldReceive('output')
+            ->once()
+            ->andReturn('Google Workspace smoke test passed for [ops-shop]. Host capability verified. Container binary verified.');
+
         $this->actingAs($admin);
 
         $this->get('/admin/tenants')
@@ -98,6 +140,9 @@ class AdminTenantOperationsTest extends TestCase
             ->assertOk()
             ->assertSee('Health Check')
             ->assertSee('Resync Agent')
+            ->assertSee('Bootstrap VPS')
+            ->assertSee('Sync Runtime Capabilities')
+            ->assertSee('Test Google Workspace')
             ->assertSee('Restart')
             ->assertSee('healthy')
             ->assertSee('Permanent Delete');
@@ -109,6 +154,18 @@ class AdminTenantOperationsTest extends TestCase
         $this->post(route('admin.tenants.resync-agent', $tenant))
             ->assertRedirect()
             ->assertSessionHas('status', 'Agent resync requested.');
+
+        $this->post(route('admin.tenants.runtime.bootstrap', $tenant))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Client VPS bootstrap finished for test-vps. Runtime capability [gog] installed');
+
+        $this->post(route('admin.tenants.runtime-capabilities.sync', $tenant))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Runtime capability sync finished for ops-shop. Runtime capability sync finished. Completed: 1. Failed: 0.');
+
+        $this->post(route('admin.tenants.google.test', $tenant))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Google Workspace smoke test passed for ops-shop. Google Workspace smoke test passed for [ops-shop]. Host capability verified. Container binary verified.');
 
         $this->post(route('admin.workspace.restart', $tenant))
             ->assertRedirect()

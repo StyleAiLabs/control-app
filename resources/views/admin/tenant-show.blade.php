@@ -2,6 +2,8 @@
     @php
         $channelConfig = is_array($tenant->channel_config) ? $tenant->channel_config : [];
         $canManageWorkspace = ! in_array($workspaceState, ['not_provisioned', 'missing_config'], true);
+        $googleCredential = $tenant->googleCredential;
+        $googleConnected = $googleCredential?->isConnected() ?? false;
     @endphp
 
     <div class="topbar">
@@ -140,7 +142,22 @@
                         <div class="hint" style="margin-top: 6px;">Phone ID saved: {{ filled($channelConfig['whatsapp_phone_number_id'] ?? null) ? 'Yes' : 'No' }}</div>
                     @endif
                 </div>
+                <div class="meta-item">
+                    <small>Google Workspace</small>
+                    <strong>{{ $googleCredential?->status ?? 'Not connected' }}</strong>
+                    <div class="hint" style="margin-top: 6px;">
+                        Runtime: {{ $googleCredential?->runtime_sync_status ?? 'pending' }}
+                        @if (filled($googleCredential?->google_email))
+                            · {{ $googleCredential->google_email }}
+                        @endif
+                    </div>
+                </div>
             </div>
+            @if (filled($googleCredential?->last_error))
+                <div class="note error" style="margin-top: 16px;">
+                    {{ $googleCredential->last_error }}
+                </div>
+            @endif
         </section>
 
         <section class="panel">
@@ -282,6 +299,18 @@
                 @csrf
                 <button type="submit" {{ $canManageWorkspace ? '' : 'disabled' }}>Resync Agent</button>
             </form>
+            <form method="POST" action="{{ route('admin.tenants.runtime.bootstrap', $tenant) }}" class="inline">
+                @csrf
+                <button type="submit" {{ $tenant->server ? '' : 'disabled' }}>Bootstrap VPS</button>
+            </form>
+            <form method="POST" action="{{ route('admin.tenants.runtime-capabilities.sync', $tenant) }}" class="inline">
+                @csrf
+                <button type="submit" {{ $canManageWorkspace ? '' : 'disabled' }}>Sync Runtime Capabilities</button>
+            </form>
+            <form method="POST" action="{{ route('admin.tenants.google.test', $tenant) }}" class="inline">
+                @csrf
+                <button type="submit" {{ $canManageWorkspace && $googleConnected ? '' : 'disabled' }}>Test Google Workspace</button>
+            </form>
             <form method="POST" action="{{ route('admin.workspace.start', $tenant) }}" class="inline">
                 @csrf
                 <button type="submit" {{ $canManageWorkspace ? '' : 'disabled' }}>Start</button>
@@ -294,6 +323,10 @@
                 @csrf
                 <button type="submit" {{ $canManageWorkspace ? '' : 'disabled' }}>Restart</button>
             </form>
+        </div>
+
+        <div class="hint" style="margin-top: 14px;">
+            Bootstrap VPS installs host-managed runtime dependencies on the assigned client VPS. Sync Runtime Capabilities regenerates tenant compose/config and applies capability repairs such as <code>gog</code>. Test Google Workspace runs the end-to-end Google smoke test for this tenant.
         </div>
     </section>
 
