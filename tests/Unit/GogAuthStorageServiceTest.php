@@ -21,6 +21,8 @@ class GogAuthStorageServiceTest extends TestCase
 {
     use RefreshDatabase;
 
+    private const AES_KEY_WRAP_DEFAULT_IV = "\xA6\xA6\xA6\xA6\xA6\xA6\xA6\xA6";
+
     public function test_local_artifacts_write_gog_compatible_credentials_and_encrypted_keyring_token(): void
     {
         config()->set('services.google.client_id', 'google-client-id');
@@ -75,7 +77,13 @@ class GogAuthStorageServiceTest extends TestCase
             16,
             true,
         );
-        $cek = @openssl_decrypt($this->base64UrlDecode($segments[1]), 'aes-128-wrap', $kek, OPENSSL_RAW_DATA);
+        $cek = @openssl_decrypt(
+            $this->base64UrlDecode($segments[1]),
+            'aes-128-wrap',
+            $kek,
+            OPENSSL_RAW_DATA,
+            self::AES_KEY_WRAP_DEFAULT_IV,
+        );
 
         if (! is_string($cek) || $cek === '') {
             throw new RuntimeException('Unable to unwrap the generated test CEK.');

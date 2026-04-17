@@ -7,6 +7,21 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-18 — RFC3394 AES Key-Wrap Compatibility For `gog` Keyring Tokens
+
+Date: 2026-04-18
+Status: Implemented
+
+### Overview
+
+Closed the next live Google Workspace runtime gap after the encrypted file-keyring rollout. Sync360 was already generating a JWE-like encrypted keyring token, but the wrapped content-encryption key did not explicitly use the RFC3394 default wrap IV that the live `gog` / `99designs/keyring` path expects. That let local round-trip tests pass while the live Gmail CLI still failed with `aes.KeyUnwrap(): integrity check failed`.
+
+### What Changed
+
+- changed `GogAuthStorageService` so AES-128 key wrapping now explicitly uses the RFC3394 default wrap IV when generating tenant `keyring/token:default:<email>` artifacts
+- aligned the `GogAuthStorageService` unit test to unwrap the generated CEK with the same RFC3394-compatible IV so the fixture validates the real live contract instead of PHP-only local behavior
+- kept the existing encrypted file-keyring/token-cache split intact; this change fixes key-wrap compatibility rather than changing the broader runtime auth model
+
 ## 2026-04-18 — Runtime Capability Repair Now Re-Seeds `gog` Auth Artifacts
 
 Date: 2026-04-18

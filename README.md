@@ -12,7 +12,7 @@ It currently covers the full control-plane loop:
 - tenant workspace tool guidance via generated `TOOLS.md`, including default-account behavior, native direct `gog` CLI usage, and guardrails against hallucinated reconnect or `credentials.json` advice
 - tenant runtime config now explicitly enables the bundled `gog` skill in `openclaw.json` so connected Google Workspace tooling is actually available to the agent
 - host-managed runtime capability installs for external tenant dependencies such as `gog`, using pinned VPS binaries plus read-only tenant bind mounts
-- tenant Google runtime auth reseeding now writes a `gog`-compatible encrypted file-keyring token artifact plus token cache files instead of a plaintext stand-in, so the live Gmail CLI and smoke path validate the same auth contract
+- tenant Google runtime auth reseeding now writes a `gog`-compatible encrypted file-keyring token artifact plus token cache files instead of a plaintext stand-in, using RFC3394-compatible AES key wrap so the live Gmail CLI and smoke path validate the same auth contract
 - private gateway access for health checks and runtime integration
 - conversation history sync from workspace session logs
 - trial lifecycle tracking and notification emails
@@ -101,7 +101,7 @@ Each tenant gets:
 - its own OpenClaw container
 - its own LiteLLM virtual key
 - optional DB-backed Google Workspace auth that is materialized into runtime `gog` files and can be smoke-tested from inside the tenant runtime
-- tenant `gog` auth files are generated in the file-keyring format expected by the live CLI; the encrypted keyring token file is not plain JSON and should not be patched manually
+- tenant `gog` auth files are generated in the file-keyring format expected by the live CLI; the encrypted keyring token file is not plain JSON, uses RFC3394-compatible AES key wrap, and should not be patched manually
 - its own customer-facing workspace URL
 
 The public tenant hostname is the Sync360 login/dashboard entrypoint. The OpenClaw gateway stays private and is reached by the control plane through loopback plus the infrastructure runner.

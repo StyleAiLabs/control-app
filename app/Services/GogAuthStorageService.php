@@ -9,6 +9,8 @@ use RuntimeException;
 
 class GogAuthStorageService
 {
+    private const AES_KEY_WRAP_DEFAULT_IV = "\xA6\xA6\xA6\xA6\xA6\xA6\xA6\xA6";
+
     public function __construct(
         private readonly GoogleWorkspaceOAuthService $googleOAuth,
         private readonly TenantRuntimeService $runtime,
@@ -64,9 +66,6 @@ class GogAuthStorageService
         $scopes = is_array($credential->scopes) ? array_values($credential->scopes) : [];
         $safeEmail = Str::of($email)->replaceMatches('/[^A-Za-z0-9._-]+/', '_')->value();
         $tokenPath = rtrim($configRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'keyring'.DIRECTORY_SEPARATOR.'token:default:'.$email;
-        $clientSecretPayload = $this->googleOAuth->clientSecretPayload();
-        $installedPayload = $clientSecretPayload['installed'] ?? [];
-
         $installedPayload = $this->googleOAuth->clientSecretPayload()['installed'];
         $credentialsJson = json_encode([
             ...$installedPayload,
@@ -132,7 +131,7 @@ class GogAuthStorageService
             length: 16,
         );
         $cek = random_bytes(32);
-        $encryptedKey = @openssl_encrypt($cek, 'aes-128-wrap', $kek, OPENSSL_RAW_DATA);
+        $encryptedKey = @openssl_encrypt($cek, 'aes-128-wrap', $kek, OPENSSL_RAW_DATA, self::AES_KEY_WRAP_DEFAULT_IV);
 
         if (! is_string($encryptedKey) || $encryptedKey === '') {
             throw new RuntimeException('Unable to wrap the GOG keyring content-encryption key.');
