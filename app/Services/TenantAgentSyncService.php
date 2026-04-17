@@ -11,10 +11,7 @@ use App\Models\TenantGoogleCredential;
 use App\Support\GoogleWorkspaceFeature;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use RuntimeException;
-use Symfony\Component\Process\Exception\ProcessFailedException;
-use Symfony\Component\Process\Process;
 use Throwable;
 
 class TenantAgentSyncService
@@ -25,6 +22,7 @@ class TenantAgentSyncService
         private readonly DockerComposeRunner $dockerCompose,
         private readonly GogAuthStorageService $gogAuthStorage,
         private readonly TenantGoogleWorkspaceSmokeTestService $googleWorkspaceSmokeTests,
+        private readonly TenantRuntimeCapabilityService $runtimeCapabilities,
     ) {
     }
 
@@ -47,10 +45,8 @@ class TenantAgentSyncService
 
         $artifacts = $this->artifactContents($tenant, $profile, $profileFiles);
         $remoteRuntimePath = $tenant->runtime_path ?: $this->runtime->remoteRuntimePath($tenant);
-        $composeFile = rtrim($tenant->runtime_path ?: $remoteRuntimePath, DIRECTORY_SEPARATOR)
-            .DIRECTORY_SEPARATOR
-            .(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
-        $projectName = Str::limit('sync360-'.$tenant->slug, 63, '');
+        $composeFile = $this->runtime->remoteComposePath($tenant);
+        $projectName = $this->runtime->projectName($tenant);
         $syncedAt = now();
 
         $tenant->forceFill([
@@ -167,7 +163,7 @@ class TenantAgentSyncService
             default => null, /* WhatsApp will be added in a future phase. */
         };
 
-        $config = $this->withRequiredSkills($config);
+        $config = $this->runtimeCapabilities->applyOpenClawSkills($config);
 
         $this->files->put(
             $configPath,
@@ -183,8 +179,8 @@ class TenantAgentSyncService
 
         $remoteRuntimePath = $tenant->runtime_path ?: $this->runtime->remoteRuntimePath($tenant);
         $remoteConfigPath = $remoteRuntimePath.'/config/openclaw.json';
-        $composeFile = $remoteRuntimePath.'/'.(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
-        $projectName = Str::limit('sync360-'.$tenant->slug, 63, '');
+        $composeFile = $this->runtime->remoteComposePath($tenant);
+        $projectName = $this->runtime->projectName($tenant);
 
         $this->dockerCompose->putFile(
             $tenant->server,
@@ -219,7 +215,7 @@ class TenantAgentSyncService
 
         $config = json_decode($this->files->get($configPath), true) ?: [];
         unset($config['channels']);
-        $config = $this->withRequiredSkills($config);
+        $config = $this->runtimeCapabilities->applyOpenClawSkills($config);
 
         $this->files->put(
             $configPath,
@@ -234,8 +230,8 @@ class TenantAgentSyncService
 
         $remoteRuntimePath = $tenant->runtime_path ?: $this->runtime->remoteRuntimePath($tenant);
         $remoteConfigPath = $remoteRuntimePath.'/config/openclaw.json';
-        $composeFile = $remoteRuntimePath.'/'.(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
-        $projectName = Str::limit('sync360-'.$tenant->slug, 63, '');
+        $composeFile = $this->runtime->remoteComposePath($tenant);
+        $projectName = $this->runtime->projectName($tenant);
 
         $this->dockerCompose->putFile(
             $tenant->server,
@@ -276,15 +272,15 @@ class TenantAgentSyncService
 
         $localConfigRoot = $this->gogAuthStorage->localConfigRoot($tenant);
         $localArtifacts = $this->gogAuthStorage->localArtifacts($tenant, $credential);
-        $composeUpdate = $this->ensureGoogleRuntimeEnvironment($tenant);
-        $configUpdate = $this->ensureGoogleSkillConfig($tenant);
-
         $this->files->deleteDirectory($localConfigRoot);
 
         foreach ($localArtifacts as $path => $contents) {
             $this->files->ensureDirectoryExists(dirname($path));
             $this->files->put($path, $contents);
         }
+
+        $composeUpdate = $this->runtimeCapabilities->syncLocalCompose($tenant, ['gog']);
+        $configUpdate = $this->runtimeCapabilities->syncLocalOpenClawConfig($tenant, ['gog']);
 
         if (! app()->environment('local')) {
             $remoteConfigRoot = $this->gogAuthStorage->remoteConfigRoot($tenant);
@@ -300,11 +296,17 @@ class TenantAgentSyncService
                 $this->dockerCompose->putFile($tenant->server, $composeUpdate['remote_compose_file'], $composeUpdate['contents']);
             }
 
-            $this->dockerCompose->putFile($tenant->server, $configUpdate['remote_config_file'], $configUpdate['contents']);
+            if ($configUpdate['changed']) {
+                $this->dockerCompose->putFile($tenant->server, $configUpdate['remote_config_file'], $configUpdate['contents']);
+            }
 
-            $this->reloadRuntime($tenant, $composeUpdate['changed']);
+            if ($composeUpdate['changed'] || $configUpdate['changed']) {
+                $this->runtimeCapabilities->reloadRuntime($tenant, $composeUpdate['changed']);
+            }
         } else {
-            $this->reloadRuntime($tenant, $composeUpdate['changed']);
+            if ($composeUpdate['changed'] || $configUpdate['changed']) {
+                $this->runtimeCapabilities->reloadRuntime($tenant, $composeUpdate['changed']);
+            }
         }
 
         $credential->forceFill([
@@ -332,7 +334,7 @@ class TenantAgentSyncService
                 $this->dockerCompose->removeDirectory($tenant->server, $this->gogAuthStorage->remoteConfigRoot($tenant));
             }
 
-            $this->reloadRuntime($tenant);
+            $this->runtimeCapabilities->reloadRuntime($tenant);
         }
 
         $credential->forceFill([
@@ -435,182 +437,6 @@ class TenantAgentSyncService
 
         if (! filled($tenant->runtime_path)) {
             throw new RuntimeException('The workspace runtime path is missing, so we cannot sync the final setup files yet.');
-        }
-    }
-
-    /**
-     * @return array{remote_config_file:string, contents:string}
-     */
-    private function ensureGoogleSkillConfig(Tenant $tenant): array
-    {
-        $localRuntimePath = $this->runtime->localRuntimePath($tenant);
-        $configPath = $localRuntimePath.DIRECTORY_SEPARATOR.'config'.DIRECTORY_SEPARATOR.'openclaw.json';
-
-        if (! $this->files->exists($configPath)) {
-            throw new RuntimeException('The tenant OpenClaw config file does not exist yet, so required skills cannot be applied.');
-        }
-
-        $config = json_decode($this->files->get($configPath), true) ?: [];
-        $config = $this->withRequiredSkills($config);
-        $contents = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL;
-
-        $this->files->put($configPath, $contents);
-
-        $remoteRuntimePath = $tenant->runtime_path ?: $this->runtime->remoteRuntimePath($tenant);
-
-        return [
-            'remote_config_file' => $remoteRuntimePath.'/config/openclaw.json',
-            'contents' => $contents,
-        ];
-    }
-
-    private function reloadRuntime(Tenant $tenant, bool $recreate = false): void
-    {
-        $runtimePath = app()->environment('local')
-            ? $this->runtime->localRuntimePath($tenant)
-            : rtrim((string) $tenant->runtime_path, DIRECTORY_SEPARATOR);
-        $composeFile = rtrim($runtimePath, DIRECTORY_SEPARATOR)
-            .DIRECTORY_SEPARATOR
-            .(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
-        $projectName = Str::limit('sync360-'.$tenant->slug, 63, '');
-
-        if (app()->environment('local')) {
-            $this->runLocalComposeCommand($tenant, $composeFile, $projectName, $recreate ? ['up', '-d', '--force-recreate'] : ['restart']);
-
-            return;
-        }
-
-        if ($recreate) {
-            $this->dockerCompose->runCommand(
-                $tenant->server,
-                sprintf('docker compose -f %s -p %s up -d --force-recreate', escapeshellarg($composeFile), escapeshellarg($projectName)),
-            );
-
-            return;
-        }
-
-        $this->dockerCompose->runCommand(
-            $tenant->server,
-            sprintf('docker compose -f %s -p %s restart', escapeshellarg($composeFile), escapeshellarg($projectName)),
-        );
-    }
-
-    /**
-     * @return array{changed:bool, contents:string, remote_compose_file:string}
-     */
-    private function ensureGoogleRuntimeEnvironment(Tenant $tenant): array
-    {
-        $localComposeFile = $this->runtime->localRuntimePath($tenant)
-            .DIRECTORY_SEPARATOR
-            .(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
-
-        if (! $this->files->exists($localComposeFile)) {
-            throw new RuntimeException('The tenant compose file does not exist yet, so Google Workspace env settings cannot be applied.');
-        }
-
-        $existingContents = $this->files->get($localComposeFile);
-        $updatedContents = $this->syncComposeEnvironment($existingContents, [
-            'XDG_CONFIG_HOME' => $this->yamlQuote($this->runtime->containerGogConfigHome()),
-            'GOG_KEYRING_BACKEND' => $this->yamlQuote('file'),
-            'GOG_KEYRING_PASSWORD' => $this->yamlQuote($this->runtime->googleKeyringPassword($tenant)),
-        ]);
-
-        $changed = $updatedContents !== $existingContents;
-
-        if ($changed) {
-            $this->files->put($localComposeFile, $updatedContents);
-        }
-
-        return [
-            'changed' => $changed,
-            'contents' => $updatedContents,
-            'remote_compose_file' => rtrim((string) $tenant->runtime_path, DIRECTORY_SEPARATOR)
-                .DIRECTORY_SEPARATOR
-                .(string) config('sync360.openclaw.compose_filename', 'compose.yaml'),
-        ];
-    }
-
-    /**
-     * @param  array<string, string>  $desiredEntries
-     */
-    private function syncComposeEnvironment(string $contents, array $desiredEntries): string
-    {
-        $lines = preg_split("/\r?\n/", $contents) ?: [];
-        $environmentLine = null;
-
-        foreach ($lines as $index => $line) {
-            if (trim($line) === 'environment:') {
-                $environmentLine = $index;
-                break;
-            }
-        }
-
-        if ($environmentLine === null) {
-            throw new RuntimeException('The tenant compose file is missing an environment block.');
-        }
-
-        $blockStart = $environmentLine + 1;
-        $blockEnd = count($lines);
-
-        for ($index = $blockStart; $index < count($lines); $index++) {
-            $line = $lines[$index];
-
-            if ($line !== '' && ! str_starts_with($line, '      ')) {
-                $blockEnd = $index;
-                break;
-            }
-        }
-
-        $existingEntries = [];
-        $existingOrder = [];
-
-        for ($index = $blockStart; $index < $blockEnd; $index++) {
-            if (preg_match('/^\s{6}([A-Z0-9_]+):\s*(.+)$/', $lines[$index], $matches) === 1) {
-                $existingEntries[$matches[1]] = $matches[2];
-                $existingOrder[] = $matches[1];
-            }
-        }
-
-        foreach ($desiredEntries as $key => $value) {
-            if (! in_array($key, $existingOrder, true)) {
-                $existingOrder[] = $key;
-            }
-
-            $existingEntries[$key] = $value;
-        }
-
-        $replacementLines = array_map(
-            static fn (string $key): string => sprintf('      %s: %s', $key, $existingEntries[$key]),
-            $existingOrder,
-        );
-
-        array_splice($lines, $blockStart, $blockEnd - $blockStart, $replacementLines);
-
-        return implode(PHP_EOL, $lines);
-    }
-
-    private function yamlQuote(string $value): string
-    {
-        return '"'.str_replace(['\\', '"'], ['\\\\', '\\"'], $value).'"';
-    }
-
-    /**
-     * @param  list<string>  $subCommand
-     */
-    private function runLocalComposeCommand(Tenant $tenant, string $composeFile, string $projectName, array $subCommand): void
-    {
-        $process = new Process([
-            ...$this->runtime->localDockerComposeCommandParts(),
-            '-f',
-            $composeFile,
-            '-p',
-            $projectName,
-            ...$subCommand,
-        ], timeout: (int) config('sync360.openclaw.compose_timeout_seconds', 120));
-        $process->run();
-
-        if (! $process->isSuccessful()) {
-            throw new ProcessFailedException($process);
         }
     }
 
@@ -805,62 +631,6 @@ class TenantAgentSyncService
             '- Prefer read/list actions first. Only send, update, or delete Google Workspace content when the owner explicitly asks for that action.',
             '- If a gog command fails, explain that Google Workspace access is temporarily unavailable and suggest retrying, resyncing, or reconnecting. Do not claim you fundamentally lack email or calendar access when the connection is present.',
         ]).PHP_EOL;
-    }
-
-    /**
-     * @param  array<string, mixed>  $config
-     * @return array<string, mixed>
-     */
-    private function withRequiredSkills(array $config): array
-    {
-        $config['skills'] = is_array($config['skills'] ?? null) ? $config['skills'] : [];
-        $config['skills']['entries'] = is_array($config['skills']['entries'] ?? null) ? $config['skills']['entries'] : [];
-
-        $gogEntry = $config['skills']['entries']['gog'] ?? [];
-
-        if (! is_array($gogEntry)) {
-            $gogEntry = [];
-        }
-
-        $config['skills']['entries']['gog'] = array_merge($gogEntry, [
-            'enabled' => true,
-        ]);
-
-        $config['agents'] = is_array($config['agents'] ?? null) ? $config['agents'] : [];
-        $config['agents']['defaults'] = is_array($config['agents']['defaults'] ?? null) ? $config['agents']['defaults'] : [];
-        $config['agents']['defaults']['skills'] = $this->appendSkill(
-            $config['agents']['defaults']['skills'] ?? [],
-            'gog',
-        );
-
-        if (is_array($config['agents']['list'] ?? null)) {
-            $config['agents']['list'] = array_map(function (mixed $agent): mixed {
-                if (! is_array($agent)) {
-                    return $agent;
-                }
-
-                $agent['skills'] = $this->appendSkill($agent['skills'] ?? [], 'gog');
-
-                return $agent;
-            }, $config['agents']['list']);
-        }
-
-        return $config;
-    }
-
-    /**
-     * @param  mixed  $skills
-     * @return array<int, string>
-     */
-    private function appendSkill(mixed $skills, string $skill): array
-    {
-        $skillList = $this->stringList($skills);
-
-        if (! in_array($skill, $skillList, true)) {
-            $skillList[] = $skill;
-        }
-
-        return $skillList;
     }
 
     /**

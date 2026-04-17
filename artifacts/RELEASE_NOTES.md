@@ -7,6 +7,34 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-17 — Host-Managed Runtime Capabilities For Tenant Skills
+
+Date: 2026-04-17
+Status: Implemented
+
+### Overview
+
+Added a host-managed runtime capability system so Sync360 can deliver external tenant runtime dependencies without changing the base OpenClaw image or breaking the existing `goLive()` workspace-sync invariant. The first shipped capability is `gog`, now installed as a pinned Linux release binary on each SSH-managed client VPS and mounted read-only into every tenant container.
+
+### What Changed
+
+- added a runtime capability catalog in `config/sync360.php` with pinned `gog` metadata, including version, GitHub release URL, checksum, install path, container mount, and verification commands
+- introduced `TenantRuntimeCapabilityService` to centralize capability catalog lookup, OpenClaw skill wiring, compose/config mutation, host installation, and host/container verification
+- extended `sync360:bootstrap-client-vps` so client VPS preparation now also installs pinned host-managed runtime capabilities with version-aware idempotency
+- added `sync360:sync-runtime-capabilities {tenantSelector?} {capability?}` as the SSH-only repair path for existing ready tenants
+- changed compose generation so host-managed capability mounts are generated deterministically and included unconditionally; `gog` now mounts from `/usr/local/bin/gog` on the host into `/usr/local/bin/gog` in every tenant container
+- changed Google runtime verification to preflight both host capability checks and host-side `docker exec` container-binary checks before auth artifact and Gmail/Calendar smoke validation
+- corrected failure handling so Google runtime status is explicitly marked `failed` with a precise `last_error` when capability verification breaks, even if the tenant was previously marked `verified`
+- kept `goLive()` workspace-files-only; host binaries and runtime config repair remain separate operator flows
+
+### Operator Workflow
+
+For the current `gog` capability:
+
+1. run `php artisan sync360:bootstrap-client-vps <server>` to install or update the pinned host binary on each SSH-managed client VPS
+2. run `php artisan sync360:sync-runtime-capabilities <tenant-or-scope> gog` to regenerate tenant compose/config, push changes, and recreate runtimes where needed
+3. run `php artisan sync360:test-google-workspace <tenant>` to confirm host capability, container binary, runtime artifacts, and live Google smoke checks all pass
+
 ## 2026-04-17 — `gog` Skill Enabled In Tenant OpenClaw Config
 
 Date: 2026-04-17

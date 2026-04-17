@@ -11,6 +11,7 @@ It currently covers the full control-plane loop:
 - Business Profile sync with in-page progress/completion feedback for live assistant resyncs
 - tenant workspace tool guidance via generated `TOOLS.md`, including `gog` usage notes for connected Google Workspace tenants
 - tenant runtime config now explicitly enables the bundled `gog` skill in `openclaw.json` so connected Google Workspace tooling is actually available to the agent
+- host-managed runtime capability installs for external tenant dependencies such as `gog`, using pinned VPS binaries plus read-only tenant bind mounts
 - private gateway access for health checks and runtime integration
 - conversation history sync from workspace session logs
 - trial lifecycle tracking and notification emails
@@ -163,6 +164,8 @@ From the running control-plane app container:
 docker compose -f docker-compose.prod.yml exec app php artisan sync360:bootstrap-client-vps
 ```
 
+This command now also installs pinned host-managed runtime capabilities declared in `config/sync360.php` on the client VPS. In the current repo, that includes the `gog` binary used by Google Workspace tooling.
+
 ### Scheduler requirement
 
 Scheduled commands are part of the live system. Production must run the `scheduler` service from `docker-compose.prod.yml` so these jobs execute automatically:
@@ -181,6 +184,37 @@ php artisan sync360:resync-live-tenants <tenant-id-or-slug>
 ```
 
 This path regenerates and pushes workspace files only. It does not full-sync the tenant runtime.
+
+### Repair host-managed runtime capabilities on existing tenants
+
+If a deploy adds or fixes a host-managed tenant runtime dependency, use the runtime capability repair command instead of reprovisioning the tenant:
+
+```bash
+php artisan sync360:sync-runtime-capabilities
+php artisan sync360:sync-runtime-capabilities <tenant-id-or-slug>
+php artisan sync360:sync-runtime-capabilities <tenant-id-or-slug> gog
+```
+
+What it does:
+
+- SSH mode only
+- verifies or installs the pinned host binary on the client VPS
+- regenerates full staged tenant `compose.yaml` and `config/openclaw.json`
+- uploads changed files only
+- force-recreates the tenant when compose changed
+- reruns capability verification and Google smoke tests where applicable
+
+`goLive()` still remains workspace-files-only. It must not be used to deliver host binaries or perform a full runtime resync.
+
+### Upgrade a pinned runtime capability version
+
+For `gog` and future host-managed capabilities:
+
+1. update `version`, `download_url`, and `sha256` in `config/sync360.php`
+2. deploy the control plane
+3. run `php artisan sync360:bootstrap-client-vps <server>` on each SSH-managed client VPS
+4. run `php artisan sync360:sync-runtime-capabilities <tenant-or-scope> <capability>` for affected tenants
+5. run `php artisan sync360:test-google-workspace <tenant>` for affected Google-connected tenants
 
 ## Current Architecture Modes
 
@@ -203,6 +237,7 @@ Used for the primary-server plus client-VPS deployment shape.
 - files are copied to the assigned client VPS over SSH
 - Docker Compose commands run remotely on that VPS
 - readiness checks use private loopback HTTP on the client VPS
+- host-managed runtime capability commands are supported only in this mode
 
 ## Core Paths
 

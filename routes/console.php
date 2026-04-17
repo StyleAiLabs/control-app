@@ -6,6 +6,7 @@ use App\Enums\TrialStatus;
 use App\Models\Tenant;
 use App\Models\Server;
 use App\Services\LiteLlmTenantKeyService;
+use App\Services\TenantRuntimeCapabilityService;
 use App\Services\TenantProfileSyncService;
 use App\Services\TenantGoogleWorkspaceSmokeTestService;
 use App\Services\TrialNotificationEmailService;
@@ -87,6 +88,17 @@ Artisan::command('sync360:bootstrap-client-vps {serverSelector? : Server id or n
     $runner->runCommand($server, 'systemctl enable --now caddy', sudo: true);
     $runner->runCommand($server, $reloadCommand, sudo: true);
     $runner->runCommand($server, 'docker compose version');
+
+    /** @var TenantRuntimeCapabilityService $runtimeCapabilities */
+    $runtimeCapabilities = app(TenantRuntimeCapabilityService::class);
+    $results = $runtimeCapabilities->ensureInstalledOnServer($server);
+
+    foreach ($results as $capabilityId => $status) {
+        $this->components->twoColumnDetail(
+            sprintf('Runtime capability [%s]', $capabilityId),
+            $status,
+        );
+    }
 
     $this->components->info('Client VPS bootstrap completed successfully.');
 })->purpose('Install and prepare Caddy/runtime directories on the remote client VPS');
@@ -303,6 +315,129 @@ Artisan::command('sync360:resync-live-tenants {tenantSelector? : Tenant id, tena
     ));
 })->purpose('Regenerate and resync workspace instructions for live tenants after prompt or sync changes');
 
+Artisan::command('sync360:sync-runtime-capabilities {tenantSelector? : Tenant id, tenant_id, or slug. Omit to sync every ready tenant runtime} {capability? : Optional capability id, such as gog}', function (?string $tenantSelector = null, ?string $capability = null) {
+    /** @var TenantRuntimeCapabilityService $runtimeCapabilities */
+    $runtimeCapabilities = app(TenantRuntimeCapabilityService::class);
+    $runtimeCapabilities->requiresSshInfrastructure();
+
+    $selectedCapabilityIds = $capability ? [$capability] : $runtimeCapabilities->capabilityIds();
+    $runtimeCapabilities->selectedDefinitions($selectedCapabilityIds);
+    /** @var DockerComposeRunner $runner */
+    $runner = app(DockerComposeRunner::class);
+
+    $tenants = Tenant::query()
+        ->with(['server', 'googleCredential'])
+        ->where('provisioning_status', TenantProvisioningStatus::Ready)
+        ->whereNotNull('runtime_path')
+        ->whereNotNull('assigned_port')
+        ->whereNotNull('server_id')
+        ->when($tenantSelector, function ($query, string $selector): void {
+            $query->where(function ($nested) use ($selector): void {
+                if (ctype_digit($selector)) {
+                    $nested->where('id', (int) $selector);
+                }
+
+                $nested->orWhere('tenant_id', $selector)
+                    ->orWhere('slug', $selector);
+            });
+        })
+        ->orderBy('id')
+        ->get();
+
+    if ($tenants->isEmpty()) {
+        throw new RuntimeException('No matching ready tenants were found for runtime capability sync.');
+    }
+
+    $hostCapabilityResults = [];
+    $completed = 0;
+    $failed = 0;
+
+    foreach ($tenants as $tenant) {
+        try {
+            if (! $tenant->server) {
+                throw new RuntimeException('Tenant server is missing.');
+            }
+
+            $hostKey = sprintf('%d:%s', $tenant->server->id, implode(',', $selectedCapabilityIds));
+
+            if (! isset($hostCapabilityResults[$hostKey])) {
+                $hostCapabilityResults[$hostKey] = $runtimeCapabilities->ensureInstalledOnServer($tenant->server, $selectedCapabilityIds);
+            }
+
+            $composeUpdate = $runtimeCapabilities->syncLocalCompose($tenant, $selectedCapabilityIds);
+            $configUpdate = $runtimeCapabilities->syncLocalOpenClawConfig($tenant, $selectedCapabilityIds);
+
+            if ($composeUpdate['changed']) {
+                $runner->putFile($tenant->server, $composeUpdate['remote_compose_file'], $composeUpdate['contents']);
+            }
+
+            if ($configUpdate['changed']) {
+                $runner->putFile($tenant->server, $configUpdate['remote_config_file'], $configUpdate['contents']);
+            }
+
+            if ($composeUpdate['changed'] || $configUpdate['changed']) {
+                $runtimeCapabilities->reloadRuntime($tenant, $composeUpdate['changed']);
+            }
+
+            $runtimeCapabilities->verifyHostCapabilities($tenant->server, $selectedCapabilityIds);
+            $runtimeCapabilities->verifyContainerCapabilities($tenant, $selectedCapabilityIds);
+
+            if (in_array('gog', $selectedCapabilityIds, true) && $tenant->googleCredential?->isConnected()) {
+                app(TenantGoogleWorkspaceSmokeTestService::class)->run($tenant);
+
+                $tenant->googleCredential->forceFill([
+                    'runtime_sync_status' => \App\Models\TenantGoogleCredential::RUNTIME_SYNC_VERIFIED,
+                    'last_synced_at' => now(),
+                    'last_error' => null,
+                ])->save();
+            }
+
+            $completed++;
+
+            $this->components->twoColumnDetail(
+                sprintf('%s (%s)', $tenant->business_name, $tenant->slug),
+                sprintf(
+                    'Capabilities synced. Host: %s. Compose changed: %s. Config changed: %s.',
+                    implode(', ', array_map(
+                        static fn (string $capabilityId, string $status): string => $capabilityId.'='.$status,
+                        array_keys($hostCapabilityResults[$hostKey]),
+                        array_values($hostCapabilityResults[$hostKey]),
+                    )),
+                    $composeUpdate['changed'] ? 'yes' : 'no',
+                    $configUpdate['changed'] ? 'yes' : 'no',
+                ),
+            );
+        } catch (Throwable $exception) {
+            $failed++;
+
+            if ($tenant->googleCredential?->isConnected() && in_array('gog', $selectedCapabilityIds, true)) {
+                $tenant->googleCredential->forceFill([
+                    'runtime_sync_status' => \App\Models\TenantGoogleCredential::RUNTIME_SYNC_FAILED,
+                    'last_error' => $exception->getMessage(),
+                ])->save();
+            }
+
+            Log::warning('sync360:sync-runtime-capabilities failed for tenant.', [
+                'tenant_id' => $tenant->tenant_id,
+                'slug' => $tenant->slug,
+                'capabilities' => $selectedCapabilityIds,
+                'error' => $exception->getMessage(),
+            ]);
+
+            $this->components->twoColumnDetail(
+                sprintf('%s (%s)', $tenant->business_name, $tenant->slug),
+                'Failed: '.$exception->getMessage(),
+            );
+        }
+    }
+
+    $this->components->info(sprintf(
+        'Runtime capability sync finished. Completed: %d. Failed: %d.',
+        $completed,
+        $failed,
+    ));
+})->purpose('Install host-managed runtime capabilities and resync compose/config for ready tenant runtimes');
+
 Artisan::command('sync360:test-google-workspace {tenantSelector : Tenant id, tenant_id, or slug}', function (string $tenantSelector) {
     $tenant = Tenant::query()
         ->with(['server', 'googleCredential'])
@@ -328,6 +463,8 @@ Artisan::command('sync360:test-google-workspace {tenantSelector : Tenant id, ten
     $this->components->twoColumnDetail('Connected email', (string) ($result['google_email'] ?? 'unknown'));
     $this->components->twoColumnDetail('Compose file', (string) ($result['compose_file'] ?? 'unknown'));
     $this->components->twoColumnDetail('Expected XDG config home', (string) ($result['xdg_config_home_expected'] ?? 'unknown'));
+    $this->components->twoColumnDetail('Host capability', ($result['host_capability_verified'] ?? false) ? 'verified' : 'not checked');
+    $this->components->twoColumnDetail('Container binary', ($result['container_binary_verified'] ?? false) ? 'verified' : 'not checked');
     $this->components->twoColumnDetail('Runtime artifacts', ($result['runtime_artifacts_verified'] ?? false) ? 'verified' : 'missing');
     $this->components->twoColumnDetail('Container smoke', ($result['container_smoke_passed'] ?? false) ? 'passed' : 'failed');
 

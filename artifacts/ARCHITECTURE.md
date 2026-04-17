@@ -59,6 +59,25 @@ The repo supports a Docker Compose development stack and a production control-pl
 - Docker Compose commands are executed remotely on that VPS
 - readiness checks use private loopback HTTP on the client VPS
 
+### Host-managed runtime capabilities
+
+Some tenant runtime features depend on external binaries that are not part of the base OpenClaw image. Sync360 models those dependencies as host-managed runtime capabilities declared in `config/sync360.php`.
+
+Current v1 behavior:
+
+- capability metadata is declared centrally under `sync360.runtime_capabilities`
+- the first shipped capability is `gog`
+- Sync360 installs the pinned Linux release binary onto the client VPS host
+- tenant compose generation mounts that host binary read-only into every tenant container
+- tenant `openclaw.json` generation enables the corresponding OpenClaw skill and normalizes agent skill allowlists
+- verification checks both the host binary and the running container view of that binary
+
+Important boundaries:
+
+- this model is supported only in `ssh` infrastructure mode
+- `local` mode does not emulate host installs or bind mounts for these capabilities
+- `goLive()` remains workspace-files-only and must never be used to install host dependencies or replace the full runtime
+
 ### Public and private surfaces
 
 - `workspace_url` is the customer-facing Sync360 URL
@@ -209,6 +228,8 @@ Provisioning flow:
 13. mark tenant/job ready/completed
 14. send workspace-ready email
 
+During SSH-host preparation, `sync360:bootstrap-client-vps` now also installs pinned host-managed runtime capabilities declared in config. Provisioning then reuses the shared capability service so generated tenant compose/config files already include the required bind mounts and OpenClaw skill wiring.
+
 For local Docker dev, the private readiness check targets the Docker host alias configured by `sync360.host_port_probe_host`, not container-local loopback.
 
 Because the tenant container name is fixed to `sync360-<slug>`, provisioning cleanup also force-removes any stale same-name container before bring-up. This protects delete-and-recreate flows when a prior runtime cleanup was incomplete on the target host.
@@ -259,6 +280,8 @@ Flow:
 7. if the auth files were written successfully, runtime status moves to `synced`
 8. if the smoke test reaches live Gmail and Calendar APIs from inside the tenant runtime, runtime status moves to `verified`
 9. if the runtime is not ready yet, the row stays `connected` with runtime status `pending` until provisioning/profile sync completes
+
+When a Google-connected tenant needs repair after deploy, `sync360:sync-runtime-capabilities` is the canonical operator path. It reinstalls or verifies pinned host capabilities on the VPS, regenerates the full staged tenant `compose.yaml` and `config/openclaw.json`, pushes changed files remotely, recreates the tenant when compose changed, reruns capability verification, and writes `runtime_sync_status=failed` with a precise `last_error` if verification still breaks.
 
 V1 scope set:
 
@@ -331,7 +354,130 @@ The command filters for eligible live tenants, runs `TenantProfileSyncService::r
 4. suspends expired tenants through `LiteLlmTenantKeyService`
 5. sends warning and expired emails through `TrialNotificationEmailService`
 
-## 5. Runtime generation and file layout
+## 5. Host-managed runtime capabilities
+
+### Capability catalog
+
+`config/sync360.php` now declares host-managed runtime capabilities in a structured catalog. For v1, each entry includes:
+
+- `id`
+- `activation`
+- `install_strategy`
+- `version`
+- `download_url`
+- `sha256`
+- `archive_binary_path`
+- `host_install_path`
+- `container_mounts`
+- `env`
+- `openclaw_skills`
+- `host_verify_commands`
+- `container_verify_command`
+
+The shipped `gog` entry is pinned to a specific upstream Linux amd64 GitHub release asset plus SHA-256 checksum. Sync360 does not compile `gog` from source on the client VPS.
+
+### Shared capability service
+
+`TenantRuntimeCapabilityService` is the shared implementation for this model. It owns:
+
+- capability catalog lookup and validation
+- OpenClaw skill enablement in `config/openclaw.json`
+- agent skill allowlist normalization
+- deterministic compose generation for capability mounts and env
+- host install flow for SSH-managed servers
+- host verification command execution
+- in-container verification command generation using host-side `docker exec`
+- staged local compose/config regeneration for repair paths
+
+Both of these paths now run through that shared service:
+
+- initial provisioning in `OpenClawProvisioner`
+- later Google Workspace runtime sync/repair flows in `TenantAgentSyncService` and the runtime capability command
+
+### Compose and config generation
+
+Tenant runtime files are regenerated deterministically from tenant state plus the capability catalog.
+
+Rules:
+
+- Sync360 does not line-patch remote `compose.yaml` or `config/openclaw.json`
+- the control plane regenerates the full intended local staged file
+- it compares the regenerated contents to the staged local copy under `runtime/tenants/<slug>/`
+- it only writes the local file and uploads the remote file when the staged copy changed
+- if compose changed, the tenant is force-recreated
+- if only config changed, the tenant runtime is restarted
+
+For `gog`, the compose bind mount is unconditional across all tenant runtimes:
+
+- host source: `/usr/local/bin/gog`
+- container target: `/usr/local/bin/gog`
+- read-only mount
+
+The `activation` field remains product metadata describing what the capability enables. It does not decide whether the binary mount appears in compose.
+
+### Verification model
+
+Capability verification is layered:
+
+1. host binary exists, is executable, and matches the pinned version
+2. the running tenant container can see the binary via host-side `docker exec`
+3. capability-specific auth artifacts are present
+4. capability-specific smoke tests succeed
+
+For `gog`, the host/container binary checks happen before the existing Google auth and Gmail/Calendar smoke validation. The in-container check is performed from the host with:
+
+`docker exec sync360-<slug> sh -c "command -v gog >/dev/null 2>&1"`
+
+If capability verification fails during repair or Google sync, Sync360 explicitly writes `runtime_sync_status=failed` and stores the precise `last_error`, even if the tenant had previously been marked verified.
+
+### Operator commands
+
+`sync360:bootstrap-client-vps`
+
+- still prepares Caddy, runtime directories, and Docker access on the client VPS
+- now also installs pinned host-managed runtime capabilities for that server
+- fails if download, checksum validation, extraction, install, or verification fails
+
+`sync360:sync-runtime-capabilities {tenantSelector?} {capability?}`
+
+- SSH-only repair and resync path for existing ready tenants
+- ensures the host capability is installed with version-aware idempotency
+- regenerates full staged compose/config files
+- pushes changed files remotely with `putFile()`
+- recreates the tenant only when compose changed
+- reruns host/container verification and Google smoke tests where applicable
+- corrects tenant Google runtime status on success or failure
+
+`sync360:test-google-workspace <tenant>`
+
+- surfaces the verification layers more explicitly:
+  - host capability
+  - container binary
+  - runtime artifacts
+  - container smoke
+
+### Future skill flow
+
+When adding a new OpenClaw skill that depends on an external host binary, the canonical flow is:
+
+1. classify it as config-only or host-managed runtime capability
+2. add a catalog entry with pinned version, download URL, checksum, mounts, env, and verification commands
+3. wire its compose/config behavior through `TenantRuntimeCapabilityService`
+4. add verification coverage for host presence, container visibility, and any skill-specific smoke/auth checks
+5. expose the activation point in onboarding, profile, or admin flows if the product needs a user-visible switch
+6. document the upgrade path for future pinned-version bumps
+
+### Pinned-version upgrade workflow
+
+For `gog` and future host-managed capabilities, the operator workflow is:
+
+1. update `version`, `download_url`, and `sha256` in `config/sync360.php`
+2. deploy the control plane
+3. run `php artisan sync360:bootstrap-client-vps <server>` on each SSH-managed client VPS
+4. run `php artisan sync360:sync-runtime-capabilities <tenant-or-scope> <capability>` to push regenerated compose/config and recreate affected tenants when needed
+5. run `php artisan sync360:test-google-workspace <tenant>` for affected Google-connected tenants
+
+## 6. Runtime generation and file layout
 
 ### Local staging
 
@@ -384,7 +530,7 @@ Google auth sync is a third shape:
 
 - targeted `putFile()` / `removeDirectory()` writes under `.openclaw/gogcli/`, plus a runtime restart when auth artifacts change
 
-## 6. External integrations
+## 7. External integrations
 
 ### LiteLLM
 
@@ -470,7 +616,7 @@ Responsibilities:
 
 This path is intentionally separate from tenant provisioning.
 
-## 7. Routes and scheduled jobs
+## 8. Routes and scheduled jobs
 
 ### Web routes
 
@@ -539,9 +685,10 @@ Implemented recurring commands:
 Also present:
 
 - `sync360:bootstrap-client-vps` — bootstrap helper for a client VPS
+- `sync360:sync-runtime-capabilities` — install/verify host-managed runtime capabilities and resync compose/config for ready tenants
 - `sync360:resync-live-tenants` — regenerate and push workspace instructions to existing live tenants after prompt/profile sync changes
 
-## 8. Operational controls
+## 9. Operational controls
 
 ### Tenant health and status
 
@@ -572,7 +719,7 @@ The admin surface is intentionally restricted by:
 
 The admin UI can trigger a host-side deploy script through `ControlAppDeploymentService` and read back status, commit info, and recent logs.
 
-## 9. Configuration surface
+## 10. Configuration surface
 
 Primary architecture settings live in `config/sync360.php`.
 
@@ -584,6 +731,7 @@ Main configuration groups:
 - tenant port range
 - provisioning driver and delay
 - OpenClaw image, service, readiness, and model settings
+- runtime capability catalog
 - workspace proxy and gateway timeouts
 - LiteLLM plans and budgets
 - control-plane deploy settings
@@ -604,15 +752,17 @@ Notable current additions:
 - `services.google.redirect_uri`
 - `services.google.project_id`
 
-## 10. Constraints and known gaps
+## 11. Constraints and known gaps
 
 - Billing is not implemented.
 - Secret-management and SSH-key hardening are not complete.
 - DNS automation is external to this repo.
 - Historical release notes and plans still contain webhook-first Telegram narratives and more complete WhatsApp claims than the current implementation.
 - Production assumptions should be verified against the deployed environment rather than inferred from repo docs alone.
+- Host-managed runtime capability commands are intentionally unsupported in `local` mode.
+- `goLive()` must continue to sync workspace markdown only and must not be extended to deliver host binaries or full runtime config.
 
-## 11. Code map for contributors
+## 12. Code map for contributors
 
 Start with these files:
 
@@ -627,6 +777,7 @@ Start with these files:
 - `app/Services/OpenClawProvisioner.php`
 - `app/Services/GoogleWorkspaceOAuthService.php`
 - `app/Services/GogAuthStorageService.php`
+- `app/Services/TenantRuntimeCapabilityService.php`
 - `app/Services/TenantRuntimeService.php`
 - `app/Services/TenantAgentSyncService.php`
 - `app/Services/TenantGatewayService.php`

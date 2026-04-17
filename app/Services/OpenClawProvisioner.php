@@ -21,6 +21,7 @@ class OpenClawProvisioner implements TenantProvisioner
         private readonly DockerComposeRunner $dockerCompose,
         private readonly Filesystem $files,
         private readonly LiteLlmTenantKeyService $liteLlmKeys,
+        private readonly TenantRuntimeCapabilityService $runtimeCapabilities,
     ) {
     }
 
@@ -71,8 +72,8 @@ class OpenClawProvisioner implements TenantProvisioner
         ]);
         $remoteRuntimePath = $this->runtime->remoteRuntimePath($tenant);
 
-        $composeFile = $remoteRuntimePath.DIRECTORY_SEPARATOR.(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
-        $projectName = $this->projectName($tenant);
+        $composeFile = $this->runtime->remoteComposePath($tenant);
+        $projectName = $this->runtime->projectName($tenant);
 
         $this->writeOpenClawConfig($localRuntimePath, $tenant, $assignedPort, $gatewayToken);
         $this->writeComposeFile($tenant, $localRuntimePath, $remoteRuntimePath, $assignedPort, $gatewayToken, $liteLlmKey['key'], $liteLlmKey['base_url']);
@@ -124,7 +125,7 @@ class OpenClawProvisioner implements TenantProvisioner
 
         $this->files->put(
             $configPath,
-            json_encode($this->withRequiredSkills([
+            $this->runtimeCapabilities->renderOpenClawConfig([
                 'agents' => [
                     'defaults' => [
                         'model' => $defaultModel,
@@ -152,69 +153,8 @@ class OpenClawProvisioner implements TenantProvisioner
                         'enabled' => false,
                     ],
                 ],
-            ]), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL,
+            ]),
         );
-    }
-
-    /**
-     * @param  array<string, mixed>  $config
-     * @return array<string, mixed>
-     */
-    private function withRequiredSkills(array $config): array
-    {
-        $config['skills'] = is_array($config['skills'] ?? null) ? $config['skills'] : [];
-        $config['skills']['entries'] = is_array($config['skills']['entries'] ?? null) ? $config['skills']['entries'] : [];
-
-        $gogEntry = $config['skills']['entries']['gog'] ?? [];
-
-        if (! is_array($gogEntry)) {
-            $gogEntry = [];
-        }
-
-        $config['skills']['entries']['gog'] = array_merge($gogEntry, [
-            'enabled' => true,
-        ]);
-
-        $config['agents'] = is_array($config['agents'] ?? null) ? $config['agents'] : [];
-        $config['agents']['defaults'] = is_array($config['agents']['defaults'] ?? null) ? $config['agents']['defaults'] : [];
-        $config['agents']['defaults']['skills'] = $this->appendSkill(
-            $config['agents']['defaults']['skills'] ?? [],
-            'gog',
-        );
-
-        if (is_array($config['agents']['list'] ?? null)) {
-            $config['agents']['list'] = array_map(function (mixed $agent): mixed {
-                if (! is_array($agent)) {
-                    return $agent;
-                }
-
-                $agent['skills'] = $this->appendSkill($agent['skills'] ?? [], 'gog');
-
-                return $agent;
-            }, $config['agents']['list']);
-        }
-
-        return $config;
-    }
-
-    /**
-     * @param  mixed  $skills
-     * @return array<int, string>
-     */
-    private function appendSkill(mixed $skills, string $skill): array
-    {
-        $skillList = array_values(array_filter(
-            array_map(
-                static fn (mixed $value): ?string => is_string($value) && trim($value) !== '' ? trim($value) : null,
-                is_array($skills) ? $skills : [],
-            )
-        ));
-
-        if (! in_array($skill, $skillList, true)) {
-            $skillList[] = $skill;
-        }
-
-        return $skillList;
     }
 
     private function writeCaddyConfig(Tenant $tenant, string $runtimePath, int $assignedPort): string
@@ -251,47 +191,14 @@ class OpenClawProvisioner implements TenantProvisioner
     {
         $composeFile = $localRuntimePath.DIRECTORY_SEPARATOR.(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
         $this->files->ensureDirectoryExists(dirname($composeFile));
-        $containerHome = rtrim((string) config('sync360.openclaw.container_home', '/home/node/.openclaw'), '/');
-        $gatewayPort = (int) config('sync360.openclaw.gateway_port', 18789);
-        $serviceName = (string) config('sync360.openclaw.service_name', 'openclaw-gateway');
-        $image = (string) config('sync360.openclaw.image');
-        $configPath = $containerHome.'/config/openclaw.json';
-        $stateDir = $containerHome.'/data';
-        $command = sprintf(
-            'openclaw gateway --allow-unconfigured --port=%d',
-            $gatewayPort,
-        );
-
-        $compose = implode(PHP_EOL, [
-            'services:',
-            sprintf('  %s:', $serviceName),
-            sprintf('    image: %s', $image),
-            '    restart: unless-stopped',
-            sprintf("    container_name: sync360-%s", $tenant->slug),
-            '    command:',
-            sprintf("      - /bin/sh"),
-            sprintf("      - -lc"),
-            sprintf("      - %s", $this->yamlQuote($command)),
-            '    ports:',
-            sprintf('      - "127.0.0.1:%d:%d"', $assignedPort, $gatewayPort),
-            '    volumes:',
-            '      - type: bind',
-            sprintf('        source: %s', $this->yamlQuote($remoteRuntimePath)),
-            sprintf('        target: %s', $this->yamlQuote($containerHome)),
-            '    environment:',
-            sprintf('      OPENCLAW_HOME: %s', $this->yamlQuote($containerHome)),
-            sprintf('      OPENCLAW_STATE_DIR: %s', $this->yamlQuote($stateDir)),
-            sprintf('      OPENCLAW_CONFIG_PATH: %s', $this->yamlQuote($configPath)),
-            sprintf('      OPENCLAW_GATEWAY_TOKEN: %s', $this->yamlQuote($gatewayToken)),
-            sprintf('      OPENAI_API_KEY: %s', $this->yamlQuote($liteLlmKey)),
-            sprintf('      OPENAI_BASE_URL: %s', $this->yamlQuote($liteLlmBaseUrl)),
-            sprintf('      XDG_CONFIG_HOME: %s', $this->yamlQuote($this->runtime->containerGogConfigHome())),
-            sprintf('      GOG_KEYRING_BACKEND: %s', $this->yamlQuote('file')),
-            sprintf('      GOG_KEYRING_PASSWORD: %s', $this->yamlQuote($this->runtime->googleKeyringPassword($tenant))),
-            '',
-        ]);
-
-        $this->files->put($composeFile, $compose);
+        $this->files->put($composeFile, $this->runtimeCapabilities->renderCompose(
+            $tenant,
+            $remoteRuntimePath,
+            $assignedPort,
+            $gatewayToken,
+            $liteLlmKey,
+            $liteLlmBaseUrl,
+        ));
     }
 
     private function waitForReadiness(Tenant $tenant, int $assignedPort): void
@@ -398,18 +305,8 @@ class OpenClawProvisioner implements TenantProvisioner
         return (bool) ($tenant->server?->workspace_base_domain && $tenant->server?->caddy_sites_path && $tenant->server?->caddy_reload_command);
     }
 
-    private function projectName(Tenant $tenant): string
-    {
-        return Str::limit('sync360-'.$tenant->slug, 63, '');
-    }
-
     private function containerName(Tenant $tenant): string
     {
-        return 'sync360-'.$tenant->slug;
-    }
-
-    private function yamlQuote(string $value): string
-    {
-        return '"'.str_replace(['\\', '"'], ['\\\\', '\"'], $value).'"';
+        return $this->runtime->containerName($tenant);
     }
 }

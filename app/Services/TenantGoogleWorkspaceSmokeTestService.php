@@ -16,6 +16,7 @@ class TenantGoogleWorkspaceSmokeTestService
         private readonly Filesystem $files,
         private readonly DockerComposeRunner $dockerCompose,
         private readonly TenantRuntimeService $runtime,
+        private readonly TenantRuntimeCapabilityService $runtimeCapabilities,
     ) {
     }
 
@@ -38,6 +39,11 @@ class TenantGoogleWorkspaceSmokeTestService
 
         if (! $credential?->isConnected()) {
             throw new RuntimeException('Tenant does not currently have a connected Google Workspace credential.');
+        }
+
+        if ((string) config('sync360.infrastructure.driver', 'local') !== 'local') {
+            $this->runtimeCapabilities->verifyHostCapabilities($tenant->server, ['gog']);
+            $this->runtimeCapabilities->verifyContainerCapabilities($tenant, ['gog']);
         }
 
         $localConfigRoot = $this->runtime->localGogConfigPath($tenant);
@@ -104,6 +110,8 @@ class TenantGoogleWorkspaceSmokeTestService
             'compose_file' => $composeFile,
             'container_script_path' => $containerSmokeScriptPath,
             'xdg_config_home_expected' => $this->runtime->containerGogConfigHome(),
+            'host_capability_verified' => (string) config('sync360.infrastructure.driver', 'local') !== 'local',
+            'container_binary_verified' => (string) config('sync360.infrastructure.driver', 'local') !== 'local',
             'runtime_artifacts_verified' => true,
             'container_smoke_passed' => true,
         ];

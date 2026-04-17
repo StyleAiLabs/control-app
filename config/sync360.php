@@ -41,6 +41,33 @@ return [
         'compose_timeout_seconds' => (int) env('OPENCLAW_COMPOSE_TIMEOUT_SECONDS', 600),
         'default_agent_model' => env('OPENCLAW_DEFAULT_AGENT_MODEL', 'gpt-4o'),
     ],
+    'runtime_capabilities' => [
+        'gog' => [
+            'id' => 'gog',
+            'activation' => 'google_workspace',
+            'install_strategy' => 'binary_download',
+            'version' => 'v0.12.0',
+            'download_url' => 'https://github.com/steipete/gogcli/releases/download/v0.12.0/gogcli_0.12.0_linux_amd64.tar.gz',
+            'sha256' => 'a03fccbd67ea2e59a26a56e92de8918577f4bebe4b2f946823419777827cdab2',
+            'archive_binary_path' => 'gog',
+            'host_install_path' => '/usr/local/bin/gog',
+            'container_mounts' => [
+                [
+                    'source' => '/usr/local/bin/gog',
+                    'target' => '/usr/local/bin/gog',
+                    'read_only' => true,
+                ],
+            ],
+            'env' => [],
+            'openclaw_skills' => ['gog'],
+            'host_verify_commands' => [
+                'test -x {{path}}',
+                '{{path}} --version 2>&1 | grep -qF {{version}}',
+                '{{path}} --help >/dev/null 2>&1',
+            ],
+            'container_verify_command' => 'command -v gog >/dev/null 2>&1',
+        ],
+    ],
     'workspace_proxy' => [
         'control_app_upstream' => env('SYNC360_WORKSPACE_CONTROL_APP_UPSTREAM', env('APP_URL', 'http://localhost')),
         'public_readiness_timeout_seconds' => (int) env('SYNC360_WORKSPACE_PUBLIC_READY_TIMEOUT_SECONDS', 120),

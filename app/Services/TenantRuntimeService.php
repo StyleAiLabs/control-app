@@ -7,6 +7,7 @@ use App\Models\ProvisioningJob;
 use App\Models\Tenant;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class TenantRuntimeService
@@ -125,6 +126,37 @@ class TenantRuntimeService
         return $runtimeRoot.DIRECTORY_SEPARATOR.$tenant->slug;
     }
 
+    public function localEnvPath(Tenant $tenant): string
+    {
+        return $this->localRuntimePath($tenant).DIRECTORY_SEPARATOR.'.env';
+    }
+
+    public function localComposePath(Tenant $tenant): string
+    {
+        return $this->localRuntimePath($tenant)
+            .DIRECTORY_SEPARATOR
+            .(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
+    }
+
+    public function remoteComposePath(Tenant $tenant): string
+    {
+        return rtrim($tenant->runtime_path ?: $this->remoteRuntimePath($tenant), DIRECTORY_SEPARATOR)
+            .DIRECTORY_SEPARATOR
+            .(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
+    }
+
+    public function localOpenClawConfigPath(Tenant $tenant): string
+    {
+        return $this->localRuntimePath($tenant)
+            .DIRECTORY_SEPARATOR.'config'.DIRECTORY_SEPARATOR.'openclaw.json';
+    }
+
+    public function remoteOpenClawConfigPath(Tenant $tenant): string
+    {
+        return rtrim($tenant->runtime_path ?: $this->remoteRuntimePath($tenant), DIRECTORY_SEPARATOR)
+            .DIRECTORY_SEPARATOR.'config'.DIRECTORY_SEPARATOR.'openclaw.json';
+    }
+
     public function caddySitePath(Tenant $tenant): string
     {
         $server = $tenant->server;
@@ -181,6 +213,16 @@ class TenantRuntimeService
             static fn (string $part): string => escapeshellarg($part),
             $this->localDockerComposeCommandParts(),
         ));
+    }
+
+    public function projectName(Tenant $tenant): string
+    {
+        return Str::limit('sync360-'.$tenant->slug, 63, '');
+    }
+
+    public function containerName(Tenant $tenant): string
+    {
+        return 'sync360-'.$tenant->slug;
     }
 
     /**

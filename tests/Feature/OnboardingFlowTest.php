@@ -532,6 +532,7 @@ class OnboardingFlowTest extends TestCase
 
         $tenant->forceFill([
             'provisioning_status' => TenantProvisioningStatus::Ready,
+            'assigned_port' => 4100,
             'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
         ])->save();
 
@@ -553,6 +554,12 @@ class OnboardingFlowTest extends TestCase
             '      OPENCLAW_STATE_DIR: "/home/node/.openclaw/data"',
             '      OPENCLAW_CONFIG_PATH: "/home/node/.openclaw/config/openclaw.json"',
             '      OPENCLAW_GATEWAY_TOKEN: "test-token"',
+            '',
+        ]));
+        File::put($localRuntimePath.'/.env', implode(PHP_EOL, [
+            'OPENCLAW_GATEWAY_TOKEN=test-token',
+            'OPENAI_API_KEY=sk-tenant-acme',
+            'OPENAI_BASE_URL=https://litellm.stylesoftware.co.nz',
             '',
         ]));
 
@@ -603,6 +610,7 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('owner@example.com', File::get($localGogPath.'/config.json'));
         $this->assertStringContainsString('XDG_CONFIG_HOME: "/home/node/.openclaw/.openclaw"', File::get($localRuntimePath.'/compose.yaml'));
         $this->assertStringContainsString('GOG_KEYRING_BACKEND: "file"', File::get($localRuntimePath.'/compose.yaml'));
+        $this->assertStringContainsString('source: "/usr/local/bin/gog"', File::get($localRuntimePath.'/compose.yaml'));
         $this->assertStringContainsString('"gog"', File::get($localRuntimePath.'/config/openclaw.json'));
         $this->assertStringContainsString('"enabled": true', File::get($localRuntimePath.'/config/openclaw.json'));
     }
@@ -1081,17 +1089,6 @@ class OnboardingFlowTest extends TestCase
         };
 
         $this->instance(DockerComposeRunner::class, $runnerSpy);
-        $this->mock(TenantGoogleWorkspaceSmokeTestService::class, function ($mock): void {
-            $mock->shouldReceive('run')
-                ->once()
-                ->andReturn([
-                    'tenant_slug' => 'acme-plumbing',
-                    'google_email' => 'owner@example.com',
-                    'runtime_artifacts_verified' => true,
-                    'container_smoke_passed' => true,
-                ]);
-        });
-
         $this->actingAs($user)
             ->postJson('/onboarding/go-live')
             ->assertOk();

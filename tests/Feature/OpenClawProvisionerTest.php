@@ -115,6 +115,9 @@ class OpenClawProvisionerTest extends TestCase
         $this->assertStringContainsString('acme-plumbing.workspace.test', (string) file_get_contents($localRuntimePath.'/config/workspace.caddy'));
         $this->assertStringContainsString('ghcr.io/openclaw/openclaw:latest', (string) file_get_contents($localRuntimePath.'/compose.yaml'));
         $this->assertStringContainsString('/srv/sync360/runtime/tenants/acme-plumbing', (string) file_get_contents($localRuntimePath.'/compose.yaml'));
+        $this->assertStringContainsString('source: "/usr/local/bin/gog"', (string) file_get_contents($localRuntimePath.'/compose.yaml'));
+        $this->assertStringContainsString('target: "/usr/local/bin/gog"', (string) file_get_contents($localRuntimePath.'/compose.yaml'));
+        $this->assertStringContainsString('read_only: true', (string) file_get_contents($localRuntimePath.'/compose.yaml'));
         $this->assertStringContainsString('OPENAI_API_KEY: "sk-tenant-acme"', (string) file_get_contents($localRuntimePath.'/compose.yaml'));
         $this->assertStringContainsString('OPENAI_BASE_URL: "https://litellm.stylesoftware.co.nz"', (string) file_get_contents($localRuntimePath.'/compose.yaml'));
 

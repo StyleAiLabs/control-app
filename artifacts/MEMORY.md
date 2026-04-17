@@ -56,6 +56,7 @@ If those files conflict with the codebase, trust:
 - Tenant runtime deployment: one OpenClaw runtime per tenant
 - Workspace URL model: customer-facing Sync360 URL on the tenant hostname; private gateway stays behind the control plane
 - Local dev runtime model: the Docker Compose dev stack forces `SYNC360_INFRASTRUCTURE_DRIVER=local`, uses `docker-compose` inside the app/worker containers, and reaches tenant host ports through `host.docker.internal`
+- Host-managed runtime capability model: external tenant runtime dependencies are declared in `config/sync360.php` under `runtime_capabilities`; Sync360 installs pinned host binaries on SSH-managed client VPS hosts, bind-mounts them read-only into every tenant container, and verifies both the host binary and in-container visibility before treating the runtime as healthy
 - Onboarding model: signup provisions the runtime in the background, while the customer completes a seven-step setup flow ending in optional Google Workspace connect and Go Live; the onboarding UI shows explicit wizard/background progress, polls server state without wiping in-progress drafts, advances automatically after successful saves on the main setup steps, and now distinguishes Google Workspace `connected`, `synced`, `verified`, and `needs attention` states instead of treating sync as proof of live readiness
 - Profile sync model: the Business Profile page now shows in-page assistant sync progress while a save/manual sync is running, shows the completion result after redirect, and live-tenant workspace prompt/tool-guidance changes can be pushed later with `sync360:resync-live-tenants` without reprovisioning the tenant
 - Google auth model: Sync360 owns the Google OAuth web flow; `tenant_google_credentials` is the source of truth and tenant `.openclaw/gogcli/` auth artifacts are a re-seedable runtime cache
@@ -73,6 +74,7 @@ If those files conflict with the codebase, trust:
 3. `ProcessTenantProvisioning` dispatches after commit.
 4. `OpenClawProvisioner` allocates a port, ensures a LiteLLM tenant key, prepares the runtime, writes OpenClaw and Compose config, syncs the runtime, starts the tenant container, checks private readiness through `TenantRuntimeService::gatewayBaseUrl()`, then checks the public workspace login URL.
 5. `WorkspaceReadyEmailService` sends the workspace-ready email after provisioning succeeds.
+6. In `ssh` mode, operators bootstrap each client VPS with `sync360:bootstrap-client-vps`, which now also installs any pinned host-managed runtime capabilities declared in config, such as the `gog` binary used by Google Workspace tooling.
 
 ### Onboarding and go-live
 
@@ -90,6 +92,7 @@ If those files conflict with the codebase, trust:
 12. `TOOLS.md` now gives the tenant agent explicit environment-specific `gog` guidance, including using exec, checking `gog --help` / `gog gmail --help`, and avoiding generic refusals when Google Workspace is connected.
 13. `goLive()` still only syncs workspace markdown files and restarts the tenant without overwriting provisioned credentials.
 14. Existing live tenants do not automatically receive new generated workspace instructions when only the control app is deployed; operators can resync those prompt/workspace-file changes with `php artisan sync360:resync-live-tenants` after deploy.
+15. Existing ready tenants that predate a new host-managed runtime capability can be repaired with `php artisan sync360:sync-runtime-capabilities {tenantSelector?} {capability?}`, which installs/verifies the host binary, regenerates full staged compose/config files, pushes changed files, recreates the tenant when compose changed, and corrects Google runtime status to `failed` if verification still breaks.
 
 ### Conversation logging and summaries
 
@@ -108,8 +111,12 @@ If those files conflict with the codebase, trust:
 ## 5. Critical invariants / gotchas
 
 - `goLive()` must never do a full runtime sync. It must use `DockerComposeRunner::syncWorkspaceFiles()` and not `syncRuntime()`, or provisioned credentials in `compose.yaml` and `config/openclaw.json` can be overwritten.
+- Host-managed runtime capabilities must never be delivered through `goLive()`. Host binaries are installed only through SSH runner commands (`sync360:bootstrap-client-vps` / `sync360:sync-runtime-capabilities`), and tenant runtime files are updated only through deterministic compose/config regeneration plus targeted remote writes.
 - Google Workspace auth sync must never piggyback on `goLive()` or use a full runtime sync. `TenantAgentSyncService::configureGoogleWorkspace()` uses targeted runner writes under `.openclaw/gogcli/` and can always re-seed runtime auth from the DB row.
 - Google Workspace `runtime_sync_status` is no longer equivalent to a plain file-write result. `pending` means the runtime has not been updated yet, `synced` means auth artifacts were written, `verified` means the tenant-side smoke test reached live Gmail/Calendar APIs, and `failed` means runtime sync or verification needs attention.
+- Host-managed runtime capability commands are intentionally SSH-only in v1. `local` mode does not emulate host installs or bind mounts; the commands fail early with a clear error instead.
+- Tenant compose generation now includes unconditional host-managed capability mounts declared in the catalog. For `gog`, every tenant compose file mounts `/usr/local/bin/gog` read-only from the host into the container, regardless of whether Google Workspace is currently connected.
+- Runtime capability verification is two-stage for binary access: host version/health checks run on the VPS, then the control plane runs `docker exec sync360-<slug> sh -c 'command -v <binary>'` from the host to confirm the live container can actually see the mounted binary.
 - In local Docker development, private gateway checks must not use container-local `127.0.0.1`; they must go through the configured host alias (`host.docker.internal` in the shipped `docker-compose.yml`) so the app container can reach tenant ports published on the Docker host.
 - When tenant `compose.yaml` env changes, local/remote Google runtime reload must recreate the tenant container (`up -d --force-recreate` / equivalent), not just `restart`, or `XDG_CONFIG_HOME` and keyring env updates will not take effect.
 - Tenant runtimes use a fixed Docker container name derived from the slug (`sync360-<slug>`), so deletion and provisioning must explicitly remove stale named containers as part of cleanup to support delete-and-recreate flows safely.
@@ -141,6 +148,7 @@ Remaining documentation mismatch:
 - [`app/Http/Controllers/Auth/RegisterController.php`](../app/Http/Controllers/Auth/RegisterController.php) — signup transaction
 - [`app/Jobs/ProcessTenantProvisioning.php`](../app/Jobs/ProcessTenantProvisioning.php) — provisioning job orchestration
 - [`app/Services/OpenClawProvisioner.php`](../app/Services/OpenClawProvisioner.php) — runtime preparation and deployment
+- [`app/Services/TenantRuntimeCapabilityService.php`](../app/Services/TenantRuntimeCapabilityService.php) — host-managed capability catalog, compose/config mutation, SSH install flow, and host/container verification
 - [`app/Services/TenantRuntimeService.php`](../app/Services/TenantRuntimeService.php) — paths, ports, workspace URL, runtime generation
 - [`app/Services/TenantAgentSyncService.php`](../app/Services/TenantAgentSyncService.php) — go-live sync, channel config, heartbeat/profile sync
 - [`app/Console/Commands/SyncConversationReplies.php`](../app/Console/Commands/SyncConversationReplies.php) — session-log conversation sync
