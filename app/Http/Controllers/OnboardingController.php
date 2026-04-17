@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ProvisioningJobStatus;
 use App\Exceptions\ExtractionFailedException;
 use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
@@ -540,6 +541,10 @@ class OnboardingController extends Controller
                 'can_reconnect' => false,
                 'connected' => false,
                 'pending_sync' => false,
+                'sync_queued' => false,
+                'sync_in_progress' => false,
+                'sync_job_status' => null,
+                'runtime_sync_label' => 'Unavailable',
                 'requires_action' => false,
                 'workspace_ready' => $tenant->provisioning_status->value === 'ready',
                 'available' => false,
@@ -550,29 +555,78 @@ class OnboardingController extends Controller
             && filled(config('services.google.client_secret'))
             && filled(config('services.google.redirect_uri'));
         $status = $credential?->status ?? TenantGoogleCredential::STATUS_PENDING;
+        $workspaceReady = $tenant->provisioning_status->value === 'ready';
+        $runtimeSyncStatus = $credential?->runtime_sync_status ?? TenantGoogleCredential::RUNTIME_SYNC_PENDING;
+        $syncJob = $status === TenantGoogleCredential::STATUS_CONNECTED
+            ? $this->agentSync->latestInitialGoogleWorkspaceSyncJob($tenant)
+            : null;
+        $syncJobStatus = $syncJob?->status?->value;
+        $syncQueued = $status === TenantGoogleCredential::STATUS_CONNECTED
+            && $syncJob?->status === ProvisioningJobStatus::Queued;
+        $syncInProgress = $status === TenantGoogleCredential::STATUS_CONNECTED
+            && $syncJob?->status === ProvisioningJobStatus::Running
+            && $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_PENDING;
+        $pendingVerification = $status === TenantGoogleCredential::STATUS_CONNECTED
+            && $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_SYNCED;
+        $verified = $status === TenantGoogleCredential::STATUS_CONNECTED
+            && $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_VERIFIED;
+        $needsAttention = $status === TenantGoogleCredential::STATUS_CONNECTED
+            && $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_FAILED;
 
         return [
             'status' => $status,
-            'runtime_sync_status' => $credential?->runtime_sync_status ?? TenantGoogleCredential::RUNTIME_SYNC_PENDING,
+            'runtime_sync_status' => $runtimeSyncStatus,
+            'runtime_sync_label' => $this->googleWorkspaceRuntimeSyncLabel(
+                $status,
+                $runtimeSyncStatus,
+                $workspaceReady,
+                $syncJobStatus,
+            ),
             'connected_email' => $credential?->google_email,
             'scopes' => is_array($credential?->scopes) ? $credential->scopes : $this->googleOAuth->scopes(),
             'can_connect' => $configured,
             'can_reconnect' => $status === TenantGoogleCredential::STATUS_DISCONNECTED,
             'connected' => $status === TenantGoogleCredential::STATUS_CONNECTED,
             'pending_sync' => $status === TenantGoogleCredential::STATUS_CONNECTED
-                && ($credential?->runtime_sync_status ?? TenantGoogleCredential::RUNTIME_SYNC_PENDING) === TenantGoogleCredential::RUNTIME_SYNC_PENDING,
-            'pending_verification' => $status === TenantGoogleCredential::STATUS_CONNECTED
-                && ($credential?->runtime_sync_status ?? null) === TenantGoogleCredential::RUNTIME_SYNC_SYNCED,
-            'verified' => $status === TenantGoogleCredential::STATUS_CONNECTED
-                && ($credential?->runtime_sync_status ?? null) === TenantGoogleCredential::RUNTIME_SYNC_VERIFIED,
-            'needs_attention' => $status === TenantGoogleCredential::STATUS_CONNECTED
-                && ($credential?->runtime_sync_status ?? null) === TenantGoogleCredential::RUNTIME_SYNC_FAILED,
+                && $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_PENDING
+                && ! $workspaceReady
+                && ! $syncQueued
+                && ! $syncInProgress,
+            'sync_queued' => $syncQueued,
+            'sync_in_progress' => $syncInProgress,
+            'sync_job_status' => $syncJobStatus,
+            'sync_job_started_at' => $syncJob?->started_at?->toIso8601String(),
+            'sync_job_completed_at' => $syncJob?->completed_at?->toIso8601String(),
+            'pending_verification' => $pendingVerification,
+            'verified' => $verified,
+            'needs_attention' => $needsAttention,
             'requires_action' => $status === TenantGoogleCredential::STATUS_PENDING,
-            'workspace_ready' => $tenant->provisioning_status->value === 'ready',
+            'workspace_ready' => $workspaceReady,
             'available' => true,
             'last_error' => $credential?->last_error,
             'last_synced_at' => $credential?->last_synced_at?->toIso8601String(),
         ];
+    }
+
+    private function googleWorkspaceRuntimeSyncLabel(
+        string $status,
+        string $runtimeSyncStatus,
+        bool $workspaceReady,
+        ?string $syncJobStatus,
+    ): string {
+        if ($status !== TenantGoogleCredential::STATUS_CONNECTED) {
+            return ucfirst($runtimeSyncStatus);
+        }
+
+        return match (true) {
+            $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_FAILED => 'Needs attention',
+            $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_VERIFIED => 'Ready',
+            $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_SYNCED => 'Checking',
+            $syncJobStatus === ProvisioningJobStatus::Running->value => 'Syncing',
+            $syncJobStatus === ProvisioningJobStatus::Queued->value => 'Queued',
+            $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_PENDING && ! $workspaceReady => 'Waiting for workspace',
+            default => ucfirst($runtimeSyncStatus),
+        };
     }
 
     /**

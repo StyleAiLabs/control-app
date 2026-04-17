@@ -5,8 +5,10 @@ namespace Tests\Feature;
 use App\Contracts\DockerComposeRunner;
 use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
+use App\Jobs\ProcessInitialGoogleWorkspaceSync;
 use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
+use App\Models\ProvisioningJob;
 use App\Models\Server;
 use App\Models\Tenant;
 use App\Models\TenantGoogleCredential;
@@ -15,6 +17,7 @@ use App\Services\TenantGoogleWorkspaceSmokeTestService;
 use Illuminate\Support\Facades\File;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -521,6 +524,72 @@ class OnboardingFlowTest extends TestCase
         $this->assertSame(6, $tenant->fresh()->onboarding_step);
         $this->assertNotNull($credential?->connected_at);
         $this->assertNull($credential?->oauth_state);
+    }
+
+    public function test_google_callback_queues_initial_sync_and_exposes_queued_progress_when_workspace_is_ready(): void
+    {
+        [$user, $tenant] = $this->seedTenantWithProfile();
+
+        config()->set('services.google.client_id', 'google-client-id');
+        config()->set('services.google.client_secret', 'google-client-secret');
+        config()->set('services.google.redirect_uri', 'https://app.sync360.test/auth/google/callback');
+
+        $tenant->forceFill([
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'assigned_port' => 4100,
+            'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
+        ])->save();
+
+        Queue::fake([ProcessInitialGoogleWorkspaceSync::class]);
+
+        $this->actingAs($user)->get('/onboarding/google/connect');
+
+        $credential = $tenant->fresh('googleCredential')->googleCredential;
+
+        Http::fake([
+            'https://oauth2.googleapis.com/token' => Http::response([
+                'access_token' => 'google-access-token',
+                'refresh_token' => 'google-refresh-token',
+                'expires_in' => 3600,
+                'scope' => implode(' ', [
+                    'openid',
+                    'email',
+                    'profile',
+                    'https://www.googleapis.com/auth/gmail.readonly',
+                ]),
+                'token_type' => 'Bearer',
+            ], 200),
+            'https://openidconnect.googleapis.com/v1/userinfo' => Http::response([
+                'email' => 'owner@example.com',
+            ], 200),
+        ]);
+
+        $this->get('/auth/google/callback?state='.urlencode((string) $credential?->oauth_state).'&code=test-code')
+            ->assertRedirect('/onboarding?step=6');
+
+        Queue::assertPushed(ProcessInitialGoogleWorkspaceSync::class, function (ProcessInitialGoogleWorkspaceSync $job) use ($tenant): bool {
+            return $job->tenantId === $tenant->id;
+        });
+
+        $credential = $tenant->fresh('googleCredential')->googleCredential;
+        $syncJob = ProvisioningJob::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('job_type', ProcessInitialGoogleWorkspaceSync::JOB_TYPE)
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($syncJob);
+        $this->assertSame('queued', $syncJob?->status?->value);
+        $this->assertSame(TenantGoogleCredential::RUNTIME_SYNC_PENDING, $credential?->runtime_sync_status);
+
+        $this->actingAs($user);
+
+        $this->get('/onboarding/state')
+            ->assertOk()
+            ->assertJsonPath('google_workspace.sync_job_status', 'queued')
+            ->assertJsonPath('google_workspace.sync_queued', true)
+            ->assertJsonPath('google_workspace.sync_in_progress', false)
+            ->assertJsonPath('google_workspace.runtime_sync_label', 'Queued');
     }
 
     public function test_google_callback_syncs_runtime_artifacts_when_workspace_is_ready(): void

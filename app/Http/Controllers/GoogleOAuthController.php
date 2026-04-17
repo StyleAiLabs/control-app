@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\TenantProvisioningStatus;
 use App\Models\Tenant;
 use App\Models\TenantGoogleCredential;
 use App\Services\GoogleWorkspaceOAuthService;
@@ -68,16 +67,18 @@ class GoogleOAuthController extends Controller
                 $request->string('code')->toString(),
             );
 
-            if (
-                $tenant->provisioning_status === TenantProvisioningStatus::Ready
-                && filled($tenant->runtime_path)
-            ) {
-                $this->agentSync->syncConnectedGoogleWorkspace($tenant->fresh(['server', 'googleCredential']));
-            }
+            $syncJob = $this->agentSync->dispatchInitialGoogleWorkspaceSync(
+                $tenant->fresh(['server', 'googleCredential']),
+                trigger: 'google_oauth_callback',
+            );
 
             $this->markOnboardingStepComplete($tenant);
 
-            return $this->redirectToGoogleStep('Google Workspace connected successfully.');
+            return $this->redirectToGoogleStep(
+                $syncJob
+                    ? 'Google Workspace connected. We queued the first live workspace sync and will keep it moving automatically.'
+                    : 'Google Workspace connected. We will finish linking it to your live workspace as soon as setup is ready.'
+            );
         } catch (Throwable $exception) {
             $tenant->googleCredential?->forceFill([
                 'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_FAILED,

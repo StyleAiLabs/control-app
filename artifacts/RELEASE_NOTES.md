@@ -7,6 +7,22 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-18 — Google Workspace Connect Now Queues An Initial Tenant Sync
+
+Date: 2026-04-18
+Status: Implemented
+
+### Overview
+
+Closed the last onboarding gap between a successful Google OAuth callback and a workspace that is actually ready to use Google tools. Instead of relying on an inline best-effort sync during connect or later manual intervention, Sync360 now persists and dispatches a dedicated initial Google Workspace sync job and surfaces that progress back to the customer.
+
+### What Changed
+
+- changed the Google callback and tenant provisioning completion path to create a durable `initial_google_workspace_sync` job in `provisioning_jobs` whenever a connected tenant runtime is ready for its first Google reseed and verification pass
+- added a dedicated queue job that runs the existing Google auth reseed plus tenant-side smoke verification flow, marks the job `queued` / `running` / `completed` / `failed`, and keeps `runtime_sync_status` / `last_error` aligned with the real outcome
+- updated onboarding state payloads and Step 6 UI copy so newly connected tenants now move through `waiting for workspace`, `queued`, `syncing`, `checking`, `ready`, or `needs attention` instead of showing only the coarse runtime status
+- added focused coverage proving both the OAuth callback and the provisioning-ready path dispatch the initial Google sync automatically and expose the queued progress state to the customer
+
 ## 2026-04-18 — Channel Step Always Shows A Manual Path To Google Workspace
 
 Date: 2026-04-18

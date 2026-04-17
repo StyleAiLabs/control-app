@@ -6,15 +6,18 @@ use App\Contracts\TenantProvisioner;
 use App\Enums\ProvisioningJobStatus;
 use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
+use App\Jobs\ProcessInitialGoogleWorkspaceSync;
 use App\Jobs\ProcessTenantProvisioning;
 use App\Models\ProvisioningJob;
 use App\Models\Server;
 use App\Models\Tenant;
+use App\Models\TenantGoogleCredential;
 use App\Models\User;
 use App\Services\WorkspaceReadyEmailService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Queue;
 use Mockery;
 use RuntimeException;
 use Tests\TestCase;
@@ -126,6 +129,45 @@ class ProvisioningFlowTest extends TestCase
         $this->assertSame('alice@example.com', $job->payload_json['workspace_login_email'] ?? null);
         $this->assertArrayNotHasKey('workspace_password_encrypted', $job->payload_json ?? []);
         $this->assertArrayHasKey('workspace_ready_email_sent_at', $job->payload_json ?? []);
+    }
+
+    public function test_provisioning_completion_queues_initial_google_workspace_sync_for_connected_tenant(): void
+    {
+        [, $tenant, $job] = $this->seedTenantAndJob();
+
+        TenantGoogleCredential::query()->create([
+            'tenant_id' => $tenant->id,
+            'status' => TenantGoogleCredential::STATUS_CONNECTED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_PENDING,
+            'google_email' => 'owner@example.com',
+            'access_token' => 'google-access-token',
+            'refresh_token' => 'google-refresh-token',
+            'scopes' => ['openid', 'email'],
+            'connected_at' => now(),
+        ]);
+
+        Queue::fake([ProcessInitialGoogleWorkspaceSync::class]);
+
+        ProcessTenantProvisioning::dispatchSync($tenant->id, $job->id);
+
+        $tenant->refresh();
+        $job->refresh();
+
+        $this->assertSame(TenantProvisioningStatus::Ready, $tenant->provisioning_status);
+        $this->assertSame(ProvisioningJobStatus::Completed, $job->status);
+
+        Queue::assertPushed(ProcessInitialGoogleWorkspaceSync::class, function (ProcessInitialGoogleWorkspaceSync $queuedJob) use ($tenant): bool {
+            return $queuedJob->tenantId === $tenant->id;
+        });
+
+        $syncJob = ProvisioningJob::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('job_type', ProcessInitialGoogleWorkspaceSync::JOB_TYPE)
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($syncJob);
+        $this->assertSame('queued', $syncJob?->status?->value);
     }
 
     public function test_brevo_failure_does_not_mark_provisioning_as_failed(): void

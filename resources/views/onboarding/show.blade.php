@@ -522,7 +522,7 @@
                 <div class="meta-item">
                     <small>Live Access</small>
                     <span id="google-workspace-runtime-sync">
-                        {{ ucfirst($state['google_workspace']['runtime_sync_status'] ?? 'pending') }}
+                        {{ $state['google_workspace']['runtime_sync_label'] ?? ucfirst($state['google_workspace']['runtime_sync_status'] ?? 'pending') }}
                     </span>
                 </div>
             </div>
@@ -532,6 +532,10 @@
                     Google Workspace connect is temporarily unavailable in this environment until the latest database migration has been run.
                 @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['needs_attention'] ?? false))
                     Google Workspace is connected. The live tools just need one more update before Gmail and Calendar are ready here.
+                @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['sync_queued'] ?? false))
+                    Google Workspace is connected. The first live workspace sync is queued and will start shortly.
+                @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['sync_in_progress'] ?? false))
+                    Google Workspace is connected. We are syncing it into your live workspace now.
                 @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['pending_sync'] ?? false))
                     Google Workspace is connected. We will finish linking it to your live workspace as soon as setup is ready.
                 @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['pending_verification'] ?? false))
@@ -985,7 +989,7 @@
                 : 'Not connected yet';
             googleWorkspaceStatus.textContent = formatStatus(state.google_workspace?.status || 'pending');
             googleWorkspaceEmail.textContent = state.google_workspace?.connected_email || 'Not connected yet';
-            googleWorkspaceRuntimeSync.textContent = formatStatus(state.google_workspace?.runtime_sync_status || 'pending');
+            googleWorkspaceRuntimeSync.textContent = state.google_workspace?.runtime_sync_label || formatStatus(state.google_workspace?.runtime_sync_status || 'pending');
             googleWorkspaceConnectLink.textContent = state.google_workspace?.can_reconnect
                 ? 'Reconnect Google Workspace'
                 : 'Connect Google Workspace';
@@ -1008,6 +1012,10 @@
                 googleWorkspaceNote.textContent = 'Google Workspace connect is temporarily unavailable in this environment until the latest database migration has been run.';
             } else if (state.google_workspace?.status === 'connected' && state.google_workspace?.needs_attention) {
                 googleWorkspaceNote.textContent = 'Google Workspace is connected. The live tools just need one more update before Gmail and Calendar are ready here.';
+            } else if (state.google_workspace?.status === 'connected' && state.google_workspace?.sync_queued) {
+                googleWorkspaceNote.textContent = 'Google Workspace is connected. The first live workspace sync is queued and will start shortly.';
+            } else if (state.google_workspace?.status === 'connected' && state.google_workspace?.sync_in_progress) {
+                googleWorkspaceNote.textContent = 'Google Workspace is connected. We are syncing it into your live workspace now.';
             } else if (state.google_workspace?.status === 'connected' && state.google_workspace?.pending_sync) {
                 googleWorkspaceNote.textContent = 'Google Workspace is connected. We will finish linking it to your live workspace as soon as setup is ready.';
             } else if (state.google_workspace?.status === 'connected' && state.google_workspace?.pending_verification) {

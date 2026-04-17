@@ -3,9 +3,12 @@
 namespace App\Services;
 
 use App\Contracts\DockerComposeRunner;
+use App\Enums\ProvisioningJobStatus;
 use App\Enums\TenantProvisioningStatus;
+use App\Jobs\ProcessInitialGoogleWorkspaceSync;
 use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
+use App\Models\ProvisioningJob;
 use App\Models\Tenant;
 use App\Models\TenantGoogleCredential;
 use App\Support\GoogleWorkspaceFeature;
@@ -384,6 +387,29 @@ class TenantAgentSyncService
         }
 
         try {
+            if ($this->hasActiveInitialGoogleWorkspaceSyncJob($tenant)) {
+                return;
+            }
+
+            $this->syncConnectedGoogleWorkspaceOrFail($tenant);
+        } catch (Throwable) {
+            // The strict path already persists the failure details for the UI.
+        }
+    }
+
+    public function syncConnectedGoogleWorkspaceOrFail(Tenant $tenant): void
+    {
+        if (! GoogleWorkspaceFeature::isAvailable()) {
+            return;
+        }
+
+        $tenant->loadMissing(['server', 'googleCredential']);
+
+        if (! $tenant->googleCredential?->isConnected()) {
+            return;
+        }
+
+        try {
             $this->configureGoogleWorkspace($tenant);
             $this->verifyConnectedGoogleWorkspace($tenant->fresh(['server', 'googleCredential']));
         } catch (Throwable $exception) {
@@ -396,7 +422,83 @@ class TenantAgentSyncService
                 'tenant_id' => $tenant->tenant_id,
                 'error' => $exception->getMessage(),
             ]);
+
+            throw $exception;
         }
+    }
+
+    public function dispatchInitialGoogleWorkspaceSync(Tenant $tenant, string $trigger = 'system'): ?ProvisioningJob
+    {
+        if (! GoogleWorkspaceFeature::isAvailable()) {
+            return null;
+        }
+
+        $tenant->loadMissing(['server', 'googleCredential']);
+
+        $credential = $tenant->googleCredential;
+
+        if (! $credential?->isConnected()) {
+            return null;
+        }
+
+        if ($tenant->provisioning_status !== TenantProvisioningStatus::Ready || ! filled($tenant->runtime_path)) {
+            $credential->forceFill([
+                'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_PENDING,
+                'last_error' => null,
+            ])->save();
+
+            return null;
+        }
+
+        $activeJob = $this->latestInitialGoogleWorkspaceSyncJob($tenant, [ProvisioningJobStatus::Queued, ProvisioningJobStatus::Running]);
+
+        if ($activeJob) {
+            return $activeJob;
+        }
+
+        $job = ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ProcessInitialGoogleWorkspaceSync::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Queued,
+            'payload_json' => [
+                'trigger' => $trigger,
+                'google_email' => $credential->google_email,
+            ],
+        ]);
+
+        $credential->forceFill([
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_PENDING,
+            'last_error' => null,
+        ])->save();
+
+        ProcessInitialGoogleWorkspaceSync::dispatch($tenant->id, $job->id)->afterCommit();
+
+        return $job;
+    }
+
+    public function latestInitialGoogleWorkspaceSyncJob(Tenant $tenant, ?array $statuses = null): ?ProvisioningJob
+    {
+        $query = ProvisioningJob::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('job_type', ProcessInitialGoogleWorkspaceSync::JOB_TYPE)
+            ->latest('id');
+
+        if (is_array($statuses) && $statuses !== []) {
+            $query->whereIn('status', array_map(
+                static fn (ProvisioningJobStatus|string $status): string => $status instanceof ProvisioningJobStatus ? $status->value : $status,
+                $statuses,
+            ));
+        }
+
+        return $query->first();
+    }
+
+    public function hasActiveInitialGoogleWorkspaceSyncJob(Tenant $tenant): bool
+    {
+        return $this->latestInitialGoogleWorkspaceSyncJob($tenant, [
+            ProvisioningJobStatus::Queued,
+            ProvisioningJobStatus::Running,
+        ]) !== null;
     }
 
     public function verifyConnectedGoogleWorkspace(Tenant $tenant): void
