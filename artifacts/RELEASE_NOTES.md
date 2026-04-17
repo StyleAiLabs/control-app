@@ -7,20 +7,22 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
-## 2026-04-18 — `gog` Credentials Payload Now Matches Real CLI Expectations
+## 2026-04-18 — `gog` Token Cache / File-Keyring Compatibility Fix
 
 Date: 2026-04-18
 Status: Implemented
 
 ### Overview
 
-Fixed a Google Workspace runtime compatibility bug where Sync360 could write a tenant `credentials.json` that passed the control plane's preflight but was rejected by the real `gog` Gmail CLI because the OAuth client fields were only nested under `installed`.
+Closed the next live Google Workspace runtime gap by fixing the remaining mismatch between Sync360's re-seeded tenant auth artifacts and the upstream `gog` file-keyring contract. Before this change, Sync360 wrote a plaintext JSON token directly into the keyring path, which caused the live Gmail CLI to fail with base64/keyring decode errors even after reconnecting Google successfully.
 
 ### What Changed
 
-- changed `GogAuthStorageService` so tenant `.openclaw/gogcli/credentials.json` now includes top-level `client_id` / `client_secret` as well as the nested `installed` payload
-- aligned the Google smoke script preflight with the real `gog` CLI by accepting either top-level or nested client fields when validating runtime auth artifacts
-- added regression coverage proving Google connect writes the compatible credentials payload and the smoke script now validates the same contract the live `gog` CLI uses
+- changed `GogAuthStorageService` so tenant `credentials.json` now includes the top-level `client_id` / `client_secret` fields expected by the live `gog` CLI in addition to the nested `installed` payload
+- changed tenant keyring token generation so `.openclaw/gogcli/keyring/token:default:<email>` is now written as an encrypted file-keyring payload compatible with the upstream `gog` / `99designs/keyring` file backend instead of plaintext JSON
+- kept `token_<safe-email>.json` as the plain authorized-user cache used for refresh-token/API smoke preflight
+- updated the Google smoke script so it no longer tries to JSON-parse the encrypted keyring file; it now validates the token cache and client credentials before running the real native `gog` CLI probes
+- added focused regression coverage proving the generated keyring artifact is encrypted/JWE-like and that the smoke script no longer treats that keyring file as plain JSON
 
 ## 2026-04-18 — Google Smoke Failures Now Ignore SSH Host-Key Noise
 

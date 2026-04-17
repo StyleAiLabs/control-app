@@ -618,6 +618,7 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('"client_id": "google-client-id"', $credentialsJson);
         $this->assertStringContainsString('"client_secret": "google-client-secret"', $credentialsJson);
         $this->assertStringContainsString('owner@example.com', File::get($localGogPath.'/config.json'));
+        $this->assertDoesNotMatchRegularExpression('/^\s*\\{/', File::get($localGogPath.'/keyring/token:default:owner@example.com'));
         $this->assertStringContainsString('XDG_CONFIG_HOME: "/home/node/.openclaw/.openclaw"', File::get($localRuntimePath.'/compose.yaml'));
         $this->assertStringContainsString('GOG_KEYRING_BACKEND: "file"', File::get($localRuntimePath.'/compose.yaml'));
         $this->assertStringContainsString('source: "/usr/local/bin/gog"', File::get($localRuntimePath.'/compose.yaml'));

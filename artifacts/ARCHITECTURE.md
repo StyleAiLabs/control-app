@@ -302,6 +302,14 @@ V1 scope set:
 
 The database is the source of truth. Runtime Google auth files are treated as disposable cache and are recreated from DB after restart, rebuild, reprovision, or manual resync.
 
+Auth-artifact contract:
+
+- `credentials.json` now includes the top-level `client_id` / `client_secret` fields the live `gog` CLI expects, plus the nested `installed` payload
+- `config.json` still declares `default_account` and the file keyring backend
+- `keyring/token:default:<email>` is now written in the encrypted file-keyring format expected by the upstream `gog` / `99designs/keyring` file backend; it is not plain JSON
+- `token_<safe-email>.json` remains the plain authorized-user cache used by Sync360's refresh-token/API smoke preflight
+- the smoke script treats the encrypted keyring file as opaque and relies on the real native `gog` CLI probes to prove that the runtime can read it correctly
+
 Runtime skill enablement rule:
 
 - tenant `config/openclaw.json` now explicitly enables the bundled `gog` skill under `skills.entries.gog`

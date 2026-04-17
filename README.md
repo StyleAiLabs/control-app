@@ -12,6 +12,7 @@ It currently covers the full control-plane loop:
 - tenant workspace tool guidance via generated `TOOLS.md`, including default-account behavior, native direct `gog` CLI usage, and guardrails against hallucinated reconnect or `credentials.json` advice
 - tenant runtime config now explicitly enables the bundled `gog` skill in `openclaw.json` so connected Google Workspace tooling is actually available to the agent
 - host-managed runtime capability installs for external tenant dependencies such as `gog`, using pinned VPS binaries plus read-only tenant bind mounts
+- tenant Google runtime auth reseeding now writes a `gog`-compatible encrypted file-keyring token artifact plus token cache files instead of a plaintext stand-in, so the live Gmail CLI and smoke path validate the same auth contract
 - private gateway access for health checks and runtime integration
 - conversation history sync from workspace session logs
 - trial lifecycle tracking and notification emails
@@ -100,6 +101,7 @@ Each tenant gets:
 - its own OpenClaw container
 - its own LiteLLM virtual key
 - optional DB-backed Google Workspace auth that is materialized into runtime `gog` files and can be smoke-tested from inside the tenant runtime
+- tenant `gog` auth files are generated in the file-keyring format expected by the live CLI; the encrypted keyring token file is not plain JSON and should not be patched manually
 - its own customer-facing workspace URL
 
 The public tenant hostname is the Sync360 login/dashboard entrypoint. The OpenClaw gateway stays private and is reached by the control plane through loopback plus the infrastructure runner.
@@ -232,6 +234,8 @@ The Google Workspace smoke path now verifies both runtime auth health and the na
 - direct Gmail / Calendar / Drive / Contacts CLI probes
 - allowlisted help probes for the broader `gog` service surface
 - existing refresh-token, Gmail API, and Calendar API smoke checks
+
+The smoke preflight now intentionally treats the encrypted `gog` keyring file as an opaque runtime artifact. It validates the token cache plus client credentials before running the real native `gog` CLI probes instead of trying to JSON-parse the keyring file itself.
 
 When a remote Google smoke run fails over SSH, Sync360 now strips the benign SSH known-host warning line from failure output before surfacing the result. Operators and onboarding screens should see the actual runtime/CLI failure instead of `Warning: Permanently added ... to the list of known hosts.`
 

@@ -58,11 +58,13 @@ class TenantGoogleWorkspaceSmokeTestService
             .DIRECTORY_SEPARATOR.'.openclaw'.DIRECTORY_SEPARATOR.'google-workspace-smoke.mjs';
         $localSmokeResultPath = $this->runtime->localRuntimePath($tenant)
             .DIRECTORY_SEPARATOR.'.openclaw'.DIRECTORY_SEPARATOR.'google-workspace-smoke-result.json';
+        $safeEmail = preg_replace('/[^A-Za-z0-9._-]+/', '_', (string) $credential->google_email) ?: 'account';
 
         $requiredFiles = [
             $localConfigRoot.DIRECTORY_SEPARATOR.'config.json',
             $localConfigRoot.DIRECTORY_SEPARATOR.'credentials.json',
             $localConfigRoot.DIRECTORY_SEPARATOR.'keyring'.DIRECTORY_SEPARATOR.'token:default:'.$credential->google_email,
+            $localConfigRoot.DIRECTORY_SEPARATOR.'token_'.$safeEmail.'.json',
         ];
 
         foreach ($requiredFiles as $requiredFile) {
@@ -283,11 +285,14 @@ if (account !== expectedAccount) {
 
 const keyringPath = path.join(configRoot, 'keyring', `token:default:${account}`);
 const tokenCachePath = path.join(configRoot, `token_${account.replace(/[^A-Za-z0-9._-]+/g, '_')}.json`);
-const keyring = JSON.parse(readFileSync(keyringPath, 'utf8'));
 const tokenCache = existsSync(tokenCachePath) ? JSON.parse(readFileSync(tokenCachePath, 'utf8')) : {};
-const refreshToken = keyring.refresh_token || tokenCache.refresh_token;
+const refreshToken = tokenCache.refresh_token;
 const clientId = credentials.client_id || credentials.installed?.client_id;
 const clientSecret = credentials.client_secret || credentials.installed?.client_secret;
+
+if (!existsSync(keyringPath)) {
+  fail('runtime-artifacts', 'Runtime Google keyring token file is missing from the mounted gog config.');
+}
 
 if (!refreshToken || !clientId || !clientSecret) {
   fail('runtime-artifacts', 'Runtime Google auth files are missing refresh token or client credentials.');
