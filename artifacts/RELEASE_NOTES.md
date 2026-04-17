@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-17 — `gog` Skill Enabled In Tenant OpenClaw Config
+
+Date: 2026-04-17
+Status: Implemented
+
+### Overview
+
+Fixed the remaining Google Workspace runtime gap by enabling the bundled `gog` skill in tenant `openclaw.json` and appending `gog` to agent skill allowlists. Before this change, tenants could have verified Google auth and prompt guidance but still fail owner email requests because the runtime had not exposed the actual `gog` skill to the agent.
+
+### What Changed
+
+- updated tenant OpenClaw provisioning to write `skills.entries.gog.enabled = true` into generated `config/openclaw.json`
+- normalized tenant agent skill allowlists so `gog` is appended to `agents.defaults.skills` and any existing `agents.list[].skills` entries without clobbering other configured skills
+- updated later Google Workspace runtime syncs to re-apply that `openclaw.json` skill wiring so existing live tenants can be repaired during resync
+- added focused assertions proving both initial provisioning and Google runtime sync write the expected `gog` skill config
+- preserved the existing workspace-file-only `goLive()` invariant; this fix updates runtime config only in the targeted provisioning/Google sync paths that already own `openclaw.json`
+
 ## 2026-04-17 — Tenant `TOOLS.md` Google Workspace Guidance
 
 Date: 2026-04-17

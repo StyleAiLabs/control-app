@@ -59,6 +59,7 @@ If those files conflict with the codebase, trust:
 - Onboarding model: signup provisions the runtime in the background, while the customer completes a seven-step setup flow ending in optional Google Workspace connect and Go Live; the onboarding UI shows explicit wizard/background progress, polls server state without wiping in-progress drafts, advances automatically after successful saves on the main setup steps, and now distinguishes Google Workspace `connected`, `synced`, `verified`, and `needs attention` states instead of treating sync as proof of live readiness
 - Profile sync model: the Business Profile page now shows in-page assistant sync progress while a save/manual sync is running, shows the completion result after redirect, and live-tenant workspace prompt/tool-guidance changes can be pushed later with `sync360:resync-live-tenants` without reprovisioning the tenant
 - Google auth model: Sync360 owns the Google OAuth web flow; `tenant_google_credentials` is the source of truth and tenant `.openclaw/gogcli/` auth artifacts are a re-seedable runtime cache
+- Google runtime tool model: tenant `config/openclaw.json` now explicitly enables the bundled `gog` skill and appends `gog` to agent skill allowlists so connected workspaces can actually expose Google tooling to the agent
 - Conversation model: Telegram history is synced from workspace session logs with AI summaries; the control plane no longer exposes channel webhook ingress
 - Trial model: 14-day / budget-capped trial with scheduled expiry checks and email notifications
 - Admin model: super-admin area is behind `auth`, `admin`, and `local.only` middleware
@@ -83,11 +84,12 @@ If those files conflict with the codebase, trust:
 6. `BusinessExtractionService` handles website extraction and initial markdown generation.
 7. `GoogleOAuthController` and `GoogleWorkspaceOAuthService` own the Google OAuth flow, store encrypted tokens in `tenant_google_credentials`, and trigger runtime reseeding when the workspace is ready.
 8. Google auth reseeding writes `.openclaw/gogcli/` artifacts from DB state, then the control plane can run the tenant-side Google smoke test to promote runtime status from `synced` to `verified`.
-9. `TenantAgentSyncService::goLive()` writes the full workspace artifact set into `.openclaw/workspace/` (`IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`, `TOOLS.md`, `PROFILE.md`, and `HEARTBEAT.md`) and syncs only workspace markdown files.
-10. The generated workspace artifacts now explicitly tell the tenant agent to use connected Google Workspace tools for owner requests about inboxes, calendars, files, contacts, sheets, and docs instead of giving a generic refusal.
-11. `TOOLS.md` now gives the tenant agent explicit environment-specific `gog` guidance, including using exec, checking `gog --help` / `gog gmail --help`, and avoiding generic refusals when Google Workspace is connected.
-12. `goLive()` still only syncs workspace markdown files and restarts the tenant without overwriting provisioned credentials.
-13. Existing live tenants do not automatically receive new generated workspace instructions when only the control app is deployed; operators can resync those prompt/workspace-file changes with `php artisan sync360:resync-live-tenants` after deploy.
+9. Provisioning now also writes the bundled `gog` skill into tenant `config/openclaw.json` and ensures agent skill allowlists include `gog`; later Google runtime syncs re-apply that config so older tenants can be repaired during resync.
+10. `TenantAgentSyncService::goLive()` writes the full workspace artifact set into `.openclaw/workspace/` (`IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`, `TOOLS.md`, `PROFILE.md`, and `HEARTBEAT.md`) and syncs only workspace markdown files.
+11. The generated workspace artifacts now explicitly tell the tenant agent to use connected Google Workspace tools for owner requests about inboxes, calendars, files, contacts, sheets, and docs instead of giving a generic refusal.
+12. `TOOLS.md` now gives the tenant agent explicit environment-specific `gog` guidance, including using exec, checking `gog --help` / `gog gmail --help`, and avoiding generic refusals when Google Workspace is connected.
+13. `goLive()` still only syncs workspace markdown files and restarts the tenant without overwriting provisioned credentials.
+14. Existing live tenants do not automatically receive new generated workspace instructions when only the control app is deployed; operators can resync those prompt/workspace-file changes with `php artisan sync360:resync-live-tenants` after deploy.
 
 ### Conversation logging and summaries
 

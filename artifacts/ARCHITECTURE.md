@@ -272,6 +272,12 @@ V1 scope set:
 
 The database is the source of truth. Runtime Google auth files are treated as disposable cache and are recreated from DB after restart, rebuild, reprovision, or manual resync.
 
+Runtime skill enablement rule:
+
+- tenant `config/openclaw.json` now explicitly enables the bundled `gog` skill under `skills.entries.gog`
+- tenant agent skill allowlists are also normalized to include `gog` in `agents.defaults.skills` and any existing `agents.list[].skills`
+- later Google runtime syncs re-apply that skill wiring so older tenants can be repaired during resync without a full runtime reprovision
+
 Runtime reload rule:
 
 - if Google auth only changes `.openclaw/gogcli/` files, the tenant runtime can restart normally
@@ -402,6 +408,7 @@ Current gateway model:
 - private bind via loopback port mapping
 - token auth in generated config
 - control UI disabled in generated config
+- bundled `gog` skill explicitly enabled in generated config and added to agent skill allowlists
 - control-plane access through the private gateway helper, not the public hostname
 
 ### Email
@@ -435,6 +442,7 @@ Key runtime details:
 - the runtime keyring is still treated as cache only because `tenant_google_credentials` remains canonical
 - `TenantGoogleWorkspaceSmokeTestService` is the end-to-end verifier: it runs inside the tenant runtime, confirms `XDG_CONFIG_HOME`, exchanges the refresh token, and calls Gmail profile plus Calendar list APIs
 - `verified` therefore means live runtime Google access worked from inside the tenant container, while `synced` only means the auth artifacts were written successfully
+- runtime Google usability depends on both auth artifacts and skill wiring: `gog` must be enabled in `openclaw.json` and included in agent skill allowlists, not just present under `.openclaw/gogcli/`
 - generated `PROFILE.md` and `HEARTBEAT.md` now explicitly instruct the agent to treat owner inbox/calendar/file requests as internal operating tasks and to use connected Google Workspace tools instead of giving a generic refusal
 - generated `TOOLS.md` tells the agent to use exec plus `gog` for those owner requests, inspect `gog --help` and product-specific help when needed, and avoid a generic "I cannot check emails" fallback when Google Workspace is connected
 

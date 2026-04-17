@@ -10,6 +10,7 @@ It currently covers the full control-plane loop:
 - guided onboarding with visible progress, draft-safe state refresh, optional Google Workspace connect, live Google verification status, and go-live sync
 - Business Profile sync with in-page progress/completion feedback for live assistant resyncs
 - tenant workspace tool guidance via generated `TOOLS.md`, including `gog` usage notes for connected Google Workspace tenants
+- tenant runtime config now explicitly enables the bundled `gog` skill in `openclaw.json` so connected Google Workspace tooling is actually available to the agent
 - private gateway access for health checks and runtime integration
 - conversation history sync from workspace session logs
 - trial lifecycle tracking and notification emails

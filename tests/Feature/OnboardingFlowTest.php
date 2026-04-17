@@ -537,6 +537,14 @@ class OnboardingFlowTest extends TestCase
 
         $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
         File::ensureDirectoryExists($localRuntimePath);
+        File::ensureDirectoryExists($localRuntimePath.'/config');
+        File::put($localRuntimePath.'/config/openclaw.json', json_encode([
+            'agents' => [
+                'defaults' => [
+                    'model' => 'gpt-4o',
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
         File::put($localRuntimePath.'/compose.yaml', implode(PHP_EOL, [
             'services:',
             '  openclaw-gateway:',
@@ -595,6 +603,8 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('owner@example.com', File::get($localGogPath.'/config.json'));
         $this->assertStringContainsString('XDG_CONFIG_HOME: "/home/node/.openclaw/.openclaw"', File::get($localRuntimePath.'/compose.yaml'));
         $this->assertStringContainsString('GOG_KEYRING_BACKEND: "file"', File::get($localRuntimePath.'/compose.yaml'));
+        $this->assertStringContainsString('"gog"', File::get($localRuntimePath.'/config/openclaw.json'));
+        $this->assertStringContainsString('"enabled": true', File::get($localRuntimePath.'/config/openclaw.json'));
     }
 
     public function test_onboarding_state_exposes_google_workspace_attention_details(): void
@@ -831,6 +841,14 @@ class OnboardingFlowTest extends TestCase
 
         $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
         File::ensureDirectoryExists($localRuntimePath.'/.openclaw/workspace');
+        File::ensureDirectoryExists($localRuntimePath.'/config');
+        File::put($localRuntimePath.'/config/openclaw.json', json_encode([
+            'agents' => [
+                'defaults' => [
+                    'model' => 'gpt-4o',
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
         File::put($localRuntimePath.'/compose.yaml', implode(PHP_EOL, [
             'services:',
             '  openclaw-gateway:',
@@ -1008,6 +1026,14 @@ class OnboardingFlowTest extends TestCase
 
         $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
         File::ensureDirectoryExists($localRuntimePath.'/.openclaw/workspace');
+        File::ensureDirectoryExists($localRuntimePath.'/config');
+        File::put($localRuntimePath.'/config/openclaw.json', json_encode([
+            'agents' => [
+                'defaults' => [
+                    'model' => 'gpt-4o',
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
         File::put($localRuntimePath.'/compose.yaml', implode(PHP_EOL, [
             'services:',
             '  openclaw-gateway:',

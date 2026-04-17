@@ -167,6 +167,8 @@ class TenantAgentSyncService
             default => null, /* WhatsApp will be added in a future phase. */
         };
 
+        $config = $this->withRequiredSkills($config);
+
         $this->files->put(
             $configPath,
             json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL,
@@ -217,6 +219,7 @@ class TenantAgentSyncService
 
         $config = json_decode($this->files->get($configPath), true) ?: [];
         unset($config['channels']);
+        $config = $this->withRequiredSkills($config);
 
         $this->files->put(
             $configPath,
@@ -274,6 +277,7 @@ class TenantAgentSyncService
         $localConfigRoot = $this->gogAuthStorage->localConfigRoot($tenant);
         $localArtifacts = $this->gogAuthStorage->localArtifacts($tenant, $credential);
         $composeUpdate = $this->ensureGoogleRuntimeEnvironment($tenant);
+        $configUpdate = $this->ensureGoogleSkillConfig($tenant);
 
         $this->files->deleteDirectory($localConfigRoot);
 
@@ -295,6 +299,8 @@ class TenantAgentSyncService
             if ($composeUpdate['changed']) {
                 $this->dockerCompose->putFile($tenant->server, $composeUpdate['remote_compose_file'], $composeUpdate['contents']);
             }
+
+            $this->dockerCompose->putFile($tenant->server, $configUpdate['remote_config_file'], $configUpdate['contents']);
 
             $this->reloadRuntime($tenant, $composeUpdate['changed']);
         } else {
@@ -430,6 +436,32 @@ class TenantAgentSyncService
         if (! filled($tenant->runtime_path)) {
             throw new RuntimeException('The workspace runtime path is missing, so we cannot sync the final setup files yet.');
         }
+    }
+
+    /**
+     * @return array{remote_config_file:string, contents:string}
+     */
+    private function ensureGoogleSkillConfig(Tenant $tenant): array
+    {
+        $localRuntimePath = $this->runtime->localRuntimePath($tenant);
+        $configPath = $localRuntimePath.DIRECTORY_SEPARATOR.'config'.DIRECTORY_SEPARATOR.'openclaw.json';
+
+        if (! $this->files->exists($configPath)) {
+            throw new RuntimeException('The tenant OpenClaw config file does not exist yet, so required skills cannot be applied.');
+        }
+
+        $config = json_decode($this->files->get($configPath), true) ?: [];
+        $config = $this->withRequiredSkills($config);
+        $contents = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL;
+
+        $this->files->put($configPath, $contents);
+
+        $remoteRuntimePath = $tenant->runtime_path ?: $this->runtime->remoteRuntimePath($tenant);
+
+        return [
+            'remote_config_file' => $remoteRuntimePath.'/config/openclaw.json',
+            'contents' => $contents,
+        ];
     }
 
     private function reloadRuntime(Tenant $tenant, bool $recreate = false): void
@@ -773,6 +805,62 @@ class TenantAgentSyncService
             '- Prefer read/list actions first. Only send, update, or delete Google Workspace content when the owner explicitly asks for that action.',
             '- If a gog command fails, explain that Google Workspace access is temporarily unavailable and suggest retrying, resyncing, or reconnecting. Do not claim you fundamentally lack email or calendar access when the connection is present.',
         ]).PHP_EOL;
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     * @return array<string, mixed>
+     */
+    private function withRequiredSkills(array $config): array
+    {
+        $config['skills'] = is_array($config['skills'] ?? null) ? $config['skills'] : [];
+        $config['skills']['entries'] = is_array($config['skills']['entries'] ?? null) ? $config['skills']['entries'] : [];
+
+        $gogEntry = $config['skills']['entries']['gog'] ?? [];
+
+        if (! is_array($gogEntry)) {
+            $gogEntry = [];
+        }
+
+        $config['skills']['entries']['gog'] = array_merge($gogEntry, [
+            'enabled' => true,
+        ]);
+
+        $config['agents'] = is_array($config['agents'] ?? null) ? $config['agents'] : [];
+        $config['agents']['defaults'] = is_array($config['agents']['defaults'] ?? null) ? $config['agents']['defaults'] : [];
+        $config['agents']['defaults']['skills'] = $this->appendSkill(
+            $config['agents']['defaults']['skills'] ?? [],
+            'gog',
+        );
+
+        if (is_array($config['agents']['list'] ?? null)) {
+            $config['agents']['list'] = array_map(function (mixed $agent): mixed {
+                if (! is_array($agent)) {
+                    return $agent;
+                }
+
+                $agent['skills'] = $this->appendSkill($agent['skills'] ?? [], 'gog');
+
+                return $agent;
+            }, $config['agents']['list']);
+        }
+
+        return $config;
+    }
+
+    /**
+     * @param  mixed  $skills
+     * @return array<int, string>
+     */
+    private function appendSkill(mixed $skills, string $skill): array
+    {
+        $skillList = $this->stringList($skills);
+
+        if (! in_array($skill, $skillList, true)) {
+            $skillList[] = $skill;
+        }
+
+        return $skillList;
     }
 
     /**

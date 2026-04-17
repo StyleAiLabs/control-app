@@ -124,7 +124,7 @@ class OpenClawProvisioner implements TenantProvisioner
 
         $this->files->put(
             $configPath,
-            json_encode([
+            json_encode($this->withRequiredSkills([
                 'agents' => [
                     'defaults' => [
                         'model' => $defaultModel,
@@ -152,8 +152,69 @@ class OpenClawProvisioner implements TenantProvisioner
                         'enabled' => false,
                     ],
                 ],
-            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL,
+            ]), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL,
         );
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     * @return array<string, mixed>
+     */
+    private function withRequiredSkills(array $config): array
+    {
+        $config['skills'] = is_array($config['skills'] ?? null) ? $config['skills'] : [];
+        $config['skills']['entries'] = is_array($config['skills']['entries'] ?? null) ? $config['skills']['entries'] : [];
+
+        $gogEntry = $config['skills']['entries']['gog'] ?? [];
+
+        if (! is_array($gogEntry)) {
+            $gogEntry = [];
+        }
+
+        $config['skills']['entries']['gog'] = array_merge($gogEntry, [
+            'enabled' => true,
+        ]);
+
+        $config['agents'] = is_array($config['agents'] ?? null) ? $config['agents'] : [];
+        $config['agents']['defaults'] = is_array($config['agents']['defaults'] ?? null) ? $config['agents']['defaults'] : [];
+        $config['agents']['defaults']['skills'] = $this->appendSkill(
+            $config['agents']['defaults']['skills'] ?? [],
+            'gog',
+        );
+
+        if (is_array($config['agents']['list'] ?? null)) {
+            $config['agents']['list'] = array_map(function (mixed $agent): mixed {
+                if (! is_array($agent)) {
+                    return $agent;
+                }
+
+                $agent['skills'] = $this->appendSkill($agent['skills'] ?? [], 'gog');
+
+                return $agent;
+            }, $config['agents']['list']);
+        }
+
+        return $config;
+    }
+
+    /**
+     * @param  mixed  $skills
+     * @return array<int, string>
+     */
+    private function appendSkill(mixed $skills, string $skill): array
+    {
+        $skillList = array_values(array_filter(
+            array_map(
+                static fn (mixed $value): ?string => is_string($value) && trim($value) !== '' ? trim($value) : null,
+                is_array($skills) ? $skills : [],
+            )
+        ));
+
+        if (! in_array($skill, $skillList, true)) {
+            $skillList[] = $skill;
+        }
+
+        return $skillList;
     }
 
     private function writeCaddyConfig(Tenant $tenant, string $runtimePath, int $assignedPort): string
