@@ -153,7 +153,7 @@ Stores the canonical Google Workspace OAuth state for a tenant.
 Key concerns:
 
 - Google account status (`pending`, `connected`, `skipped`, `disconnected`)
-- runtime sync status (`pending`, `synced`, `failed`)
+- runtime sync / verification status (`pending`, `synced`, `verified`, `failed`)
 - encrypted `access_token` and `refresh_token`
 - connected Google email and granted scopes
 - transient OAuth `state` and PKCE verifier storage
@@ -236,6 +236,8 @@ Services involved:
 
 The onboarding Blade shows explicit wizard progress and a background-setup status card, then polls `/onboarding/state` in the background to refresh progress and readiness. The client preserves unsaved local drafts for website, business details, tone, capabilities, and channel setup so in-progress edits are not wiped by refreshes. Successful saves on the main setup steps auto-advance the wizard to the next step, and onboarding navigation/state polling does not regenerate the tenant LiteLLM key because key creation remains provisioning-only.
 
+Google Workspace Step 6 now distinguishes between OAuth account status and live runtime readiness. The state payload can report Google Workspace as `pending`, `synced`, `verified`, or `failed`, and the Blade surfaces `last_error` when runtime verification needs attention instead of collapsing everything into a single optimistic "ready" message.
+
 `TenantProfileSyncService` is used for later profile/admin regeneration and resync work, not the main onboarding controller flow.
 
 ### Google Workspace connect flow
@@ -249,8 +251,10 @@ Flow:
 3. `GoogleOAuthController` redirects the browser to Google's consent screen using `services.google.*`
 4. Google redirects to `/auth/google/callback`
 5. `GoogleOAuthController::callback()` resolves the tenant by stored `oauth_state`, exchanges the code server-to-server, fetches the Google email, and stores encrypted tokens/scopes in `tenant_google_credentials`
-6. if the runtime already exists, `TenantAgentSyncService::configureGoogleWorkspace()` immediately re-seeds runtime auth
-7. if the runtime is not ready yet, the row stays `connected` with runtime sync `pending` until provisioning/profile sync completes
+6. if the runtime already exists, `TenantAgentSyncService::syncConnectedGoogleWorkspace()` re-seeds runtime auth and then runs the tenant-side Google smoke test
+7. if the auth files were written successfully, runtime status moves to `synced`
+8. if the smoke test reaches live Gmail and Calendar APIs from inside the tenant runtime, runtime status moves to `verified`
+9. if the runtime is not ready yet, the row stays `connected` with runtime status `pending` until provisioning/profile sync completes
 
 V1 scope set:
 
@@ -413,6 +417,9 @@ Key runtime details:
 - `TenantRuntimeService` provisions `XDG_CONFIG_HOME`, `GOG_KEYRING_BACKEND=file`, and a per-tenant `GOG_KEYRING_PASSWORD`
 - the file-backed keyring lives under the mounted tenant runtime path so it survives normal container restarts
 - the runtime keyring is still treated as cache only because `tenant_google_credentials` remains canonical
+- `TenantGoogleWorkspaceSmokeTestService` is the end-to-end verifier: it runs inside the tenant runtime, confirms `XDG_CONFIG_HOME`, exchanges the refresh token, and calls Gmail profile plus Calendar list APIs
+- `verified` therefore means live runtime Google access worked from inside the tenant container, while `synced` only means the auth artifacts were written successfully
+- generated `PROFILE.md` and `HEARTBEAT.md` now explicitly instruct the agent to treat owner inbox/calendar/file requests as internal operating tasks and to use connected Google Workspace tools instead of giving a generic refusal
 
 ### SSH and remote orchestration
 

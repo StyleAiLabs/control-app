@@ -7,6 +7,25 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-17 — Google Workspace Verification Status + Owner Tool Guidance
+
+Date: 2026-04-17
+Status: Implemented
+
+### Overview
+
+Adjusted Google Workspace onboarding so Sync360 no longer treats a credential sync as proof that the live tenant assistant can actually use Gmail and Calendar. The onboarding UI now surfaces real runtime verification state, and the generated tenant workspace instructions explicitly tell the assistant to use connected Google Workspace tools for owner requests instead of falling back to a generic refusal.
+
+### What Changed
+
+- extended Google runtime status from a simple `pending/synced/failed` flow to `pending/synced/verified/failed`
+- updated Step 6 onboarding copy so customers can see whether Google is merely connected, synced into the runtime, verified inside the live tenant container, or needs attention
+- surfaced `last_error` in the onboarding state/UI so failed runtime sync or verification issues are visible instead of hidden behind a success-looking connect state
+- changed the Google callback and later resync paths to run the existing tenant-side Google smoke test after a successful runtime sync when the workspace is ready
+- kept the tenant-side smoke test as the code-backed definition of "verified" by checking refresh-token exchange plus live Gmail and Calendar API access from inside the tenant runtime
+- updated generated `PROFILE.md` and `HEARTBEAT.md` so owner requests about inboxes, calendars, files, contacts, sheets, and docs are treated as internal operating tasks that should use connected Google Workspace tools when available
+- added focused onboarding coverage for verified state, visible attention/error state, and the new owner-facing workspace guidance in live sync artifacts
+
 ## 2026-04-17 — Reprovisioning Fix For Deleted Tenant Slug Reuse
 
 Date: 2026-04-17

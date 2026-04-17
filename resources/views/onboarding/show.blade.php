@@ -529,15 +529,25 @@
             <div class="note" style="margin-top: 18px;" id="google-workspace-note">
                 @if (($state['google_workspace']['available'] ?? true) === false)
                     Google Workspace connect is temporarily unavailable in this environment until the latest database migration has been run.
+                @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['needs_attention'] ?? false))
+                    Google Workspace is connected, but the live workspace access needs attention. Check the runtime status below and reconnect if needed.
                 @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['pending_sync'] ?? false))
-                    Google Workspace is connected. We'll sync the runtime access automatically as soon as the workspace is ready.
+                    Google Workspace is connected. We will sync the runtime access automatically as soon as the workspace is ready.
+                @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['pending_verification'] ?? false))
+                    Google Workspace is connected and synced. We are verifying live Gmail and Calendar access in your workspace.
+                @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['verified'] ?? false))
+                    Google Workspace is connected and verified inside the live tenant runtime.
                 @elseif (($state['google_workspace']['status'] ?? null) === 'connected')
-                    Google Workspace is connected and ready for the tenant runtime.
+                    Google Workspace is connected. Runtime verification will run after the workspace sync completes.
                 @elseif (($state['google_workspace']['status'] ?? null) === 'disconnected')
                     Google Workspace was disconnected. You can reconnect this account at any time.
                 @else
                     This step is optional and never blocks Go Live. You can skip it now and come back later.
                 @endif
+            </div>
+
+            <div class="note error" style="margin-top: 18px; display: {{ filled($state['google_workspace']['last_error'] ?? null) ? 'block' : 'none' }};" id="google-workspace-error">
+                {{ $state['google_workspace']['last_error'] ?? '' }}
             </div>
 
             <div class="note" style="margin-top: 18px;" id="google-workspace-scopes-note">
@@ -680,6 +690,7 @@
         const googleWorkspaceEmail = document.getElementById('google-workspace-email');
         const googleWorkspaceRuntimeSync = document.getElementById('google-workspace-runtime-sync');
         const googleWorkspaceNote = document.getElementById('google-workspace-note');
+        const googleWorkspaceError = document.getElementById('google-workspace-error');
         const googleWorkspaceConnectLink = document.getElementById('google-workspace-connect-link');
         const googleWorkspaceConnectWrapper = document.getElementById('google-workspace-connect-wrapper');
         const googleWorkspaceSkipForm = document.getElementById('google-workspace-skip-form');
@@ -994,15 +1005,23 @@
             }
             if (state.google_workspace?.available === false) {
                 googleWorkspaceNote.textContent = 'Google Workspace connect is temporarily unavailable in this environment until the latest database migration has been run.';
+            } else if (state.google_workspace?.status === 'connected' && state.google_workspace?.needs_attention) {
+                googleWorkspaceNote.textContent = 'Google Workspace is connected, but the live workspace access needs attention. Check the runtime status below and reconnect if needed.';
             } else if (state.google_workspace?.status === 'connected' && state.google_workspace?.pending_sync) {
                 googleWorkspaceNote.textContent = 'Google Workspace is connected. We will sync the runtime access automatically as soon as the workspace is ready.';
+            } else if (state.google_workspace?.status === 'connected' && state.google_workspace?.pending_verification) {
+                googleWorkspaceNote.textContent = 'Google Workspace is connected and synced. We are verifying live Gmail and Calendar access in your workspace.';
+            } else if (state.google_workspace?.status === 'connected' && state.google_workspace?.verified) {
+                googleWorkspaceNote.textContent = 'Google Workspace is connected and verified inside the live tenant runtime.';
             } else if (state.google_workspace?.status === 'connected') {
-                googleWorkspaceNote.textContent = 'Google Workspace is connected and ready for the tenant runtime.';
+                googleWorkspaceNote.textContent = 'Google Workspace is connected. Runtime verification will run after the workspace sync completes.';
             } else if (googleIsDisconnected) {
                 googleWorkspaceNote.textContent = 'Google Workspace was disconnected. You can reconnect this account at any time.';
             } else {
                 googleWorkspaceNote.textContent = 'This step is optional and never blocks Go Live. You can skip it now and come back later.';
             }
+            googleWorkspaceError.textContent = state.google_workspace?.last_error || '';
+            googleWorkspaceError.style.display = state.google_workspace?.last_error ? 'block' : 'none';
             goLiveAgentStatus.textContent = state.agent_status
                 ? `${state.agent_status.charAt(0).toUpperCase()}${state.agent_status.slice(1)}`
                 : 'Offline';

@@ -7,7 +7,7 @@ It currently covers the full control-plane loop:
 - marketing site, signup, login, self-serve password reset, and dashboard
 - tenant creation, server assignment, and async provisioning
 - local and SSH-based tenant runtime deployment
-- guided onboarding with visible progress, draft-safe state refresh, optional Google Workspace connect, and go-live sync
+- guided onboarding with visible progress, draft-safe state refresh, optional Google Workspace connect, live Google verification status, and go-live sync
 - private gateway access for health checks and runtime integration
 - conversation history sync from workspace session logs
 - trial lifecycle tracking and notification emails
@@ -59,7 +59,7 @@ If those files conflict with the codebase, the source of truth is:
 3. The app assigns the tenant to a server.
 4. A queue worker provisions the tenant runtime asynchronously.
 5. The tenant gets a customer-facing workspace URL and a private gateway runtime.
-6. The customer completes onboarding, can optionally connect Google Workspace through Sync360's OAuth flow, and then syncs business/agent files into the workspace.
+6. The customer completes onboarding, can optionally connect Google Workspace through Sync360's OAuth flow, and then sees Google move through connected/synced/verified runtime states instead of a single optimistic "ready" label.
 7. The app re-seeds runtime Google auth from DB when needed and tracks conversations, trial state, health status, and admin operations from the control plane.
 8. Delete-and-recreate provisioning remains safe because runtime cleanup removes stale fixed-name tenant containers before reprovisioning.
 
@@ -95,7 +95,7 @@ Each tenant gets:
 - its own runtime directory
 - its own OpenClaw container
 - its own LiteLLM virtual key
-- optional DB-backed Google Workspace auth that is materialized into runtime `gog` files
+- optional DB-backed Google Workspace auth that is materialized into runtime `gog` files and can be smoke-tested from inside the tenant runtime
 - its own customer-facing workspace URL
 
 The public tenant hostname is the Sync360 login/dashboard entrypoint. The OpenClaw gateway stays private and is reached by the control plane through loopback plus the infrastructure runner.

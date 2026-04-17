@@ -72,7 +72,7 @@ class GoogleOAuthController extends Controller
                 $tenant->provisioning_status === TenantProvisioningStatus::Ready
                 && filled($tenant->runtime_path)
             ) {
-                $this->agentSync->configureGoogleWorkspace($tenant->fresh(['server', 'googleCredential']));
+                $this->agentSync->syncConnectedGoogleWorkspace($tenant->fresh(['server', 'googleCredential']));
             }
 
             $this->markOnboardingStepComplete($tenant);

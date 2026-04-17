@@ -560,10 +560,18 @@ class OnboardingController extends Controller
             'can_reconnect' => $status === TenantGoogleCredential::STATUS_DISCONNECTED,
             'connected' => $status === TenantGoogleCredential::STATUS_CONNECTED,
             'pending_sync' => $status === TenantGoogleCredential::STATUS_CONNECTED
-                && ($credential?->runtime_sync_status ?? null) !== TenantGoogleCredential::RUNTIME_SYNC_SYNCED,
+                && ($credential?->runtime_sync_status ?? TenantGoogleCredential::RUNTIME_SYNC_PENDING) === TenantGoogleCredential::RUNTIME_SYNC_PENDING,
+            'pending_verification' => $status === TenantGoogleCredential::STATUS_CONNECTED
+                && ($credential?->runtime_sync_status ?? null) === TenantGoogleCredential::RUNTIME_SYNC_SYNCED,
+            'verified' => $status === TenantGoogleCredential::STATUS_CONNECTED
+                && ($credential?->runtime_sync_status ?? null) === TenantGoogleCredential::RUNTIME_SYNC_VERIFIED,
+            'needs_attention' => $status === TenantGoogleCredential::STATUS_CONNECTED
+                && ($credential?->runtime_sync_status ?? null) === TenantGoogleCredential::RUNTIME_SYNC_FAILED,
             'requires_action' => $status === TenantGoogleCredential::STATUS_PENDING,
             'workspace_ready' => $tenant->provisioning_status->value === 'ready',
             'available' => true,
+            'last_error' => $credential?->last_error,
+            'last_synced_at' => $credential?->last_synced_at?->toIso8601String(),
         ];
     }
 

@@ -56,7 +56,7 @@ If those files conflict with the codebase, trust:
 - Tenant runtime deployment: one OpenClaw runtime per tenant
 - Workspace URL model: customer-facing Sync360 URL on the tenant hostname; private gateway stays behind the control plane
 - Local dev runtime model: the Docker Compose dev stack forces `SYNC360_INFRASTRUCTURE_DRIVER=local`, uses `docker-compose` inside the app/worker containers, and reaches tenant host ports through `host.docker.internal`
-- Onboarding model: signup provisions the runtime in the background, while the customer completes a seven-step setup flow ending in optional Google Workspace connect and Go Live; the onboarding UI shows explicit wizard/background progress, polls server state without wiping in-progress drafts, and advances automatically after successful saves on the main setup steps
+- Onboarding model: signup provisions the runtime in the background, while the customer completes a seven-step setup flow ending in optional Google Workspace connect and Go Live; the onboarding UI shows explicit wizard/background progress, polls server state without wiping in-progress drafts, advances automatically after successful saves on the main setup steps, and now distinguishes Google Workspace `connected`, `synced`, `verified`, and `needs attention` states instead of treating sync as proof of live readiness
 - Google auth model: Sync360 owns the Google OAuth web flow; `tenant_google_credentials` is the source of truth and tenant `.openclaw/gogcli/` auth artifacts are a re-seedable runtime cache
 - Conversation model: Telegram history is synced from workspace session logs with AI summaries; the control plane no longer exposes channel webhook ingress
 - Trial model: 14-day / budget-capped trial with scheduled expiry checks and email notifications
@@ -81,9 +81,10 @@ If those files conflict with the codebase, trust:
 5. Navigating back and forth through onboarding or polling `/onboarding/state` does not regenerate the tenant LiteLLM key; key creation remains part of provisioning only.
 6. `BusinessExtractionService` handles website extraction and initial markdown generation.
 7. `GoogleOAuthController` and `GoogleWorkspaceOAuthService` own the Google OAuth flow, store encrypted tokens in `tenant_google_credentials`, and trigger runtime reseeding when the workspace is ready.
-8. `TenantAgentSyncService::goLive()` writes the full workspace artifact set into `.openclaw/workspace/` (`IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`, `PROFILE.md`, and `HEARTBEAT.md`) and syncs only workspace markdown files.
-9. Google auth reseeding writes `.openclaw/gogcli/` artifacts from DB state and force-recreates the tenant container when `compose.yaml` env changed, because a plain restart does not reload container env.
-10. `goLive()` still only syncs workspace markdown files and restarts the tenant without overwriting provisioned credentials.
+8. Google auth reseeding writes `.openclaw/gogcli/` artifacts from DB state, then the control plane can run the tenant-side Google smoke test to promote runtime status from `synced` to `verified`.
+9. `TenantAgentSyncService::goLive()` writes the full workspace artifact set into `.openclaw/workspace/` (`IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`, `PROFILE.md`, and `HEARTBEAT.md`) and syncs only workspace markdown files.
+10. The generated workspace artifacts now explicitly tell the tenant agent to use connected Google Workspace tools for owner requests about inboxes, calendars, files, contacts, sheets, and docs instead of giving a generic refusal.
+11. `goLive()` still only syncs workspace markdown files and restarts the tenant without overwriting provisioned credentials.
 
 ### Conversation logging and summaries
 
@@ -103,6 +104,7 @@ If those files conflict with the codebase, trust:
 
 - `goLive()` must never do a full runtime sync. It must use `DockerComposeRunner::syncWorkspaceFiles()` and not `syncRuntime()`, or provisioned credentials in `compose.yaml` and `config/openclaw.json` can be overwritten.
 - Google Workspace auth sync must never piggyback on `goLive()` or use a full runtime sync. `TenantAgentSyncService::configureGoogleWorkspace()` uses targeted runner writes under `.openclaw/gogcli/` and can always re-seed runtime auth from the DB row.
+- Google Workspace `runtime_sync_status` is no longer equivalent to a plain file-write result. `pending` means the runtime has not been updated yet, `synced` means auth artifacts were written, `verified` means the tenant-side smoke test reached live Gmail/Calendar APIs, and `failed` means runtime sync or verification needs attention.
 - In local Docker development, private gateway checks must not use container-local `127.0.0.1`; they must go through the configured host alias (`host.docker.internal` in the shipped `docker-compose.yml`) so the app container can reach tenant ports published on the Docker host.
 - When tenant `compose.yaml` env changes, local/remote Google runtime reload must recreate the tenant container (`up -d --force-recreate` / equivalent), not just `restart`, or `XDG_CONFIG_HOME` and keyring env updates will not take effect.
 - Tenant runtimes use a fixed Docker container name derived from the slug (`sync360-<slug>`), so deletion and provisioning must explicitly remove stale named containers as part of cleanup to support delete-and-recreate flows safely.

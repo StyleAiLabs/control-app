@@ -11,6 +11,7 @@ use App\Models\Server;
 use App\Models\Tenant;
 use App\Models\TenantGoogleCredential;
 use App\Models\User;
+use App\Services\TenantGoogleWorkspaceSmokeTestService;
 use Illuminate\Support\Facades\File;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -547,6 +548,17 @@ class OnboardingFlowTest extends TestCase
             '',
         ]));
 
+        $this->mock(TenantGoogleWorkspaceSmokeTestService::class, function ($mock): void {
+            $mock->shouldReceive('run')
+                ->once()
+                ->andReturn([
+                    'tenant_slug' => 'acme-plumbing',
+                    'google_email' => 'owner@example.com',
+                    'runtime_artifacts_verified' => true,
+                    'container_smoke_passed' => true,
+                ]);
+        });
+
         $this->actingAs($user)->get('/onboarding/google/connect');
         $credential = $tenant->fresh('googleCredential')->googleCredential;
 
@@ -575,7 +587,7 @@ class OnboardingFlowTest extends TestCase
         $credential = $tenant->fresh('googleCredential')->googleCredential;
         $localGogPath = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/gogcli';
 
-        $this->assertSame(TenantGoogleCredential::RUNTIME_SYNC_SYNCED, $credential?->runtime_sync_status);
+        $this->assertSame(TenantGoogleCredential::RUNTIME_SYNC_VERIFIED, $credential?->runtime_sync_status);
         $this->assertFileExists($localGogPath.'/credentials.json');
         $this->assertFileExists($localGogPath.'/config.json');
         $this->assertFileExists($localGogPath.'/keyring/token:default:owner@example.com');
@@ -583,6 +595,36 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('owner@example.com', File::get($localGogPath.'/config.json'));
         $this->assertStringContainsString('XDG_CONFIG_HOME: "/home/node/.openclaw/.openclaw"', File::get($localRuntimePath.'/compose.yaml'));
         $this->assertStringContainsString('GOG_KEYRING_BACKEND: "file"', File::get($localRuntimePath.'/compose.yaml'));
+    }
+
+    public function test_onboarding_state_exposes_google_workspace_attention_details(): void
+    {
+        [$user, $tenant] = $this->seedTenantWithProfile();
+
+        config()->set('services.google.client_id', 'google-client-id');
+        config()->set('services.google.client_secret', 'google-client-secret');
+        config()->set('services.google.redirect_uri', 'https://app.sync360.test/auth/google/callback');
+
+        $tenant->googleCredential()->create([
+            'status' => TenantGoogleCredential::STATUS_CONNECTED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_FAILED,
+            'google_email' => 'owner@example.com',
+            'access_token' => 'google-access-token',
+            'refresh_token' => 'google-refresh-token',
+            'scopes' => ['openid', 'email'],
+            'connected_at' => now(),
+            'last_error' => 'Refresh token exchange failed inside the tenant runtime.',
+        ]);
+
+        $this->actingAs($user);
+
+        $this->get('/onboarding/state')
+            ->assertOk()
+            ->assertJsonPath('google_workspace.status', 'connected')
+            ->assertJsonPath('google_workspace.runtime_sync_status', 'failed')
+            ->assertJsonPath('google_workspace.needs_attention', true)
+            ->assertJsonPath('google_workspace.verified', false)
+            ->assertJsonPath('google_workspace.last_error', 'Refresh token exchange failed inside the tenant runtime.');
     }
 
     public function test_google_skip_marks_step_six_complete_without_blocking_go_live(): void
@@ -654,7 +696,7 @@ class OnboardingFlowTest extends TestCase
 
         $tenant->googleCredential()->create([
             'status' => TenantGoogleCredential::STATUS_CONNECTED,
-            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_SYNCED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_VERIFIED,
             'google_email' => 'owner@example.com',
             'access_token' => 'google-access-token',
             'refresh_token' => 'google-refresh-token',
@@ -666,7 +708,7 @@ class OnboardingFlowTest extends TestCase
 
         $this->get('/onboarding?step=6')
             ->assertOk()
-            ->assertSee('Google Workspace is connected and ready for the tenant runtime.')
+            ->assertSee('Google Workspace is connected and verified inside the live tenant runtime.')
             ->assertSee('id="google-workspace-connect-wrapper" style="display: none;"', false)
             ->assertSee('id="google-workspace-skip-form" style="display: none;"', false)
             ->assertSee('id="google-workspace-disconnect-form" style="display: block;"', false);
@@ -789,7 +831,16 @@ class OnboardingFlowTest extends TestCase
 
         $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
         File::ensureDirectoryExists($localRuntimePath.'/.openclaw/workspace');
-        File::put($localRuntimePath.'/compose.yaml', 'services: {}');
+        File::put($localRuntimePath.'/compose.yaml', implode(PHP_EOL, [
+            'services:',
+            '  openclaw-gateway:',
+            '    environment:',
+            '      OPENCLAW_HOME: "/home/node/.openclaw"',
+            '      OPENCLAW_STATE_DIR: "/home/node/.openclaw/data"',
+            '      OPENCLAW_CONFIG_PATH: "/home/node/.openclaw/config/openclaw.json"',
+            '      OPENCLAW_GATEWAY_TOKEN: "test-token"',
+            '',
+        ]));
 
         $runnerSpy = new class implements DockerComposeRunner
         {
@@ -913,6 +964,116 @@ class OnboardingFlowTest extends TestCase
         $this->assertCount(1, $runnerSpy->upCalls);
         $this->assertSame('/srv/sync360/runtime/tenants/acme-plumbing/.openclaw/workspace', $runnerSpy->syncCalls[0]['remote']);
         $this->assertSame('/srv/sync360/runtime/tenants/acme-plumbing/compose.yaml', $runnerSpy->upCalls[0]['compose_file']);
+    }
+
+    public function test_go_live_includes_owner_google_workspace_guidance_when_connected(): void
+    {
+        [$user, $tenant, $profile, $files] = $this->seedTenantWithProfile();
+
+        $profile->forceFill([
+            'website_url' => 'https://acme.example',
+            'description' => 'Acme Plumbing helps homeowners with urgent repairs and scheduled installs.',
+            'services' => ['Emergency plumbing'],
+        ])->save();
+
+        $files->forceFill([
+            'identity_markdown' => "# Identity\n\nAcme Plumbing",
+            'soul_markdown' => "# Soul\n\nFriendly and helpful.",
+            'user_markdown' => "# User\n\nSupport homeowners.",
+            'bootstrap_markdown' => "# Bootstrap\n\nStart with the business profile.",
+            'generated_at' => now(),
+        ])->save();
+
+        $tenant->forceFill([
+            'onboarding_status' => 'in_progress',
+            'onboarding_step' => 6,
+            'tone' => 'friendly',
+            'capabilities' => ['faqs', 'messages'],
+            'channel' => 'telegram',
+            'channel_config' => ['telegram_bot_token' => 'telegram-bot-token'],
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'workspace_url' => 'https://acme-plumbing.workspace.test',
+            'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
+        ])->save();
+
+        $tenant->googleCredential()->create([
+            'status' => TenantGoogleCredential::STATUS_CONNECTED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_VERIFIED,
+            'google_email' => 'owner@example.com',
+            'access_token' => 'google-access-token',
+            'refresh_token' => 'google-refresh-token',
+            'scopes' => ['openid', 'email'],
+            'connected_at' => now(),
+        ]);
+
+        $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
+        File::ensureDirectoryExists($localRuntimePath.'/.openclaw/workspace');
+        File::put($localRuntimePath.'/compose.yaml', implode(PHP_EOL, [
+            'services:',
+            '  openclaw-gateway:',
+            '    environment:',
+            '      OPENCLAW_HOME: "/home/node/.openclaw"',
+            '      OPENCLAW_STATE_DIR: "/home/node/.openclaw/data"',
+            '      OPENCLAW_CONFIG_PATH: "/home/node/.openclaw/config/openclaw.json"',
+            '      OPENCLAW_GATEWAY_TOKEN: "test-token"',
+            '',
+        ]));
+
+        $runnerSpy = new class implements DockerComposeRunner
+        {
+            public array $syncCalls = [];
+            public array $upCalls = [];
+
+            public function syncRuntime(Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
+
+            public function syncWorkspaceFiles(Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void
+            {
+                $this->syncCalls[] = compact('localWorkspacePath', 'remoteWorkspacePath');
+            }
+
+            public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array
+            {
+                $response = Http::timeout($timeoutSeconds)->acceptJson()->send($method, $url, $json !== null ? ['json' => $json] : []);
+
+                return ['status' => $response->status(), 'body' => $response->body()];
+            }
+
+            public function putFile(Server $server, string $remotePath, string $contents, bool $sudo = false): void {}
+            public function removeFile(Server $server, string $remotePath, bool $sudo = false): void {}
+            public function removeDirectory(Server $server, string $remotePath, bool $sudo = false): void {}
+            public function runCommand(Server $server, string $command, bool $sudo = false): void {}
+            public function up(Server $server, string $composeFile, string $projectName): void
+            {
+                $this->upCalls[] = compact('composeFile', 'projectName');
+            }
+            public function down(Server $server, string $composeFile, string $projectName): void {}
+            public function start(Server $server, string $composeFile, string $projectName): void {}
+            public function stop(Server $server, string $composeFile, string $projectName): void {}
+            public function isRunning(Server $server, string $composeFile, string $projectName): bool { return false; }
+            public function isHostPortInUse(Server $server, int $port): bool { return false; }
+            public function waitForHttpReady(Server $server, string $url, int $timeoutSeconds, int $pollIntervalMs): void {}
+        };
+
+        $this->instance(DockerComposeRunner::class, $runnerSpy);
+        $this->mock(TenantGoogleWorkspaceSmokeTestService::class, function ($mock): void {
+            $mock->shouldReceive('run')
+                ->once()
+                ->andReturn([
+                    'tenant_slug' => 'acme-plumbing',
+                    'google_email' => 'owner@example.com',
+                    'runtime_artifacts_verified' => true,
+                    'container_smoke_passed' => true,
+                ]);
+        });
+
+        $this->actingAs($user)
+            ->postJson('/onboarding/go-live')
+            ->assertOk();
+
+        $this->assertStringContainsString('Owner Workspace Access', File::get($localRuntimePath.'/.openclaw/workspace/PROFILE.md'));
+        $this->assertStringContainsString('use the available Google Workspace tools instead of giving a generic refusal', File::get($localRuntimePath.'/.openclaw/workspace/PROFILE.md'));
+        $this->assertStringContainsString('Treat messages from the workspace owner as internal operating requests', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
+        $this->assertStringContainsString('Do not say you are fundamentally unable to check emails or calendars', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
     }
 
     /**

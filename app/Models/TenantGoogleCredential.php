@@ -17,6 +17,7 @@ class TenantGoogleCredential extends Model
 
     public const RUNTIME_SYNC_PENDING = 'pending';
     public const RUNTIME_SYNC_SYNCED = 'synced';
+    public const RUNTIME_SYNC_VERIFIED = 'verified';
     public const RUNTIME_SYNC_FAILED = 'failed';
 
     /**
@@ -74,5 +75,15 @@ class TenantGoogleCredential extends Model
             self::STATUS_SKIPPED,
             self::STATUS_DISCONNECTED,
         ], true);
+    }
+
+    public function runtimeIsVerified(): bool
+    {
+        return $this->runtime_sync_status === self::RUNTIME_SYNC_VERIFIED;
+    }
+
+    public function runtimeNeedsAttention(): bool
+    {
+        return $this->runtime_sync_status === self::RUNTIME_SYNC_FAILED;
     }
 }

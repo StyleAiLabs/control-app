@@ -24,12 +24,13 @@ class TenantAgentSyncService
         private readonly TenantRuntimeService $runtime,
         private readonly DockerComposeRunner $dockerCompose,
         private readonly GogAuthStorageService $gogAuthStorage,
+        private readonly TenantGoogleWorkspaceSmokeTestService $googleWorkspaceSmokeTests,
     ) {
     }
 
     public function goLive(Tenant $tenant): void
     {
-        $tenant->loadMissing(['server', 'businessProfile', 'businessProfileFiles']);
+        $tenant->loadMissing(GoogleWorkspaceFeature::tenantRelations(['server', 'businessProfile', 'businessProfileFiles']));
 
         $profile = $tenant->businessProfile;
         $profileFiles = $tenant->businessProfileFiles;
@@ -360,6 +361,7 @@ class TenantAgentSyncService
 
         try {
             $this->configureGoogleWorkspace($tenant);
+            $this->verifyConnectedGoogleWorkspace($tenant->fresh(['server', 'googleCredential']));
         } catch (Throwable $exception) {
             $tenant->googleCredential?->forceFill([
                 'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_FAILED,
@@ -371,6 +373,38 @@ class TenantAgentSyncService
                 'error' => $exception->getMessage(),
             ]);
         }
+    }
+
+    public function verifyConnectedGoogleWorkspace(Tenant $tenant): void
+    {
+        if (! GoogleWorkspaceFeature::isAvailable()) {
+            return;
+        }
+
+        $tenant->loadMissing(['server', 'googleCredential']);
+
+        $credential = $tenant->googleCredential;
+
+        if (! $credential?->isConnected()) {
+            return;
+        }
+
+        if ($tenant->provisioning_status !== TenantProvisioningStatus::Ready || ! filled($tenant->runtime_path)) {
+            $credential->forceFill([
+                'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_PENDING,
+                'last_error' => null,
+            ])->save();
+
+            return;
+        }
+
+        $this->googleWorkspaceSmokeTests->run($tenant);
+
+        $credential->forceFill([
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_VERIFIED,
+            'last_synced_at' => now(),
+            'last_error' => null,
+        ])->save();
     }
 
     private function ensureTenantCanGoLive(Tenant $tenant, ?BusinessProfile $profile, ?BusinessProfileFiles $profileFiles): void
@@ -553,6 +587,7 @@ class TenantAgentSyncService
      */
     private function artifactContents(Tenant $tenant, BusinessProfile $profile, BusinessProfileFiles $profileFiles): array
     {
+        $googleCredential = GoogleWorkspaceFeature::isAvailable() ? $tenant->googleCredential : null;
         $services = $this->stringList($profile->services);
         $capabilities = $this->stringList($tenant->capabilities);
         $channelLabel = match ($tenant->channel) {
@@ -566,8 +601,8 @@ class TenantAgentSyncService
             'SOUL.md' => $this->normalizeMarkdown($profileFiles->soul_markdown),
             'USER.md' => $this->normalizeMarkdown($profileFiles->user_markdown),
             'BOOTSTRAP.md' => $this->normalizeMarkdown($profileFiles->bootstrap_markdown),
-            'PROFILE.md' => $this->normalizeMarkdown($this->buildProfileMarkdown($tenant, $profile, $services, $capabilities, $channelLabel)),
-            'HEARTBEAT.md' => $this->normalizeMarkdown($this->buildHeartbeatMarkdown($tenant, $profile, $capabilities, $channelLabel)),
+            'PROFILE.md' => $this->normalizeMarkdown($this->buildProfileMarkdown($tenant, $profile, $services, $capabilities, $channelLabel, $googleCredential)),
+            'HEARTBEAT.md' => $this->normalizeMarkdown($this->buildHeartbeatMarkdown($tenant, $profile, $capabilities, $channelLabel, $googleCredential)),
         ];
     }
 
@@ -575,7 +610,14 @@ class TenantAgentSyncService
      * @param  array<int, string>  $services
      * @param  array<int, string>  $capabilities
      */
-    private function buildProfileMarkdown(Tenant $tenant, BusinessProfile $profile, array $services, array $capabilities, string $channelLabel): string
+    private function buildProfileMarkdown(
+        Tenant $tenant,
+        BusinessProfile $profile,
+        array $services,
+        array $capabilities,
+        string $channelLabel,
+        ?TenantGoogleCredential $googleCredential,
+    ): string
     {
         $serviceLines = $services === []
             ? ['- No services have been confirmed yet.']
@@ -622,6 +664,9 @@ class TenantAgentSyncService
             '## Customer Handling',
             ...$capabilityLines,
             '',
+            '## Owner Workspace Access',
+            ...$this->ownerWorkspaceAccessLines($googleCredential),
+            '',
             '## Notes',
             '- Pricing Notes: '.($profile->pricing_notes ?: 'Share tailored pricing guidance only when enough information is available.'),
             '- Target Customers: '.($profile->target_customers ?: 'Not provided'),
@@ -634,7 +679,13 @@ class TenantAgentSyncService
     /**
      * @param  array<int, string>  $capabilities
      */
-    private function buildHeartbeatMarkdown(Tenant $tenant, BusinessProfile $profile, array $capabilities, string $channelLabel): string
+    private function buildHeartbeatMarkdown(
+        Tenant $tenant,
+        BusinessProfile $profile,
+        array $capabilities,
+        string $channelLabel,
+        ?TenantGoogleCredential $googleCredential,
+    ): string
     {
         $rules = [
             '- Represent '.($profile->business_name ?: $tenant->business_name).' clearly and accurately.',
@@ -643,7 +694,15 @@ class TenantAgentSyncService
             '- If details are missing, collect the customer message and hand it over rather than guessing.',
             '- Keep replies concise, helpful, and suited to '.$channelLabel.'.',
             '- **CRITICAL IDENTITY RULE**: You are an employee of '.($profile->business_name ?: $tenant->business_name).'. NEVER mention that you are an AI, a bot, or integrated with "OpenClaw", "OpenAI", "Claude", or any other platforms. Keep your true nature strictly confidential.',
+            '- Treat messages from the workspace owner as internal operating requests when they ask about inboxes, calendars, files, contacts, sheets, or docs.',
         ];
+
+        if ($googleCredential?->isConnected()) {
+            $rules[] = '- Google Workspace is connected for the owner account '.($googleCredential->google_email ?: 'on file').'. Use the available Gmail, Calendar, Drive, Contacts, Sheets, and Docs tools for owner requests when relevant.';
+            $rules[] = '- If a Google Workspace tool call fails, explain that access is temporarily unavailable and ask the owner to retry or reconnect. Do not say you are fundamentally unable to check emails or calendars.';
+        } else {
+            $rules[] = '- If the owner asks for Gmail, Calendar, Drive, Contacts, Sheets, or Docs help before Google Workspace is connected, explain that the workspace connection still needs to be completed in Sync360.';
+        }
 
         if (filled($profile->after_hours_policy)) {
             $rules[] = '- Follow this after-hours policy when the business is unavailable: '.$profile->after_hours_policy;
@@ -694,5 +753,32 @@ class TenantAgentSyncService
     private function normalizeMarkdown(?string $markdown): string
     {
         return rtrim((string) $markdown).PHP_EOL;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function ownerWorkspaceAccessLines(?TenantGoogleCredential $googleCredential): array
+    {
+        if (! $googleCredential?->isConnected()) {
+            return [
+                '- Google Workspace is not connected yet.',
+                '- Owner requests for inbox, calendar, drive, contacts, sheets, or docs should be handled only after the owner completes the Google Workspace step in Sync360.',
+            ];
+        }
+
+        $statusLabel = match ($googleCredential->runtime_sync_status) {
+            TenantGoogleCredential::RUNTIME_SYNC_VERIFIED => 'Verified inside the live tenant runtime.',
+            TenantGoogleCredential::RUNTIME_SYNC_SYNCED => 'Credentials synced into the tenant runtime and awaiting live verification.',
+            TenantGoogleCredential::RUNTIME_SYNC_FAILED => 'Connection needs attention before owner workspace actions are reliable.',
+            default => 'Connection is still being prepared in the tenant runtime.',
+        };
+
+        return [
+            '- Google Workspace Account: '.($googleCredential->google_email ?: 'Connected'),
+            '- Runtime Status: '.$statusLabel,
+            '- When the workspace owner asks for recent emails, calendar events, files, contacts, sheets, or docs, use the available Google Workspace tools instead of giving a generic refusal.',
+            '- If those tools fail during a request, explain that the workspace connection needs attention and suggest reconnecting or retrying after resync.',
+        ];
     }
 }
