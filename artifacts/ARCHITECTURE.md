@@ -260,6 +260,8 @@ The onboarding Blade shows explicit wizard progress and a background-setup statu
 
 Google Workspace Step 6 now distinguishes between OAuth account status and live runtime readiness. The state payload can report Google Workspace as `pending`, `synced`, `verified`, or `failed`, and the Blade surfaces `last_error` when runtime verification needs attention instead of collapsing everything into a single optimistic "ready" message.
 
+The Step 6 customer-facing copy is intentionally phrased as live-access progress rather than low-level runtime troubleshooting. Connected accounts are described as linking, checking, ready, or needing attention so customers are not pushed toward reconnecting unless the actual runtime error indicates that reconnect is the right fix.
+
 When that runtime verification runs against an SSH-managed tenant, the control plane now strips the benign SSH known-host warning line from failed remote smoke output before deriving `last_error`. The onboarding/admin surface should therefore show the actual runtime or CLI failure instead of `Warning: Permanently added ... to the list of known hosts.`
 
 When Google verification succeeds, Sync360 now also clears the known stale Gmail/account failure memory files for today and yesterday from the tenant workspace memory directory. This keeps older reconnect/account-selection issue summaries from continuing to bias the live assistant after `gog` and runtime auth are healthy again.

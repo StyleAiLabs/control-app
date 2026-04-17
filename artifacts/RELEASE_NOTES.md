@@ -7,6 +7,22 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-18 — Google Workspace Step 6 Copy Softened For Customers
+
+Date: 2026-04-18
+Status: Implemented
+
+### Overview
+
+Smoothed the Google Workspace onboarding language after the runtime path stabilized. Step 6 already had the correct connected/synced/verified/failed state model, but some of the customer-facing copy sounded too operational and nudged people toward reconnecting before the runtime error actually called for that.
+
+### What Changed
+
+- changed the Step 6 status label from `Runtime Sync` to `Live Access`
+- rewrote the connected, pending-sync, pending-verification, verified, and needs-attention note copy to sound more like progress through live access rather than backend troubleshooting
+- kept the raw runtime error visible below the calmer summary note so operators and customers can still see the precise failure when something genuinely needs attention
+- updated onboarding feature coverage for the new verified-state wording
+
 ## 2026-04-18 — RFC3394 AES Key-Wrap Compatibility For `gog` Keyring Tokens
 
 Date: 2026-04-18

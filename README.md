@@ -8,6 +8,7 @@ It currently covers the full control-plane loop:
 - tenant creation, server assignment, and async provisioning
 - local and SSH-based tenant runtime deployment
 - guided onboarding with visible progress, draft-safe state refresh, optional Google Workspace connect, live Google verification status, and go-live sync
+- Google Workspace onboarding now uses calmer live-access wording in Step 6 so customers can tell the difference between connected, checking, ready, and needs-attention states without being pushed toward reconnect too early
 - Business Profile sync with in-page progress/completion feedback for live assistant resyncs
 - tenant workspace tool guidance via generated `TOOLS.md`, including default-account behavior, native direct `gog` CLI usage, and guardrails against hallucinated reconnect or `credentials.json` advice
 - tenant runtime config now explicitly enables the bundled `gog` skill in `openclaw.json` so connected Google Workspace tooling is actually available to the agent

@@ -519,7 +519,7 @@
                     </span>
                 </div>
                 <div class="meta-item">
-                    <small>Runtime Sync</small>
+                    <small>Live Access</small>
                     <span id="google-workspace-runtime-sync">
                         {{ ucfirst($state['google_workspace']['runtime_sync_status'] ?? 'pending') }}
                     </span>
@@ -530,15 +530,15 @@
                 @if (($state['google_workspace']['available'] ?? true) === false)
                     Google Workspace connect is temporarily unavailable in this environment until the latest database migration has been run.
                 @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['needs_attention'] ?? false))
-                    Google Workspace is connected, but the live workspace access needs attention. Check the runtime status below and reconnect if needed.
+                    Google Workspace is connected. The live tools just need one more update before Gmail and Calendar are ready here.
                 @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['pending_sync'] ?? false))
-                    Google Workspace is connected. We will sync the runtime access automatically as soon as the workspace is ready.
+                    Google Workspace is connected. We will finish linking it to your live workspace as soon as setup is ready.
                 @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['pending_verification'] ?? false))
-                    Google Workspace is connected and synced. We are verifying live Gmail and Calendar access in your workspace.
+                    Google Workspace is connected and synced. We are running a quick live check for Gmail and Calendar now.
                 @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['verified'] ?? false))
-                    Google Workspace is connected and verified inside the live tenant runtime.
+                    Google Workspace is connected and ready in your live workspace.
                 @elseif (($state['google_workspace']['status'] ?? null) === 'connected')
-                    Google Workspace is connected. Runtime verification will run after the workspace sync completes.
+                    Google Workspace is connected. A live access check will run after the workspace sync completes.
                 @elseif (($state['google_workspace']['status'] ?? null) === 'disconnected')
                     Google Workspace was disconnected. You can reconnect this account at any time.
                 @else
@@ -1006,15 +1006,15 @@
             if (state.google_workspace?.available === false) {
                 googleWorkspaceNote.textContent = 'Google Workspace connect is temporarily unavailable in this environment until the latest database migration has been run.';
             } else if (state.google_workspace?.status === 'connected' && state.google_workspace?.needs_attention) {
-                googleWorkspaceNote.textContent = 'Google Workspace is connected, but the live workspace access needs attention. Check the runtime status below and reconnect if needed.';
+                googleWorkspaceNote.textContent = 'Google Workspace is connected. The live tools just need one more update before Gmail and Calendar are ready here.';
             } else if (state.google_workspace?.status === 'connected' && state.google_workspace?.pending_sync) {
-                googleWorkspaceNote.textContent = 'Google Workspace is connected. We will sync the runtime access automatically as soon as the workspace is ready.';
+                googleWorkspaceNote.textContent = 'Google Workspace is connected. We will finish linking it to your live workspace as soon as setup is ready.';
             } else if (state.google_workspace?.status === 'connected' && state.google_workspace?.pending_verification) {
-                googleWorkspaceNote.textContent = 'Google Workspace is connected and synced. We are verifying live Gmail and Calendar access in your workspace.';
+                googleWorkspaceNote.textContent = 'Google Workspace is connected and synced. We are running a quick live check for Gmail and Calendar now.';
             } else if (state.google_workspace?.status === 'connected' && state.google_workspace?.verified) {
-                googleWorkspaceNote.textContent = 'Google Workspace is connected and verified inside the live tenant runtime.';
+                googleWorkspaceNote.textContent = 'Google Workspace is connected and ready in your live workspace.';
             } else if (state.google_workspace?.status === 'connected') {
-                googleWorkspaceNote.textContent = 'Google Workspace is connected. Runtime verification will run after the workspace sync completes.';
+                googleWorkspaceNote.textContent = 'Google Workspace is connected. A live access check will run after the workspace sync completes.';
             } else if (googleIsDisconnected) {
                 googleWorkspaceNote.textContent = 'Google Workspace was disconnected. You can reconnect this account at any time.';
             } else {
