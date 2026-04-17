@@ -426,16 +426,63 @@ NODE;
         }
 
         if ($exception instanceof ProcessFailedException) {
-            $process = $exception->getProcess();
-            $output = trim($process->getErrorOutput()) ?: trim($process->getOutput());
+            $message = $this->meaningfulProcessFailureMessage($exception);
 
-            if ($output !== '') {
-                $line = trim(strtok($output, "\n")) ?: $output;
-
-                return new RuntimeException($line, previous: $exception);
+            if ($message !== null) {
+                return new RuntimeException($message, previous: $exception);
             }
+
+            return new RuntimeException('Google Workspace runtime verification failed during remote execution.', previous: $exception);
         }
 
         return new RuntimeException($exception->getMessage(), previous: $exception);
+    }
+
+    private function meaningfulProcessFailureMessage(ProcessFailedException $exception): ?string
+    {
+        $process = $exception->getProcess();
+
+        foreach ([trim($process->getErrorOutput()), trim($process->getOutput())] as $output) {
+            if ($output === '') {
+                continue;
+            }
+
+            $meaningfulOutput = $this->stripIgnorableSshTransportLines($output);
+
+            if ($meaningfulOutput === '') {
+                continue;
+            }
+
+            $line = trim(strtok($meaningfulOutput, "\n")) ?: trim($meaningfulOutput);
+
+            if ($line !== '') {
+                return $line;
+            }
+        }
+
+        return null;
+    }
+
+    private function stripIgnorableSshTransportLines(string $output): string
+    {
+        $lines = preg_split('/\r\n|\r|\n/', $output) ?: [];
+        $meaningfulLines = [];
+
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+
+            if ($trimmed === '' || $this->isIgnorableSshTransportLine($trimmed)) {
+                continue;
+            }
+
+            $meaningfulLines[] = $trimmed;
+        }
+
+        return implode("\n", $meaningfulLines);
+    }
+
+    private function isIgnorableSshTransportLine(string $line): bool
+    {
+        return preg_match('/^Warning:\s+Permanently added .* to the list of known hosts\.$/i', $line) === 1;
     }
 }

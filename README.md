@@ -232,6 +232,8 @@ The Google Workspace smoke path now verifies both runtime auth health and the na
 - allowlisted help probes for the broader `gog` service surface
 - existing refresh-token, Gmail API, and Calendar API smoke checks
 
+When a remote Google smoke run fails over SSH, Sync360 now strips the benign SSH known-host warning line from failure output before surfacing the result. Operators and onboarding screens should see the actual runtime/CLI failure instead of `Warning: Permanently added ... to the list of known hosts.`
+
 ### Upgrade a pinned runtime capability version
 
 For `gog` and future host-managed capabilities:

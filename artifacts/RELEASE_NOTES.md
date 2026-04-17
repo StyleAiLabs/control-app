@@ -7,6 +7,21 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-18 — Google Smoke Failures Now Ignore SSH Host-Key Noise
+
+Date: 2026-04-18
+Status: Implemented
+
+### Overview
+
+Fixed a misleading Google Workspace failure path on SSH-managed tenants where the onboarding/admin UI could show the benign SSH known-host warning instead of the real runtime verification error.
+
+### What Changed
+
+- updated Google Workspace smoke-failure translation to strip the harmless `Warning: Permanently added ... to the list of known hosts.` SSH transport line before surfacing a failure
+- preserved the real remote runtime or CLI stderr line when one exists, so operators see the actual `gog` / Google verification error
+- added regression coverage proving known-host warning noise is ignored and a neutral remote-execution message is used when SSH emitted no meaningful failure detail beyond the warning
+
 ## 2026-04-18 — Native Direct `gog` Runtime Contract + CLI Smoke Verification
 
 Date: 2026-04-18
