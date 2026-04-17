@@ -7,6 +7,7 @@ use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
 use App\Models\Server;
 use App\Models\Tenant;
+use App\Models\TenantGoogleCredential;
 use App\Models\User;
 use App\Services\TenantRuntimeCapabilityService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -53,6 +54,35 @@ class TenantRuntimeCapabilityServiceTest extends TestCase
         $this->assertStringContainsString('source: "/usr/local/bin/gog"', $contents);
         $this->assertStringContainsString('target: "/usr/local/bin/gog"', $contents);
         $this->assertStringContainsString('read_only: true', $contents);
+        $this->assertStringContainsString('GOG_ENABLE_COMMANDS: "gmail,calendar,drive,contacts,tasks,sheets,docs,slides,people,chat,classroom,forms,appscript,groups"', $contents);
+    }
+
+    public function test_render_compose_includes_gog_account_for_connected_google_workspace(): void
+    {
+        /** @var TenantRuntimeCapabilityService $service */
+        $service = app(TenantRuntimeCapabilityService::class);
+        $tenant = $this->seedTenant();
+
+        $tenant->googleCredential()->create([
+            'status' => TenantGoogleCredential::STATUS_CONNECTED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_VERIFIED,
+            'google_email' => 'owner@example.com',
+            'access_token' => 'google-access-token',
+            'refresh_token' => 'google-refresh-token',
+            'scopes' => ['openid', 'email'],
+            'connected_at' => now(),
+        ]);
+
+        $contents = $service->renderCompose(
+            $tenant->fresh('googleCredential'),
+            '/srv/sync360/runtime/tenants/acme-plumbing',
+            4100,
+            'gateway-token',
+            'sk-tenant-acme',
+            'https://litellm.stylesoftware.co.nz',
+        );
+
+        $this->assertStringContainsString('GOG_ACCOUNT: "owner@example.com"', $contents);
     }
 
     public function test_ensure_installed_on_server_skips_reinstall_when_pinned_version_matches(): void

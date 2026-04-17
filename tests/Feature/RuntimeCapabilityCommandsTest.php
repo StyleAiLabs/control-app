@@ -10,6 +10,7 @@ use App\Models\Tenant;
 use App\Models\TenantGoogleCredential;
 use App\Models\User;
 use App\Services\TenantGoogleWorkspaceSmokeTestService;
+use App\Services\TenantProfileSyncService;
 use App\Services\TenantRuntimeCapabilityService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
@@ -170,6 +171,12 @@ class RuntimeCapabilityCommandsTest extends TestCase
                     'google_email' => 'owner@example.com',
                     'host_capability_verified' => true,
                     'container_binary_verified' => true,
+                    'gog_env_verified' => true,
+                    'gmail_cli_verified' => true,
+                    'calendar_cli_verified' => true,
+                    'drive_cli_verified' => true,
+                    'contacts_cli_verified' => true,
+                    'help_probes_verified' => true,
                     'runtime_artifacts_verified' => true,
                     'container_smoke_passed' => true,
                 ]);
@@ -184,6 +191,8 @@ class RuntimeCapabilityCommandsTest extends TestCase
 
         $this->assertSame(TenantGoogleCredential::RUNTIME_SYNC_VERIFIED, $credential->runtime_sync_status);
         $this->assertStringContainsString('source: "/usr/local/bin/gog"', File::get($localRuntimePath.'/compose.yaml'));
+        $this->assertStringContainsString('GOG_ENABLE_COMMANDS: "gmail,calendar,drive,contacts,tasks,sheets,docs,slides,people,chat,classroom,forms,appscript,groups"', File::get($localRuntimePath.'/compose.yaml'));
+        $this->assertStringContainsString('GOG_ACCOUNT: "owner@example.com"', File::get($localRuntimePath.'/compose.yaml'));
         $this->assertStringContainsString('"gog"', File::get($localRuntimePath.'/config/openclaw.json'));
         $this->assertNotEmpty($runnerSpy->putFiles);
         $this->assertTrue(collect($runnerSpy->putFiles)->contains(fn (array $file): bool => $file['path'] === '/srv/sync360/runtime/tenants/acme-plumbing/compose.yaml'));
@@ -192,6 +201,147 @@ class RuntimeCapabilityCommandsTest extends TestCase
         $this->assertFileDoesNotExist($staleMemoryPath);
         $this->assertFileExists($otherMemoryPath);
         $this->assertContains('/srv/sync360/runtime/tenants/acme-plumbing/.openclaw/workspace/memory/'.now()->format('Y-m-d').'-email-check-issue.md', $runnerSpy->removedFiles);
+    }
+
+    public function test_sync_runtime_capabilities_refreshes_workspace_guidance_for_live_tenants(): void
+    {
+        config()->set('sync360.infrastructure.driver', 'ssh');
+
+        $tenant = $this->seedReadyTenant();
+        $tenant->forceFill([
+            'agent_status' => 'live',
+            'onboarding_status' => 'complete',
+        ])->save();
+
+        $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
+        File::ensureDirectoryExists($localRuntimePath.'/config');
+        File::put($localRuntimePath.'/.env', implode(PHP_EOL, [
+            'OPENCLAW_GATEWAY_TOKEN=test-token',
+            'OPENAI_API_KEY=sk-tenant-acme',
+            'OPENAI_BASE_URL=https://litellm.stylesoftware.co.nz',
+            '',
+        ]));
+        File::put($localRuntimePath.'/config/openclaw.json', json_encode([
+            'agents' => [
+                'defaults' => [
+                    'model' => 'gpt-4o',
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+        File::put($localRuntimePath.'/compose.yaml', 'services: {}'.PHP_EOL);
+
+        $runner = Mockery::mock(DockerComposeRunner::class);
+        $runner->shouldReceive('putFile')->andReturnNull();
+        $runner->shouldReceive('runCommand')->andReturnNull();
+        $this->instance(DockerComposeRunner::class, $runner);
+
+        $profileSync = Mockery::mock(TenantProfileSyncService::class);
+        $profileSync->shouldReceive('regenerateAndSyncWorkspaceOnly')
+            ->once()
+            ->withArgs(fn (Tenant $refreshedTenant): bool => $refreshedTenant->slug === 'acme-plumbing')
+            ->andReturnNull();
+        $this->instance(TenantProfileSyncService::class, $profileSync);
+
+        $this->mock(TenantGoogleWorkspaceSmokeTestService::class, function ($mock): void {
+            $mock->shouldReceive('run')
+                ->once()
+                ->andReturn([
+                    'tenant_slug' => 'acme-plumbing',
+                    'google_email' => 'owner@example.com',
+                    'host_capability_verified' => true,
+                    'container_binary_verified' => true,
+                    'gog_env_verified' => true,
+                    'gmail_cli_verified' => true,
+                    'calendar_cli_verified' => true,
+                    'drive_cli_verified' => true,
+                    'contacts_cli_verified' => true,
+                    'help_probes_verified' => true,
+                    'runtime_artifacts_verified' => true,
+                    'container_smoke_passed' => true,
+                ]);
+        });
+
+        $this->artisan('sync360:sync-runtime-capabilities '.$tenant->slug.' gog')
+            ->assertExitCode(0);
+    }
+
+    public function test_sync_runtime_capabilities_marks_google_failed_with_precise_error_when_cli_verification_breaks(): void
+    {
+        config()->set('sync360.infrastructure.driver', 'ssh');
+
+        $tenant = $this->seedReadyTenant();
+
+        $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
+        File::ensureDirectoryExists($localRuntimePath.'/config');
+        File::put($localRuntimePath.'/.env', implode(PHP_EOL, [
+            'OPENCLAW_GATEWAY_TOKEN=test-token',
+            'OPENAI_API_KEY=sk-tenant-acme',
+            'OPENAI_BASE_URL=https://litellm.stylesoftware.co.nz',
+            '',
+        ]));
+        File::put($localRuntimePath.'/config/openclaw.json', json_encode([
+            'agents' => [
+                'defaults' => [
+                    'model' => 'gpt-4o',
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+        File::put($localRuntimePath.'/compose.yaml', 'services: {}'.PHP_EOL);
+
+        $runner = Mockery::mock(DockerComposeRunner::class);
+        $runner->shouldReceive('putFile')->andReturnNull();
+        $runner->shouldReceive('runCommand')->andReturnNull();
+        $this->instance(DockerComposeRunner::class, $runner);
+
+        $this->mock(TenantGoogleWorkspaceSmokeTestService::class, function ($mock): void {
+            $mock->shouldReceive('run')
+                ->once()
+                ->andThrow(new RuntimeException('gmail-cli failed: Gmail CLI failed: missing required query argument.'));
+        });
+
+        $this->artisan('sync360:sync-runtime-capabilities '.$tenant->slug.' gog')
+            ->expectsOutputToContain('Failed: gmail-cli failed: Gmail CLI failed: missing required query argument.')
+            ->assertExitCode(0);
+
+        $credential = $tenant->fresh('googleCredential')->googleCredential;
+
+        $this->assertSame(TenantGoogleCredential::RUNTIME_SYNC_FAILED, $credential?->runtime_sync_status);
+        $this->assertSame('gmail-cli failed: Gmail CLI failed: missing required query argument.', $credential?->last_error);
+    }
+
+    public function test_google_workspace_smoke_command_reports_cli_suite_stages(): void
+    {
+        $tenant = $this->seedReadyTenant();
+
+        $this->mock(TenantGoogleWorkspaceSmokeTestService::class, function ($mock): void {
+            $mock->shouldReceive('run')
+                ->once()
+                ->andReturn([
+                    'tenant_slug' => 'acme-plumbing',
+                    'google_email' => 'owner@example.com',
+                    'compose_file' => '/srv/sync360/runtime/tenants/acme-plumbing/compose.yaml',
+                    'xdg_config_home_expected' => '/home/node/.openclaw/.openclaw',
+                    'host_capability_verified' => true,
+                    'container_binary_verified' => true,
+                    'gog_env_verified' => true,
+                    'gmail_cli_verified' => true,
+                    'calendar_cli_verified' => true,
+                    'drive_cli_verified' => true,
+                    'contacts_cli_verified' => true,
+                    'help_probes_verified' => true,
+                    'runtime_artifacts_verified' => true,
+                    'container_smoke_passed' => true,
+                ]);
+        });
+
+        $this->artisan('sync360:test-google-workspace '.$tenant->slug)
+            ->expectsOutputToContain('GOG runtime env')
+            ->expectsOutputToContain('Gmail CLI')
+            ->expectsOutputToContain('Calendar CLI')
+            ->expectsOutputToContain('Drive CLI')
+            ->expectsOutputToContain('Contacts CLI')
+            ->expectsOutputToContain('Help probes')
+            ->assertExitCode(0);
     }
 
     private function seedReadyTenant(): Tenant

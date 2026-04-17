@@ -9,7 +9,7 @@ It currently covers the full control-plane loop:
 - local and SSH-based tenant runtime deployment
 - guided onboarding with visible progress, draft-safe state refresh, optional Google Workspace connect, live Google verification status, and go-live sync
 - Business Profile sync with in-page progress/completion feedback for live assistant resyncs
-- tenant workspace tool guidance via generated `TOOLS.md`, including default-account, read-only Gmail workflow, and `gog` usage notes for connected Google Workspace tenants
+- tenant workspace tool guidance via generated `TOOLS.md`, including default-account behavior, native direct `gog` CLI usage, and guardrails against hallucinated reconnect or `credentials.json` advice
 - tenant runtime config now explicitly enables the bundled `gog` skill in `openclaw.json` so connected Google Workspace tooling is actually available to the agent
 - host-managed runtime capability installs for external tenant dependencies such as `gog`, using pinned VPS binaries plus read-only tenant bind mounts
 - private gateway access for health checks and runtime integration
@@ -166,6 +166,11 @@ docker compose -f docker-compose.prod.yml exec app php artisan sync360:bootstrap
 
 This command now also installs pinned host-managed runtime capabilities declared in `config/sync360.php` on the client VPS. In the current repo, that includes the `gog` binary used by Google Workspace tooling.
 
+For `gog`, the control plane now injects:
+
+- `GOG_ENABLE_COMMANDS` as the allowlisted top-level direct CLI surface for the tenant runtime
+- `GOG_ACCOUNT` for connected tenants so the tenant runtime defaults to the tenant’s connected Google email
+
 ### Scheduler requirement
 
 Scheduled commands are part of the live system. Production must run the `scheduler` service from `docker-compose.prod.yml` so these jobs execute automatically:
@@ -202,6 +207,7 @@ What it does:
 - regenerates full staged tenant `compose.yaml` and `config/openclaw.json`
 - uploads changed files only
 - force-recreates the tenant when compose changed
+- refreshes workspace prompt files for live tenants so `TOOLS.md` / `PROFILE.md` / `HEARTBEAT.md` stay aligned with the runtime contract
 - reruns capability verification and Google smoke tests where applicable
 - after a successful Google verification, clears the known stale Gmail/account failure memory files from `.openclaw/workspace/memory/` so old reconnect/account-selection narratives do not keep steering the assistant
 
@@ -216,6 +222,15 @@ The local-only super-admin tenant detail page now exposes tenant-scoped runtime 
 - `Test Google Workspace` — runs the same smoke test as `php artisan sync360:test-google-workspace <tenant>`
 
 These admin actions call the existing artisan command paths. They do not change the `goLive()` invariant.
+
+The Google Workspace smoke path now verifies both runtime auth health and the native direct `gog` CLI surface that tenant assistants use:
+
+- host binary visible and healthy
+- mounted binary visible inside the running tenant container
+- `GOG_ENABLE_COMMANDS` / `GOG_ACCOUNT` runtime env
+- direct Gmail / Calendar / Drive / Contacts CLI probes
+- allowlisted help probes for the broader `gog` service surface
+- existing refresh-token, Gmail API, and Calendar API smoke checks
 
 ### Upgrade a pinned runtime capability version
 

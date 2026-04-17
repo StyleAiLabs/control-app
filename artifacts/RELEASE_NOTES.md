@@ -7,6 +7,33 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-18 — Native Direct `gog` Runtime Contract + CLI Smoke Verification
+
+Date: 2026-04-18
+Status: Implemented
+
+### Overview
+
+Closed the next Google Workspace runtime gap by moving from prompt-only `gog` assumptions to a thin shared runtime contract: tenant runtimes still use raw direct `gog` CLI commands, but Sync360 now keeps the allowlist env, default-account env, smoke probes, and generated guidance aligned so runtime health and assistant behavior validate the same native command surface.
+
+### What Changed
+
+- added a thin shared `GogCommandCatalogService` that centralizes only the `gog` allowlist, tenant runtime env, non-mutating CLI probes, and generated guidance strings
+- extended the `gog` capability metadata so tenant compose generation now includes `GOG_ENABLE_COMMANDS` for the allowlisted direct service surface and `GOG_ACCOUNT` for connected tenants
+- kept tenant usage native and direct: Sync360 does not add wrapper commands around normal `gog` usage and still forbids tenant-side `gog auth ...` mutation during normal owner requests
+- expanded `sync360:test-google-workspace` so it now verifies the real native direct `gog` CLI surface inside the tenant container:
+  - `GOG_ENABLE_COMMANDS` / `GOG_ACCOUNT`
+  - Gmail CLI
+  - Calendar CLI
+  - Drive CLI
+  - Contacts CLI
+  - broader allowlisted help probes
+  - existing refresh-token, Gmail API, and Calendar API smoke checks
+- changed smoke failures to surface stage-specific errors so invalid native `gog` command usage no longer collapses into a generic `credentials.json` diagnosis
+- updated generated `TOOLS.md`, `PROFILE.md`, and `HEARTBEAT.md` to bias the tenant assistant toward raw direct `gog` CLI usage, default-account behavior, and scope-aware error explanations
+- updated Google disconnect so compose is regenerated when needed and `GOG_ACCOUNT` is removed from the tenant runtime env
+- changed `sync360:sync-runtime-capabilities` so live-tenant `gog` repairs also refresh workspace guidance, keeping runtime state and prompt guidance aligned
+
 ## 2026-04-17 — Google Verification Now Clears Stale Failure Memory
 
 Date: 2026-04-17

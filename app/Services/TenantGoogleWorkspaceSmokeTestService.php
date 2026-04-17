@@ -9,6 +9,7 @@ use Illuminate\Filesystem\Filesystem;
 use RuntimeException;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 class TenantGoogleWorkspaceSmokeTestService
 {
@@ -17,6 +18,7 @@ class TenantGoogleWorkspaceSmokeTestService
         private readonly DockerComposeRunner $dockerCompose,
         private readonly TenantRuntimeService $runtime,
         private readonly TenantRuntimeCapabilityService $runtimeCapabilities,
+        private readonly GogCommandCatalogService $gogCommands,
     ) {
     }
 
@@ -69,7 +71,7 @@ class TenantGoogleWorkspaceSmokeTestService
             }
         }
 
-        $smokeScript = $this->renderSmokeScript();
+        $smokeScript = $this->renderSmokeScript($tenant);
         $this->files->put($localSmokeScriptPath, $smokeScript);
 
         if (! app()->environment('local')) {
@@ -83,25 +85,39 @@ class TenantGoogleWorkspaceSmokeTestService
             $this->files->delete($localSmokeResultPath);
         }
 
-        if ($this->shouldUseLocalComposeExecution($composeFile)) {
-            $this->runLocalComposeCommand($tenant, $composeFile, $projectName, [
-                'exec',
-                '-T',
-                $serviceName,
-                'sh',
-                '-lc',
-                sprintf('node %s', $containerSmokeScriptPath),
-            ]);
-        } else {
-            $command = sprintf(
-                'docker compose -f %s -p %s exec -T %s sh -lc %s',
-                escapeshellarg($composeFile),
-                escapeshellarg($projectName),
-                escapeshellarg($serviceName),
-                escapeshellarg(sprintf('node %s', $containerSmokeScriptPath)),
-            );
+        try {
+            if ($this->shouldUseLocalComposeExecution($composeFile)) {
+                $this->runLocalComposeCommand($tenant, $composeFile, $projectName, [
+                    'exec',
+                    '-T',
+                    $serviceName,
+                    'sh',
+                    '-lc',
+                    sprintf('node %s', $containerSmokeScriptPath),
+                ]);
+            } else {
+                $command = sprintf(
+                    'docker compose -f %s -p %s exec -T %s sh -lc %s',
+                    escapeshellarg($composeFile),
+                    escapeshellarg($projectName),
+                    escapeshellarg($serviceName),
+                    escapeshellarg(sprintf('node %s', $containerSmokeScriptPath)),
+                );
 
-            $this->dockerCompose->runCommand($tenant->server, $command);
+                $this->dockerCompose->runCommand($tenant->server, $command);
+            }
+        } catch (Throwable $exception) {
+            throw $this->translateSmokeFailure($exception, $localSmokeResultPath);
+        }
+
+        $containerResult = null;
+
+        if (app()->environment('local') && $this->files->exists($localSmokeResultPath)) {
+            $decoded = json_decode($this->files->get($localSmokeResultPath), true);
+
+            if (is_array($decoded)) {
+                $containerResult = $decoded;
+            }
         }
 
         $result = [
@@ -112,16 +128,24 @@ class TenantGoogleWorkspaceSmokeTestService
             'xdg_config_home_expected' => $this->runtime->containerGogConfigHome(),
             'host_capability_verified' => (string) config('sync360.infrastructure.driver', 'local') !== 'local',
             'container_binary_verified' => (string) config('sync360.infrastructure.driver', 'local') !== 'local',
+            'gog_env_verified' => true,
+            'gmail_cli_verified' => true,
+            'calendar_cli_verified' => true,
+            'drive_cli_verified' => true,
+            'contacts_cli_verified' => true,
+            'help_probes_verified' => true,
             'runtime_artifacts_verified' => true,
             'container_smoke_passed' => true,
         ];
 
-        if (app()->environment('local') && $this->files->exists($localSmokeResultPath)) {
-            $decoded = json_decode($this->files->get($localSmokeResultPath), true);
-
-            if (is_array($decoded)) {
-                $result['container_result'] = $decoded;
-            }
+        if (is_array($containerResult)) {
+            $result['gog_env_verified'] = (bool) ($containerResult['gog_env_verified'] ?? true);
+            $result['gmail_cli_verified'] = (bool) ($containerResult['gmail_cli_verified'] ?? true);
+            $result['calendar_cli_verified'] = (bool) ($containerResult['calendar_cli_verified'] ?? true);
+            $result['drive_cli_verified'] = (bool) ($containerResult['drive_cli_verified'] ?? true);
+            $result['contacts_cli_verified'] = (bool) ($containerResult['contacts_cli_verified'] ?? true);
+            $result['help_probes_verified'] = (bool) ($containerResult['help_probes_verified'] ?? true);
+            $result['container_result'] = $containerResult;
         }
 
         return $result;
@@ -166,35 +190,78 @@ class TenantGoogleWorkspaceSmokeTestService
         }
     }
 
-    private function renderSmokeScript(): string
+    private function renderSmokeScript(Tenant $tenant): string
     {
-        return <<<'NODE'
-import { readFileSync, writeFileSync } from 'node:fs';
+        $tenant->loadMissing('googleCredential');
+
+        $expectedAllowlist = json_encode($this->gogCommands->enabledCommandList(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $expectedAccount = json_encode($tenant->googleCredential?->google_email, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $cliProbes = json_encode($this->gogCommands->cliSmokeProbes(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $helpProbes = json_encode($this->gogCommands->helpProbes(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        $template = <<<'NODE'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
 const openclawHome = process.env.OPENCLAW_HOME;
 const xdgConfigHome = process.env.XDG_CONFIG_HOME;
-const expectedConfigHome = path.join(openclawHome, '.openclaw');
+const expectedConfigHome = openclawHome ? path.join(openclawHome, '.openclaw') : null;
 const resultPath = path.join(expectedConfigHome, 'google-workspace-smoke-result.json');
+const expectedAllowlist = __EXPECTED_ALLOWLIST__;
+const expectedAccount = __EXPECTED_ACCOUNT__;
+const cliProbes = __CLI_PROBES__;
+const helpProbes = __HELP_PROBES__;
+const result = {
+  gog_env_verified: false,
+  gmail_cli_verified: false,
+  calendar_cli_verified: false,
+  drive_cli_verified: false,
+  contacts_cli_verified: false,
+  help_probes_verified: false,
+  container_smoke_passed: false,
+};
 
-function fail(message, extra = {}) {
-  writeFileSync(resultPath, JSON.stringify({ ok: false, message, ...extra }, null, 2) + '\n');
-  console.error(message);
+function writeResult(payload) {
+  writeFileSync(resultPath, JSON.stringify(payload, null, 2) + '\n');
+}
+
+function fail(stage, message, extra = {}) {
+  writeResult({ ok: false, stage, message, ...result, ...extra });
+  console.error(`[${stage}] ${message}`);
   process.exit(1);
 }
 
 if (!openclawHome) {
-  fail('OPENCLAW_HOME is missing.');
+  fail('env', 'OPENCLAW_HOME is missing.');
 }
 
 if (!xdgConfigHome) {
-  fail('XDG_CONFIG_HOME is missing.');
+  fail('env', 'XDG_CONFIG_HOME is missing.');
 }
 
 if (xdgConfigHome !== expectedConfigHome) {
-  fail('XDG_CONFIG_HOME does not point at the mounted .openclaw config root.', {
+  fail('env', 'XDG_CONFIG_HOME does not point at the mounted .openclaw config root.', {
     xdgConfigHome,
     expectedConfigHome,
+  });
+}
+
+if ((process.env.GOG_ENABLE_COMMANDS || '') !== expectedAllowlist) {
+  fail('gog-env', 'GOG_ENABLE_COMMANDS does not match the expected allowlist.', {
+    actualAllowlist: process.env.GOG_ENABLE_COMMANDS || '',
+    expectedAllowlist,
+  });
+}
+
+if (!expectedAccount) {
+  fail('gog-env', 'The connected Google email is missing, so GOG_ACCOUNT cannot be verified.');
+}
+
+if ((process.env.GOG_ACCOUNT || '') !== expectedAccount) {
+  fail('gog-env', 'GOG_ACCOUNT does not match the connected Google account.', {
+    actualAccount: process.env.GOG_ACCOUNT || '',
+    expectedAccount,
   });
 }
 
@@ -204,20 +271,74 @@ const credentials = JSON.parse(readFileSync(path.join(configRoot, 'credentials.j
 const account = config.default_account;
 
 if (!account) {
-  fail('gogcli config does not include a default account.');
+  fail('gog-env', 'gogcli config does not include a default account.');
+}
+
+if (account !== expectedAccount) {
+  fail('gog-env', 'gogcli default_account does not match the connected Google email.', {
+    account,
+    expectedAccount,
+  });
 }
 
 const keyringPath = path.join(configRoot, 'keyring', `token:default:${account}`);
 const tokenCachePath = path.join(configRoot, `token_${account.replace(/[^A-Za-z0-9._-]+/g, '_')}.json`);
 const keyring = JSON.parse(readFileSync(keyringPath, 'utf8'));
-const tokenCache = JSON.parse(readFileSync(tokenCachePath, 'utf8'));
+const tokenCache = existsSync(tokenCachePath) ? JSON.parse(readFileSync(tokenCachePath, 'utf8')) : {};
 const refreshToken = keyring.refresh_token || tokenCache.refresh_token;
 const clientId = credentials.installed?.client_id;
 const clientSecret = credentials.installed?.client_secret;
 
 if (!refreshToken || !clientId || !clientSecret) {
-  fail('Runtime Google auth files are missing refresh token or client credentials.');
+  fail('runtime-artifacts', 'Runtime Google auth files are missing refresh token or client credentials.');
 }
+
+result.gog_env_verified = true;
+
+function runCommand(stage, label, argv, expectJson = false) {
+  const execution = spawnSync(argv[0], argv.slice(1), { encoding: 'utf8', env: process.env });
+  const stdout = execution.stdout || '';
+  const stderr = execution.stderr || '';
+
+  if (execution.status !== 0) {
+    fail(stage, `${label} failed: ${(stderr || stdout || `exit ${execution.status}`).trim()}`, {
+      command: argv.join(' '),
+      exitCode: execution.status,
+      stdout,
+      stderr,
+    });
+  }
+
+  if (expectJson) {
+    const trimmed = stdout.trim();
+
+    if (trimmed === '') {
+      fail(stage, `${label} returned no JSON output.`, { command: argv.join(' ') });
+    }
+
+    try {
+      JSON.parse(trimmed);
+    } catch (error) {
+      fail(stage, `${label} returned invalid JSON output.`, {
+        command: argv.join(' '),
+        stdout,
+        parseError: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  result[stage] = true;
+}
+
+for (const probe of cliProbes) {
+  runCommand(probe.id, probe.label, probe.argv, probe.expect_json === true);
+}
+
+for (const probe of helpProbes) {
+  runCommand(probe.id, probe.label, probe.argv, probe.expect_json === true);
+}
+
+result.help_probes_verified = true;
 
 const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
   method: 'POST',
@@ -231,7 +352,7 @@ const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
 });
 
 if (!tokenResponse.ok) {
-  fail('Refresh token exchange failed inside the tenant runtime.', {
+  fail('google-api', 'Refresh token exchange failed inside the tenant runtime.', {
     status: tokenResponse.status,
     body: await tokenResponse.text(),
   });
@@ -241,7 +362,7 @@ const tokenPayload = await tokenResponse.json();
 const accessToken = tokenPayload.access_token;
 
 if (!accessToken) {
-  fail('Refresh token exchange did not return an access token.');
+  fail('google-api', 'Refresh token exchange did not return an access token.');
 }
 
 const gmailProfile = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
@@ -249,7 +370,7 @@ const gmailProfile = await fetch('https://gmail.googleapis.com/gmail/v1/users/me
 });
 
 if (!gmailProfile.ok) {
-  fail('Gmail profile request failed inside the tenant runtime.', {
+  fail('google-api', 'Gmail profile request failed inside the tenant runtime.', {
     status: gmailProfile.status,
     body: await gmailProfile.text(),
   });
@@ -262,22 +383,59 @@ const calendarList = await fetch('https://www.googleapis.com/calendar/v3/users/m
 });
 
 if (!calendarList.ok) {
-  fail('Calendar list request failed inside the tenant runtime.', {
+  fail('google-api', 'Calendar list request failed inside the tenant runtime.', {
     status: calendarList.status,
     body: await calendarList.text(),
   });
 }
 
 const calendarPayload = await calendarList.json();
+result.container_smoke_passed = true;
 
-writeFileSync(resultPath, JSON.stringify({
+writeResult({
   ok: true,
+  ...result,
   account,
   xdgConfigHome,
   gmail_email_address: gmailPayload.emailAddress,
   gmail_messages_total: gmailPayload.messagesTotal,
   calendar_items_returned: Array.isArray(calendarPayload.items) ? calendarPayload.items.length : null,
-}, null, 2) + '\n');
+});
 NODE;
+
+        return str_replace(
+            ['__EXPECTED_ALLOWLIST__', '__EXPECTED_ACCOUNT__', '__CLI_PROBES__', '__HELP_PROBES__'],
+            [$expectedAllowlist, $expectedAccount, $cliProbes, $helpProbes],
+            $template,
+        );
+    }
+
+    private function translateSmokeFailure(Throwable $exception, string $localSmokeResultPath): RuntimeException
+    {
+        if ($this->files->exists($localSmokeResultPath)) {
+            $decoded = json_decode($this->files->get($localSmokeResultPath), true);
+
+            if (is_array($decoded)) {
+                $stage = trim((string) ($decoded['stage'] ?? 'google-workspace'));
+                $message = trim((string) ($decoded['message'] ?? ''));
+
+                if ($message !== '') {
+                    return new RuntimeException(sprintf('%s failed: %s', $stage, $message), previous: $exception);
+                }
+            }
+        }
+
+        if ($exception instanceof ProcessFailedException) {
+            $process = $exception->getProcess();
+            $output = trim($process->getErrorOutput()) ?: trim($process->getOutput());
+
+            if ($output !== '') {
+                $line = trim(strtok($output, "\n")) ?: $output;
+
+                return new RuntimeException($line, previous: $exception);
+            }
+        }
+
+        return new RuntimeException($exception->getMessage(), previous: $exception);
     }
 }

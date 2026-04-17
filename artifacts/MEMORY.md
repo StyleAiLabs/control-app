@@ -1,6 +1,6 @@
 # Sync360 Control App Memory
 
-Last verified: `2026-04-17`
+Last verified: `2026-04-18`
 
 This memory is based on the current repo code and current canonical docs. It is not a guarantee about live production state.
 
@@ -61,7 +61,8 @@ If those files conflict with the codebase, trust:
 - Profile sync model: the Business Profile page now shows in-page assistant sync progress while a save/manual sync is running, shows the completion result after redirect, and live-tenant workspace prompt/tool-guidance changes can be pushed later with `sync360:resync-live-tenants` without reprovisioning the tenant
 - Google auth model: Sync360 owns the Google OAuth web flow; `tenant_google_credentials` is the source of truth and tenant `.openclaw/gogcli/` auth artifacts are a re-seedable runtime cache
 - Google runtime tool model: tenant `config/openclaw.json` now explicitly enables the bundled `gog` skill and appends `gog` to agent skill allowlists so connected workspaces can actually expose Google tooling to the agent
-- Google tool-guidance model: generated tenant workspace instructions now treat the connected Google email as the default account, tell the agent not to ask the owner to choose an account unless tooling explicitly reports multiple accounts or a missing default, prefer a read-only Gmail help-first workflow for inbox requests, and only suggest reconnecting when a real tool error indicates invalid/expired/unauthorized credentials
+- Google runtime contract model: tenant compose generation now injects `GOG_ENABLE_COMMANDS` for the allowlisted direct `gog` service surface and `GOG_ACCOUNT` for the connected Google email, while Sync360 still owns OAuth/account mutation and the tenant runtime uses raw direct `gog` commands rather than Sync360 wrappers
+- Google tool-guidance model: generated tenant workspace instructions now treat the connected Google email as the default account, tell the agent to use raw direct `gog` CLI paths, tell the agent not to ask the owner to choose an account unless tooling explicitly reports multiple accounts or a missing default, and only suggest reconnecting when a real tool error indicates invalid/expired/unauthorized credentials
 - Google failure-memory cleanup model: after a successful Google Workspace verification or smoke test, Sync360 clears the known stale Gmail/account failure memory files for today/yesterday from tenant `.openclaw/workspace/memory/` so old reconnect/account-selection summaries do not keep biasing the live assistant after the runtime is healthy again
 - Conversation model: Telegram history is synced from workspace session logs with AI summaries; the control plane no longer exposes channel webhook ingress
 - Trial model: 14-day / budget-capped trial with scheduled expiry checks and email notifications
@@ -92,11 +93,11 @@ If those files conflict with the codebase, trust:
 9. Provisioning now also writes the bundled `gog` skill into tenant `config/openclaw.json` and ensures agent skill allowlists include `gog`; later Google runtime syncs re-apply that config so older tenants can be repaired during resync.
 10. `TenantAgentSyncService::goLive()` writes the full workspace artifact set into `.openclaw/workspace/` (`IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`, `TOOLS.md`, `PROFILE.md`, and `HEARTBEAT.md`) and syncs only workspace markdown files.
 11. The generated workspace artifacts now explicitly tell the tenant agent to use connected Google Workspace tools for owner requests about inboxes, calendars, files, contacts, sheets, and docs instead of giving a generic refusal.
-12. `TOOLS.md` now gives the tenant agent explicit environment-specific `gog` guidance, including using exec, checking `gog --help` / `gog gmail --help`, and avoiding generic refusals when Google Workspace is connected.
+12. `TOOLS.md` now gives the tenant agent explicit environment-specific `gog` guidance, including using exec, checking `gog --help` / service help, using native direct `gog` CLI paths, and avoiding generic refusals when Google Workspace is connected.
 13. Successful Google verification and the explicit Google smoke-test command now clear the known stale Gmail/account failure memory files from the tenant workspace memory directory after the runtime proves healthy, so older reconnect/account-selection issue summaries stop lingering.
 14. `goLive()` still only syncs workspace markdown files and restarts the tenant without overwriting provisioned credentials.
 15. Existing live tenants do not automatically receive new generated workspace instructions when only the control app is deployed; operators can resync those prompt/workspace-file changes with `php artisan sync360:resync-live-tenants` after deploy.
-16. Existing ready tenants that predate a new host-managed runtime capability can be repaired with `php artisan sync360:sync-runtime-capabilities {tenantSelector?} {capability?}`, which installs/verifies the host binary, regenerates full staged compose/config files, pushes changed files, recreates the tenant when compose changed, corrects Google runtime status to `failed` if verification still breaks, and now clears the known stale Gmail/account failure memory files after a successful verification.
+16. Existing ready tenants that predate a new host-managed runtime capability can be repaired with `php artisan sync360:sync-runtime-capabilities {tenantSelector?} {capability?}`, which installs/verifies the host binary, regenerates full staged compose/config files, pushes changed files, refreshes workspace guidance for live tenants, recreates the tenant when compose changed, corrects Google runtime status to `failed` if verification still breaks, and now clears the known stale Gmail/account failure memory files after a successful verification.
 
 ### Conversation logging and summaries
 
@@ -121,7 +122,9 @@ If those files conflict with the codebase, trust:
 - A successful Google verification is also the cleanup signal for known stale Gmail/account failure memory files. Those files are safe to remove only after the runtime smoke path is healthy again; do not try to "fix" Google issues by deleting arbitrary workspace memory files before verification succeeds.
 - Host-managed runtime capability commands are intentionally SSH-only in v1. `local` mode does not emulate host installs or bind mounts; the commands fail early with a clear error instead.
 - Tenant compose generation now includes unconditional host-managed capability mounts declared in the catalog. For `gog`, every tenant compose file mounts `/usr/local/bin/gog` read-only from the host into the container, regardless of whether Google Workspace is currently connected.
+- Tenant compose generation now also injects `GOG_ENABLE_COMMANDS` for the allowlisted direct `gog` service surface into every tenant runtime and injects `GOG_ACCOUNT=<connected_google_email>` only when that tenant currently has a connected Google Workspace credential.
 - Runtime capability verification is two-stage for binary access: host version/health checks run on the VPS, then the control plane runs `docker exec sync360-<slug> sh -c 'command -v <binary>'` from the host to confirm the live container can actually see the mounted binary.
+- Google Workspace smoke verification now checks both auth/API health and the actual native direct `gog` CLI surface the assistant uses: env allowlist/default account, Gmail CLI, Calendar CLI, Drive CLI, Contacts CLI, broader help probes, then refresh-token/Gmail/Calendar API smoke.
 - In local Docker development, private gateway checks must not use container-local `127.0.0.1`; they must go through the configured host alias (`host.docker.internal` in the shipped `docker-compose.yml`) so the app container can reach tenant ports published on the Docker host.
 - When tenant `compose.yaml` env changes, local/remote Google runtime reload must recreate the tenant container (`up -d --force-recreate` / equivalent), not just `restart`, or `XDG_CONFIG_HOME` and keyring env updates will not take effect.
 - Tenant runtimes use a fixed Docker container name derived from the slug (`sync360-<slug>`), so deletion and provisioning must explicitly remove stale named containers as part of cleanup to support delete-and-recreate flows safely.

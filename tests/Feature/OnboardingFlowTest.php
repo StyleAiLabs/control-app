@@ -682,6 +682,7 @@ class OnboardingFlowTest extends TestCase
 
         $tenant->forceFill([
             'provisioning_status' => TenantProvisioningStatus::Ready,
+            'assigned_port' => 4100,
             'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
         ])->save();
 
@@ -695,8 +696,57 @@ class OnboardingFlowTest extends TestCase
             'connected_at' => now(),
         ]);
 
-        $localGogPath = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/gogcli';
+        $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
+        $localGogPath = $localRuntimePath.'/.openclaw/gogcli';
+        File::ensureDirectoryExists($localRuntimePath.'/config');
         File::ensureDirectoryExists($localGogPath.'/keyring');
+        File::put($localRuntimePath.'/.env', implode(PHP_EOL, [
+            'OPENCLAW_GATEWAY_TOKEN=test-token',
+            'OPENAI_API_KEY=sk-tenant-acme',
+            'OPENAI_BASE_URL=https://litellm.stylesoftware.co.nz',
+            '',
+        ]));
+        File::put($localRuntimePath.'/config/openclaw.json', json_encode([
+            'agents' => [
+                'defaults' => [
+                    'model' => 'gpt-4o',
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+        File::put($localRuntimePath.'/compose.yaml', implode(PHP_EOL, [
+            'services:',
+            '  openclaw-gateway:',
+            '    image: ghcr.io/openclaw/openclaw:latest',
+            '    restart: unless-stopped',
+            '    container_name: sync360-acme-plumbing',
+            '    command:',
+            '      - /bin/sh',
+            '      - -lc',
+            '      - "openclaw gateway --allow-unconfigured --port=18789"',
+            '    ports:',
+            '      - "127.0.0.1:4100:18789"',
+            '    volumes:',
+            '      - type: bind',
+            '        source: "/srv/sync360/runtime/tenants/acme-plumbing"',
+            '        target: "/home/node/.openclaw"',
+            '      - type: bind',
+            '        source: "/usr/local/bin/gog"',
+            '        target: "/usr/local/bin/gog"',
+            '        read_only: true',
+            '    environment:',
+            '      OPENCLAW_HOME: "/home/node/.openclaw"',
+            '      OPENCLAW_STATE_DIR: "/home/node/.openclaw/data"',
+            '      OPENCLAW_CONFIG_PATH: "/home/node/.openclaw/config/openclaw.json"',
+            '      OPENCLAW_GATEWAY_TOKEN: "test-token"',
+            '      OPENAI_API_KEY: "sk-tenant-acme"',
+            '      OPENAI_BASE_URL: "https://litellm.stylesoftware.co.nz"',
+            '      XDG_CONFIG_HOME: "/home/node/.openclaw/.openclaw"',
+            '      GOG_KEYRING_BACKEND: "file"',
+            '      GOG_KEYRING_PASSWORD: "test-password"',
+            '      GOG_ENABLE_COMMANDS: "gmail,calendar,drive,contacts,tasks,sheets,docs,slides,people,chat,classroom,forms,appscript,groups"',
+            '      GOG_ACCOUNT: "owner@example.com"',
+            '',
+        ]));
         File::put($localGogPath.'/credentials.json', '{}');
         File::put($localGogPath.'/config.json', '{}');
         File::put($localGogPath.'/keyring/token:default:owner@example.com', '{}');
@@ -711,6 +761,7 @@ class OnboardingFlowTest extends TestCase
         $this->assertNull($credential?->access_token);
         $this->assertNull($credential?->refresh_token);
         $this->assertDirectoryDoesNotExist($localGogPath);
+        $this->assertStringNotContainsString('GOG_ACCOUNT: "owner@example.com"', File::get($localRuntimePath.'/compose.yaml'));
     }
 
     public function test_connected_google_workspace_hides_connect_and_skip_actions_in_initial_render(): void
@@ -1103,20 +1154,21 @@ class OnboardingFlowTest extends TestCase
             ->assertOk();
 
         $this->assertStringContainsString('Owner Workspace Access', File::get($localRuntimePath.'/.openclaw/workspace/PROFILE.md'));
-        $this->assertStringContainsString('use the available Google Workspace tools instead of giving a generic refusal', File::get($localRuntimePath.'/.openclaw/workspace/PROFILE.md'));
+        $this->assertStringContainsString('Allowlisted Tool Surface: Gmail, Calendar, Drive, Contacts, Tasks, Sheets, Docs, Slides, People, Chat, Classroom, Forms, Apps Script, and Groups.', File::get($localRuntimePath.'/.openclaw/workspace/PROFILE.md'));
         $this->assertStringContainsString('Default Account Rule: Treat the connected Google account as the default', File::get($localRuntimePath.'/.openclaw/workspace/PROFILE.md'));
         $this->assertStringContainsString('Do not ask the owner to pick an account unless a tool explicitly reports multiple configured accounts or no default account.', File::get($localRuntimePath.'/.openclaw/workspace/PROFILE.md'));
         $this->assertStringContainsString('Treat messages from the workspace owner as internal operating requests', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
+        $this->assertStringContainsString('Do not run `gog auth ...`', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('Do not say you are fundamentally unable to check emails or calendars', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('Do not ask the owner which Google account to use unless a tool explicitly reports multiple configured accounts or a missing default account.', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('The `gog` CLI is preconfigured in this workspace.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Treat owner@example.com as the default Google account', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('gog gmail --help', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
-        $this->assertStringContainsString('use a read-only Gmail workflow', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
-        $this->assertStringContainsString('Do not try to rewrite gog account configuration during a normal email request.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
-        $this->assertStringContainsString('If the chosen Gmail command requires a query string, provide a safe read-only Gmail query such as `in:inbox newer_than:30d`', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
+        $this->assertStringContainsString('Recent email retrieval: use the native Gmail search path', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
+        $this->assertStringContainsString('Sync360 owns OAuth and account configuration. Do not run `gog auth ...`', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
+        $this->assertStringContainsString('Calendar read flow: use the native calendar events path', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Do not ask the owner to choose an account unless `gog` explicitly tells you there are multiple configured accounts or no default account.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
-        $this->assertStringContainsString('Do not tell the owner to reconnect Google Workspace, change Google API Console settings, or replace `credentials.json` unless a real `gog` error explicitly points to an authentication or credential problem.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
+        $this->assertStringContainsString('Explain that as a scope or permission issue, not as a missing `credentials.json` issue.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
     }
 
     /**

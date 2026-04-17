@@ -320,6 +320,8 @@ Artisan::command('sync360:sync-runtime-capabilities {tenantSelector? : Tenant id
     /** @var TenantRuntimeCapabilityService $runtimeCapabilities */
     $runtimeCapabilities = app(TenantRuntimeCapabilityService::class);
     $runtimeCapabilities->requiresSshInfrastructure();
+    /** @var TenantProfileSyncService $profileSync */
+    $profileSync = app(TenantProfileSyncService::class);
 
     $selectedCapabilityIds = $capability ? [$capability] : $runtimeCapabilities->capabilityIds();
     $runtimeCapabilities->selectedDefinitions($selectedCapabilityIds);
@@ -378,6 +380,19 @@ Artisan::command('sync360:sync-runtime-capabilities {tenantSelector? : Tenant id
 
             if ($composeUpdate['changed'] || $configUpdate['changed']) {
                 $runtimeCapabilities->reloadRuntime($tenant, $composeUpdate['changed']);
+            }
+
+            if (
+                in_array('gog', $selectedCapabilityIds, true)
+                && $tenant->agent_status === 'live'
+                && $tenant->onboarding_status === 'complete'
+            ) {
+                $profileSync->regenerateAndSyncWorkspaceOnly($tenant->fresh([
+                    'server',
+                    'businessProfile',
+                    'businessProfileFiles',
+                    'googleCredential',
+                ]));
             }
 
             $runtimeCapabilities->verifyHostCapabilities($tenant->server, $selectedCapabilityIds);
@@ -461,6 +476,12 @@ Artisan::command('sync360:test-google-workspace {tenantSelector : Tenant id, ten
     $this->components->twoColumnDetail('Expected XDG config home', (string) ($result['xdg_config_home_expected'] ?? 'unknown'));
     $this->components->twoColumnDetail('Host capability', ($result['host_capability_verified'] ?? false) ? 'verified' : 'not checked');
     $this->components->twoColumnDetail('Container binary', ($result['container_binary_verified'] ?? false) ? 'verified' : 'not checked');
+    $this->components->twoColumnDetail('GOG runtime env', ($result['gog_env_verified'] ?? false) ? 'verified' : 'failed');
+    $this->components->twoColumnDetail('Gmail CLI', ($result['gmail_cli_verified'] ?? false) ? 'verified' : 'failed');
+    $this->components->twoColumnDetail('Calendar CLI', ($result['calendar_cli_verified'] ?? false) ? 'verified' : 'failed');
+    $this->components->twoColumnDetail('Drive CLI', ($result['drive_cli_verified'] ?? false) ? 'verified' : 'failed');
+    $this->components->twoColumnDetail('Contacts CLI', ($result['contacts_cli_verified'] ?? false) ? 'verified' : 'failed');
+    $this->components->twoColumnDetail('Help probes', ($result['help_probes_verified'] ?? false) ? 'verified' : 'failed');
     $this->components->twoColumnDetail('Runtime artifacts', ($result['runtime_artifacts_verified'] ?? false) ? 'verified' : 'missing');
     $this->components->twoColumnDetail('Container smoke', ($result['container_smoke_passed'] ?? false) ? 'passed' : 'failed');
 

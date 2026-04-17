@@ -61,6 +61,13 @@ class TenantProfileSyncService
         $this->agentSync->syncConnectedGoogleWorkspace($tenant->fresh(GoogleWorkspaceFeature::tenantRelations(['server'])));
     }
 
+    public function regenerateAndSyncWorkspaceOnly(Tenant $tenant): void
+    {
+        $this->regenerateFiles($tenant);
+        $tenant = $tenant->fresh(GoogleWorkspaceFeature::tenantRelations(['businessProfile', 'businessProfileFiles', 'server']));
+        $this->agentSync->goLive($tenant);
+    }
+
     /**
      * @return array<int, string>
      */

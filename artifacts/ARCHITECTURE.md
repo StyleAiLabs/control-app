@@ -77,6 +77,7 @@ Important boundaries:
 - this model is supported only in `ssh` infrastructure mode
 - `local` mode does not emulate host installs or bind mounts for these capabilities
 - `goLive()` remains workspace-files-only and must never be used to install host dependencies or replace the full runtime
+- for `gog`, Sync360 provides the runtime contract and verification surface, but tenant runtimes still use raw direct `gog` CLI commands rather than Sync360 wrapper commands
 
 ### Public and private surfaces
 
@@ -265,7 +266,7 @@ When Google verification succeeds, Sync360 now also clears the known stale Gmail
 
 The Business Profile page is part of that later resync surface. When the tenant is already live, saving `/profile` regenerates assistant files, runs the same workspace-file-only live sync path, and shows in-page progress plus a completion message after redirect. `POST /profile/sync-agent` remains the manual retry path for pushing regenerated workspace files without changing the form first.
 
-`TOOLS.md` is now part of that workspace artifact set. The control plane uses it for environment-specific tool guidance, including how the tenant agent should use exec plus the preconfigured `gog` CLI for owner Gmail, Calendar, Drive, Contacts, Sheets, and Docs requests.
+`TOOLS.md` is now part of that workspace artifact set. The control plane uses it for environment-specific tool guidance, including how the tenant agent should use exec plus the preconfigured direct `gog` CLI for owner Gmail, Calendar, Drive, Contacts, Sheets, Docs, Slides, Tasks, People, Chat, Classroom, Forms, Apps Script, and Groups requests.
 
 ### Google Workspace connect flow
 
@@ -283,7 +284,7 @@ Flow:
 8. if the smoke test reaches live Gmail and Calendar APIs from inside the tenant runtime, runtime status moves to `verified`
 9. if the runtime is not ready yet, the row stays `connected` with runtime status `pending` until provisioning/profile sync completes
 
-When a Google-connected tenant needs repair after deploy, `sync360:sync-runtime-capabilities` is the canonical operator path. It reinstalls or verifies pinned host capabilities on the VPS, regenerates the full staged tenant `compose.yaml` and `config/openclaw.json`, pushes changed files remotely, recreates the tenant when compose changed, reruns capability verification, and writes `runtime_sync_status=failed` with a precise `last_error` if verification still breaks.
+When a Google-connected tenant needs repair after deploy, `sync360:sync-runtime-capabilities` is the canonical operator path. It reinstalls or verifies pinned host capabilities on the VPS, regenerates the full staged tenant `compose.yaml` and `config/openclaw.json`, pushes changed files remotely, refreshes workspace guidance for live tenants, recreates the tenant when compose changed, reruns capability verification, and writes `runtime_sync_status=failed` with a precise `last_error` if verification still breaks.
 
 V1 scope set:
 
@@ -378,6 +379,13 @@ The command filters for eligible live tenants, runs `TenantProfileSyncService::r
 
 The shipped `gog` entry is pinned to a specific upstream Linux amd64 GitHub release asset plus SHA-256 checksum. Sync360 does not compile `gog` from source on the client VPS.
 
+For `gog`, the catalog now also defines the tenant runtime contract used across compose generation, smoke verification, and workspace guidance:
+
+- allowlisted direct service commands via `GOG_ENABLE_COMMANDS`
+- tenant-specific default account via `GOG_ACCOUNT`
+- canonical non-mutating CLI smoke probes
+- canonical native direct-CLI guidance strings for generated workspace artifacts
+
 ### Shared capability service
 
 `TenantRuntimeCapabilityService` is the shared implementation for this model. It owns:
@@ -415,6 +423,13 @@ For `gog`, the compose bind mount is unconditional across all tenant runtimes:
 - container target: `/usr/local/bin/gog`
 - read-only mount
 
+For `gog`, compose generation now also injects:
+
+- `GOG_ENABLE_COMMANDS=gmail,calendar,drive,contacts,tasks,sheets,docs,slides,people,chat,classroom,forms,appscript,groups`
+- `GOG_ACCOUNT=<connected_google_email>` only when that tenant currently has a connected Google Workspace credential
+
+The binary is shared at the host level, but the auth/config state is still tenant-local because each container mounts its own tenant runtime directory and keeps `.openclaw/gogcli/` under that tenant-specific runtime path.
+
 The `activation` field remains product metadata describing what the capability enables. It does not decide whether the binary mount appears in compose.
 
 ### Verification model
@@ -429,6 +444,19 @@ Capability verification is layered:
 For `gog`, the host/container binary checks happen before the existing Google auth and Gmail/Calendar smoke validation. The in-container check is performed from the host with:
 
 `docker exec sync360-<slug> sh -c "command -v gog >/dev/null 2>&1"`
+
+The Google smoke path now verifies the real native direct `gog` CLI surface the assistant uses, not just auth artifacts:
+
+- `GOG_ENABLE_COMMANDS` matches the expected allowlist
+- `GOG_ACCOUNT` matches the connected Google email
+- `gog --json gmail search 'newer_than:30d' --max 5`
+- `gog --json calendar events primary --from <now> --to <+7d>`
+- `gog --json drive ls --max 1`
+- `gog --json contacts list --max 1`
+- `gog <service> --help` succeeds for the broader allowlisted services
+- then the existing refresh-token, Gmail API, and Calendar API smoke checks run
+
+This closes the previous gap where auth/API smoke could pass while the assistant still improvised an invalid `gog` command and misreported it as a `credentials.json` problem.
 
 If capability verification fails during repair or Google sync, Sync360 explicitly writes `runtime_sync_status=failed` and stores the precise `last_error`, even if the tenant had previously been marked verified.
 
@@ -446,6 +474,7 @@ If capability verification fails during repair or Google sync, Sync360 explicitl
 - ensures the host capability is installed with version-aware idempotency
 - regenerates full staged compose/config files
 - pushes changed files remotely with `putFile()`
+- refreshes workspace guidance for live tenants so runtime contract and prompt guidance stay aligned
 - recreates the tenant only when compose changed
 - reruns host/container verification and Google smoke tests where applicable
 - corrects tenant Google runtime status on success or failure
@@ -455,6 +484,12 @@ If capability verification fails during repair or Google sync, Sync360 explicitl
 - surfaces the verification layers more explicitly:
   - host capability
   - container binary
+  - `GOG_ENABLE_COMMANDS` / `GOG_ACCOUNT` runtime env
+  - Gmail CLI
+  - Calendar CLI
+  - Drive CLI
+  - Contacts CLI
+  - broader help probes
   - runtime artifacts
   - container smoke
 
@@ -604,11 +639,11 @@ Key runtime details:
 - `TenantRuntimeService` provisions `XDG_CONFIG_HOME`, `GOG_KEYRING_BACKEND=file`, and a per-tenant `GOG_KEYRING_PASSWORD`
 - the file-backed keyring lives under the mounted tenant runtime path so it survives normal container restarts
 - the runtime keyring is still treated as cache only because `tenant_google_credentials` remains canonical
-- `TenantGoogleWorkspaceSmokeTestService` is the end-to-end verifier: it runs inside the tenant runtime, confirms `XDG_CONFIG_HOME`, exchanges the refresh token, and calls Gmail profile plus Calendar list APIs
+- `TenantGoogleWorkspaceSmokeTestService` is the end-to-end verifier: it runs inside the tenant runtime, confirms `XDG_CONFIG_HOME`, verifies `GOG_ENABLE_COMMANDS` / `GOG_ACCOUNT`, runs native direct `gog` CLI probes, exchanges the refresh token, and calls Gmail profile plus Calendar list APIs
 - `verified` therefore means live runtime Google access worked from inside the tenant container, while `synced` only means the auth artifacts were written successfully
 - runtime Google usability depends on both auth artifacts and skill wiring: `gog` must be enabled in `openclaw.json` and included in agent skill allowlists, not just present under `.openclaw/gogcli/`
 - generated `PROFILE.md` and `HEARTBEAT.md` now explicitly instruct the agent to treat owner inbox/calendar/file requests as internal operating tasks and to use connected Google Workspace tools instead of giving a generic refusal
-- generated `TOOLS.md` tells the agent to use exec plus `gog` for those owner requests, inspect `gog --help` and product-specific help when needed, treat the connected Google email as the default account, avoid asking the owner to choose an account unless tooling explicitly reports multiple accounts or no default account, and avoid reconnect/credentials advice unless a real tool error indicates an auth failure
+- generated `TOOLS.md` tells the agent to use exec plus direct `gog` commands for those owner requests, inspect `gog --help` and product-specific help when needed, treat the connected Google email as the default account, avoid asking the owner to choose an account unless tooling explicitly reports multiple accounts or no default account, avoid `gog auth` mutation during normal requests, and avoid reconnect/credentials advice unless a real tool error indicates an auth failure
 
 ### SSH and remote orchestration
 

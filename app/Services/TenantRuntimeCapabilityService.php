@@ -17,6 +17,7 @@ class TenantRuntimeCapabilityService
         private readonly Filesystem $files,
         private readonly TenantRuntimeService $runtime,
         private readonly DockerComposeRunner $dockerCompose,
+        private readonly GogCommandCatalogService $gogCommands,
     ) {
     }
 
@@ -251,7 +252,7 @@ class TenantRuntimeCapabilityService
             'XDG_CONFIG_HOME' => $this->yamlQuote($this->runtime->containerGogConfigHome()),
             'GOG_KEYRING_BACKEND' => $this->yamlQuote('file'),
             'GOG_KEYRING_PASSWORD' => $this->yamlQuote($this->runtime->googleKeyringPassword($tenant)),
-        ], $this->capabilityEnvironmentEntries($capabilityIds));
+        ], $this->capabilityEnvironmentEntries($tenant, $capabilityIds));
 
         $environmentLines = array_map(
             static fn (string $key, string $value): string => sprintf('      %s: %s', $key, $value),
@@ -389,16 +390,23 @@ class TenantRuntimeCapabilityService
      * @param  array<int, string>|null  $capabilityIds
      * @return array<string, string>
      */
-    private function capabilityEnvironmentEntries(?array $capabilityIds = null): array
+    private function capabilityEnvironmentEntries(Tenant $tenant, ?array $capabilityIds = null): array
     {
         $entries = [];
+        $selectedDefinitions = $this->selectedDefinitions($capabilityIds);
 
-        foreach ($this->selectedDefinitions($capabilityIds) as $definition) {
+        foreach ($selectedDefinitions as $definition) {
             foreach (($definition['env'] ?? []) as $key => $value) {
                 if (! is_string($key) || trim($key) === '' || ! is_string($value)) {
                     continue;
                 }
 
+                $entries[$key] = $this->yamlQuote($value);
+            }
+        }
+
+        if (isset($selectedDefinitions['gog'])) {
+            foreach ($this->gogCommands->runtimeEnvironmentFor($tenant) as $key => $value) {
                 $entries[$key] = $this->yamlQuote($value);
             }
         }

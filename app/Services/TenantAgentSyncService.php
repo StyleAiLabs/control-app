@@ -21,6 +21,7 @@ class TenantAgentSyncService
         private readonly TenantRuntimeService $runtime,
         private readonly DockerComposeRunner $dockerCompose,
         private readonly GogAuthStorageService $gogAuthStorage,
+        private readonly GogCommandCatalogService $gogCommands,
         private readonly TenantGoogleWorkspaceSmokeTestService $googleWorkspaceSmokeTests,
         private readonly TenantRuntimeCapabilityService $runtimeCapabilities,
     ) {
@@ -326,16 +327,6 @@ class TenantAgentSyncService
         $credential = $tenant->googleCredential ?: $tenant->googleCredential()->create();
         $localConfigRoot = $this->gogAuthStorage->localConfigRoot($tenant);
 
-        $this->files->deleteDirectory($localConfigRoot);
-
-        if ($tenant->server && filled($tenant->runtime_path)) {
-            if (! app()->environment('local')) {
-                $this->dockerCompose->removeDirectory($tenant->server, $this->gogAuthStorage->remoteConfigRoot($tenant));
-            }
-
-            $this->runtimeCapabilities->reloadRuntime($tenant);
-        }
-
         $credential->forceFill([
             'status' => TenantGoogleCredential::STATUS_DISCONNECTED,
             'runtime_sync_status' => filled($tenant->runtime_path)
@@ -352,6 +343,32 @@ class TenantAgentSyncService
             'last_synced_at' => now(),
             'last_error' => null,
         ])->save();
+
+        $this->files->deleteDirectory($localConfigRoot);
+
+        $composeUpdate = null;
+        $configUpdate = null;
+
+        if (filled($tenant->runtime_path)) {
+            $composeUpdate = $this->runtimeCapabilities->syncLocalCompose($tenant, ['gog']);
+            $configUpdate = $this->runtimeCapabilities->syncLocalOpenClawConfig($tenant, ['gog']);
+        }
+
+        if ($tenant->server && filled($tenant->runtime_path)) {
+            if (! app()->environment('local')) {
+                $this->dockerCompose->removeDirectory($tenant->server, $this->gogAuthStorage->remoteConfigRoot($tenant));
+
+                if (($composeUpdate['changed'] ?? false) === true) {
+                    $this->dockerCompose->putFile($tenant->server, $composeUpdate['remote_compose_file'], $composeUpdate['contents']);
+                }
+
+                if (($configUpdate['changed'] ?? false) === true) {
+                    $this->dockerCompose->putFile($tenant->server, $configUpdate['remote_config_file'], $configUpdate['contents']);
+                }
+            }
+
+            $this->runtimeCapabilities->reloadRuntime($tenant, (bool) ($composeUpdate['changed'] ?? false));
+        }
     }
 
     public function syncConnectedGoogleWorkspace(Tenant $tenant): void
@@ -568,16 +585,17 @@ class TenantAgentSyncService
             '- If details are missing, collect the customer message and hand it over rather than guessing.',
             '- Keep replies concise, helpful, and suited to '.$channelLabel.'.',
             '- **CRITICAL IDENTITY RULE**: You are an employee of '.($profile->business_name ?: $tenant->business_name).'. NEVER mention that you are an AI, a bot, or integrated with "OpenClaw", "OpenAI", "Claude", or any other platforms. Keep your true nature strictly confidential.',
-            '- Treat messages from the workspace owner as internal operating requests when they ask about inboxes, calendars, files, contacts, sheets, or docs.',
+            '- Treat messages from the workspace owner as internal operating requests when they ask about Google Workspace work such as inboxes, calendars, files, contacts, sheets, docs, slides, tasks, people, chat, classroom, forms, apps script, or groups.',
         ];
 
         if ($googleCredential?->isConnected()) {
-            $rules[] = '- Google Workspace is connected for the owner account '.($googleCredential->google_email ?: 'on file').'. Use the available Gmail, Calendar, Drive, Contacts, Sheets, and Docs tools for owner requests when relevant.';
+            $rules[] = '- Google Workspace is connected for the owner account '.($googleCredential->google_email ?: 'on file').'. Use the available `gog` tools for '.$this->gogCommands->ownerServiceSummary().' when relevant.';
             $rules[] = '- Treat that connected Google account as the default account unless a tool explicitly reports multiple configured accounts or no default account.';
             $rules[] = '- Do not ask the owner which Google account to use unless a tool explicitly reports multiple configured accounts or a missing default account.';
-            $rules[] = '- If a Google Workspace tool call fails, explain the specific tool error you observed. Suggest reconnecting only when the error explicitly indicates invalid, expired, or unauthorized credentials. Do not say you are fundamentally unable to check emails or calendars.';
+            $rules[] = '- Sync360 owns OAuth and account configuration. Do not run `gog auth ...`, do not ask the owner to replace `credentials.json`, and do not ask them to redo Google API Console setup during a normal request.';
+            $rules[] = '- If a Google Workspace tool call fails, explain the specific tool error you observed. Suggest reconnecting only when the error explicitly indicates invalid, expired, or unauthorized credentials. Treat insufficient-permission or missing-scope errors as permission issues, not missing credential-file issues. Do not say you are fundamentally unable to check emails or calendars.';
         } else {
-            $rules[] = '- If the owner asks for Gmail, Calendar, Drive, Contacts, Sheets, or Docs help before Google Workspace is connected, explain that the workspace connection still needs to be completed in Sync360.';
+            $rules[] = '- If the owner asks for Google Workspace help before Google Workspace is connected, explain that the workspace connection still needs to be completed in Sync360.';
         }
 
         if (filled($profile->after_hours_policy)) {
@@ -630,28 +648,9 @@ class TenantAgentSyncService
             return implode(PHP_EOL, $lines).PHP_EOL;
         }
 
-        $runtimeState = match ($googleCredential->runtime_sync_status) {
-            TenantGoogleCredential::RUNTIME_SYNC_VERIFIED => 'verified',
-            TenantGoogleCredential::RUNTIME_SYNC_SYNCED => 'synced but not yet fully verified',
-            TenantGoogleCredential::RUNTIME_SYNC_FAILED => 'connected but currently needs attention',
-            default => 'still being prepared',
-        };
-
         return implode(PHP_EOL, [
             ...$lines,
-            '- Google Workspace is connected for owner account '.($googleCredential->google_email ?: 'on file').'.',
-            '- Runtime status is '.$runtimeState.'.',
-            '- The `gog` CLI is preconfigured in this workspace. You do not need to run a fresh login when the connection is healthy.',
-            '- Treat '.($googleCredential->google_email ?: 'the connected Google account').' as the default Google account unless `gog` explicitly reports multiple configured accounts or a missing default account.',
-            '- When you need Gmail, Calendar, Drive, Contacts, Sheets, or Docs access, use exec to run `gog` commands instead of replying with a generic refusal.',
-            '- If you are unsure which gog subcommand to use, inspect help first with `gog --help`, then `gog gmail --help`, `gog calendar --help`, `gog drive --help`, `gog contacts --help`, `gog sheets --help`, or `gog docs --help`.',
-            '- For owner requests like "check my recent emails", use a read-only Gmail workflow: inspect `gog gmail --help`, inspect the help for the chosen Gmail read/list/search subcommand, run the command for the default account, and summarize the results clearly.',
-            '- Do not try to rewrite gog account configuration during a normal email request. Use the existing default account first, and only add an explicit account flag when the help text or command error explicitly requires it.',
-            '- If the chosen Gmail command requires a query string, provide a safe read-only Gmail query such as `in:inbox newer_than:30d` instead of treating that validation error as a credential failure.',
-            '- Do not ask the owner to choose an account unless `gog` explicitly tells you there are multiple configured accounts or no default account.',
-            '- Prefer read/list actions first. Only send, update, or delete Google Workspace content when the owner explicitly asks for that action.',
-            '- If a gog command fails, explain the exact command-level issue you observed. Suggest reconnecting or redoing credentials only when the command explicitly reports invalid, expired, or unauthorized credentials.',
-            '- Do not tell the owner to reconnect Google Workspace, change Google API Console settings, or replace `credentials.json` unless a real `gog` error explicitly points to an authentication or credential problem.',
+            ...$this->gogCommands->toolGuidanceLines($googleCredential),
         ]).PHP_EOL;
     }
 
@@ -686,25 +685,11 @@ class TenantAgentSyncService
         if (! $googleCredential?->isConnected()) {
             return [
                 '- Google Workspace is not connected yet.',
-                '- Owner requests for inbox, calendar, drive, contacts, sheets, or docs should be handled only after the owner completes the Google Workspace step in Sync360.',
+                '- Owner requests for Google Workspace work should be handled only after the owner completes the Google Workspace step in Sync360.',
             ];
         }
 
-        $statusLabel = match ($googleCredential->runtime_sync_status) {
-            TenantGoogleCredential::RUNTIME_SYNC_VERIFIED => 'Verified inside the live tenant runtime.',
-            TenantGoogleCredential::RUNTIME_SYNC_SYNCED => 'Credentials synced into the tenant runtime and awaiting live verification.',
-            TenantGoogleCredential::RUNTIME_SYNC_FAILED => 'Connection needs attention before owner workspace actions are reliable.',
-            default => 'Connection is still being prepared in the tenant runtime.',
-        };
-
-        return [
-            '- Google Workspace Account: '.($googleCredential->google_email ?: 'Connected'),
-            '- Runtime Status: '.$statusLabel,
-            '- Default Account Rule: Treat the connected Google account as the default unless a tool explicitly reports multiple configured accounts or no default account.',
-            '- When the workspace owner asks for recent emails, calendar events, files, contacts, sheets, or docs, use the available Google Workspace tools instead of giving a generic refusal.',
-            '- Do not ask the owner to pick an account unless a tool explicitly reports multiple configured accounts or no default account.',
-            '- If those tools fail during a request, explain the specific tool error you observed. Suggest reconnecting only when the error explicitly points to invalid, expired, or unauthorized credentials.',
-        ];
+        return $this->gogCommands->ownerAccessLines($googleCredential);
     }
 
     /**
