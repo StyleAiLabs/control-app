@@ -1095,10 +1095,16 @@ class OnboardingFlowTest extends TestCase
 
         $this->assertStringContainsString('Owner Workspace Access', File::get($localRuntimePath.'/.openclaw/workspace/PROFILE.md'));
         $this->assertStringContainsString('use the available Google Workspace tools instead of giving a generic refusal', File::get($localRuntimePath.'/.openclaw/workspace/PROFILE.md'));
+        $this->assertStringContainsString('Default Account Rule: Treat the connected Google account as the default', File::get($localRuntimePath.'/.openclaw/workspace/PROFILE.md'));
+        $this->assertStringContainsString('Do not ask the owner to pick an account unless a tool explicitly reports multiple configured accounts or no default account.', File::get($localRuntimePath.'/.openclaw/workspace/PROFILE.md'));
         $this->assertStringContainsString('Treat messages from the workspace owner as internal operating requests', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('Do not say you are fundamentally unable to check emails or calendars', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
+        $this->assertStringContainsString('Do not ask the owner which Google account to use unless a tool explicitly reports multiple configured accounts or a missing default account.', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('The `gog` CLI is preconfigured in this workspace.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
+        $this->assertStringContainsString('Treat owner@example.com as the default Google account', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('gog gmail --help', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
+        $this->assertStringContainsString('Do not ask the owner to choose an account unless `gog` explicitly tells you there are multiple configured accounts or no default account.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
+        $this->assertStringContainsString('Do not tell the owner to reconnect Google Workspace, change Google API Console settings, or replace `credentials.json` unless a real `gog` error explicitly points to an authentication or credential problem.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
     }
 
     /**

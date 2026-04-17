@@ -61,6 +61,7 @@ If those files conflict with the codebase, trust:
 - Profile sync model: the Business Profile page now shows in-page assistant sync progress while a save/manual sync is running, shows the completion result after redirect, and live-tenant workspace prompt/tool-guidance changes can be pushed later with `sync360:resync-live-tenants` without reprovisioning the tenant
 - Google auth model: Sync360 owns the Google OAuth web flow; `tenant_google_credentials` is the source of truth and tenant `.openclaw/gogcli/` auth artifacts are a re-seedable runtime cache
 - Google runtime tool model: tenant `config/openclaw.json` now explicitly enables the bundled `gog` skill and appends `gog` to agent skill allowlists so connected workspaces can actually expose Google tooling to the agent
+- Google tool-guidance model: generated tenant workspace instructions now treat the connected Google email as the default account, tell the agent not to ask the owner to choose an account unless tooling explicitly reports multiple accounts or a missing default, and only suggest reconnecting when a real tool error indicates invalid/expired/unauthorized credentials
 - Conversation model: Telegram history is synced from workspace session logs with AI summaries; the control plane no longer exposes channel webhook ingress
 - Trial model: 14-day / budget-capped trial with scheduled expiry checks and email notifications
 - Admin model: super-admin area is behind `auth`, `admin`, and `local.only` middleware

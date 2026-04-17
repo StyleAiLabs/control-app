@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-17 — Tenant Google Workspace Guidance Hardened For Default Account Behavior
+
+Date: 2026-04-17
+Status: Implemented
+
+### Overview
+
+Tightened the generated tenant workspace guidance so assistants stop asking the owner to pick a Gmail account or blindly suggesting reconnect steps when Sync360 already knows the connected Google account and the runtime smoke test is healthy.
+
+### What Changed
+
+- updated generated `TOOLS.md`, `PROFILE.md`, and `HEARTBEAT.md` guidance to treat the connected Google email as the default account
+- instructed the tenant assistant not to ask the owner which account to use unless tooling explicitly reports multiple configured accounts or a missing default account
+- instructed the tenant assistant to suggest reconnecting only when a real `gog` error explicitly indicates invalid, expired, or unauthorized credentials
+- explicitly discouraged hallucinated setup advice such as telling the owner to replace `credentials.json` or redo Google API Console setup without a real auth error
+- added focused assertions covering the new default-account and reconnect-guardrail language in generated workspace artifacts
+
 ## 2026-04-17 — Admin Tenant Panel Runtime Actions
 
 Date: 2026-04-17

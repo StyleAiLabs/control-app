@@ -606,7 +606,7 @@ Key runtime details:
 - `verified` therefore means live runtime Google access worked from inside the tenant container, while `synced` only means the auth artifacts were written successfully
 - runtime Google usability depends on both auth artifacts and skill wiring: `gog` must be enabled in `openclaw.json` and included in agent skill allowlists, not just present under `.openclaw/gogcli/`
 - generated `PROFILE.md` and `HEARTBEAT.md` now explicitly instruct the agent to treat owner inbox/calendar/file requests as internal operating tasks and to use connected Google Workspace tools instead of giving a generic refusal
-- generated `TOOLS.md` tells the agent to use exec plus `gog` for those owner requests, inspect `gog --help` and product-specific help when needed, and avoid a generic "I cannot check emails" fallback when Google Workspace is connected
+- generated `TOOLS.md` tells the agent to use exec plus `gog` for those owner requests, inspect `gog --help` and product-specific help when needed, treat the connected Google email as the default account, avoid asking the owner to choose an account unless tooling explicitly reports multiple accounts or no default account, and avoid reconnect/credentials advice unless a real tool error indicates an auth failure
 
 ### SSH and remote orchestration
 

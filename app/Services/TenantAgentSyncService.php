@@ -558,7 +558,9 @@ class TenantAgentSyncService
 
         if ($googleCredential?->isConnected()) {
             $rules[] = '- Google Workspace is connected for the owner account '.($googleCredential->google_email ?: 'on file').'. Use the available Gmail, Calendar, Drive, Contacts, Sheets, and Docs tools for owner requests when relevant.';
-            $rules[] = '- If a Google Workspace tool call fails, explain that access is temporarily unavailable and ask the owner to retry or reconnect. Do not say you are fundamentally unable to check emails or calendars.';
+            $rules[] = '- Treat that connected Google account as the default account unless a tool explicitly reports multiple configured accounts or no default account.';
+            $rules[] = '- Do not ask the owner which Google account to use unless a tool explicitly reports multiple configured accounts or a missing default account.';
+            $rules[] = '- If a Google Workspace tool call fails, explain the specific tool error you observed. Suggest reconnecting only when the error explicitly indicates invalid, expired, or unauthorized credentials. Do not say you are fundamentally unable to check emails or calendars.';
         } else {
             $rules[] = '- If the owner asks for Gmail, Calendar, Drive, Contacts, Sheets, or Docs help before Google Workspace is connected, explain that the workspace connection still needs to be completed in Sync360.';
         }
@@ -625,11 +627,14 @@ class TenantAgentSyncService
             '- Google Workspace is connected for owner account '.($googleCredential->google_email ?: 'on file').'.',
             '- Runtime status is '.$runtimeState.'.',
             '- The `gog` CLI is preconfigured in this workspace. You do not need to run a fresh login when the connection is healthy.',
+            '- Treat '.($googleCredential->google_email ?: 'the connected Google account').' as the default Google account unless `gog` explicitly reports multiple configured accounts or a missing default account.',
             '- When you need Gmail, Calendar, Drive, Contacts, Sheets, or Docs access, use exec to run `gog` commands instead of replying with a generic refusal.',
             '- If you are unsure which gog subcommand to use, inspect help first with `gog --help`, then `gog gmail --help`, `gog calendar --help`, `gog drive --help`, `gog contacts --help`, `gog sheets --help`, or `gog docs --help`.',
             '- For owner requests like "check my recent emails", first use exec to inspect the available gog Gmail commands, then run the relevant read/list command and summarize the findings clearly.',
+            '- Do not ask the owner to choose an account unless `gog` explicitly tells you there are multiple configured accounts or no default account.',
             '- Prefer read/list actions first. Only send, update, or delete Google Workspace content when the owner explicitly asks for that action.',
-            '- If a gog command fails, explain that Google Workspace access is temporarily unavailable and suggest retrying, resyncing, or reconnecting. Do not claim you fundamentally lack email or calendar access when the connection is present.',
+            '- If a gog command fails, explain the exact command-level issue you observed. Suggest reconnecting or redoing credentials only when the command explicitly reports invalid, expired, or unauthorized credentials.',
+            '- Do not tell the owner to reconnect Google Workspace, change Google API Console settings, or replace `credentials.json` unless a real `gog` error explicitly points to an authentication or credential problem.',
         ]).PHP_EOL;
     }
 
@@ -678,8 +683,10 @@ class TenantAgentSyncService
         return [
             '- Google Workspace Account: '.($googleCredential->google_email ?: 'Connected'),
             '- Runtime Status: '.$statusLabel,
+            '- Default Account Rule: Treat the connected Google account as the default unless a tool explicitly reports multiple configured accounts or no default account.',
             '- When the workspace owner asks for recent emails, calendar events, files, contacts, sheets, or docs, use the available Google Workspace tools instead of giving a generic refusal.',
-            '- If those tools fail during a request, explain that the workspace connection needs attention and suggest reconnecting or retrying after resync.',
+            '- Do not ask the owner to pick an account unless a tool explicitly reports multiple configured accounts or no default account.',
+            '- If those tools fail during a request, explain the specific tool error you observed. Suggest reconnecting only when the error explicitly points to invalid, expired, or unauthorized credentials.',
         ];
     }
 }
