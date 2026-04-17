@@ -7,6 +7,22 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-18 — Runtime Capability Repair Now Re-Seeds `gog` Auth Artifacts
+
+Date: 2026-04-18
+Status: Implemented
+
+### Overview
+
+Closed the next repair-path gap for live Google Workspace tenants. `sync360:sync-runtime-capabilities ... gog` previously repaired the host binary, compose, and OpenClaw config, then immediately verified Gmail/Calendar access without first rewriting the tenant `.openclaw/gogcli/` auth files. That left older bad keyring/token artifacts in place even after deploying the file-keyring compatibility fix.
+
+### What Changed
+
+- changed `sync360:sync-runtime-capabilities` so `gog` repairs now call the same Google runtime auth reseed path used by onboarding/profile sync before running CLI verification
+- this means connected tenants now get fresh `.openclaw/gogcli/credentials.json`, `config.json`, keyring token, and token-cache artifacts during the runtime repair flow
+- kept the existing compose/config regeneration, workspace-guidance refresh, and smoke-verification behavior intact
+- added coverage proving the runtime-capability repair command now uploads Google auth artifacts as part of the `gog` repair path
+
 ## 2026-04-18 — `gog` Token Cache / File-Keyring Compatibility Fix
 
 Date: 2026-04-18

@@ -197,6 +197,8 @@ class RuntimeCapabilityCommandsTest extends TestCase
         $this->assertNotEmpty($runnerSpy->putFiles);
         $this->assertTrue(collect($runnerSpy->putFiles)->contains(fn (array $file): bool => $file['path'] === '/srv/sync360/runtime/tenants/acme-plumbing/compose.yaml'));
         $this->assertTrue(collect($runnerSpy->putFiles)->contains(fn (array $file): bool => $file['path'] === '/srv/sync360/runtime/tenants/acme-plumbing/config/openclaw.json'));
+        $this->assertTrue(collect($runnerSpy->putFiles)->contains(fn (array $file): bool => $file['path'] === '/srv/sync360/runtime/tenants/acme-plumbing/.openclaw/gogcli/credentials.json'));
+        $this->assertTrue(collect($runnerSpy->putFiles)->contains(fn (array $file): bool => $file['path'] === '/srv/sync360/runtime/tenants/acme-plumbing/.openclaw/gogcli/keyring/token:default:owner@example.com'));
         $this->assertTrue(collect($runnerSpy->commands)->contains(fn (string $command): bool => str_contains($command, 'docker exec') && str_contains($command, 'sync360-acme-plumbing')));
         $this->assertFileDoesNotExist($staleMemoryPath);
         $this->assertFileExists($otherMemoryPath);
@@ -232,6 +234,7 @@ class RuntimeCapabilityCommandsTest extends TestCase
 
         $runner = Mockery::mock(DockerComposeRunner::class);
         $runner->shouldReceive('putFile')->andReturnNull();
+        $runner->shouldReceive('removeDirectory')->andReturnNull();
         $runner->shouldReceive('runCommand')->andReturnNull();
         $this->instance(DockerComposeRunner::class, $runner);
 
@@ -290,6 +293,7 @@ class RuntimeCapabilityCommandsTest extends TestCase
 
         $runner = Mockery::mock(DockerComposeRunner::class);
         $runner->shouldReceive('putFile')->andReturnNull();
+        $runner->shouldReceive('removeDirectory')->andReturnNull();
         $runner->shouldReceive('runCommand')->andReturnNull();
         $this->instance(DockerComposeRunner::class, $runner);
 
@@ -346,6 +350,10 @@ class RuntimeCapabilityCommandsTest extends TestCase
 
     private function seedReadyTenant(): Tenant
     {
+        config()->set('services.google.client_id', 'google-client-id');
+        config()->set('services.google.client_secret', 'google-client-secret');
+        config()->set('services.google.redirect_uri', 'https://app.sync360.test/auth/google/callback');
+
         $user = User::query()->create([
             'name' => 'Alice Admin',
             'email' => 'alice@example.com',

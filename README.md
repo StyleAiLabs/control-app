@@ -207,6 +207,7 @@ What it does:
 
 - SSH mode only
 - verifies or installs the pinned host binary on the client VPS
+- for connected Google Workspace tenants, re-seeds the tenant `.openclaw/gogcli/` auth artifacts before verification so repaired runtimes do not keep stale keyring/token files
 - regenerates full staged tenant `compose.yaml` and `config/openclaw.json`
 - uploads changed files only
 - force-recreates the tenant when compose changed

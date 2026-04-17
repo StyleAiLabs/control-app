@@ -367,6 +367,12 @@ Artisan::command('sync360:sync-runtime-capabilities {tenantSelector? : Tenant id
                 $hostCapabilityResults[$hostKey] = $runtimeCapabilities->ensureInstalledOnServer($tenant->server, $selectedCapabilityIds);
             }
 
+            if (in_array('gog', $selectedCapabilityIds, true) && $tenant->googleCredential?->isConnected()) {
+                app(TenantAgentSyncService::class)->configureGoogleWorkspace($tenant->fresh(['server', 'googleCredential']));
+                $tenant->refresh();
+                $tenant->loadMissing(['server', 'googleCredential']);
+            }
+
             $composeUpdate = $runtimeCapabilities->syncLocalCompose($tenant, $selectedCapabilityIds);
             $configUpdate = $runtimeCapabilities->syncLocalOpenClawConfig($tenant, $selectedCapabilityIds);
 
