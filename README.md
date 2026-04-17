@@ -170,6 +170,7 @@ For `gog`, the control plane now injects:
 
 - `GOG_ENABLE_COMMANDS` as the allowlisted top-level direct CLI surface for the tenant runtime
 - `GOG_ACCOUNT` for connected tenants so the tenant runtime defaults to the tenant’s connected Google email
+- a compatibility `credentials.json` payload that includes top-level OAuth `client_id` / `client_secret` as well as the nested `installed` block, matching the real `gog` CLI expectations
 
 ### Scheduler requirement
 

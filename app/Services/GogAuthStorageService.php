@@ -56,8 +56,10 @@ class GogAuthStorageService
         $safeEmail = Str::of($email)->replaceMatches('/[^A-Za-z0-9._-]+/', '_')->value();
         $tokenPath = rtrim($configRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'keyring'.DIRECTORY_SEPARATOR.'token:default:'.$email;
 
+        $installedPayload = $this->googleOAuth->clientSecretPayload()['installed'];
         $credentialsJson = json_encode([
-            'installed' => $this->googleOAuth->clientSecretPayload()['installed'],
+            ...$installedPayload,
+            'installed' => $installedPayload,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         $configJson = json_encode([
             'default_account' => $email,

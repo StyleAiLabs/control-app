@@ -613,7 +613,10 @@ class OnboardingFlowTest extends TestCase
         $this->assertFileExists($localGogPath.'/credentials.json');
         $this->assertFileExists($localGogPath.'/config.json');
         $this->assertFileExists($localGogPath.'/keyring/token:default:owner@example.com');
-        $this->assertStringContainsString('"installed"', File::get($localGogPath.'/credentials.json'));
+        $credentialsJson = File::get($localGogPath.'/credentials.json');
+        $this->assertStringContainsString('"installed"', $credentialsJson);
+        $this->assertStringContainsString('"client_id": "google-client-id"', $credentialsJson);
+        $this->assertStringContainsString('"client_secret": "google-client-secret"', $credentialsJson);
         $this->assertStringContainsString('owner@example.com', File::get($localGogPath.'/config.json'));
         $this->assertStringContainsString('XDG_CONFIG_HOME: "/home/node/.openclaw/.openclaw"', File::get($localRuntimePath.'/compose.yaml'));
         $this->assertStringContainsString('GOG_KEYRING_BACKEND: "file"', File::get($localRuntimePath.'/compose.yaml'));

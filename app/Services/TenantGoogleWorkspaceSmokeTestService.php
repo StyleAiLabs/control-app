@@ -286,8 +286,8 @@ const tokenCachePath = path.join(configRoot, `token_${account.replace(/[^A-Za-z0
 const keyring = JSON.parse(readFileSync(keyringPath, 'utf8'));
 const tokenCache = existsSync(tokenCachePath) ? JSON.parse(readFileSync(tokenCachePath, 'utf8')) : {};
 const refreshToken = keyring.refresh_token || tokenCache.refresh_token;
-const clientId = credentials.installed?.client_id;
-const clientSecret = credentials.installed?.client_secret;
+const clientId = credentials.client_id || credentials.installed?.client_id;
+const clientSecret = credentials.client_secret || credentials.installed?.client_secret;
 
 if (!refreshToken || !clientId || !clientSecret) {
   fail('runtime-artifacts', 'Runtime Google auth files are missing refresh token or client credentials.');

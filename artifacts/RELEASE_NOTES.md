@@ -7,6 +7,21 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-18 — `gog` Credentials Payload Now Matches Real CLI Expectations
+
+Date: 2026-04-18
+Status: Implemented
+
+### Overview
+
+Fixed a Google Workspace runtime compatibility bug where Sync360 could write a tenant `credentials.json` that passed the control plane's preflight but was rejected by the real `gog` Gmail CLI because the OAuth client fields were only nested under `installed`.
+
+### What Changed
+
+- changed `GogAuthStorageService` so tenant `.openclaw/gogcli/credentials.json` now includes top-level `client_id` / `client_secret` as well as the nested `installed` payload
+- aligned the Google smoke script preflight with the real `gog` CLI by accepting either top-level or nested client fields when validating runtime auth artifacts
+- added regression coverage proving Google connect writes the compatible credentials payload and the smoke script now validates the same contract the live `gog` CLI uses
+
 ## 2026-04-18 — Google Smoke Failures Now Ignore SSH Host-Key Noise
 
 Date: 2026-04-18
