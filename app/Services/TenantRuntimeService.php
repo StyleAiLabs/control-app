@@ -151,10 +151,32 @@ class TenantRuntimeService
             .DIRECTORY_SEPARATOR.'config'.DIRECTORY_SEPARATOR.'openclaw.json';
     }
 
+    public function localWorkspacePath(Tenant $tenant): string
+    {
+        return $this->localRuntimePath($tenant)
+            .DIRECTORY_SEPARATOR.'.openclaw'.DIRECTORY_SEPARATOR.'workspace';
+    }
+
+    public function localWorkspaceMemoryPath(Tenant $tenant): string
+    {
+        return $this->localWorkspacePath($tenant).DIRECTORY_SEPARATOR.'memory';
+    }
+
     public function remoteOpenClawConfigPath(Tenant $tenant): string
     {
         return rtrim($tenant->runtime_path ?: $this->remoteRuntimePath($tenant), DIRECTORY_SEPARATOR)
             .DIRECTORY_SEPARATOR.'config'.DIRECTORY_SEPARATOR.'openclaw.json';
+    }
+
+    public function remoteWorkspacePath(Tenant $tenant): string
+    {
+        return rtrim($tenant->runtime_path ?: $this->remoteRuntimePath($tenant), DIRECTORY_SEPARATOR)
+            .DIRECTORY_SEPARATOR.'.openclaw'.DIRECTORY_SEPARATOR.'workspace';
+    }
+
+    public function remoteWorkspaceMemoryPath(Tenant $tenant): string
+    {
+        return $this->remoteWorkspacePath($tenant).DIRECTORY_SEPARATOR.'memory';
     }
 
     public function caddySitePath(Tenant $tenant): string

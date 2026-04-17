@@ -6,6 +6,7 @@ use App\Enums\TrialStatus;
 use App\Models\Tenant;
 use App\Models\Server;
 use App\Services\LiteLlmTenantKeyService;
+use App\Services\TenantAgentSyncService;
 use App\Services\TenantRuntimeCapabilityService;
 use App\Services\TenantProfileSyncService;
 use App\Services\TenantGoogleWorkspaceSmokeTestService;
@@ -383,13 +384,7 @@ Artisan::command('sync360:sync-runtime-capabilities {tenantSelector? : Tenant id
             $runtimeCapabilities->verifyContainerCapabilities($tenant, $selectedCapabilityIds);
 
             if (in_array('gog', $selectedCapabilityIds, true) && $tenant->googleCredential?->isConnected()) {
-                app(TenantGoogleWorkspaceSmokeTestService::class)->run($tenant);
-
-                $tenant->googleCredential->forceFill([
-                    'runtime_sync_status' => \App\Models\TenantGoogleCredential::RUNTIME_SYNC_VERIFIED,
-                    'last_synced_at' => now(),
-                    'last_error' => null,
-                ])->save();
+                app(TenantAgentSyncService::class)->verifyConnectedGoogleWorkspace($tenant->fresh(['server', 'googleCredential']));
             }
 
             $completed++;
@@ -458,6 +453,7 @@ Artisan::command('sync360:test-google-workspace {tenantSelector : Tenant id, ten
     /** @var TenantGoogleWorkspaceSmokeTestService $smokeTests */
     $smokeTests = app(TenantGoogleWorkspaceSmokeTestService::class);
     $result = $smokeTests->run($tenant);
+    app(TenantAgentSyncService::class)->clearKnownGoogleWorkspaceFailureMemory($tenant);
 
     $this->components->info(sprintf('Google Workspace smoke test passed for [%s].', $tenant->slug));
     $this->components->twoColumnDetail('Connected email', (string) ($result['google_email'] ?? 'unknown'));

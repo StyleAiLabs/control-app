@@ -562,6 +562,13 @@ class OnboardingFlowTest extends TestCase
             'OPENAI_BASE_URL=https://litellm.stylesoftware.co.nz',
             '',
         ]));
+        File::ensureDirectoryExists($localRuntimePath.'/.openclaw/workspace/memory');
+
+        $staleMemoryPath = $localRuntimePath.'/.openclaw/workspace/memory/'.now()->format('Y-m-d').'-email-access-issue.md';
+        $otherMemoryPath = $localRuntimePath.'/.openclaw/workspace/memory/'.now()->format('Y-m-d').'-welcome-session.md';
+
+        File::put($staleMemoryPath, '# Email access issue'.PHP_EOL);
+        File::put($otherMemoryPath, '# Welcome session'.PHP_EOL);
 
         $this->mock(TenantGoogleWorkspaceSmokeTestService::class, function ($mock): void {
             $mock->shouldReceive('run')
@@ -613,6 +620,8 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('source: "/usr/local/bin/gog"', File::get($localRuntimePath.'/compose.yaml'));
         $this->assertStringContainsString('"gog"', File::get($localRuntimePath.'/config/openclaw.json'));
         $this->assertStringContainsString('"enabled": true', File::get($localRuntimePath.'/config/openclaw.json'));
+        $this->assertFileDoesNotExist($staleMemoryPath);
+        $this->assertFileExists($otherMemoryPath);
     }
 
     public function test_onboarding_state_exposes_google_workspace_attention_details(): void
@@ -1103,6 +1112,9 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('The `gog` CLI is preconfigured in this workspace.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Treat owner@example.com as the default Google account', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('gog gmail --help', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
+        $this->assertStringContainsString('use a read-only Gmail workflow', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
+        $this->assertStringContainsString('Do not try to rewrite gog account configuration during a normal email request.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
+        $this->assertStringContainsString('If the chosen Gmail command requires a query string, provide a safe read-only Gmail query such as `in:inbox newer_than:30d`', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Do not ask the owner to choose an account unless `gog` explicitly tells you there are multiple configured accounts or no default account.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Do not tell the owner to reconnect Google Workspace, change Google API Console settings, or replace `credentials.json` unless a real `gog` error explicitly points to an authentication or credential problem.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
     }

@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-17 — Google Verification Now Clears Stale Failure Memory
+
+Date: 2026-04-17
+Status: Implemented
+
+### Overview
+
+Closed the next Google Workspace runtime gap by teaching tenant workspace guidance a stricter read-only Gmail workflow and clearing the known stale Gmail/account failure memory files after a real successful verification. This prevents older reconnect/account-selection issue summaries from continuing to steer the assistant after `gog` and runtime auth are healthy again.
+
+### What Changed
+
+- updated generated `TOOLS.md` guidance to push a help-first, read-only Gmail workflow for owner inbox requests
+- explicitly told the assistant not to rewrite `gog` account configuration during a normal email request and to use a safe query such as `in:inbox newer_than:30d` when the chosen Gmail command requires one
+- changed successful Google verification to remove the known stale Gmail/account failure memory files from tenant `.openclaw/workspace/memory/`
+- applied that cleanup both to the Google verification path used after OAuth/runtime sync and to the explicit `sync360:test-google-workspace` operator command
+- added focused coverage proving successful Google verification removes the known stale failure-memory files while leaving unrelated memory/session files intact
+
 ## 2026-04-17 — Tenant Google Workspace Guidance Hardened For Default Account Behavior
 
 Date: 2026-04-17

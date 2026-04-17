@@ -9,7 +9,7 @@ It currently covers the full control-plane loop:
 - local and SSH-based tenant runtime deployment
 - guided onboarding with visible progress, draft-safe state refresh, optional Google Workspace connect, live Google verification status, and go-live sync
 - Business Profile sync with in-page progress/completion feedback for live assistant resyncs
-- tenant workspace tool guidance via generated `TOOLS.md`, including `gog` usage notes for connected Google Workspace tenants
+- tenant workspace tool guidance via generated `TOOLS.md`, including default-account, read-only Gmail workflow, and `gog` usage notes for connected Google Workspace tenants
 - tenant runtime config now explicitly enables the bundled `gog` skill in `openclaw.json` so connected Google Workspace tooling is actually available to the agent
 - host-managed runtime capability installs for external tenant dependencies such as `gog`, using pinned VPS binaries plus read-only tenant bind mounts
 - private gateway access for health checks and runtime integration
@@ -203,6 +203,7 @@ What it does:
 - uploads changed files only
 - force-recreates the tenant when compose changed
 - reruns capability verification and Google smoke tests where applicable
+- after a successful Google verification, clears the known stale Gmail/account failure memory files from `.openclaw/workspace/memory/` so old reconnect/account-selection narratives do not keep steering the assistant
 
 `goLive()` still remains workspace-files-only. It must not be used to deliver host binaries or perform a full runtime resync.
 

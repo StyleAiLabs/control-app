@@ -117,6 +117,13 @@ class RuntimeCapabilityCommandsTest extends TestCase
             '      GOG_KEYRING_PASSWORD: "test-password"',
             '',
         ]));
+        File::ensureDirectoryExists($localRuntimePath.'/.openclaw/workspace/memory');
+
+        $staleMemoryPath = $localRuntimePath.'/.openclaw/workspace/memory/'.now()->format('Y-m-d').'-email-check-issue.md';
+        $otherMemoryPath = $localRuntimePath.'/.openclaw/workspace/memory/'.now()->format('Y-m-d').'-healthy-session.md';
+
+        File::put($staleMemoryPath, '# Email check issue'.PHP_EOL);
+        File::put($otherMemoryPath, '# Healthy session'.PHP_EOL);
 
         $runnerSpy = new class implements DockerComposeRunner
         {
@@ -126,6 +133,9 @@ class RuntimeCapabilityCommandsTest extends TestCase
             /** @var array<int, array<string, string>> */
             public array $putFiles = [];
 
+            /** @var list<string> */
+            public array $removedFiles = [];
+
             public function syncRuntime(Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
             public function syncWorkspaceFiles(Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void {}
             public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array { return ['status' => 200, 'body' => '']; }
@@ -133,7 +143,10 @@ class RuntimeCapabilityCommandsTest extends TestCase
             {
                 $this->putFiles[] = ['path' => $remotePath, 'contents' => $contents];
             }
-            public function removeFile(Server $server, string $remotePath, bool $sudo = false): void {}
+            public function removeFile(Server $server, string $remotePath, bool $sudo = false): void
+            {
+                $this->removedFiles[] = $remotePath;
+            }
             public function removeDirectory(Server $server, string $remotePath, bool $sudo = false): void {}
             public function runCommand(Server $server, string $command, bool $sudo = false): void
             {
@@ -176,6 +189,9 @@ class RuntimeCapabilityCommandsTest extends TestCase
         $this->assertTrue(collect($runnerSpy->putFiles)->contains(fn (array $file): bool => $file['path'] === '/srv/sync360/runtime/tenants/acme-plumbing/compose.yaml'));
         $this->assertTrue(collect($runnerSpy->putFiles)->contains(fn (array $file): bool => $file['path'] === '/srv/sync360/runtime/tenants/acme-plumbing/config/openclaw.json'));
         $this->assertTrue(collect($runnerSpy->commands)->contains(fn (string $command): bool => str_contains($command, 'docker exec') && str_contains($command, 'sync360-acme-plumbing')));
+        $this->assertFileDoesNotExist($staleMemoryPath);
+        $this->assertFileExists($otherMemoryPath);
+        $this->assertContains('/srv/sync360/runtime/tenants/acme-plumbing/.openclaw/workspace/memory/'.now()->format('Y-m-d').'-email-check-issue.md', $runnerSpy->removedFiles);
     }
 
     private function seedReadyTenant(): Tenant

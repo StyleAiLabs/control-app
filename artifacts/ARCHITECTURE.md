@@ -259,6 +259,8 @@ The onboarding Blade shows explicit wizard progress and a background-setup statu
 
 Google Workspace Step 6 now distinguishes between OAuth account status and live runtime readiness. The state payload can report Google Workspace as `pending`, `synced`, `verified`, or `failed`, and the Blade surfaces `last_error` when runtime verification needs attention instead of collapsing everything into a single optimistic "ready" message.
 
+When Google verification succeeds, Sync360 now also clears the known stale Gmail/account failure memory files for today and yesterday from the tenant workspace memory directory. This keeps older reconnect/account-selection issue summaries from continuing to bias the live assistant after `gog` and runtime auth are healthy again.
+
 `TenantProfileSyncService` is used for later profile/admin regeneration and resync work, not the main onboarding controller flow.
 
 The Business Profile page is part of that later resync surface. When the tenant is already live, saving `/profile` regenerates assistant files, runs the same workspace-file-only live sync path, and shows in-page progress plus a completion message after redirect. `POST /profile/sync-agent` remains the manual retry path for pushing regenerated workspace files without changing the form first.

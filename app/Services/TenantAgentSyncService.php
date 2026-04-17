@@ -37,7 +37,7 @@ class TenantAgentSyncService
 
         $localRuntimePath = $this->runtime->localRuntimePath($tenant);
         /* OpenClaw reads workspace bootstrap files from .openclaw/workspace/ inside OPENCLAW_HOME. */
-        $workspacePath = $localRuntimePath.DIRECTORY_SEPARATOR.'.openclaw'.DIRECTORY_SEPARATOR.'workspace';
+        $workspacePath = $this->runtime->localWorkspacePath($tenant);
 
         if (! $this->files->isDirectory($localRuntimePath) || ! $this->files->isDirectory($workspacePath)) {
             throw new RuntimeException('Your workspace files are still being prepared. Please wait a moment and try again.');
@@ -67,8 +67,7 @@ class TenantAgentSyncService
                    gateway token). Using syncRuntime() here previously overwrote those files
                    with stale local copies and broke LiteLLM authentication. */
                 $localWorkspacePath  = $workspacePath;
-                $remoteWorkspacePath = rtrim($remoteRuntimePath, DIRECTORY_SEPARATOR)
-                    .DIRECTORY_SEPARATOR.'.openclaw'.DIRECTORY_SEPARATOR.'workspace';
+                $remoteWorkspacePath = $this->runtime->remoteWorkspacePath($tenant);
 
                 $this->dockerCompose->syncWorkspaceFiles($tenant->server, $localWorkspacePath, $remoteWorkspacePath);
                 $this->dockerCompose->up($tenant->server, $composeFile, $projectName);
@@ -407,12 +406,28 @@ class TenantAgentSyncService
         }
 
         $this->googleWorkspaceSmokeTests->run($tenant);
+        $this->clearKnownGoogleWorkspaceFailureMemory($tenant);
 
         $credential->forceFill([
             'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_VERIFIED,
             'last_synced_at' => now(),
             'last_error' => null,
         ])->save();
+    }
+
+    public function clearKnownGoogleWorkspaceFailureMemory(Tenant $tenant): void
+    {
+        $tenant->loadMissing('server');
+
+        foreach ($this->knownGoogleFailureMemoryFiles($tenant) as $localPath => $remotePath) {
+            if ($this->files->exists($localPath)) {
+                $this->files->delete($localPath);
+            }
+
+            if (! app()->environment('local') && $tenant->server) {
+                $this->dockerCompose->removeFile($tenant->server, $remotePath);
+            }
+        }
     }
 
     private function ensureTenantCanGoLive(Tenant $tenant, ?BusinessProfile $profile, ?BusinessProfileFiles $profileFiles): void
@@ -630,7 +645,9 @@ class TenantAgentSyncService
             '- Treat '.($googleCredential->google_email ?: 'the connected Google account').' as the default Google account unless `gog` explicitly reports multiple configured accounts or a missing default account.',
             '- When you need Gmail, Calendar, Drive, Contacts, Sheets, or Docs access, use exec to run `gog` commands instead of replying with a generic refusal.',
             '- If you are unsure which gog subcommand to use, inspect help first with `gog --help`, then `gog gmail --help`, `gog calendar --help`, `gog drive --help`, `gog contacts --help`, `gog sheets --help`, or `gog docs --help`.',
-            '- For owner requests like "check my recent emails", first use exec to inspect the available gog Gmail commands, then run the relevant read/list command and summarize the findings clearly.',
+            '- For owner requests like "check my recent emails", use a read-only Gmail workflow: inspect `gog gmail --help`, inspect the help for the chosen Gmail read/list/search subcommand, run the command for the default account, and summarize the results clearly.',
+            '- Do not try to rewrite gog account configuration during a normal email request. Use the existing default account first, and only add an explicit account flag when the help text or command error explicitly requires it.',
+            '- If the chosen Gmail command requires a query string, provide a safe read-only Gmail query such as `in:inbox newer_than:30d` instead of treating that validation error as a credential failure.',
             '- Do not ask the owner to choose an account unless `gog` explicitly tells you there are multiple configured accounts or no default account.',
             '- Prefer read/list actions first. Only send, update, or delete Google Workspace content when the owner explicitly asks for that action.',
             '- If a gog command fails, explain the exact command-level issue you observed. Suggest reconnecting or redoing credentials only when the command explicitly reports invalid, expired, or unauthorized credentials.',
@@ -688,5 +705,30 @@ class TenantAgentSyncService
             '- Do not ask the owner to pick an account unless a tool explicitly reports multiple configured accounts or no default account.',
             '- If those tools fail during a request, explain the specific tool error you observed. Suggest reconnecting only when the error explicitly points to invalid, expired, or unauthorized credentials.',
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function knownGoogleFailureMemoryFiles(Tenant $tenant): array
+    {
+        $localMemoryPath = $this->runtime->localWorkspaceMemoryPath($tenant);
+        $remoteMemoryPath = $this->runtime->remoteWorkspaceMemoryPath($tenant);
+        $dates = [now()->format('Y-m-d'), now()->subDay()->format('Y-m-d')];
+        $suffixes = [
+            'email-access-issue.md',
+            'check-emails-issue.md',
+            'email-check-issue.md',
+        ];
+        $paths = [];
+
+        foreach ($dates as $date) {
+            foreach ($suffixes as $suffix) {
+                $filename = $date.'-'.$suffix;
+                $paths[$localMemoryPath.DIRECTORY_SEPARATOR.$filename] = $remoteMemoryPath.DIRECTORY_SEPARATOR.$filename;
+            }
+        }
+
+        return $paths;
     }
 }
