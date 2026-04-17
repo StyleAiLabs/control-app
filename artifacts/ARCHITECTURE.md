@@ -258,7 +258,7 @@ Services involved:
 
 The onboarding Blade shows explicit wizard progress and a background-setup status card, then polls `/onboarding/state` in the background to refresh progress and readiness. The client preserves unsaved local drafts for website, business details, tone, capabilities, and channel setup so in-progress edits are not wiped by refreshes. Successful saves on the main setup steps auto-advance the wizard to the next step, and onboarding navigation/state polling does not regenerate the tenant LiteLLM key because key creation remains provisioning-only.
 
-The Channel step also keeps an explicit manual forward path. Step 5 now always renders a `Continue To Google Workspace` button so customers can move on even when the channel is already connected or they prefer to finish Google Workspace later.
+The Channel step also keeps an explicit manual forward path. Step 5 now renders a `Continue To Google Workspace` button in the channel-panel navigation so customers can move on even when the channel is already connected or they prefer to finish Google Workspace later.
 
 Google Workspace Step 6 now distinguishes between OAuth account status and live runtime readiness. The state payload can report Google Workspace as `pending`, `synced`, `verified`, or `failed`, and the Blade surfaces `last_error` when runtime verification needs attention instead of collapsing everything into a single optimistic "ready" message.
 

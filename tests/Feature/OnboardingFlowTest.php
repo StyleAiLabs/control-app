@@ -38,7 +38,7 @@ class OnboardingFlowTest extends TestCase
             ->assertSee('Confirm your business details')
             ->assertSee('Connect your messaging channel')
             ->assertSee('Connect Google Workspace')
-            ->assertSee('Continue To Google Workspace')
+            ->assertSee('id="channel-step-next"', false)
             ->assertSee('Bring it live')
             ->assertSee('WhatsApp')
             ->assertSee('Coming Soon')
@@ -798,6 +798,7 @@ class OnboardingFlowTest extends TestCase
 
         $this->get('/onboarding?step=5')
             ->assertOk()
+            ->assertSee('id="channel-step-next"', false)
             ->assertSee('Continue To Google Workspace');
     }
 
