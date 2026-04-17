@@ -4,6 +4,24 @@
         $canManageWorkspace = ! in_array($workspaceState, ['not_provisioned', 'missing_config'], true);
         $googleCredential = $tenant->googleCredential;
         $googleConnected = $googleCredential?->isConnected() ?? false;
+        $googleState = $googleState ?? [
+            'connection_label' => 'Pending',
+            'connection_badge' => 'pending',
+            'runtime_label' => 'Pending',
+            'runtime_badge' => 'pending',
+            'google_email' => null,
+            'connected_at' => null,
+            'disconnected_at' => null,
+            'last_synced_at' => null,
+            'sync_job_status' => null,
+            'sync_job_badge' => 'pending',
+            'sync_job_started_at' => null,
+            'sync_job_completed_at' => null,
+            'sync_job_error' => null,
+            'last_error' => null,
+            'can_queue_sync' => false,
+            'has_active_sync_job' => false,
+        ];
     @endphp
 
     <div class="topbar">
@@ -34,6 +52,7 @@
             <span class="badge {{ $tenant->agent_status === 'live' ? 'ready' : ($tenant->agent_status === 'failed' ? 'failed' : 'pending') }}">{{ $tenant->agent_status ?? 'offline' }}</span>
             <span class="badge {{ $tenant->last_health_check_status === 'healthy' ? 'ready' : ($tenant->last_health_check_status === 'failed' ? 'failed' : 'pending') }}">{{ $tenant->last_health_check_status ?? 'unchecked' }}</span>
             <span class="badge {{ $workspaceState === 'running' ? 'ready' : ($workspaceState === 'stopped' ? 'pending' : 'failed') }}">{{ str_replace('_', ' ', $workspaceState) }}</span>
+            <span class="badge {{ $googleState['runtime_badge'] }}">{{ $googleState['runtime_label'] }}</span>
         </div>
 
         <div class="meta">
@@ -142,22 +161,7 @@
                         <div class="hint" style="margin-top: 6px;">Phone ID saved: {{ filled($channelConfig['whatsapp_phone_number_id'] ?? null) ? 'Yes' : 'No' }}</div>
                     @endif
                 </div>
-                <div class="meta-item">
-                    <small>Google Workspace</small>
-                    <strong>{{ $googleCredential?->status ?? 'Not connected' }}</strong>
-                    <div class="hint" style="margin-top: 6px;">
-                        Runtime: {{ $googleCredential?->runtime_sync_status ?? 'pending' }}
-                        @if (filled($googleCredential?->google_email))
-                            · {{ $googleCredential->google_email }}
-                        @endif
-                    </div>
-                </div>
             </div>
-            @if (filled($googleCredential?->last_error))
-                <div class="note error" style="margin-top: 16px;">
-                    {{ $googleCredential->last_error }}
-                </div>
-            @endif
         </section>
 
         <section class="panel">
@@ -190,6 +194,94 @@
             </div>
         </section>
     </div>
+
+    <section class="panel" style="margin-top: 18px;">
+        <div class="topbar" style="margin-bottom: 16px;">
+            <div>
+                <span class="eyebrow">Google Workspace</span>
+                <h2 style="font-size: 1.2rem;">Google Workspace Connection</h2>
+                <p>Connection state, live sync progress, latest runtime error, and the repair actions that already exist in this control plane.</p>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px;">
+            <span class="badge {{ $googleState['connection_badge'] }}">{{ $googleState['connection_label'] }}</span>
+            <span class="badge {{ $googleState['runtime_badge'] }}">{{ $googleState['runtime_label'] }}</span>
+            @if ($googleState['sync_job_status'])
+                <span class="badge {{ $googleState['sync_job_badge'] }}">{{ $googleState['sync_job_status'] }}</span>
+            @endif
+        </div>
+
+        <div class="meta">
+            <div class="meta-item">
+                <small>Google Email</small>
+                <strong>{{ $googleState['google_email'] ?? 'No Google account saved' }}</strong>
+            </div>
+            <div class="meta-item">
+                <small>Connection Status</small>
+                <strong>{{ $googleState['connection_label'] }}</strong>
+            </div>
+            <div class="meta-item">
+                <small>Live Access</small>
+                <strong>{{ $googleState['runtime_label'] }}</strong>
+            </div>
+            <div class="meta-item">
+                <small>Connected At</small>
+                <strong>{{ $googleState['connected_at'] ?? '—' }}</strong>
+            </div>
+            <div class="meta-item">
+                <small>Disconnected At</small>
+                <strong>{{ $googleState['disconnected_at'] ?? '—' }}</strong>
+            </div>
+            <div class="meta-item">
+                <small>Last Synced At</small>
+                <strong>{{ $googleState['last_synced_at'] ?? '—' }}</strong>
+            </div>
+            <div class="meta-item">
+                <small>Initial Sync Job</small>
+                <strong>{{ $googleState['sync_job_status'] ?? 'No sync job recorded' }}</strong>
+            </div>
+            <div class="meta-item">
+                <small>Sync Job Started</small>
+                <strong>{{ $googleState['sync_job_started_at'] ?? '—' }}</strong>
+            </div>
+            <div class="meta-item">
+                <small>Sync Job Completed</small>
+                <strong>{{ $googleState['sync_job_completed_at'] ?? '—' }}</strong>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px;">
+            <form method="POST" action="{{ route('admin.tenants.google.sync', $tenant) }}" class="inline">
+                @csrf
+                <button type="submit" {{ $googleState['can_queue_sync'] ? '' : 'disabled' }}>Queue Google Sync</button>
+            </form>
+            <form method="POST" action="{{ route('admin.tenants.runtime-capabilities.sync', $tenant) }}" class="inline">
+                @csrf
+                <button type="submit" {{ $canManageWorkspace ? '' : 'disabled' }}>Sync Runtime Capabilities</button>
+            </form>
+            <form method="POST" action="{{ route('admin.tenants.google.test', $tenant) }}" class="inline">
+                @csrf
+                <button type="submit" {{ $canManageWorkspace && $googleConnected ? '' : 'disabled' }}>Test Google Workspace</button>
+            </form>
+        </div>
+
+        <div class="hint" style="margin-top: 14px;">
+            Queue Google Sync reuses the existing initial Google sync job flow. Sync Runtime Capabilities repairs the `gog` runtime contract. Test Google Workspace runs the full tenant-side smoke verification.
+        </div>
+
+        @if (filled($googleState['last_error']))
+            <div class="note error" style="margin-top: 16px;">
+                {{ $googleState['last_error'] }}
+            </div>
+        @endif
+
+        @if (filled($googleState['sync_job_error']) && $googleState['sync_job_error'] !== $googleState['last_error'])
+            <div class="note error" style="margin-top: 16px;">
+                Latest sync job error: {{ $googleState['sync_job_error'] }}
+            </div>
+        @endif
+    </section>
 
     {{-- Trial & AI Usage (Superadmin view) --}}
     <section class="panel" style="margin-top: 18px;">
@@ -303,14 +395,6 @@
                 @csrf
                 <button type="submit" {{ $tenant->server ? '' : 'disabled' }}>Bootstrap VPS</button>
             </form>
-            <form method="POST" action="{{ route('admin.tenants.runtime-capabilities.sync', $tenant) }}" class="inline">
-                @csrf
-                <button type="submit" {{ $canManageWorkspace ? '' : 'disabled' }}>Sync Runtime Capabilities</button>
-            </form>
-            <form method="POST" action="{{ route('admin.tenants.google.test', $tenant) }}" class="inline">
-                @csrf
-                <button type="submit" {{ $canManageWorkspace && $googleConnected ? '' : 'disabled' }}>Test Google Workspace</button>
-            </form>
             <form method="POST" action="{{ route('admin.workspace.start', $tenant) }}" class="inline">
                 @csrf
                 <button type="submit" {{ $canManageWorkspace ? '' : 'disabled' }}>Start</button>
@@ -326,7 +410,7 @@
         </div>
 
         <div class="hint" style="margin-top: 14px;">
-            Bootstrap VPS installs host-managed runtime dependencies on the assigned client VPS. Sync Runtime Capabilities regenerates tenant compose/config and applies capability repairs such as <code>gog</code>. Test Google Workspace runs the end-to-end Google smoke test for this tenant.
+            Bootstrap VPS installs host-managed runtime dependencies on the assigned client VPS. Workspace controls only manage the running tenant container and do not repair Google auth/runtime state.
         </div>
     </section>
 

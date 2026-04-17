@@ -514,13 +514,16 @@ If capability verification fails during repair or Google sync, Sync360 explicitl
 
 The local-only super-admin tenant detail page now exposes tenant-scoped wrappers around the same operator commands:
 
+- `Queue Google Sync`
 - `Bootstrap VPS`
 - `Sync Runtime Capabilities`
 - `Test Google Workspace`
 
 Implementation notes:
 
+- the tenants list and tenant detail page derive Google connection/live-access state from `tenant_google_credentials` plus the latest `initial_google_workspace_sync` job, so operators see connection state, sync label, relevant timestamps, and last recorded errors in the same vocabulary used by onboarding
 - the admin controller invokes the existing artisan commands rather than re-implementing the runtime logic
+- `Queue Google Sync` delegates to `TenantAgentSyncService::dispatchInitialGoogleWorkspaceSync()` so the panel reuses the durable job path instead of running a one-off inline sync
 - bootstrap targets the tenant's assigned server
 - runtime-capability sync targets the tenant slug and applies the full repair path for that tenant
 - Google smoke test targets the tenant slug and reports the existing layered verification result back through the flashed admin status message
@@ -740,6 +743,7 @@ Admin routes under `local.only` and `admin`:
 - `POST /admin/tenants/{tenant}/resync-agent`
 - `POST /admin/tenants/{tenant}/runtime/bootstrap`
 - `POST /admin/tenants/{tenant}/runtime/capabilities/sync`
+- `POST /admin/tenants/{tenant}/google/sync`
 - `POST /admin/tenants/{tenant}/google/test`
 - `POST /admin/tenants/{tenant}/workspace/start`
 - `POST /admin/tenants/{tenant}/workspace/stop`

@@ -71,6 +71,7 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/tenants/{tenant}/resync-agent', [AdminController::class, 'resyncAgent'])->name('tenants.resync-agent');
         Route::post('/tenants/{tenant}/runtime/bootstrap', [AdminController::class, 'bootstrapRuntimeHost'])->name('tenants.runtime.bootstrap');
         Route::post('/tenants/{tenant}/runtime/capabilities/sync', [AdminController::class, 'syncRuntimeCapabilities'])->name('tenants.runtime-capabilities.sync');
+        Route::post('/tenants/{tenant}/google/sync', [AdminController::class, 'retryGoogleWorkspaceSync'])->name('tenants.google.sync');
         Route::post('/tenants/{tenant}/google/test', [AdminController::class, 'testGoogleWorkspace'])->name('tenants.google.test');
         Route::post('/tenants/{tenant}/workspace/start', [AdminController::class, 'startWorkspace'])->name('workspace.start');
         Route::post('/tenants/{tenant}/workspace/stop', [AdminController::class, 'stopWorkspace'])->name('workspace.stop');

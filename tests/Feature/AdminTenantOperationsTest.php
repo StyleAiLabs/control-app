@@ -5,14 +5,18 @@ namespace Tests\Feature;
 use App\Contracts\DockerComposeRunner;
 use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
+use App\Jobs\ProcessInitialGoogleWorkspaceSync;
+use App\Models\ProvisioningJob;
 use App\Models\Server;
 use App\Models\Tenant;
 use App\Models\TenantGoogleCredential;
 use App\Models\User;
 use App\Services\TenantHealthCheckService;
 use App\Services\TenantProfileSyncService;
+use Illuminate\Support\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Queue;
 use Mockery;
 use Tests\TestCase;
 
@@ -170,5 +174,108 @@ class AdminTenantOperationsTest extends TestCase
         $this->post(route('admin.workspace.restart', $tenant))
             ->assertRedirect()
             ->assertSessionHas('status', 'Workspace container restart requested.');
+    }
+
+    public function test_admin_tenant_pages_show_google_sync_details_and_allow_requeue(): void
+    {
+        Queue::fake([ProcessInitialGoogleWorkspaceSync::class]);
+
+        $admin = User::query()->create([
+            'name' => 'Debug Admin',
+            'email' => 'admin@example.com',
+            'password' => 'super-secret',
+            'is_admin' => true,
+        ]);
+
+        $user = User::query()->create([
+            'name' => 'Customer User',
+            'email' => 'customer@example.com',
+            'password' => 'super-secret',
+            'is_admin' => false,
+        ]);
+
+        $tenant = Tenant::query()->create([
+            'tenant_id' => 'tenant_ops_02',
+            'slug' => 'google-ops-shop',
+            'business_name' => 'Google Ops Shop',
+            'industry' => 'Retail',
+            'skill_pack' => 'Client Support',
+            'user_id' => $user->id,
+            'server_id' => Server::query()->firstOrFail()->id,
+            'trial_status' => TrialStatus::Active,
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'agent_status' => 'live',
+            'workspace_url' => 'https://google-ops-shop.workspace.test',
+            'runtime_path' => '/srv/sync360/runtime/tenants/google-ops-shop',
+        ]);
+
+        $connectedAt = Carbon::parse('2026-04-18 09:15:00');
+        $lastSyncedAt = Carbon::parse('2026-04-18 10:45:00');
+        $jobStartedAt = Carbon::parse('2026-04-18 10:30:00');
+        $jobCompletedAt = Carbon::parse('2026-04-18 10:34:00');
+
+        $tenant->googleCredential()->create([
+            'status' => TenantGoogleCredential::STATUS_CONNECTED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_FAILED,
+            'google_email' => 'owner@example.com',
+            'access_token' => 'google-access-token',
+            'refresh_token' => 'google-refresh-token',
+            'scopes' => ['openid', 'email'],
+            'connected_at' => $connectedAt,
+            'last_synced_at' => $lastSyncedAt,
+            'last_error' => 'Refresh token exchange failed inside the tenant runtime.',
+        ]);
+
+        ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ProcessInitialGoogleWorkspaceSync::JOB_TYPE,
+            'status' => 'failed',
+            'error_message' => 'gmail-cli failed: missing required query argument.',
+            'started_at' => $jobStartedAt,
+            'completed_at' => $jobCompletedAt,
+        ]);
+
+        $runner = Mockery::mock(DockerComposeRunner::class);
+        $runner->shouldReceive('isRunning')
+            ->twice()
+            ->withArgs(fn (Server $server, string $composeFile, string $projectName): bool => $composeFile === '/srv/sync360/runtime/tenants/google-ops-shop/compose.yaml' && $projectName === 'sync360-google-ops-shop')
+            ->andReturnTrue();
+
+        $this->instance(DockerComposeRunner::class, $runner);
+        $this->actingAs($admin);
+
+        $this->get('/admin/tenants')
+            ->assertOk()
+            ->assertSee('Google')
+            ->assertSee('owner@example.com')
+            ->assertSee('Needs attention')
+            ->assertSee('Refresh token exchange failed inside the tenant runtime.');
+
+        $this->get(route('admin.tenants.show', $tenant))
+            ->assertOk()
+            ->assertSee('Google Workspace Connection')
+            ->assertSee('owner@example.com')
+            ->assertSee('Needs attention')
+            ->assertSee('2026-04-18 09:15:00')
+            ->assertSee('2026-04-18 10:45:00')
+            ->assertSee('gmail-cli failed: missing required query argument.')
+            ->assertSee('Queue Google Sync');
+
+        $this->post(route('admin.tenants.google.sync', $tenant))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Google Workspace sync queued for google-ops-shop.');
+
+        Queue::assertPushed(ProcessInitialGoogleWorkspaceSync::class, function (ProcessInitialGoogleWorkspaceSync $job) use ($tenant): bool {
+            return $job->tenantId === $tenant->id;
+        });
+
+        $queuedJob = ProvisioningJob::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('job_type', ProcessInitialGoogleWorkspaceSync::JOB_TYPE)
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($queuedJob);
+        $this->assertSame('queued', $queuedJob?->status?->value);
     }
 }

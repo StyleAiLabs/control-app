@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-18 — Admin Tenant Pages Now Show Google Sync Timeline + Requeue Action
+
+Date: 2026-04-18
+Status: Implemented
+
+### Overview
+
+Extended the local-only super-admin tenant views so operators can see the real Google Workspace state for every tenant without cross-referencing onboarding or the database manually. The admin UI now surfaces both the credential state and the initial Google sync lifecycle, and it exposes a first-class way to re-queue that durable sync job when a tenant needs another pass.
+
+### What Changed
+
+- added a Google column to the admin tenants list that shows connection state, live-access label, connected email, latest relevant timestamp, and the latest recorded runtime error for each tenant
+- expanded the admin tenant detail page with a dedicated Google Workspace section covering connection state, live-access state, connected/disconnected/synced timestamps, latest initial sync job status, and latest runtime/job errors
+- added a `POST /admin/tenants/{tenant}/google/sync` operator action that reuses `TenantAgentSyncService::dispatchInitialGoogleWorkspaceSync()` to queue the existing durable Google sync job for a connected ready tenant
+- kept Google repair/testing aligned with existing architecture by leaving runtime-capability sync and smoke testing as the same command-backed actions rather than introducing a second repair path in the controller
+- added admin feature coverage proving the richer Google state is visible and that a failed tenant can re-queue the initial Google sync job from the admin panel
+
 ## 2026-04-18 — Google Workspace Connect Now Queues An Initial Tenant Sync
 
 Date: 2026-04-18

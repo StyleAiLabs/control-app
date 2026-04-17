@@ -72,7 +72,7 @@ If those files conflict with the codebase, trust:
 - Conversation model: Telegram history is synced from workspace session logs with AI summaries; the control plane no longer exposes channel webhook ingress
 - Trial model: 14-day / budget-capped trial with scheduled expiry checks and email notifications
 - Admin model: super-admin area is behind `auth`, `admin`, and `local.only` middleware
-- Admin operator surface: the tenant detail screen now exposes tenant-scoped buttons for client-VPS bootstrap, runtime-capability sync, and Google Workspace smoke testing by calling the same artisan command paths used at the CLI
+- Admin operator surface: the tenants list now shows each tenant's Google connection state, live-access/sync label, latest relevant timestamp, and latest recorded runtime error; the tenant detail screen also exposes tenant-scoped buttons for client-VPS bootstrap, runtime-capability sync, Google Workspace smoke testing, and re-queueing the existing initial Google sync job without introducing a second repair implementation
 
 ## 4. Core flows at a glance
 

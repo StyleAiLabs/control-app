@@ -15,6 +15,7 @@
                     <th>Customer</th>
                     <th>Client VPS</th>
                     <th>Provisioning</th>
+                    <th>Google</th>
                     <th>Agent</th>
                     <th>Trial</th>
                     <th>Health</th>
@@ -25,6 +26,7 @@
                 @forelse ($tenants as $tenant)
                     @php
                         $workspaceState = $workspaceStates[$tenant->id] ?? 'unknown';
+                        $googleState = $googleStates[$tenant->id] ?? null;
                     @endphp
                     <tr class="clickable-row" data-href="{{ route('admin.tenants.show', $tenant) }}" tabindex="0">
                         <td>
@@ -40,6 +42,29 @@
                             <span class="hint">{{ $tenant->server?->host ?? '—' }}</span>
                         </td>
                         <td><span class="badge {{ $tenant->provisioning_status->value }}">{{ $tenant->provisioning_status->value }}</span></td>
+                        <td>
+                            <span class="badge {{ $googleState['connection_badge'] ?? 'pending' }}">
+                                {{ $googleState['connection_label'] ?? 'Pending' }}
+                            </span>
+                            <div style="margin-top: 6px;">
+                                <span class="badge {{ $googleState['runtime_badge'] ?? 'pending' }}">
+                                    {{ $googleState['runtime_label'] ?? 'Pending' }}
+                                </span>
+                            </div>
+                            <div class="hint" style="margin-top: 6px;">
+                                {{ $googleState['google_email'] ?? 'No Google account saved' }}
+                            </div>
+                            @if (filled($googleState['last_timestamp_label'] ?? null) && filled($googleState['last_timestamp'] ?? null))
+                                <div class="hint" style="margin-top: 6px;">
+                                    {{ $googleState['last_timestamp_label'] }}: {{ $googleState['last_timestamp'] }}
+                                </div>
+                            @endif
+                            @if (filled($googleState['last_error'] ?? null))
+                                <div class="hint" style="margin-top: 6px;">
+                                    {{ \Illuminate\Support\Str::limit($googleState['last_error'], 140) }}
+                                </div>
+                            @endif
+                        </td>
                         <td><span class="badge {{ $tenant->agent_status === 'live' ? 'ready' : ($tenant->agent_status === 'failed' ? 'failed' : 'pending') }}">{{ $tenant->agent_status ?? 'offline' }}</span></td>
                         <td>
                             @if ($tenant->isTrialExpired())
@@ -74,7 +99,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7">No tenants found yet.</td>
+                        <td colspan="9">No tenants found yet.</td>
                     </tr>
                 @endforelse
             </tbody>

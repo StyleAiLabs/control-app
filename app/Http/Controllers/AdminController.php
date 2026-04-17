@@ -5,11 +5,14 @@ namespace App\Http\Controllers;
 use App\Contracts\DockerComposeRunner;
 use App\Enums\ProvisioningJobStatus;
 use App\Enums\TenantProvisioningStatus;
+use App\Jobs\ProcessInitialGoogleWorkspaceSync;
 use App\Jobs\ProcessTenantProvisioning;
 use App\Models\ProvisioningJob;
 use App\Models\Tenant;
+use App\Models\TenantGoogleCredential;
 use App\Models\User;
 use App\Services\ControlAppDeploymentService;
+use App\Services\TenantAgentSyncService;
 use App\Services\TenantDeletionService;
 use App\Services\TenantHealthCheckService;
 use App\Services\TenantProfileSyncService;
@@ -71,19 +74,29 @@ class AdminController extends Controller
     public function tenants(): View
     {
         $tenants = Tenant::query()
-            ->with(['user', 'server', 'provisioningJobs' => fn ($query) => $query->latest('id')])
+            ->with(['user', 'server', 'googleCredential', 'provisioningJobs' => fn ($query) => $query->latest('id')])
             ->orderByDesc('id')
             ->get();
 
         $workspaceStates = [];
+        $googleSyncJobs = ProvisioningJob::query()
+            ->whereIn('tenant_id', $tenants->pluck('id'))
+            ->where('job_type', ProcessInitialGoogleWorkspaceSync::JOB_TYPE)
+            ->latest('id')
+            ->get()
+            ->unique('tenant_id')
+            ->keyBy('tenant_id');
+        $googleStates = [];
 
         foreach ($tenants as $tenant) {
             $workspaceStates[$tenant->id] = $this->workspaceStateFor($tenant);
+            $googleStates[$tenant->id] = $this->googleStateFor($tenant, $googleSyncJobs->get($tenant->id));
         }
 
         return view('admin.tenants', [
             'tenants' => $tenants,
             'workspaceStates' => $workspaceStates,
+            'googleStates' => $googleStates,
         ]);
     }
 
@@ -98,10 +111,14 @@ class AdminController extends Controller
             'provisioningJobs' => fn ($query) => $query->latest('id'),
         ]);
 
+        $googleSyncJob = $this->latestGoogleWorkspaceSyncJob($tenant);
+
         return view('admin.tenant-show', [
             'tenant' => $tenant,
             'workspaceState' => $this->workspaceStateFor($tenant),
             'latestJob' => $tenant->provisioningJobs->first(),
+            'googleSyncJob' => $googleSyncJob,
+            'googleState' => $this->googleStateFor($tenant, $googleSyncJob),
         ]);
     }
 
@@ -248,6 +265,39 @@ class AdminController extends Controller
         ));
     }
 
+    public function retryGoogleWorkspaceSync(Tenant $tenant, TenantAgentSyncService $tenantAgentSync): RedirectResponse
+    {
+        $tenant->loadMissing(['server', 'googleCredential']);
+
+        if (! $tenant->googleCredential?->isConnected()) {
+            return back()->with('status', 'Google Workspace is not connected for this tenant.');
+        }
+
+        $activeJob = $this->latestGoogleWorkspaceSyncJob($tenant, [
+            ProvisioningJobStatus::Queued,
+            ProvisioningJobStatus::Running,
+        ]);
+
+        if ($activeJob) {
+            return back()->with('status', sprintf(
+                'Google Workspace sync is already %s for %s.',
+                $activeJob->status->value,
+                $tenant->slug,
+            ));
+        }
+
+        $job = $tenantAgentSync->dispatchInitialGoogleWorkspaceSync(
+            $tenant->fresh(['server', 'googleCredential']),
+            trigger: 'admin_retry',
+        );
+
+        if (! $job) {
+            return back()->with('status', 'Workspace must be ready before Google Workspace sync can be queued.');
+        }
+
+        return back()->with('status', sprintf('Google Workspace sync queued for %s.', $tenant->slug));
+    }
+
     public function testGoogleWorkspace(Tenant $tenant): RedirectResponse
     {
         try {
@@ -336,6 +386,126 @@ class AdminController extends Controller
     }
 
     /**
+     * @return array{
+     *     available: bool,
+     *     connection_status: string,
+     *     connection_label: string,
+     *     connection_badge: string,
+     *     runtime_sync_status: string,
+     *     runtime_label: string,
+     *     runtime_badge: string,
+     *     google_email: ?string,
+     *     last_error: ?string,
+     *     last_timestamp_label: ?string,
+     *     last_timestamp: ?string,
+     *     sync_job_status: ?string,
+     *     sync_job_badge: string,
+     *     sync_job_started_at: ?string,
+     *     sync_job_completed_at: ?string,
+     *     sync_job_error: ?string,
+     *     connected_at: ?string,
+     *     disconnected_at: ?string,
+     *     last_synced_at: ?string,
+     *     can_queue_sync: bool,
+     *     has_active_sync_job: bool
+     * }
+     */
+    private function googleStateFor(Tenant $tenant, ?ProvisioningJob $syncJob = null): array
+    {
+        $credential = $tenant->googleCredential;
+        $connectionStatus = $credential?->status ?? TenantGoogleCredential::STATUS_PENDING;
+        $runtimeSyncStatus = $credential?->runtime_sync_status ?? TenantGoogleCredential::RUNTIME_SYNC_PENDING;
+        $syncJobStatus = $syncJob?->status?->value;
+        $workspaceReady = $tenant->provisioning_status === TenantProvisioningStatus::Ready && filled($tenant->runtime_path);
+        $hasActiveSyncJob = in_array($syncJobStatus, [
+            ProvisioningJobStatus::Queued->value,
+            ProvisioningJobStatus::Running->value,
+        ], true);
+
+        [$lastTimestampLabel, $lastTimestamp] = match (true) {
+            filled($credential?->last_error) => ['Last error', $credential?->updated_at?->toDateTimeString()],
+            filled($credential?->last_synced_at) => ['Last synced', $credential?->last_synced_at?->toDateTimeString()],
+            filled($syncJob?->completed_at) => ['Last sync job', $syncJob?->completed_at?->toDateTimeString()],
+            filled($syncJob?->started_at) => ['Sync started', $syncJob?->started_at?->toDateTimeString()],
+            filled($credential?->connected_at) => ['Connected at', $credential?->connected_at?->toDateTimeString()],
+            filled($credential?->disconnected_at) => ['Disconnected at', $credential?->disconnected_at?->toDateTimeString()],
+            default => [null, null],
+        };
+
+        return [
+            'available' => $credential !== null,
+            'connection_status' => $connectionStatus,
+            'connection_label' => match ($connectionStatus) {
+                TenantGoogleCredential::STATUS_CONNECTED => 'Connected',
+                TenantGoogleCredential::STATUS_DISCONNECTED => 'Disconnected',
+                TenantGoogleCredential::STATUS_SKIPPED => 'Skipped',
+                default => 'Pending',
+            },
+            'connection_badge' => match ($connectionStatus) {
+                TenantGoogleCredential::STATUS_CONNECTED => 'ready',
+                TenantGoogleCredential::STATUS_DISCONNECTED => 'failed',
+                default => 'pending',
+            },
+            'runtime_sync_status' => $runtimeSyncStatus,
+            'runtime_label' => $this->googleWorkspaceRuntimeSyncLabel(
+                $connectionStatus,
+                $runtimeSyncStatus,
+                $workspaceReady,
+                $syncJobStatus,
+            ),
+            'runtime_badge' => match (true) {
+                $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_FAILED => 'failed',
+                $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_VERIFIED => 'ready',
+                $syncJobStatus === ProvisioningJobStatus::Running->value => 'running',
+                $syncJobStatus === ProvisioningJobStatus::Queued->value => 'queued',
+                $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_SYNCED => 'pending',
+                default => 'pending',
+            },
+            'google_email' => $credential?->google_email,
+            'last_error' => $credential?->last_error ?: $syncJob?->error_message,
+            'last_timestamp_label' => $lastTimestampLabel,
+            'last_timestamp' => $lastTimestamp,
+            'sync_job_status' => $syncJobStatus,
+            'sync_job_badge' => match ($syncJobStatus) {
+                ProvisioningJobStatus::Completed->value => 'completed',
+                ProvisioningJobStatus::Failed->value => 'failed',
+                ProvisioningJobStatus::Running->value => 'running',
+                ProvisioningJobStatus::Queued->value => 'queued',
+                default => 'pending',
+            },
+            'sync_job_started_at' => $syncJob?->started_at?->toDateTimeString(),
+            'sync_job_completed_at' => $syncJob?->completed_at?->toDateTimeString(),
+            'sync_job_error' => $syncJob?->error_message,
+            'connected_at' => $credential?->connected_at?->toDateTimeString(),
+            'disconnected_at' => $credential?->disconnected_at?->toDateTimeString(),
+            'last_synced_at' => $credential?->last_synced_at?->toDateTimeString(),
+            'can_queue_sync' => ($credential?->isConnected() ?? false) && $workspaceReady && ! $hasActiveSyncJob,
+            'has_active_sync_job' => $hasActiveSyncJob,
+        ];
+    }
+
+    private function googleWorkspaceRuntimeSyncLabel(
+        string $connectionStatus,
+        string $runtimeSyncStatus,
+        bool $workspaceReady,
+        ?string $syncJobStatus,
+    ): string {
+        if ($connectionStatus !== TenantGoogleCredential::STATUS_CONNECTED) {
+            return ucfirst($runtimeSyncStatus);
+        }
+
+        return match (true) {
+            $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_FAILED => 'Needs attention',
+            $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_VERIFIED => 'Ready',
+            $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_SYNCED => 'Checking',
+            $syncJobStatus === ProvisioningJobStatus::Running->value => 'Syncing',
+            $syncJobStatus === ProvisioningJobStatus::Queued->value => 'Queued',
+            $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_PENDING && ! $workspaceReady => 'Waiting for workspace',
+            default => ucfirst($runtimeSyncStatus),
+        };
+    }
+
+    /**
      * Run a docker compose command locally (dev environment only).
      */
     private function localDockerCompose(Tenant $tenant, string $action): void
@@ -414,5 +584,22 @@ class AdminController extends Controller
     private function formatArtisanOutput(string $output): string
     {
         return Str::limit(preg_replace('/\s+/', ' ', trim($output)) ?? '', 500);
+    }
+
+    private function latestGoogleWorkspaceSyncJob(Tenant $tenant, ?array $statuses = null): ?ProvisioningJob
+    {
+        $query = ProvisioningJob::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('job_type', ProcessInitialGoogleWorkspaceSync::JOB_TYPE)
+            ->latest('id');
+
+        if (is_array($statuses) && $statuses !== []) {
+            $query->whereIn('status', array_map(
+                static fn (ProvisioningJobStatus|string $status): string => $status instanceof ProvisioningJobStatus ? $status->value : $status,
+                $statuses,
+            ));
+        }
+
+        return $query->first();
     }
 }
