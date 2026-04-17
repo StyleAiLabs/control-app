@@ -240,6 +240,10 @@ Google Workspace Step 6 now distinguishes between OAuth account status and live 
 
 `TenantProfileSyncService` is used for later profile/admin regeneration and resync work, not the main onboarding controller flow.
 
+The Business Profile page is part of that later resync surface. When the tenant is already live, saving `/profile` regenerates assistant files, runs the same workspace-file-only live sync path, and shows in-page progress plus a completion message after redirect. `POST /profile/sync-agent` remains the manual retry path for pushing regenerated workspace files without changing the form first.
+
+`TOOLS.md` is now part of that workspace artifact set. The control plane uses it for environment-specific tool guidance, including how the tenant agent should use exec plus the preconfigured `gog` CLI for owner Gmail, Calendar, Drive, Contacts, Sheets, and Docs requests.
+
 ### Google Workspace connect flow
 
 Sync360 owns the full Google OAuth web flow rather than delegating it to the tenant runtime or `gog`.
@@ -278,7 +282,7 @@ Runtime reload rule:
 `TenantAgentSyncService::goLive()`:
 
 1. validates tenant, profile, and generated files
-2. writes `IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`, `PROFILE.md`, and `HEARTBEAT.md` into `.openclaw/workspace/`
+2. writes `IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`, `TOOLS.md`, `PROFILE.md`, and `HEARTBEAT.md` into `.openclaw/workspace/`
 3. syncs only workspace markdown files with `syncWorkspaceFiles()`
 4. restarts the tenant runtime if needed
 5. updates onboarding and sync timestamps
@@ -299,6 +303,17 @@ Conversation history is session-oriented.
 4. groups rows by `session_id`
 5. generates one short AI summary per session through `ConversationSummaryService`
 6. stores the summary back on that session’s rows
+
+### Post-deploy live tenant workspace resync
+
+Deploying updated control-plane code does not automatically rewrite generated workspace prompt files for already-live tenants. Those prompt artifacts change only when a sync path explicitly regenerates and pushes them.
+
+To cover that case, `routes/console.php` now provides:
+
+- `sync360:resync-live-tenants`
+- `sync360:resync-live-tenants <tenant-id|tenant_id|slug>`
+
+The command filters for eligible live tenants, runs `TenantProfileSyncService::regenerateAndSync()`, and pushes regenerated workspace files without reprovisioning the full runtime. This is the intended operator path after deploys that change generated tenant instructions such as `PROFILE.md` or `HEARTBEAT.md`.
 
 ### Trial lifecycle flow
 
@@ -342,6 +357,7 @@ The base template comes from:
 - `config/workspace.caddy` — tenant hostname reverse-proxy config when Caddy is managed
 - `.openclaw/gogcli/credentials.json` — Google OAuth client payload rewrapped for `gog`
 - `.openclaw/gogcli/config.json` and `keyring/*` — file-backed `gog` auth cache derived from `tenant_google_credentials`
+- `.openclaw/workspace/TOOLS.md` — environment-specific tool guidance injected into the tenant runtime, including `gog` usage notes for connected Google Workspace tenants
 
 ### Remote layout
 
@@ -420,6 +436,7 @@ Key runtime details:
 - `TenantGoogleWorkspaceSmokeTestService` is the end-to-end verifier: it runs inside the tenant runtime, confirms `XDG_CONFIG_HOME`, exchanges the refresh token, and calls Gmail profile plus Calendar list APIs
 - `verified` therefore means live runtime Google access worked from inside the tenant container, while `synced` only means the auth artifacts were written successfully
 - generated `PROFILE.md` and `HEARTBEAT.md` now explicitly instruct the agent to treat owner inbox/calendar/file requests as internal operating tasks and to use connected Google Workspace tools instead of giving a generic refusal
+- generated `TOOLS.md` tells the agent to use exec plus `gog` for those owner requests, inspect `gog --help` and product-specific help when needed, and avoid a generic "I cannot check emails" fallback when Google Workspace is connected
 
 ### SSH and remote orchestration
 
@@ -514,6 +531,7 @@ Implemented recurring commands:
 Also present:
 
 - `sync360:bootstrap-client-vps` — bootstrap helper for a client VPS
+- `sync360:resync-live-tenants` — regenerate and push workspace instructions to existing live tenants after prompt/profile sync changes
 
 ## 8. Operational controls
 

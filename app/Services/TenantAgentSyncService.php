@@ -601,6 +601,7 @@ class TenantAgentSyncService
             'SOUL.md' => $this->normalizeMarkdown($profileFiles->soul_markdown),
             'USER.md' => $this->normalizeMarkdown($profileFiles->user_markdown),
             'BOOTSTRAP.md' => $this->normalizeMarkdown($profileFiles->bootstrap_markdown),
+            'TOOLS.md' => $this->normalizeMarkdown($this->buildToolsMarkdown($googleCredential)),
             'PROFILE.md' => $this->normalizeMarkdown($this->buildProfileMarkdown($tenant, $profile, $services, $capabilities, $channelLabel, $googleCredential)),
             'HEARTBEAT.md' => $this->normalizeMarkdown($this->buildHeartbeatMarkdown($tenant, $profile, $capabilities, $channelLabel, $googleCredential)),
         ];
@@ -729,6 +730,48 @@ class TenantAgentSyncService
             '## Escalation',
             '- Escalate when the customer asks for something outside the confirmed services or when legal, billing, or safety-sensitive information is unclear.',
             '- Capture the customer name, best contact details, and what they need help with whenever human follow-up is required.',
+        ]).PHP_EOL;
+    }
+
+    private function buildToolsMarkdown(?TenantGoogleCredential $googleCredential): string
+    {
+        $lines = [
+            '# Tools',
+            '',
+            '## Workspace Exec',
+            '- Use the workspace exec tool whenever you need to inspect or operate against runtime-local tooling.',
+            '- Prefer direct command execution over speculative conversational answers when a tool can verify the result.',
+            '',
+            '## Google Workspace via gog',
+        ];
+
+        if (! $googleCredential?->isConnected()) {
+            $lines = [
+                ...$lines,
+                '- Google Workspace is not connected for this tenant yet.',
+                '- If the owner asks for Gmail, Calendar, Drive, Contacts, Sheets, or Docs help, explain that the Google Workspace step in Sync360 still needs to be completed.',
+            ];
+
+            return implode(PHP_EOL, $lines).PHP_EOL;
+        }
+
+        $runtimeState = match ($googleCredential->runtime_sync_status) {
+            TenantGoogleCredential::RUNTIME_SYNC_VERIFIED => 'verified',
+            TenantGoogleCredential::RUNTIME_SYNC_SYNCED => 'synced but not yet fully verified',
+            TenantGoogleCredential::RUNTIME_SYNC_FAILED => 'connected but currently needs attention',
+            default => 'still being prepared',
+        };
+
+        return implode(PHP_EOL, [
+            ...$lines,
+            '- Google Workspace is connected for owner account '.($googleCredential->google_email ?: 'on file').'.',
+            '- Runtime status is '.$runtimeState.'.',
+            '- The `gog` CLI is preconfigured in this workspace. You do not need to run a fresh login when the connection is healthy.',
+            '- When you need Gmail, Calendar, Drive, Contacts, Sheets, or Docs access, use exec to run `gog` commands instead of replying with a generic refusal.',
+            '- If you are unsure which gog subcommand to use, inspect help first with `gog --help`, then `gog gmail --help`, `gog calendar --help`, `gog drive --help`, `gog contacts --help`, `gog sheets --help`, or `gog docs --help`.',
+            '- For owner requests like "check my recent emails", first use exec to inspect the available gog Gmail commands, then run the relevant read/list command and summarize the findings clearly.',
+            '- Prefer read/list actions first. Only send, update, or delete Google Workspace content when the owner explicitly asks for that action.',
+            '- If a gog command fails, explain that Google Workspace access is temporarily unavailable and suggest retrying, resyncing, or reconnecting. Do not claim you fundamentally lack email or calendar access when the connection is present.',
         ]).PHP_EOL;
     }
 

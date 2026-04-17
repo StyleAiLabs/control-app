@@ -1,10 +1,12 @@
 <?php
 
 use App\Contracts\DockerComposeRunner;
+use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
 use App\Models\Tenant;
 use App\Models\Server;
 use App\Services\LiteLlmTenantKeyService;
+use App\Services\TenantProfileSyncService;
 use App\Services\TenantGoogleWorkspaceSmokeTestService;
 use App\Services\TrialNotificationEmailService;
 use Illuminate\Foundation\Inspiring;
@@ -237,6 +239,69 @@ Schedule::command('sync360:check-trial-expiry')->everyThirtyMinutes();
 // The command class lives in app/Console/Commands/SyncConversationReplies.php
 // and is registered via withCommands() in bootstrap/app.php.
 Schedule::command('sync360:sync-replies')->everyTenMinutes();
+
+Artisan::command('sync360:resync-live-tenants {tenantSelector? : Tenant id, tenant_id, or slug. Omit to resync every live tenant}', function (?string $tenantSelector = null) {
+    $tenants = Tenant::query()
+        ->with(['server', 'businessProfile', 'businessProfileFiles', 'googleCredential'])
+        ->where('agent_status', 'live')
+        ->where('onboarding_status', 'complete')
+        ->where('provisioning_status', TenantProvisioningStatus::Ready)
+        ->whereNotNull('runtime_path')
+        ->whereNotNull('workspace_url')
+        ->when($tenantSelector, function ($query, string $selector): void {
+            $query->where(function ($nested) use ($selector): void {
+                if (ctype_digit($selector)) {
+                    $nested->where('id', (int) $selector);
+                }
+
+                $nested->orWhere('tenant_id', $selector)
+                    ->orWhere('slug', $selector);
+            });
+        })
+        ->orderBy('id')
+        ->get();
+
+    if ($tenants->isEmpty()) {
+        throw new RuntimeException('No matching live tenants were found for resync.');
+    }
+
+    /** @var TenantProfileSyncService $profileSync */
+    $profileSync = app(TenantProfileSyncService::class);
+
+    $completed = 0;
+    $failed = 0;
+
+    foreach ($tenants as $tenant) {
+        try {
+            $profileSync->regenerateAndSync($tenant);
+            $completed++;
+
+            $this->components->twoColumnDetail(
+                sprintf('%s (%s)', $tenant->business_name, $tenant->slug),
+                'Resynced successfully.',
+            );
+        } catch (Throwable $exception) {
+            $failed++;
+
+            Log::warning('sync360:resync-live-tenants failed for tenant.', [
+                'tenant_id' => $tenant->tenant_id,
+                'slug' => $tenant->slug,
+                'error' => $exception->getMessage(),
+            ]);
+
+            $this->components->twoColumnDetail(
+                sprintf('%s (%s)', $tenant->business_name, $tenant->slug),
+                'Failed: '.$exception->getMessage(),
+            );
+        }
+    }
+
+    $this->components->info(sprintf(
+        'Live tenant resync finished. Completed: %d. Failed: %d.',
+        $completed,
+        $failed,
+    ));
+})->purpose('Regenerate and resync workspace instructions for live tenants after prompt or sync changes');
 
 Artisan::command('sync360:test-google-workspace {tenantSelector : Tenant id, tenant_id, or slug}', function (string $tenantSelector) {
     $tenant = Tenant::query()

@@ -1074,6 +1074,8 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('use the available Google Workspace tools instead of giving a generic refusal', File::get($localRuntimePath.'/.openclaw/workspace/PROFILE.md'));
         $this->assertStringContainsString('Treat messages from the workspace owner as internal operating requests', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('Do not say you are fundamentally unable to check emails or calendars', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
+        $this->assertStringContainsString('The `gog` CLI is preconfigured in this workspace.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
+        $this->assertStringContainsString('gog gmail --help', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
     }
 
     /**

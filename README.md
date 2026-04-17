@@ -8,6 +8,8 @@ It currently covers the full control-plane loop:
 - tenant creation, server assignment, and async provisioning
 - local and SSH-based tenant runtime deployment
 - guided onboarding with visible progress, draft-safe state refresh, optional Google Workspace connect, live Google verification status, and go-live sync
+- Business Profile sync with in-page progress/completion feedback for live assistant resyncs
+- tenant workspace tool guidance via generated `TOOLS.md`, including `gog` usage notes for connected Google Workspace tenants
 - private gateway access for health checks and runtime integration
 - conversation history sync from workspace session logs
 - trial lifecycle tracking and notification emails
@@ -167,6 +169,17 @@ Scheduled commands are part of the live system. Production must run the `schedul
 - `tenants:health-check`
 - `sync360:check-trial-expiry`
 - `sync360:sync-replies`
+
+### Resync existing live tenants after prompt changes
+
+If a deploy changes generated workspace instructions for already-live tenants, resync those tenants explicitly instead of reprovisioning them:
+
+```bash
+php artisan sync360:resync-live-tenants
+php artisan sync360:resync-live-tenants <tenant-id-or-slug>
+```
+
+This path regenerates and pushes workspace files only. It does not full-sync the tenant runtime.
 
 ## Current Architecture Modes
 

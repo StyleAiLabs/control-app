@@ -8,9 +8,9 @@
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <a href="{{ route('dashboard') }}" class="button button--secondary">Back to Dashboard</a>
             @if ($canSync)
-                <form method="POST" action="{{ route('profile.sync-agent') }}">
+                <form method="POST" action="{{ route('profile.sync-agent') }}" id="manual-sync-form">
                     @csrf
-                    <button type="submit">Sync Assistant Now</button>
+                    <button type="submit" id="manual-sync-button">Sync Assistant Now</button>
                 </form>
             @endif
         </div>
@@ -19,7 +19,7 @@
     <section class="grid grid-2">
         <div class="panel">
             <span class="eyebrow">Business Details</span>
-            <form method="POST" action="{{ route('profile.update') }}" style="margin-top: 18px; display: grid; gap: 18px;">
+            <form method="POST" action="{{ route('profile.update') }}" id="business-profile-form" style="margin-top: 18px; display: grid; gap: 18px;">
                 @csrf
                 @method('PATCH')
 
@@ -168,7 +168,7 @@
                     </label>
                 </div>
 
-                <button type="submit">Save Business Profile</button>
+                <button type="submit" id="save-profile-button">Save Business Profile</button>
             </form>
         </div>
 
@@ -205,6 +205,20 @@
                 </div>
             </div>
 
+            <div class="note" style="margin-top: 18px;" id="sync-progress-idle">
+                We’ll show assistant sync progress here while a live sync is running.
+            </div>
+
+            @if (session('status'))
+                <div class="note" style="margin-top: 18px;" id="sync-complete-note">
+                    {{ session('status') }}
+                </div>
+            @endif
+
+            <div class="note" style="margin-top: 18px; display: none;" id="sync-progress-note" aria-live="polite">
+                Preparing the latest assistant files…
+            </div>
+
             <div class="note" style="margin-top: 18px;">
                 @if ($tenant->agent_status === 'live')
                     Saving this form will try to sync the live assistant automatically. If you ever need to retry, use the manual sync button.
@@ -227,4 +241,71 @@
             </div>
         </div>
     </section>
+
+    <script>
+        const manualSyncForm = document.getElementById('manual-sync-form');
+        const manualSyncButton = document.getElementById('manual-sync-button');
+        const profileForm = document.getElementById('business-profile-form');
+        const saveProfileButton = document.getElementById('save-profile-button');
+        const syncProgressIdle = document.getElementById('sync-progress-idle');
+        const syncCompleteNote = document.getElementById('sync-complete-note');
+        const syncProgressNote = document.getElementById('sync-progress-note');
+
+        function beginSyncFeedback(button, labels, note) {
+            if (!button || !syncProgressNote) {
+                return;
+            }
+
+            button.disabled = true;
+            button.dataset.originalLabel = button.dataset.originalLabel || button.textContent;
+            button.textContent = labels[0];
+
+            if (syncProgressIdle) {
+                syncProgressIdle.style.display = 'none';
+            }
+
+            if (syncCompleteNote) {
+                syncCompleteNote.style.display = 'none';
+            }
+
+            syncProgressNote.style.display = 'block';
+            syncProgressNote.textContent = note;
+
+            let labelIndex = 0;
+            window.setInterval(() => {
+                labelIndex = Math.min(labelIndex + 1, labels.length - 1);
+                button.textContent = labels[labelIndex];
+            }, 1400);
+        }
+
+        manualSyncForm?.addEventListener('submit', () => {
+            beginSyncFeedback(
+                manualSyncButton,
+                ['Syncing Assistant…', 'Pushing Workspace Files…', 'Verifying Workspace Access…'],
+                'Sync in progress. We are regenerating the latest assistant instructions, syncing the live workspace files, and verifying any connected Google Workspace access.'
+            );
+        });
+
+        profileForm?.addEventListener('submit', () => {
+            const liveAgent = @json($tenant->agent_status === 'live');
+
+            if (liveAgent) {
+                beginSyncFeedback(
+                    saveProfileButton,
+                    ['Saving Profile…', 'Regenerating Assistant Files…', 'Syncing Live Assistant…', 'Verifying Workspace Access…'],
+                    'Saving your business profile and syncing the live assistant. We will notify you here after the sync completes.'
+                );
+
+                return;
+            }
+
+            if (!saveProfileButton) {
+                return;
+            }
+
+            saveProfileButton.disabled = true;
+            saveProfileButton.dataset.originalLabel = saveProfileButton.dataset.originalLabel || saveProfileButton.textContent;
+            saveProfileButton.textContent = 'Saving Profile…';
+        });
+    </script>
 </x-layouts.app>

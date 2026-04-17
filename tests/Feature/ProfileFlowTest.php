@@ -33,6 +33,33 @@ class ProfileFlowTest extends TestCase
             ->assertSee('Sync Status');
     }
 
+    public function test_profile_page_shows_sync_progress_feedback_for_live_tenants(): void
+    {
+        [$user, $tenant] = $this->seedTenantProfile();
+
+        $tenant->forceFill([
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'onboarding_status' => 'complete',
+            'onboarding_step' => 7,
+            'agent_status' => 'live',
+            'workspace_url' => 'https://acme-plumbing.workspace.test',
+            'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
+            'tone' => 'friendly',
+            'capabilities' => ['faqs', 'messages'],
+            'channel' => 'telegram',
+            'channel_config' => ['telegram_bot_token' => 'telegram-bot-token'],
+        ])->save();
+
+        $this->actingAs($user);
+
+        $this->get('/profile')
+            ->assertOk()
+            ->assertSee('Sync Assistant Now')
+            ->assertSee('We’ll show assistant sync progress here while a live sync is running.')
+            ->assertSee('Saving your business profile and syncing the live assistant.', false)
+            ->assertSee('id="sync-progress-note"', false);
+    }
+
     public function test_profile_update_persists_business_details(): void
     {
         [$user, $tenant, $profile] = $this->seedTenantProfile();
@@ -196,6 +223,7 @@ class ProfileFlowTest extends TestCase
         $this->assertNotNull($profile->last_synced_to_agent);
         $this->assertStringContainsString('GST-123', File::get($localRuntimePath.'/.openclaw/workspace/PROFILE.md'));
         $this->assertStringContainsString('Mon-Fri: 8am - 5pm', File::get($localRuntimePath.'/.openclaw/workspace/PROFILE.md'));
+        $this->assertStringContainsString('Google Workspace is not connected for this tenant yet.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertCount(1, $runnerSpy->syncCalls);
         $this->assertCount(1, $runnerSpy->upCalls);
     }

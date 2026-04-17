@@ -7,6 +7,41 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-17 — Tenant `TOOLS.md` Google Workspace Guidance
+
+Date: 2026-04-17
+Status: Implemented
+
+### Overview
+
+Added a generated tenant `TOOLS.md` file so live assistants receive environment-specific operational guidance for Google Workspace access instead of relying only on profile/heartbeat prompt language plus synced auth files.
+
+### What Changed
+
+- extended the workspace artifact set to include `TOOLS.md` alongside `IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`, `PROFILE.md`, and `HEARTBEAT.md`
+- added explicit guidance telling the assistant to use exec plus the preconfigured `gog` CLI for owner Gmail, Calendar, Drive, Contacts, Sheets, and Docs requests
+- instructed the assistant to inspect `gog --help` and product-specific help such as `gog gmail --help` when it needs to discover the correct read/list command instead of defaulting to a conversational refusal
+- kept the disconnected-tenant path explicit so the assistant still explains that Google Workspace setup must be completed in Sync360 when no connection exists
+- added focused test coverage proving `TOOLS.md` is generated during go-live and later live profile syncs
+- preserved the existing invariant that these changes are delivered through workspace-file-only syncs rather than a full runtime sync
+
+## 2026-04-17 — Live Tenant Workspace Resync Command + Profile Sync Progress Feedback
+
+Date: 2026-04-17
+Status: Implemented
+
+### Overview
+
+Added an operator-safe way to push regenerated workspace instructions to already-live tenants after control-plane prompt changes, and improved the Business Profile sync experience so customers can see live sync progress and completion instead of guessing whether anything is happening.
+
+### What Changed
+
+- added `sync360:resync-live-tenants` to regenerate and resync workspace instructions for eligible live tenants without reprovisioning the tenant runtime
+- allowed the command to target all eligible live tenants or a single tenant by numeric id, `tenant_id`, or slug
+- kept the resync path grounded in `TenantProfileSyncService::regenerateAndSync()` so it preserves the existing invariant that `goLive()` syncs workspace files only and never does a full runtime sync
+- updated the Business Profile page so `Sync Assistant Now` and live profile saves disable repeat clicks, show staged progress labels while sync is running, and surface an in-page completion note after redirect
+- added focused coverage for the new console command and the live-tenant profile sync feedback on `/profile`
+
 ## 2026-04-17 — Google Workspace Verification Status + Owner Tool Guidance
 
 Date: 2026-04-17
