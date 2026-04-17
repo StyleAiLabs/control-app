@@ -38,6 +38,7 @@ class OnboardingFlowTest extends TestCase
             ->assertSee('Confirm your business details')
             ->assertSee('Connect your messaging channel')
             ->assertSee('Connect Google Workspace')
+            ->assertSee('Continue To Google Workspace')
             ->assertSee('Bring it live')
             ->assertSee('WhatsApp')
             ->assertSee('Coming Soon')
@@ -794,6 +795,10 @@ class OnboardingFlowTest extends TestCase
             ->assertSee('id="google-workspace-connect-wrapper" style="display: none;"', false)
             ->assertSee('id="google-workspace-skip-form" style="display: none;"', false)
             ->assertSee('id="google-workspace-disconnect-form" style="display: block;"', false);
+
+        $this->get('/onboarding?step=5')
+            ->assertOk()
+            ->assertSee('Continue To Google Workspace');
     }
 
     public function test_save_channel_rejects_unsupported_whatsapp_configuration(): void

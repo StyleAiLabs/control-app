@@ -7,6 +7,21 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-18 — Channel Step Always Shows A Manual Path To Google Workspace
+
+Date: 2026-04-18
+Status: Implemented
+
+### Overview
+
+Removed another onboarding friction point in the wizard. Step 5 relied on save-time auto-advance and, once a channel was connected, could leave customers without an obvious way to move on to Google Workspace. The Channel step now always keeps a visible manual forward action.
+
+### What Changed
+
+- added an explicit `Continue To Google Workspace` button to the Step 5 wizard navigation
+- kept the existing auto-advance behavior after successful channel saves, but no longer depends on it as the only way to reach Step 6
+- added onboarding coverage proving the manual forward action is visible from the channel step, including when Google Workspace is already connected later in the flow
+
 ## 2026-04-18 — Google Workspace Step 6 Copy Softened For Customers
 
 Date: 2026-04-18

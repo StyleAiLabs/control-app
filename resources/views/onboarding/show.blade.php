@@ -292,6 +292,7 @@
             <div class="wizard-nav">
                 <button type="button" class="button button--secondary" data-wizard-prev>← Back</button>
                 <span class="spacer"></span>
+                <button type="button" class="button button--primary" data-wizard-next>Continue To Google Workspace →</button>
             </div>
         </div>
 
