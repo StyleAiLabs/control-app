@@ -197,12 +197,14 @@ class TenantRuntimeCustomizationComposer
             'telegram' => 'Telegram',
             default => 'Customer messaging channel',
         };
+        $enabledAssignments = $this->enabledAssignments($tenant);
 
         return [
             'IDENTITY.md' => $this->normalizeMarkdown($profileFiles->identity_markdown),
             'SOUL.md' => $this->normalizeMarkdown($profileFiles->soul_markdown),
             'USER.md' => $this->normalizeMarkdown($profileFiles->user_markdown),
             'BOOTSTRAP.md' => $this->normalizeMarkdown($profileFiles->bootstrap_markdown),
+            'AGENTS.md' => $this->normalizeMarkdown($this->buildAgentsMarkdown($enabledAssignments)),
             'TOOLS.md' => $this->normalizeMarkdown($this->buildToolsMarkdown($googleCredential)),
             'PROFILE.md' => $this->normalizeMarkdown($this->buildProfileMarkdown($tenant, $profile, $services, $capabilities, $channelLabel, $googleCredential)),
             'HEARTBEAT.md' => $this->normalizeMarkdown($this->buildHeartbeatMarkdown($tenant, $profile, $capabilities, $channelLabel, $googleCredential)),
@@ -255,6 +257,56 @@ class TenantRuntimeCustomizationComposer
     private function normalizeMarkdown(?string $markdown): string
     {
         return rtrim((string) $markdown).PHP_EOL;
+    }
+
+    /**
+     * @param  Collection<int, TenantSkillAssignment>  $assignments
+     */
+    private function buildAgentsMarkdown(Collection $assignments): string
+    {
+        $lines = [
+            '# Agents',
+            '',
+            'Use this file as tenant-scoped guidance for which additional assigned skills are currently available to the assistant.',
+        ];
+
+        if ($assignments->isEmpty()) {
+            return implode(PHP_EOL, $lines);
+        }
+
+        $lines = array_merge($lines, [
+            '',
+            '## Assigned Skill Guidance',
+            '',
+            'When a customer request clearly matches one of the assigned skills below, prefer using that skill and follow its `SKILL.md` instructions.',
+        ]);
+
+        foreach ($assignments as $assignment) {
+            $skill = $this->skillRegistry->skillDefinitionForAssignment($assignment);
+            $lines[] = '';
+            $lines[] = sprintf('### %s', (string) ($skill['label'] ?? $assignment->skill_key));
+            $lines[] = sprintf('- Skill key: `%s`', $assignment->skill_key);
+
+            $skillIds = array_values(array_unique(array_map(
+                static fn (string $skillId): string => trim($skillId),
+                array_filter(
+                    (array) ($skill['openclaw_skill_ids'] ?? []),
+                    static fn (mixed $skillId): bool => is_string($skillId) && trim($skillId) !== ''
+                )
+            )));
+
+            if ($skillIds !== []) {
+                $lines[] = sprintf('- OpenClaw skill IDs: `%s`', implode('`, `', $skillIds));
+            }
+
+            $description = trim((string) ($skill['description'] ?? ''));
+
+            if ($description !== '') {
+                $lines[] = sprintf('- Use when: %s', $description);
+            }
+        }
+
+        return implode(PHP_EOL, $lines);
     }
 
     /**

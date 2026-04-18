@@ -112,6 +112,10 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
         $this->assertStringContainsString('<!-- sync360:admin-extras:start -->', $composed->workspaceFiles['IDENTITY.md']);
         $this->assertStringContainsString('Admin identity notes', $composed->workspaceFiles['IDENTITY.md']);
         $this->assertSame("# Bootstrap\n\nReplacement bootstrap\n", $composed->workspaceFiles['BOOTSTRAP.md']);
+        $this->assertArrayHasKey('AGENTS.md', $composed->workspaceFiles);
+        $this->assertStringContainsString('Assigned Skill Guidance', $composed->workspaceFiles['AGENTS.md']);
+        $this->assertStringContainsString('Appointment Booking', $composed->workspaceFiles['AGENTS.md']);
+        $this->assertStringContainsString('appointment-booking', $composed->workspaceFiles['AGENTS.md']);
         $this->assertArrayHasKey('PROFILE.md', $composed->workspaceFiles);
         $this->assertArrayHasKey('TOOLS.md', $composed->workspaceFiles);
         $this->assertFalse($composed->baseDrifted['bootstrap']);
@@ -180,6 +184,61 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
 
         $this->assertTrue($composed->baseDrifted['identity']);
         $this->assertSame("# Identity\n\nReplaced identity\n", $composed->workspaceFiles['IDENTITY.md']);
+    }
+
+    public function test_it_removes_assigned_skill_guidance_from_agents_file_when_no_skills_are_enabled(): void
+    {
+        $tenant = $this->seedTenant();
+        $this->artisan('sync360:skills:import')->assertExitCode(0);
+
+        BusinessProfile::query()->create([
+            'tenant_id' => $tenant->id,
+            'business_name' => 'Acme Plumbing',
+            'industry' => 'Home Services',
+            'description' => 'Fast local plumbing support.',
+        ]);
+
+        BusinessProfileFiles::query()->create([
+            'tenant_id' => $tenant->id,
+            'identity_markdown' => "# Identity\n\nBase identity",
+            'soul_markdown' => "# Soul\n\nBase soul",
+            'user_markdown' => "# User\n\nBase user",
+            'bootstrap_markdown' => "# Bootstrap\n\nBase bootstrap",
+            'generated_at' => now(),
+        ]);
+
+        TenantAgentCustomization::query()->create([
+            'tenant_id' => $tenant->id,
+            'prompt_overrides_json' => [],
+            'agent_defaults_json' => [],
+            'draft_version' => 1,
+            'draft_updated_by' => $tenant->user_id,
+            'draft_updated_at' => now(),
+        ]);
+
+        TenantSkillAssignment::query()->create([
+            'tenant_id' => $tenant->id,
+            'skill_catalog_version_id' => SkillCatalogVersion::query()->where('skill_key', 'appointment-booking')->value('id'),
+            'skill_key' => 'appointment-booking',
+            'assigned_by' => $tenant->user_id,
+            'assigned_at' => now(),
+            'is_enabled' => false,
+        ]);
+
+        File::ensureDirectoryExists(dirname($this->runtimeConfigPath($tenant)));
+        File::put($this->runtimeConfigPath($tenant), json_encode(['agents' => ['defaults' => []]], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+
+        $composed = app(TenantRuntimeCustomizationComposer::class)->compose($tenant->fresh([
+            'businessProfile',
+            'businessProfileFiles',
+            'googleCredential',
+            'agentCustomization',
+            'skillAssignments.catalogVersion',
+        ]));
+
+        $this->assertArrayHasKey('AGENTS.md', $composed->workspaceFiles);
+        $this->assertStringNotContainsString('Assigned Skill Guidance', $composed->workspaceFiles['AGENTS.md']);
+        $this->assertStringNotContainsString('Appointment Booking', $composed->workspaceFiles['AGENTS.md']);
     }
 
     private function seedTenant(): Tenant

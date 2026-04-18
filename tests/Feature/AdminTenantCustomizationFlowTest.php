@@ -257,6 +257,7 @@ class AdminTenantCustomizationFlowTest extends TestCase
             ->assertOk()
             ->assertSee('Current IDENTITY.md')
             ->assertSee('Base identity')
+            ->assertSee('Current AGENTS.md')
             ->assertSee('Current BOOTSTRAP.md')
             ->assertSee('Base bootstrap');
     }
@@ -411,6 +412,7 @@ class AdminTenantCustomizationFlowTest extends TestCase
             ->assertOk()
             ->assertSee('Agent Runtime')
             ->assertSee('Current IDENTITY.md')
+            ->assertSee('Current AGENTS.md')
             ->assertSee('data-active-tab="agent-runtime"', false)
             ->assertDontSee('Skill Packs')
             ->assertDontSee('Default Skill IDs')

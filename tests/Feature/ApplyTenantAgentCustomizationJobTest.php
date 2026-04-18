@@ -161,9 +161,23 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         ]);
     }
 
-    public function test_remote_apply_removes_stale_remote_skill_directories_before_syncing_workspace(): void
+    public function test_remote_apply_disables_removed_skill_in_config_without_deleting_remote_workspace_skill_folders(): void
     {
-        [$tenant] = $this->seedTenantAndCustomization();
+        [$tenant, $customization] = $this->seedTenantAndCustomization();
+
+        $customization->forceFill([
+            'last_applied_input_snapshot_json' => [
+                'assigned_skills' => [
+                    [
+                        'skill_key' => 'appointment-booking',
+                        'skill_catalog_version_id' => SkillCatalogVersion::query()->where('skill_key', 'appointment-booking')->value('id'),
+                        'openclaw_skill_ids' => ['appointment-booking'],
+                        'default_agent_skill_ids' => ['appointment-booking'],
+                    ],
+                ],
+                'agent_defaults' => [],
+            ],
+        ])->save();
 
         TenantSkillAssignment::query()
             ->where('tenant_id', $tenant->id)
@@ -179,13 +193,18 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
 
             public array $workspaceSyncs = [];
 
+            public array $putFiles = [];
+
             public function syncRuntime(\App\Models\Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
             public function syncWorkspaceFiles(\App\Models\Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void
             {
                 $this->workspaceSyncs[] = compact('localWorkspacePath', 'remoteWorkspacePath');
             }
             public function httpRequest(\App\Models\Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array { return ['status' => 200, 'body' => '']; }
-            public function putFile(\App\Models\Server $server, string $remotePath, string $contents, bool $sudo = false): void {}
+            public function putFile(\App\Models\Server $server, string $remotePath, string $contents, bool $sudo = false): void
+            {
+                $this->putFiles[] = compact('remotePath', 'contents');
+            }
             public function removeFile(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
             public function removeDirectory(\App\Models\Server $server, string $remotePath, bool $sudo = false): void
             {
@@ -218,8 +237,14 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
             app(\App\Services\TenantRuntimeCustomizationComposer::class),
         );
 
-        $this->assertContains('/srv/sync360/runtime/tenants/apply-shop/.openclaw/workspace/skills', $runner->removedDirectories);
-        $this->assertContains('/srv/sync360/runtime/tenants/apply-shop/.openclaw/workspace/skill-packs', $runner->removedDirectories);
+        $configUpload = collect($runner->putFiles)
+            ->firstWhere('remotePath', '/srv/sync360/runtime/tenants/apply-shop/config/openclaw.json');
+
+        $this->assertNotNull($configUpload);
+        $config = json_decode($configUpload['contents'], true);
+
+        $this->assertFalse(data_get($config, 'skills.entries.appointment-booking.enabled'));
+        $this->assertSame([], $runner->removedDirectories);
         $this->assertNotEmpty($runner->workspaceSyncs);
     }
 

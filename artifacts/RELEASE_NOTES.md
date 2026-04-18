@@ -7,20 +7,37 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
-## 2026-04-18 — Tenant Skill Unassign Now Removes Stale Remote Runtime Skills
+## 2026-04-19 — Tenant Assigned Skill Guidance Now Lives In Generated AGENTS.md
+
+Date: 2026-04-19
+Status: Implemented
+
+### Overview
+
+Added a generated tenant-runtime `AGENTS.md` file that reflects the current enabled tenant skill assignments. This gives the assistant an assignment-scoped guidance surface without mixing skill routing hints into `BOOTSTRAP.md`, and it lets admins inspect the effective file directly from the `Agent Runtime` tab.
+
+### What Changed
+
+- added generated `.openclaw/workspace/AGENTS.md` output to the tenant runtime composer
+- rendered an `Assigned Skill Guidance` section in `AGENTS.md` only when one or more tenant skills are currently enabled
+- removed the assigned-skill guidance automatically when a tenant later unassigns those skills, so the generated `AGENTS.md` always follows current assignment state
+- updated the admin `Agent Runtime` preview to show `Current AGENTS.md` as a read-only generated file alongside the other current markdown/runtime files
+- expanded unit and feature coverage to prove the `AGENTS.md` guidance appears for enabled assignments, disappears when no assignments are enabled, and is visible in the admin preview
+
+## 2026-04-18 — Tenant Skill Unassign Now Disables Runtime Eligibility Without Removing Installed Skill Files
 
 Date: 2026-04-18
 Status: Implemented
 
 ### Overview
 
-Fixed a live tenant-runtime bug where unassigning a published catalog skill and applying the deployment would update `openclaw.json` but leave the old remote skill directory behind. That stale workspace folder kept showing up in `openclaw skills list --eligible`, making removed skills appear installed even after a successful apply.
+Fixed a live tenant-runtime bug where unassigning a published catalog skill and applying the deployment did not explicitly disable the previously installed skill in `openclaw.json`. Because the skill files stayed installed on the tenant runtime, `openclaw skills list --eligible` could still show the skill even though the tenant had unassigned it.
 
 ### What Changed
 
-- updated the non-local tenant customization apply path to remove the remote `.openclaw/workspace/skills` and legacy `.openclaw/workspace/skill-packs` directories before syncing the refreshed tenant workspace
-- kept the existing single apply pipeline and workspace-only sync contract intact while preventing stale remote skill folders from surviving unassign/reapply operations
-- added a regression test proving remote applies clear stale skill directories before syncing the workspace, which covers the exact live bug path
+- preserved installed tenant skill files on the runtime so temporarily unassigned published skills can be re-assigned later without treating unassignment as an uninstall operation
+- updated the apply/config regression coverage to prove remote applies write previously assigned skills back into `openclaw.json` as `enabled: false` when they are later unassigned, which matches OpenClaw's runtime eligibility contract
+- kept the existing single apply pipeline and workspace-only sync contract intact while separating "installed on runtime" from "eligible in config"
 - documented the skill installation decision rule in the canonical architecture and memory docs so plain repo-authored skills and host-managed runtime-capability skills stay clearly separated for future rollout work
 
 ## 2026-04-18 — Tenant Admin Skills Moved Out Of Agent Runtime

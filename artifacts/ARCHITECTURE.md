@@ -905,6 +905,8 @@ Notable current additions:
 - Host-managed runtime capability commands are intentionally unsupported in `local` mode.
 - `goLive()` must continue to sync workspace markdown only and must not be extended to deliver host binaries or full runtime config.
 - Tenant skill management is now split between DB-backed catalog/assignment state and runtime diagnostics. The tenant `Skills` tab remains the assignment surface, while a separate read-only `Runtime Available Skills` panel shells into the tenant runtime with `openclaw skills list --eligible` for operator diagnostics only.
+- Tenant skill assignment controls runtime eligibility, not physical installation. Already-installed skill folders may remain on the tenant runtime after unassign, but Sync360 must remove the skill from agent allowlists and write `skills.entries.<skill>.enabled = false` so OpenClaw stops treating it as eligible. Any tenant-level helper instructions about assigned skills must be generated from the current enabled assignments and disappear again when a skill is unassigned.
+- Tenant skill guidance is generated into `.openclaw/workspace/AGENTS.md`, not persisted as a manual prompt override. The `Assigned Skill Guidance` section is composed from the currently enabled tenant skill assignments, appears when one or more skills are assigned, disappears when none are assigned, and is exposed in the admin `Agent Runtime` preview as a generated read-only file so operators can inspect the effective guidance.
 - Tenant runtime skill discovery is diagnostic, not authoritative. Assignment and rollout still come from `SkillCatalogItem`, `SkillCatalogVersion`, `TenantSkillAssignment`, and the existing tenant customization/apply pipeline.
 
 ## 12. Code map for contributors

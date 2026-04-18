@@ -46,7 +46,7 @@
             </section>
 
             <div class="grid grid-2" style="margin-top: 18px;">
-                @foreach (['identity' => 'IDENTITY.md', 'soul' => 'SOUL.md', 'user' => 'USER.md', 'bootstrap' => 'BOOTSTRAP.md'] as $key => $label)
+                @foreach (['identity' => 'IDENTITY.md', 'soul' => 'SOUL.md', 'user' => 'USER.md', 'bootstrap' => 'BOOTSTRAP.md', 'agents' => 'AGENTS.md'] as $key => $label)
                     @php
                         $override = $promptOverrides[$key] ?? [];
                     @endphp
@@ -54,11 +54,15 @@
                         {{ $label }}
                         <div class="hint" style="margin:8px 0 6px;">Current {{ $label }}</div>
                         <pre style="white-space:pre-wrap; max-height:220px; overflow:auto; background:rgba(0,0,0,0.16); padding:12px; border-radius:12px; margin-bottom:10px;">{{ $currentCustomizationPreview[$label] ?? 'Current file content is not available yet.' }}</pre>
-                        <div style="display:flex; gap:10px; margin:8px 0;">
-                            <label class="inline"><input type="radio" name="prompt_overrides[{{ $key }}][mode]" value="append" {{ ($override['mode'] ?? 'append') === 'append' ? 'checked' : '' }}> Append</label>
-                            <label class="inline"><input type="radio" name="prompt_overrides[{{ $key }}][mode]" value="replace" {{ ($override['mode'] ?? null) === 'replace' ? 'checked' : '' }}> Replace</label>
-                        </div>
-                        <textarea name="prompt_overrides[{{ $key }}][content]" rows="8" placeholder="No override saved">{{ $override['content'] ?? '' }}</textarea>
+                        @if ($key === 'agents')
+                            <div class="hint">Generated from current enabled tenant skill assignments. This file updates automatically when skills are assigned or unassigned.</div>
+                        @else
+                            <div style="display:flex; gap:10px; margin:8px 0;">
+                                <label class="inline"><input type="radio" name="prompt_overrides[{{ $key }}][mode]" value="append" {{ ($override['mode'] ?? 'append') === 'append' ? 'checked' : '' }}> Append</label>
+                                <label class="inline"><input type="radio" name="prompt_overrides[{{ $key }}][mode]" value="replace" {{ ($override['mode'] ?? null) === 'replace' ? 'checked' : '' }}> Replace</label>
+                            </div>
+                            <textarea name="prompt_overrides[{{ $key }}][content]" rows="8" placeholder="No override saved">{{ $override['content'] ?? '' }}</textarea>
+                        @endif
                     </label>
                 @endforeach
             </div>

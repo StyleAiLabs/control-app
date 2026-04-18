@@ -302,23 +302,10 @@ class TenantAgentCustomizationService
             throw new RuntimeException('Tenant server is missing.');
         }
 
-        $remoteWorkspacePath = $this->runtime->remoteWorkspacePath($tenant);
-
-        // Clear live skill folders before syncing so removed tenant skills do not
-        // remain discoverable on the remote runtime after an apply.
-        $this->dockerCompose->removeDirectory(
-            $tenant->server,
-            $remoteWorkspacePath.DIRECTORY_SEPARATOR.'skills',
-        );
-        $this->dockerCompose->removeDirectory(
-            $tenant->server,
-            $remoteWorkspacePath.DIRECTORY_SEPARATOR.'skill-packs',
-        );
-
         $this->dockerCompose->syncWorkspaceFiles(
             $tenant->server,
             $this->runtime->localWorkspacePath($tenant),
-            $remoteWorkspacePath,
+            $this->runtime->remoteWorkspacePath($tenant),
         );
 
         $this->dockerCompose->putFile(
