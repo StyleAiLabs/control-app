@@ -8,6 +8,7 @@
         $promptOverrides = is_array($agentCustomization?->prompt_overrides_json) ? $agentCustomization->prompt_overrides_json : [];
         $assignedSkillPackIds = is_array($agentCustomization?->assigned_skill_pack_ids) ? $agentCustomization->assigned_skill_pack_ids : [];
         $agentDefaults = is_array($agentCustomization?->agent_defaults_json) ? $agentCustomization->agent_defaults_json : [];
+        $currentCustomizationPreview = is_array($currentCustomizationPreview ?? null) ? $currentCustomizationPreview : [];
         $googleState = $googleState ?? [
             'connection_label' => 'Pending',
             'connection_badge' => 'pending',
@@ -361,6 +362,8 @@
                     @endphp
                     <label>
                         {{ $label }}
+                        <div class="hint" style="margin:8px 0 6px;">Current {{ $label }}</div>
+                        <pre style="white-space:pre-wrap; max-height:220px; overflow:auto; background:rgba(0,0,0,0.16); padding:12px; border-radius:12px; margin-bottom:10px;">{{ $currentCustomizationPreview[$label] ?? 'Current file content is not available yet.' }}</pre>
                         <div style="display:flex; gap:10px; margin:8px 0;">
                             <label class="inline"><input type="radio" name="prompt_overrides[{{ $key }}][mode]" value="append" {{ ($override['mode'] ?? 'append') === 'append' ? 'checked' : '' }}> Append</label>
                             <label class="inline"><input type="radio" name="prompt_overrides[{{ $key }}][mode]" value="replace" {{ ($override['mode'] ?? null) === 'replace' ? 'checked' : '' }}> Replace</label>

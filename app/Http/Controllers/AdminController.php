@@ -124,6 +124,20 @@ class AdminController extends Controller
         ]);
 
         $googleSyncJob = $this->latestGoogleWorkspaceSyncJob($tenant);
+        $currentCustomizationPreview = [];
+
+        if ($tenant->businessProfile && $tenant->businessProfileFiles) {
+            try {
+                $currentCustomizationPreview = $this->tenantRuntimeComposer
+                    ->compose($tenant)
+                    ->workspaceFiles;
+            } catch (Throwable $exception) {
+                Log::warning('[AdminTenantShow] Unable to render current customization preview.', [
+                    'tenant_id' => $tenant->tenant_id,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+        }
 
         return view('admin.tenant-show', [
             'tenant' => $tenant,
@@ -133,6 +147,7 @@ class AdminController extends Controller
             'googleState' => $this->googleStateFor($tenant, $googleSyncJob),
             'skillRegistry' => array_values($this->skillRegistry->all()),
             'canApplyAgentCustomization' => Gate::allows('admin.tenants.agent-customization.apply'),
+            'currentCustomizationPreview' => $currentCustomizationPreview,
         ]);
     }
 

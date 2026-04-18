@@ -143,6 +143,20 @@ class AdminTenantCustomizationFlowTest extends TestCase
             ->assertJsonPath('data.0.action', TenantAgentCustomizationApply::ACTION_APPLY);
     }
 
+    public function test_admin_tenant_page_shows_current_base_prompt_content_in_customization_panel(): void
+    {
+        [$admin, $tenant] = $this->seedAdminAndTenant();
+
+        $this->actingAs($admin);
+
+        $this->get(route('admin.tenants.show', $tenant))
+            ->assertOk()
+            ->assertSee('Current IDENTITY.md')
+            ->assertSee('Base identity')
+            ->assertSee('Current BOOTSTRAP.md')
+            ->assertSee('Base bootstrap');
+    }
+
     private function seedAdminAndTenant(string $email = 'allowed@example.com'): array
     {
         $admin = User::query()->create([
