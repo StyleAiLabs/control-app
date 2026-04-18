@@ -7,6 +7,22 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-18 — Tenant Skill Unassign Now Removes Stale Remote Runtime Skills
+
+Date: 2026-04-18
+Status: Implemented
+
+### Overview
+
+Fixed a live tenant-runtime bug where unassigning a published catalog skill and applying the deployment would update `openclaw.json` but leave the old remote skill directory behind. That stale workspace folder kept showing up in `openclaw skills list --eligible`, making removed skills appear installed even after a successful apply.
+
+### What Changed
+
+- updated the non-local tenant customization apply path to remove the remote `.openclaw/workspace/skills` and legacy `.openclaw/workspace/skill-packs` directories before syncing the refreshed tenant workspace
+- kept the existing single apply pipeline and workspace-only sync contract intact while preventing stale remote skill folders from surviving unassign/reapply operations
+- added a regression test proving remote applies clear stale skill directories before syncing the workspace, which covers the exact live bug path
+- documented the skill installation decision rule in the canonical architecture and memory docs so plain repo-authored skills and host-managed runtime-capability skills stay clearly separated for future rollout work
+
 ## 2026-04-18 — Tenant Admin Skills Moved Out Of Agent Runtime
 
 Date: 2026-04-18

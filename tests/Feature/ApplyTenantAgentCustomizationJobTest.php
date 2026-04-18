@@ -161,6 +161,68 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         ]);
     }
 
+    public function test_remote_apply_removes_stale_remote_skill_directories_before_syncing_workspace(): void
+    {
+        [$tenant] = $this->seedTenantAndCustomization();
+
+        TenantSkillAssignment::query()
+            ->where('tenant_id', $tenant->id)
+            ->update([
+                'is_enabled' => false,
+            ]);
+
+        $this->app->detectEnvironment(fn (): string => 'production');
+
+        $runner = new class implements DockerComposeRunner
+        {
+            public array $removedDirectories = [];
+
+            public array $workspaceSyncs = [];
+
+            public function syncRuntime(\App\Models\Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
+            public function syncWorkspaceFiles(\App\Models\Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void
+            {
+                $this->workspaceSyncs[] = compact('localWorkspacePath', 'remoteWorkspacePath');
+            }
+            public function httpRequest(\App\Models\Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array { return ['status' => 200, 'body' => '']; }
+            public function putFile(\App\Models\Server $server, string $remotePath, string $contents, bool $sudo = false): void {}
+            public function removeFile(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function removeDirectory(\App\Models\Server $server, string $remotePath, bool $sudo = false): void
+            {
+                $this->removedDirectories[] = $remotePath;
+            }
+            public function runCommand(\App\Models\Server $server, string $command, bool $sudo = false): void {}
+            public function up(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function down(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function start(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function stop(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function isRunning(\App\Models\Server $server, string $composeFile, string $projectName): bool { return false; }
+            public function isHostPortInUse(\App\Models\Server $server, int $port): bool { return false; }
+            public function waitForHttpReady(\App\Models\Server $server, string $url, int $timeoutSeconds, int $pollIntervalMs): void {}
+        };
+
+        $this->instance(DockerComposeRunner::class, $runner);
+
+        $provisioningJob = ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Queued,
+            'payload_json' => [
+                'action' => TenantAgentCustomizationApply::ACTION_APPLY,
+            ],
+        ]);
+
+        $job = new ApplyTenantAgentCustomization($tenant->id, $provisioningJob->id, TenantAgentCustomizationApply::ACTION_APPLY);
+        $job->handle(
+            app(\App\Services\TenantAgentCustomizationService::class),
+            app(\App\Services\TenantRuntimeCustomizationComposer::class),
+        );
+
+        $this->assertContains('/srv/sync360/runtime/tenants/apply-shop/.openclaw/workspace/skills', $runner->removedDirectories);
+        $this->assertContains('/srv/sync360/runtime/tenants/apply-shop/.openclaw/workspace/skill-packs', $runner->removedDirectories);
+        $this->assertNotEmpty($runner->workspaceSyncs);
+    }
+
     private function seedTenantAndCustomization(): array
     {
         $user = User::query()->create([

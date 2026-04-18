@@ -79,6 +79,22 @@ Important boundaries:
 - `goLive()` remains workspace-files-only and must never be used to install host dependencies or replace the full runtime
 - for `gog`, Sync360 provides the runtime contract and verification surface, but tenant runtimes still use raw direct `gog` CLI commands rather than Sync360 wrapper commands
 
+### Skill installation decision rule
+
+Sync360 currently has two different installation models for tenant runtime skills:
+
+- Catalog-managed skill packs:
+  - use this when the skill is effectively a repo-authored OpenClaw skill folder (`manifest.json`, `SKILL.md`, supporting files) and does not require extra host or container dependencies
+  - the skill should live under `resources/skill-packs/<skill-id>/`, be scanned/imported into the Sync360 catalog, published, assigned, and rolled out through the existing tenant apply pipeline
+- Host-managed runtime capabilities:
+  - use this when the skill depends on an external CLI, binary, auth store, mounted config directory, or other runtime dependency that must exist outside the plain skill folder
+  - in that case the skill is not "just a catalog skill"; it needs a capability model similar to `gog`, where Sync360 installs/verifies the dependency on the VPS, mounts it into tenant containers, manages auth/config separately, then exposes the corresponding OpenClaw skill
+
+Rule of thumb:
+
+- plain OpenClaw skill folder only -> catalog-managed skill pack
+- skill plus external CLI/runtime dependency -> host-managed runtime capability
+
 ### Public and private surfaces
 
 - `workspace_url` is the customer-facing Sync360 URL
