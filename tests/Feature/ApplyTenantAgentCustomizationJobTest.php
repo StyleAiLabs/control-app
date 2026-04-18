@@ -10,11 +10,14 @@ use App\Jobs\ApplyTenantAgentCustomization;
 use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
 use App\Models\ProvisioningJob;
+use App\Models\SkillCatalogVersion;
 use App\Models\Tenant;
 use App\Models\TenantAgentCustomization;
 use App\Models\TenantAgentCustomizationApply;
+use App\Models\TenantSkillAssignment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 use Tests\TestCase;
 
@@ -79,7 +82,7 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         $customization->refresh();
         $provisioningJob->refresh();
 
-        $skillPackFile = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skill-packs/appointment-booking/APPOINTMENT_BOOKING.md';
+        $skillPackFile = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skills/appointment-booking/SKILL.md';
         $identityFile = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/IDENTITY.md';
 
         $this->assertFileExists($skillPackFile);
@@ -121,7 +124,14 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
                         'base_snapshot' => '# Identity'.PHP_EOL.PHP_EOL.'Base identity',
                     ],
                 ],
-                'assigned_skill_pack_ids' => ['appointment-booking'],
+                'assigned_skills' => [
+                    [
+                        'skill_key' => 'appointment-booking',
+                        'skill_catalog_version_id' => SkillCatalogVersion::query()->where('skill_key', 'appointment-booking')->value('id'),
+                        'openclaw_skill_ids' => ['appointment-booking'],
+                        'default_agent_skill_ids' => ['appointment-booking'],
+                    ],
+                ],
                 'agent_defaults' => [],
             ],
         ])->save();
@@ -192,6 +202,9 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
             'generated_at' => now(),
         ]);
 
+        Artisan::call('sync360:skills:import');
+        $catalogVersionId = SkillCatalogVersion::query()->where('skill_key', 'appointment-booking')->value('id');
+
         $customization = TenantAgentCustomization::query()->create([
             'tenant_id' => $tenant->id,
             'prompt_overrides_json' => [
@@ -201,13 +214,21 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
                     'base_snapshot' => "# Identity\n\nBase identity",
                 ],
             ],
-            'assigned_skill_pack_ids' => ['appointment-booking'],
             'agent_defaults_json' => [
                 'model' => 'gpt-4.1',
             ],
             'draft_version' => 1,
             'draft_updated_by' => $user->id,
             'draft_updated_at' => now(),
+        ]);
+
+        TenantSkillAssignment::query()->create([
+            'tenant_id' => $tenant->id,
+            'skill_catalog_version_id' => $catalogVersionId,
+            'skill_key' => 'appointment-booking',
+            'assigned_by' => $user->id,
+            'assigned_at' => now(),
+            'is_enabled' => true,
         ]);
 
         $runtimeRoot = config('sync360.runtime_root').'/'.$tenant->slug;

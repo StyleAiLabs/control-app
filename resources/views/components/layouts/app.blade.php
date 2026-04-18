@@ -568,8 +568,22 @@
             @if (auth()->user()?->is_admin)
                 <div class="nav-section-label" style="margin-top:12px;">Admin</div>
                 <a href="{{ route('admin.index') }}"
-                   class="nav-link {{ request()->routeIs('admin.*') ? 'active' : '' }}">
-                    Admin Panel
+                   class="nav-link {{ request()->routeIs('admin.index') ? 'active' : '' }}">
+                    Overview
+                </a>
+                <a href="{{ route('admin.tenants') }}"
+                   class="nav-link {{ request()->routeIs('admin.tenants*') ? 'active' : '' }}">
+                    Tenants
+                </a>
+                @if (config('sync360.skill_catalog.enabled', false))
+                    <a href="{{ route('admin.skills.index') }}"
+                       class="nav-link {{ request()->routeIs('admin.skills.*') ? 'active' : '' }}">
+                        Skill Catalog
+                    </a>
+                @endif
+                <a href="{{ route('admin.jobs') }}"
+                   class="nav-link {{ request()->routeIs('admin.jobs') ? 'active' : '' }}">
+                    Jobs
                 </a>
             @endif
         </nav>

@@ -102,6 +102,12 @@ return [
         ],
     ],
     'skill_registry_catalog_version' => 1,
+    'skill_catalog' => [
+        'enabled' => (bool) env('SYNC360_SKILL_CATALOG_ENABLED', true),
+        'scan_enabled' => (bool) env('SYNC360_SKILL_CATALOG_SCAN_ENABLED', true),
+        'import_enabled' => (bool) env('SYNC360_SKILL_CATALOG_IMPORT_ENABLED', true),
+        'rollout_enabled' => (bool) env('SYNC360_SKILL_CATALOG_ROLLOUT_ENABLED', true),
+    ],
     'runtime_customization' => [
         'apply_authorized_user_ids' => array_values(array_filter(array_map('trim', explode(',', (string) env('SYNC360_RUNTIME_CUSTOMIZATION_APPLY_USER_IDS', ''))))),
         'apply_authorized_emails' => array_values(array_filter(array_map('trim', explode(',', (string) env('SYNC360_RUNTIME_CUSTOMIZATION_APPLY_EMAILS', ''))))),

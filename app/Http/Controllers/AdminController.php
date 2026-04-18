@@ -9,17 +9,23 @@ use App\Jobs\ApplyTenantAgentCustomization;
 use App\Jobs\ProcessInitialGoogleWorkspaceSync;
 use App\Jobs\ProcessTenantProvisioning;
 use App\Models\ProvisioningJob;
+use App\Models\SkillCatalogItem;
+use App\Models\SkillCatalogVersion;
 use App\Models\Tenant;
 use App\Models\TenantAgentCustomizationApply;
 use App\Models\TenantGoogleCredential;
+use App\Models\TenantSkillAssignment;
 use App\Models\User;
 use App\Services\ControlAppDeploymentService;
+use App\Services\SkillCatalogService;
 use App\Services\TenantAgentCustomizationService;
 use App\Services\TenantAgentSyncService;
 use App\Services\TenantDeletionService;
 use App\Services\TenantHealthCheckService;
 use App\Services\TenantProfileSyncService;
 use App\Services\TenantRuntimeCustomizationComposer;
+use App\Services\TenantRuntimeSkillDiscoveryService;
+use App\Services\TenantSkillAssignmentService;
 use App\Services\TenantSkillRegistryService;
 use App\Services\TenantRuntimeService;
 use App\Services\WorkspaceReadyEmailService;
@@ -59,6 +65,8 @@ class AdminController extends Controller
         private readonly TenantAgentCustomizationService $tenantCustomizations,
         private readonly TenantRuntimeCustomizationComposer $tenantRuntimeComposer,
         private readonly TenantSkillRegistryService $skillRegistry,
+        private readonly SkillCatalogService $skillCatalog,
+        private readonly TenantSkillAssignmentService $tenantSkillAssignments,
     ) {}
 
     public function index(): View
@@ -132,6 +140,12 @@ class AdminController extends Controller
             'provisioningJobs' => fn ($query) => $query->latest('id'),
         ];
         $agentCustomizationAvailable = $this->agentCustomizationTablesAvailable();
+        $tenantSkillsAvailable = $this->tenantSkillTablesAvailable();
+        $runtimeCustomizationAvailable = $agentCustomizationAvailable && $tenantSkillsAvailable;
+
+        if ($tenantSkillsAvailable) {
+            $relations[] = 'skillAssignments.catalogVersion.item';
+        }
 
         if ($agentCustomizationAvailable) {
             $relations[] = 'agentCustomization';
@@ -145,10 +159,15 @@ class AdminController extends Controller
             $tenant->setRelation('agentCustomizationApplies', collect());
         }
 
+        if (! $tenantSkillsAvailable) {
+            $tenant->setRelation('skillAssignments', collect());
+        }
+
         $googleSyncJob = $this->latestGoogleWorkspaceSyncJob($tenant);
         $currentCustomizationPreview = [];
+        $skillCatalog = $tenantSkillsAvailable ? $this->skillCatalog->catalog() : collect();
 
-        if ($agentCustomizationAvailable && $tenant->businessProfile && $tenant->businessProfileFiles) {
+        if ($runtimeCustomizationAvailable && $tenant->businessProfile && $tenant->businessProfileFiles) {
             try {
                 $currentCustomizationPreview = $this->tenantRuntimeComposer
                     ->compose($tenant)
@@ -170,11 +189,16 @@ class AdminController extends Controller
             'googleSyncJob' => $googleSyncJob,
             'googleState' => $this->googleStateFor($tenant, $googleSyncJob),
             'skillRegistry' => array_values($this->skillRegistry->all()),
+            'skillCatalog' => $skillCatalog,
+            'tenantSkillsStatus' => $this->tenantSkillsStatus($tenant, $skillCatalog, $tenantSkillsAvailable),
+            'runtimeSkillInspection' => $this->runtimeSkillInspectionFor($request, $tenant),
             'canApplyAgentCustomization' => Gate::allows('admin.tenants.agent-customization.apply'),
             'currentCustomizationPreview' => $currentCustomizationPreview,
             'activeTenantTab' => $activeTenantTab,
             'agentCustomizationAvailable' => $agentCustomizationAvailable,
-            'skillChangeHistory' => $agentCustomizationAvailable ? $this->skillChangeHistoryFor($tenant) : [],
+            'tenantSkillsAvailable' => $tenantSkillsAvailable,
+            'runtimeCustomizationAvailable' => $runtimeCustomizationAvailable,
+            'skillChangeHistory' => $runtimeCustomizationAvailable ? $this->skillChangeHistoryFor($tenant) : [],
         ]);
     }
 
@@ -370,10 +394,32 @@ class AdminController extends Controller
         ));
     }
 
+    public function refreshRuntimeAvailableSkills(
+        Request $request,
+        Tenant $tenant,
+        TenantRuntimeSkillDiscoveryService $runtimeSkillDiscovery,
+    ): RedirectResponse {
+        try {
+            $inspection = $runtimeSkillDiscovery->inspect($tenant);
+        } catch (Throwable $exception) {
+            return $this->redirectToTenantShow($request, $tenant, 'skills', $exception->getMessage());
+        }
+
+        return redirect()
+            ->route('admin.tenants.show', [
+                'tenant' => $tenant,
+                'tab' => $this->resolveTenantTab($request->input('return_tab', 'skills')),
+            ])
+            ->with('status', 'Runtime skills refreshed.')
+            ->with('tenantRuntimeSkillInspection', array_merge($inspection, [
+                'tenant_id' => $tenant->id,
+            ]));
+    }
+
     public function updateAgentCustomization(Request $request, Tenant $tenant): RedirectResponse
     {
-        if (! $this->agentCustomizationTablesAvailable()) {
-            return $this->redirectToTenantShow($request, $tenant, 'skills', 'Tenant customization is unavailable until the tenant customization migrations are applied locally.');
+        if (! $this->runtimeCustomizationTablesAvailable()) {
+            return $this->redirectToTenantShow($request, $tenant, 'skills', 'Tenant runtime customization is unavailable until the required tenant customization migrations are applied locally.');
         }
 
         $payload = $this->validatedCustomizationPayload($request, $tenant);
@@ -384,9 +430,9 @@ class AdminController extends Controller
 
     public function previewAgentCustomization(Request $request, Tenant $tenant): JsonResponse
     {
-        if (! $this->agentCustomizationTablesAvailable()) {
+        if (! $this->runtimeCustomizationTablesAvailable()) {
             return response()->json([
-                'message' => 'Agent runtime customization is unavailable until the tenant customization migrations are applied locally.',
+                'message' => 'Agent runtime customization is unavailable until the required tenant customization migrations are applied locally.',
             ], 409);
         }
 
@@ -397,7 +443,6 @@ class AdminController extends Controller
             $customization = $tenant->agentCustomization ?: $tenant->agentCustomization()->make();
             $customization->forceFill([
                 'prompt_overrides_json' => $payload['prompt_overrides'],
-                'assigned_skill_pack_ids' => $payload['assigned_skill_pack_ids'],
                 'agent_defaults_json' => $payload['agent_defaults'],
             ]);
         } else {
@@ -413,8 +458,8 @@ class AdminController extends Controller
     {
         Gate::authorize('admin.tenants.agent-customization.apply');
 
-        if (! $this->agentCustomizationTablesAvailable()) {
-            return $this->redirectToTenantShow($request, $tenant, $this->customizationTabFallback($request), 'Tenant customization is unavailable until the tenant customization migrations are applied locally.');
+        if (! $this->runtimeCustomizationTablesAvailable()) {
+            return $this->redirectToTenantShow($request, $tenant, $this->customizationTabFallback($request), 'Tenant runtime customization is unavailable until the required tenant customization migrations are applied locally.');
         }
 
         $customization = $tenant->agentCustomization;
@@ -445,8 +490,8 @@ class AdminController extends Controller
     {
         Gate::authorize('admin.tenants.agent-customization.apply');
 
-        if (! $this->agentCustomizationTablesAvailable()) {
-            return $this->redirectToTenantShow($request, $tenant, $this->customizationTabFallback($request), 'Tenant customization is unavailable until the tenant customization migrations are applied locally.');
+        if (! $this->runtimeCustomizationTablesAvailable()) {
+            return $this->redirectToTenantShow($request, $tenant, $this->customizationTabFallback($request), 'Tenant runtime customization is unavailable until the required tenant customization migrations are applied locally.');
         }
 
         $customization = $tenant->agentCustomization;
@@ -475,10 +520,10 @@ class AdminController extends Controller
 
     public function agentCustomizationApplyLog(Tenant $tenant): JsonResponse
     {
-        if (! $this->agentCustomizationTablesAvailable()) {
+        if (! $this->runtimeCustomizationTablesAvailable()) {
             return response()->json([
                 'data' => [],
-                'message' => 'Agent runtime customization is unavailable until the tenant customization migrations are applied locally.',
+                'message' => 'Agent runtime customization is unavailable until the required tenant customization migrations are applied locally.',
             ], 409);
         }
 
@@ -500,6 +545,181 @@ class AdminController extends Controller
         return response()->json([
             'data' => $entries,
         ]);
+    }
+
+    public function skillsCatalog(): View
+    {
+        $this->ensureSkillCatalogEnabled();
+
+        return view('admin.skills.index', [
+            'skills' => $this->skillCatalog->catalog(),
+            'skillScan' => session('skillCatalogScan', ['rows' => [], 'missing' => []]),
+            'skillCatalogFlags' => [
+                'scan_enabled' => $this->skillCatalogFeatureEnabled('scan_enabled'),
+                'import_enabled' => $this->skillCatalogFeatureEnabled('import_enabled'),
+                'rollout_enabled' => $this->skillCatalogFeatureEnabled('rollout_enabled'),
+            ],
+        ]);
+    }
+
+    public function scanSkillCatalog(Request $request): RedirectResponse
+    {
+        $this->ensureSkillCatalogScanEnabled();
+
+        $validated = $request->validate([
+            'skill_key' => ['nullable', 'string'],
+        ]);
+
+        $skillKey = is_string($validated['skill_key'] ?? null) && trim((string) $validated['skill_key']) !== ''
+            ? trim((string) $validated['skill_key'])
+            : null;
+        $scan = $this->skillCatalog->scanRepository($skillKey);
+        $status = $scan['missing'] !== []
+            ? sprintf('No repo skill matched [%s].', implode(', ', $scan['missing']))
+            : sprintf('Scanned %d repo skill%s.', count($scan['rows']), count($scan['rows']) === 1 ? '' : 's');
+
+        return redirect()
+            ->route('admin.skills.index')
+            ->with('status', $status)
+            ->with('skillCatalogScan', $scan);
+    }
+
+    public function importSkillCatalog(Request $request): RedirectResponse
+    {
+        $this->ensureSkillCatalogImportEnabled();
+
+        $validated = $request->validate([
+            'skill_keys' => ['nullable', 'array'],
+            'skill_keys.*' => ['string'],
+        ]);
+
+        $skillKeys = collect((array) ($validated['skill_keys'] ?? []))
+            ->filter(fn ($skillKey): bool => is_string($skillKey) && trim($skillKey) !== '')
+            ->map(fn (string $skillKey): string => trim($skillKey))
+            ->unique()
+            ->values()
+            ->all();
+        $result = $this->skillCatalog->importFromRepository($skillKeys !== [] ? $skillKeys : null);
+        $messages = [];
+
+        if ($result['imported'] !== []) {
+            $messages[] = sprintf('Imported %s.', implode(', ', $result['imported']));
+        }
+
+        if ($result['skipped'] !== []) {
+            $messages[] = sprintf('Skipped %s.', implode(', ', $result['skipped']));
+        }
+
+        if ($result['missing'] !== []) {
+            $messages[] = sprintf('Missing %s.', implode(', ', $result['missing']));
+        }
+
+        if ($result['orphaned'] !== []) {
+            $messages[] = sprintf('Orphaned warnings: %s.', implode(', ', $result['orphaned']));
+        }
+
+        if ($messages === []) {
+            $messages[] = 'No eligible repo skills were imported.';
+        }
+
+        return redirect()
+            ->route('admin.skills.index')
+            ->with('status', implode(' ', $messages));
+    }
+
+    public function showSkillCatalog(SkillCatalogItem $skill): View
+    {
+        $this->ensureSkillCatalogEnabled();
+
+        $skill->load(['versions' => fn ($query) => $query->latest('id')]);
+
+        return view('admin.skills.show', [
+            'skill' => $skill,
+            'tenantAssignmentCounts' => TenantSkillAssignment::query()
+                ->selectRaw('skill_catalog_version_id, count(*) as aggregate')
+                ->where('skill_key', $skill->skill_key)
+                ->where('is_enabled', true)
+                ->groupBy('skill_catalog_version_id')
+                ->pluck('aggregate', 'skill_catalog_version_id')
+                ->all(),
+        ]);
+    }
+
+    public function publishSkillCatalogVersion(SkillCatalogItem $skill, SkillCatalogVersion $version): RedirectResponse
+    {
+        $this->ensureSkillCatalogEnabled();
+
+        $this->skillCatalog->publishVersion($version);
+
+        return redirect()
+            ->route('admin.skills.show', $skill)
+            ->with('status', sprintf('Published %s version %s.', $skill->label, $version->version));
+    }
+
+    public function archiveSkillCatalogVersion(SkillCatalogItem $skill, SkillCatalogVersion $version): RedirectResponse
+    {
+        $this->ensureSkillCatalogEnabled();
+
+        $this->skillCatalog->archiveVersion($version);
+
+        return redirect()
+            ->route('admin.skills.show', $skill)
+            ->with('status', sprintf('Archived %s version %s.', $skill->label, $version->version));
+    }
+
+    public function rolloutSkillCatalogVersion(Request $request, SkillCatalogItem $skill, SkillCatalogVersion $version): RedirectResponse
+    {
+        $this->ensureSkillCatalogRolloutEnabled();
+
+        Gate::authorize('admin.tenants.agent-customization.apply');
+
+        $validated = $request->validate([
+            'tenant_ids' => ['required', 'array'],
+            'tenant_ids.*' => ['integer', 'exists:tenants,id'],
+        ]);
+
+        $tenantIds = array_values(array_unique(array_map('intval', $validated['tenant_ids'])));
+
+        $assignments = TenantSkillAssignment::query()
+            ->where('skill_key', $skill->skill_key)
+            ->whereIn('tenant_id', $tenantIds)
+            ->where('is_enabled', true)
+            ->get()
+            ->keyBy('tenant_id');
+
+        foreach ($tenantIds as $tenantId) {
+            $assignment = $assignments->get($tenantId);
+
+            if (! $assignment) {
+                continue;
+            }
+
+            $assignment->forceFill([
+                'skill_catalog_version_id' => $version->id,
+            ])->save();
+
+            $job = ProvisioningJob::query()->create([
+                'tenant_id' => $tenantId,
+                'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+                'status' => ProvisioningJobStatus::Queued,
+                'payload_json' => [
+                    'action' => TenantAgentCustomizationApply::ACTION_APPLY,
+                    'source' => 'skill_rollout',
+                    'skill_key' => $skill->skill_key,
+                    'skill_catalog_version_id' => $version->id,
+                ],
+            ]);
+
+            ApplyTenantAgentCustomization::dispatch(
+                $tenantId,
+                $job->id,
+                TenantAgentCustomizationApply::ACTION_APPLY,
+            )->afterCommit();
+        }
+
+        return redirect()
+            ->route('admin.skills.show', $skill)
+            ->with('status', sprintf('Queued rollout of %s version %s.', $skill->label, $version->version));
     }
 
     public function destroyTenant(Tenant $tenant): RedirectResponse
@@ -576,7 +796,7 @@ class AdminController extends Controller
     /**
      * @return array{
      *     prompt_overrides: array<string, array{mode:string, content:string, base_snapshot:string}>,
-     *     assigned_skill_pack_ids: array<int, string>,
+     *     assigned_skill_keys: array<int, string>,
      *     agent_defaults: array<string, mixed>
      * }
      */
@@ -593,8 +813,8 @@ class AdminController extends Controller
             'prompt_overrides' => ['nullable', 'array'],
             'prompt_overrides.*.mode' => ['nullable', 'string', 'in:append,replace'],
             'prompt_overrides.*.content' => ['nullable', 'string'],
-            'assigned_skill_pack_ids' => ['nullable', 'array'],
-            'assigned_skill_pack_ids.*' => ['string'],
+            'assigned_skill_keys' => ['nullable', 'array'],
+            'assigned_skill_keys.*' => ['string'],
             'agent_defaults' => ['nullable', 'array'],
             'agent_defaults.model' => ['nullable', 'string'],
             'agent_defaults.default_skill_ids' => ['nullable', 'array'],
@@ -605,7 +825,11 @@ class AdminController extends Controller
         $scope = $this->resolveCustomizationScope($request);
         $existingCustomization = $tenant->agentCustomization;
         $existingPromptOverrides = is_array($existingCustomization?->prompt_overrides_json) ? $existingCustomization->prompt_overrides_json : [];
-        $existingAssignedSkillPackIds = is_array($existingCustomization?->assigned_skill_pack_ids) ? $existingCustomization->assigned_skill_pack_ids : [];
+        $existingAssignedSkillKeys = $tenant->skillAssignments
+            ->where('is_enabled', true)
+            ->pluck('skill_key')
+            ->values()
+            ->all();
         $existingAgentDefaults = is_array($existingCustomization?->agent_defaults_json) ? $existingCustomization->agent_defaults_json : [];
 
         if ($scope === 'skills') {
@@ -618,7 +842,7 @@ class AdminController extends Controller
 
             return [
                 'prompt_overrides' => $existingPromptOverrides,
-                'assigned_skill_pack_ids' => $normalized['assigned_skill_pack_ids'],
+                'assigned_skill_keys' => $normalized['assigned_skill_keys'],
                 'agent_defaults' => $agentDefaults,
             ];
         }
@@ -633,7 +857,7 @@ class AdminController extends Controller
 
             return [
                 'prompt_overrides' => $normalized['prompt_overrides'],
-                'assigned_skill_pack_ids' => $existingAssignedSkillPackIds,
+                'assigned_skill_keys' => $existingAssignedSkillKeys,
                 'agent_defaults' => $agentDefaults,
             ];
         }
@@ -891,6 +1115,188 @@ class AdminController extends Controller
             && Schema::hasTable('tenant_agent_customization_applies');
     }
 
+    private function tenantSkillTablesAvailable(): bool
+    {
+        return Schema::hasTable('skill_catalog_items')
+            && Schema::hasTable('skill_catalog_versions')
+            && Schema::hasTable('tenant_skill_assignments');
+    }
+
+    private function runtimeCustomizationTablesAvailable(): bool
+    {
+        return $this->agentCustomizationTablesAvailable()
+            && $this->tenantSkillTablesAvailable();
+    }
+
+    /**
+     * @return array{
+     *     tenant_id:int,
+     *     workspace_state:string,
+     *     refreshed_at:string,
+     *     skills:array<int, string>,
+     *     raw_output:string
+     * }|null
+     */
+    private function runtimeSkillInspectionFor(Request $request, Tenant $tenant): ?array
+    {
+        $inspection = $request->session()->get('tenantRuntimeSkillInspection');
+
+        if (! is_array($inspection)) {
+            return null;
+        }
+
+        if (($inspection['tenant_id'] ?? null) !== $tenant->id) {
+            return null;
+        }
+
+        return [
+            'tenant_id' => $tenant->id,
+            'workspace_state' => (string) ($inspection['workspace_state'] ?? 'unknown'),
+            'refreshed_at' => (string) ($inspection['refreshed_at'] ?? ''),
+            'skills' => array_values(array_filter((array) ($inspection['skills'] ?? []), 'is_string')),
+            'raw_output' => (string) ($inspection['raw_output'] ?? ''),
+        ];
+    }
+
+    private function skillCatalogFeatureEnabled(string $key = 'enabled'): bool
+    {
+        return (bool) config('sync360.skill_catalog.'.$key, false);
+    }
+
+    private function ensureSkillCatalogEnabled(): void
+    {
+        abort_unless($this->skillCatalogFeatureEnabled('enabled'), 404);
+    }
+
+    private function ensureSkillCatalogScanEnabled(): void
+    {
+        abort_unless(
+            $this->skillCatalogFeatureEnabled('enabled') && $this->skillCatalogFeatureEnabled('scan_enabled'),
+            404,
+        );
+    }
+
+    private function ensureSkillCatalogImportEnabled(): void
+    {
+        abort_unless(
+            $this->skillCatalogFeatureEnabled('enabled') && $this->skillCatalogFeatureEnabled('import_enabled'),
+            404,
+        );
+    }
+
+    private function ensureSkillCatalogRolloutEnabled(): void
+    {
+        abort_unless(
+            $this->skillCatalogFeatureEnabled('enabled') && $this->skillCatalogFeatureEnabled('rollout_enabled'),
+            404,
+        );
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, \App\Models\SkillCatalogItem>  $skillCatalog
+     * @return array{
+     *     label:string,
+     *     class:string,
+     *     summary_label:?string,
+     *     summary_class:?string
+     * }
+     */
+    private function tenantSkillsStatus(Tenant $tenant, $skillCatalog, bool $tenantSkillsAvailable): array
+    {
+        if (! $tenantSkillsAvailable) {
+            return [
+                'label' => 'setup needed',
+                'class' => 'failed',
+                'summary_label' => null,
+                'summary_class' => null,
+            ];
+        }
+
+        $enabledAssignments = $tenant->skillAssignments
+            ->where('is_enabled', true)
+            ->values();
+        $assignedSkillKeys = $enabledAssignments
+            ->pluck('skill_key')
+            ->filter(fn (mixed $skillKey): bool => is_string($skillKey) && trim($skillKey) !== '')
+            ->map(fn (string $skillKey): string => trim($skillKey))
+            ->unique()
+            ->values()
+            ->all();
+        sort($assignedSkillKeys);
+
+        $defaultSkillIds = array_values(array_filter(
+            (array) data_get($tenant->agentCustomization?->agent_defaults_json, 'default_skill_ids', []),
+            fn (mixed $skillId): bool => is_string($skillId) && trim($skillId) !== '',
+        ));
+        $defaultSkillIds = array_map('trim', $defaultSkillIds);
+        $defaultSkillIds = array_values(array_unique($defaultSkillIds));
+        sort($defaultSkillIds);
+
+        $appliedSnapshot = is_array($tenant->agentCustomization?->last_applied_input_snapshot_json)
+            ? $tenant->agentCustomization->last_applied_input_snapshot_json
+            : [];
+        $appliedAssignedSkillKeys = collect((array) ($appliedSnapshot['assigned_skills'] ?? []))
+            ->pluck('skill_key')
+            ->filter(fn (mixed $skillKey): bool => is_string($skillKey) && trim($skillKey) !== '')
+            ->map(fn (string $skillKey): string => trim($skillKey))
+            ->unique()
+            ->values()
+            ->all();
+        sort($appliedAssignedSkillKeys);
+
+        $appliedDefaultSkillIds = array_values(array_filter(
+            (array) data_get($appliedSnapshot, 'agent_defaults.default_skill_ids', []),
+            fn (mixed $skillId): bool => is_string($skillId) && trim($skillId) !== '',
+        ));
+        $appliedDefaultSkillIds = array_map('trim', $appliedDefaultSkillIds);
+        $appliedDefaultSkillIds = array_values(array_unique($appliedDefaultSkillIds));
+        sort($appliedDefaultSkillIds);
+
+        $hasPendingChanges = $assignedSkillKeys !== $appliedAssignedSkillKeys
+            || $defaultSkillIds !== $appliedDefaultSkillIds;
+        $hasAssignmentFailure = $enabledAssignments->contains(
+            fn (TenantSkillAssignment $assignment): bool => $assignment->last_apply_status === 'failed'
+        );
+        $catalogCount = $skillCatalog->count();
+        $assignmentCount = count($assignedSkillKeys);
+        $defaultSkillCount = count($defaultSkillIds);
+        $hasAnySkillState = $assignmentCount > 0 || $defaultSkillCount > 0;
+
+        if ($hasAssignmentFailure) {
+            $label = 'apply failed';
+            $class = 'failed';
+        } elseif ($hasPendingChanges) {
+            $label = 'changes pending';
+            $class = 'pending';
+        } elseif (! $hasAnySkillState && $catalogCount === 0) {
+            $label = 'catalog empty';
+            $class = 'pending';
+        } elseif (! $hasAnySkillState) {
+            $label = 'no skills assigned';
+            $class = 'pending';
+        } else {
+            $label = 'applied';
+            $class = 'ready';
+        }
+
+        if ($assignmentCount > 0) {
+            $summaryLabel = sprintf('%d assigned', $assignmentCount);
+        } elseif ($defaultSkillCount > 0) {
+            $summaryLabel = sprintf('%d default IDs', $defaultSkillCount);
+        } elseif ($catalogCount === 0) {
+            $summaryLabel = 'catalog empty';
+        } else {
+            $summaryLabel = 'none assigned';
+        }
+
+        return [
+            'label' => $label,
+            'class' => $class,
+            'summary_label' => $summaryLabel,
+            'summary_class' => $class === 'failed' ? 'failed' : 'pending',
+        ];
+    }
+
     private function latestGoogleWorkspaceSyncJob(Tenant $tenant, ?array $statuses = null): ?ProvisioningJob
     {
         $query = ProvisioningJob::query()
@@ -919,7 +1325,7 @@ class AdminController extends Controller
 
         $history = [];
         $previousSnapshot = [
-            'assigned_skill_pack_ids' => [],
+            'assigned_skills' => [],
             'agent_defaults' => [
                 'default_skill_ids' => [],
             ],
@@ -934,8 +1340,16 @@ class AdminController extends Controller
             }
 
             $snapshot = is_array($entry->input_snapshot_json) ? $entry->input_snapshot_json : [];
-            $currentPackIds = array_values(array_filter((array) ($snapshot['assigned_skill_pack_ids'] ?? []), 'is_string'));
-            $previousPackIds = array_values(array_filter((array) ($previousSnapshot['assigned_skill_pack_ids'] ?? []), 'is_string'));
+            $currentPackIds = collect((array) ($snapshot['assigned_skills'] ?? []))
+                ->pluck('skill_key')
+                ->filter(fn (mixed $skillKey): bool => is_string($skillKey))
+                ->values()
+                ->all();
+            $previousPackIds = collect((array) ($previousSnapshot['assigned_skills'] ?? []))
+                ->pluck('skill_key')
+                ->filter(fn (mixed $skillKey): bool => is_string($skillKey))
+                ->values()
+                ->all();
             $enabledPackIds = array_values(array_diff($currentPackIds, $previousPackIds));
             $disabledPackIds = array_values(array_diff($previousPackIds, $currentPackIds));
             $currentDefaultSkillIds = array_values(array_filter((array) data_get($snapshot, 'agent_defaults.default_skill_ids', []), 'is_string'));

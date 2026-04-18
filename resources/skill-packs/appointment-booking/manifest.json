@@ -1,0 +1,15 @@
+{
+    "skill_id": "appointment-booking",
+    "version": "1.0.0",
+    "label": "Appointment Booking",
+    "description": "Guides customers through booking requests and next-step confirmation.",
+    "category": "operations",
+    "production_ready": true,
+    "openclaw_skill_ids": [
+        "appointment-booking"
+    ],
+    "default_agent_skill_ids": [
+        "appointment-booking"
+    ],
+    "applicable_industries": []
+}

@@ -20,7 +20,7 @@ class TenantAgentCustomizationService
         private readonly Filesystem $files,
         private readonly DockerComposeRunner $dockerCompose,
         private readonly TenantRuntimeService $runtime,
-        private readonly TenantSkillRegistryService $skillRegistry,
+        private readonly TenantSkillAssignmentService $skillAssignments,
     ) {
     }
 
@@ -33,14 +33,19 @@ class TenantAgentCustomizationService
             'tenant_id' => $tenant->id,
         ]);
 
-        $customization->forceFill([
-            'prompt_overrides_json' => $payload['prompt_overrides'],
-            'assigned_skill_pack_ids' => $payload['assigned_skill_pack_ids'],
-            'agent_defaults_json' => $payload['agent_defaults'],
-            'draft_version' => ((int) $customization->draft_version) + 1,
-            'draft_updated_by' => $actor->id,
-            'draft_updated_at' => now(),
-        ])->save();
+        DB::transaction(function () use ($tenant, $actor, $payload, $customization): void {
+            $customization->forceFill([
+                'prompt_overrides_json' => $payload['prompt_overrides'],
+                'agent_defaults_json' => $payload['agent_defaults'],
+                'draft_version' => ((int) $customization->draft_version) + 1,
+                'draft_updated_by' => $actor->id,
+                'draft_updated_at' => now(),
+            ])->save();
+
+            if (array_key_exists('assigned_skill_keys', $payload)) {
+                $this->skillAssignments->saveDraftAssignments($tenant, $actor, $payload['assigned_skill_keys']);
+            }
+        });
 
         return $customization->fresh();
     }
@@ -75,17 +80,6 @@ class TenantAgentCustomizationService
             ];
         }
 
-        $assignedSkillPackIds = [];
-
-        foreach ((array) ($input['assigned_skill_pack_ids'] ?? []) as $packId) {
-            if (! is_string($packId) || trim($packId) === '') {
-                continue;
-            }
-
-            $pack = $this->skillRegistry->find(trim($packId));
-            $assignedSkillPackIds[] = (string) $pack['id'];
-        }
-
         $agentDefaults = [];
 
         if (is_string($input['agent_defaults']['model'] ?? null) && trim((string) $input['agent_defaults']['model']) !== '') {
@@ -112,21 +106,20 @@ class TenantAgentCustomizationService
             $agentDefaults['default_skill_ids'] = $defaultSkillIds;
         }
 
-        return [
+        return array_merge([
             'prompt_overrides' => $promptOverrides,
-            'assigned_skill_pack_ids' => array_values(array_unique($assignedSkillPackIds)),
             'agent_defaults' => $agentDefaults,
-        ];
+        ], $this->skillAssignments->normalizedPayload($input));
     }
 
     /**
      * @return array<string, mixed>
      */
-    public function draftInputSnapshot(TenantAgentCustomization $customization): array
+    public function draftInputSnapshot(Tenant $tenant, TenantAgentCustomization $customization): array
     {
         return [
             'prompt_overrides' => is_array($customization->prompt_overrides_json) ? $customization->prompt_overrides_json : [],
-            'assigned_skill_pack_ids' => is_array($customization->assigned_skill_pack_ids) ? $customization->assigned_skill_pack_ids : [],
+            'assigned_skills' => $this->skillAssignments->snapshot($tenant),
             'agent_defaults' => is_array($customization->agent_defaults_json) ? $customization->agent_defaults_json : [],
         ];
     }
@@ -137,7 +130,7 @@ class TenantAgentCustomizationService
         TenantRuntimeCustomizationComposer $composer,
         string $action = TenantAgentCustomizationApply::ACTION_APPLY,
     ): void {
-        $tenant->loadMissing(['server', 'agentCustomization']);
+        $tenant->loadMissing(['server', 'agentCustomization', 'skillAssignments.catalogVersion']);
         $customization = $tenant->agentCustomization;
 
         if (! $customization) {
@@ -149,10 +142,11 @@ class TenantAgentCustomizationService
                 ->whereKey($customization->id)
                 ->lockForUpdate()
                 ->firstOrFail();
+            $freshTenant = $tenant->fresh(['businessProfile', 'businessProfileFiles', 'googleCredential', 'agentCustomization', 'skillAssignments.catalogVersion']);
 
             $snapshot = $action === TenantAgentCustomizationApply::ACTION_REVERT
-                ? $this->restoreLastAppliedSnapshot($lockedCustomization)
-                : $this->draftInputSnapshot($lockedCustomization);
+                ? $this->restoreLastAppliedSnapshot($freshTenant, $lockedCustomization)
+                : $this->draftInputSnapshot($freshTenant, $lockedCustomization);
 
             $provisioningJob->forceFill([
                 'status' => ProvisioningJobStatus::Running,
@@ -164,12 +158,8 @@ class TenantAgentCustomizationService
             $beforeHash = $lockedCustomization->applied_snapshot_hash;
 
             try {
-                $composed = $composer->compose($tenant->fresh([
-                    'businessProfile',
-                    'businessProfileFiles',
-                    'googleCredential',
-                    'agentCustomization',
-                ]), $tenant->fresh()->agentCustomization);
+                $freshTenant = $tenant->fresh(['businessProfile', 'businessProfileFiles', 'googleCredential', 'agentCustomization', 'skillAssignments.catalogVersion']);
+                $composed = $composer->compose($freshTenant, $freshTenant->agentCustomization);
 
                 if ($composed->contentHash !== $beforeHash) {
                     $this->materializeWorkspaceFiles($tenant, $composed);
@@ -188,6 +178,8 @@ class TenantAgentCustomizationService
                     'last_apply_status' => 'applied',
                     'last_apply_error' => null,
                 ])->save();
+
+                $this->skillAssignments->markApplyResult($tenant, 'applied');
 
                 TenantAgentCustomizationApply::query()->create([
                     'tenant_agent_customization_id' => $lockedCustomization->id,
@@ -213,6 +205,7 @@ class TenantAgentCustomizationService
                     'last_apply_status' => 'failed',
                     'last_apply_error' => $exception->getMessage(),
                 ])->save();
+                $this->skillAssignments->markApplyResult($tenant, 'failed', $exception->getMessage());
 
                 TenantAgentCustomizationApply::query()->create([
                     'tenant_agent_customization_id' => $lockedCustomization->id,
@@ -220,7 +213,7 @@ class TenantAgentCustomizationService
                     'applied_by' => $lockedCustomization->draft_updated_by,
                     'action' => $action,
                     'draft_version_applied' => (int) $lockedCustomization->draft_version,
-                    'input_snapshot_json' => $snapshot ?? $this->draftInputSnapshot($lockedCustomization),
+                    'input_snapshot_json' => $snapshot ?? $this->draftInputSnapshot($tenant->fresh(['skillAssignments.catalogVersion']), $lockedCustomization),
                     'before_output_hash' => $beforeHash,
                     'after_output_hash' => null,
                     'status' => TenantAgentCustomizationApply::STATUS_FAILED,
@@ -242,7 +235,7 @@ class TenantAgentCustomizationService
     /**
      * @return array<string, mixed>
      */
-    private function restoreLastAppliedSnapshot(TenantAgentCustomization $customization): array
+    private function restoreLastAppliedSnapshot(Tenant $tenant, TenantAgentCustomization $customization): array
     {
         $snapshot = is_array($customization->last_applied_input_snapshot_json)
             ? $customization->last_applied_input_snapshot_json
@@ -254,11 +247,16 @@ class TenantAgentCustomizationService
 
         $customization->forceFill([
             'prompt_overrides_json' => $snapshot['prompt_overrides'] ?? [],
-            'assigned_skill_pack_ids' => $snapshot['assigned_skill_pack_ids'] ?? [],
             'agent_defaults_json' => $snapshot['agent_defaults'] ?? [],
             'draft_version' => ((int) $customization->draft_version) + 1,
             'draft_updated_at' => now(),
         ])->save();
+
+        $actor = User::query()->find($customization->draft_updated_by) ?? User::query()->find($tenant->user_id);
+
+        if ($actor) {
+            $this->skillAssignments->restoreFromSnapshot($tenant, $actor, (array) ($snapshot['assigned_skills'] ?? []));
+        }
 
         return $snapshot;
     }
@@ -267,14 +265,18 @@ class TenantAgentCustomizationService
     {
         $workspacePath = $this->runtime->localWorkspacePath($tenant);
         $this->files->ensureDirectoryExists($workspacePath);
-
-        $this->skillRegistry->materializeAssignedPacks(
-            $workspacePath,
-            is_array($tenant->agentCustomization?->assigned_skill_pack_ids) ? $tenant->agentCustomization->assigned_skill_pack_ids : []
-        );
+        $this->files->deleteDirectory($workspacePath.DIRECTORY_SEPARATOR.'skill-packs');
+        $this->files->deleteDirectory($workspacePath.DIRECTORY_SEPARATOR.'skills');
+        $this->files->ensureDirectoryExists($workspacePath.DIRECTORY_SEPARATOR.'skills');
 
         foreach ($composed->workspaceFiles as $filename => $contents) {
             $this->files->put($workspacePath.DIRECTORY_SEPARATOR.$filename, $contents);
+        }
+
+        foreach ($composed->skillFiles as $relativePath => $contents) {
+            $targetPath = $workspacePath.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+            $this->files->ensureDirectoryExists(dirname($targetPath));
+            $this->files->put($targetPath, $contents);
         }
     }
 

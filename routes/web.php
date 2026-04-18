@@ -61,6 +61,13 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/', [AdminController::class, 'index'])->name('index');
         Route::get('/users', [AdminController::class, 'users'])->name('users');
         Route::get('/tenants', [AdminController::class, 'tenants'])->name('tenants');
+        Route::get('/skills', [AdminController::class, 'skillsCatalog'])->name('skills.index');
+        Route::post('/skills/scan', [AdminController::class, 'scanSkillCatalog'])->name('skills.scan');
+        Route::post('/skills/import', [AdminController::class, 'importSkillCatalog'])->name('skills.import');
+        Route::get('/skills/{skill}', [AdminController::class, 'showSkillCatalog'])->name('skills.show');
+        Route::post('/skills/{skill}/versions/{version}/publish', [AdminController::class, 'publishSkillCatalogVersion'])->name('skills.versions.publish');
+        Route::post('/skills/{skill}/versions/{version}/archive', [AdminController::class, 'archiveSkillCatalogVersion'])->name('skills.versions.archive');
+        Route::post('/skills/{skill}/versions/{version}/rollout', [AdminController::class, 'rolloutSkillCatalogVersion'])->name('skills.versions.rollout');
         Route::get('/tenants/{tenant}', [AdminController::class, 'showTenant'])->name('tenants.show');
         Route::delete('/tenants/{tenant}', [AdminController::class, 'destroyTenant'])->name('tenants.destroy');
         Route::get('/jobs', [AdminController::class, 'jobs'])->name('jobs');
@@ -73,6 +80,7 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/tenants/{tenant}/runtime/capabilities/sync', [AdminController::class, 'syncRuntimeCapabilities'])->name('tenants.runtime-capabilities.sync');
         Route::post('/tenants/{tenant}/google/sync', [AdminController::class, 'retryGoogleWorkspaceSync'])->name('tenants.google.sync');
         Route::post('/tenants/{tenant}/google/test', [AdminController::class, 'testGoogleWorkspace'])->name('tenants.google.test');
+        Route::post('/tenants/{tenant}/skills/runtime-refresh', [AdminController::class, 'refreshRuntimeAvailableSkills'])->name('tenants.skills.runtime-refresh');
         Route::patch('/tenants/{tenant}/agent-customization', [AdminController::class, 'updateAgentCustomization'])->name('tenants.agent-customization.update');
         Route::post('/tenants/{tenant}/agent-customization/preview', [AdminController::class, 'previewAgentCustomization'])->name('tenants.agent-customization.preview');
         Route::post('/tenants/{tenant}/agent-customization/apply', [AdminController::class, 'applyAgentCustomization'])->name('tenants.agent-customization.apply');

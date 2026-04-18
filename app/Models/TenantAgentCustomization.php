@@ -17,7 +17,6 @@ class TenantAgentCustomization extends Model
     protected $fillable = [
         'tenant_id',
         'prompt_overrides_json',
-        'assigned_skill_pack_ids',
         'agent_defaults_json',
         'draft_version',
         'draft_updated_by',
@@ -33,7 +32,6 @@ class TenantAgentCustomization extends Model
     {
         return [
             'prompt_overrides_json' => 'array',
-            'assigned_skill_pack_ids' => 'array',
             'agent_defaults_json' => 'array',
             'draft_version' => 'integer',
             'draft_updated_at' => 'datetime',

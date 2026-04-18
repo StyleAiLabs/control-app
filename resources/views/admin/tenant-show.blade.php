@@ -6,11 +6,25 @@
         $googleConnected = $googleCredential?->isConnected() ?? false;
         $agentCustomization = $tenant->agentCustomization;
         $agentCustomizationAvailable = $agentCustomizationAvailable ?? true;
+        $tenantSkillsAvailable = $tenantSkillsAvailable ?? false;
+        $runtimeCustomizationAvailable = $runtimeCustomizationAvailable ?? false;
         $promptOverrides = is_array($agentCustomization?->prompt_overrides_json) ? $agentCustomization->prompt_overrides_json : [];
-        $assignedSkillPackIds = is_array($agentCustomization?->assigned_skill_pack_ids) ? $agentCustomization->assigned_skill_pack_ids : [];
+        $assignedSkillKeys = $tenantSkillsAvailable
+            ? $tenant->skillAssignments
+                ->where('is_enabled', true)
+                ->pluck('skill_key')
+                ->values()
+                ->all()
+            : [];
         $agentDefaults = is_array($agentCustomization?->agent_defaults_json) ? $agentCustomization->agent_defaults_json : [];
         $currentCustomizationPreview = is_array($currentCustomizationPreview ?? null) ? $currentCustomizationPreview : [];
         $activeTenantTab = $activeTenantTab ?? 'overview';
+        $tenantSkillsStatus = is_array($tenantSkillsStatus ?? null) ? $tenantSkillsStatus : [
+            'label' => 'setup needed',
+            'class' => 'failed',
+            'summary_label' => null,
+            'summary_class' => null,
+        ];
         $googleState = $googleState ?? [
             'connection_label' => 'Pending',
             'connection_badge' => 'pending',
@@ -48,18 +62,8 @@
             ],
             'skills' => [
                 'label' => 'Skills',
-                'badge_label' => ! $agentCustomizationAvailable
-                    ? 'setup needed'
-                    : ($agentCustomization?->last_apply_status === 'failed'
-                        ? 'apply failed'
-                        : (($agentCustomization?->draft_version ?? 0) > 0
-                            ? 'draft v'.($agentCustomization?->draft_version ?? 0)
-                            : ($agentCustomization?->applied_snapshot_hash ? 'applied' : 'draft only'))),
-                'badge_class' => ! $agentCustomizationAvailable
-                    ? 'failed'
-                    : ($agentCustomization?->last_apply_status === 'failed'
-                        ? 'failed'
-                        : (($agentCustomization?->applied_snapshot_hash || ($agentCustomization?->draft_version ?? 0) > 0) ? 'pending' : 'pending')),
+                'badge_label' => $tenantSkillsStatus['label'],
+                'badge_class' => $tenantSkillsStatus['class'],
             ],
             'agent-runtime' => [
                 'label' => 'Agent Runtime',

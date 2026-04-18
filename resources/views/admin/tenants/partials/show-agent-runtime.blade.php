@@ -1,4 +1,4 @@
-@if (! $agentCustomizationAvailable)
+@if (! $runtimeCustomizationAvailable)
     <section class="panel">
         <div class="topbar" style="margin-bottom: 16px;">
             <div>
@@ -7,10 +7,10 @@
             </div>
         </div>
         <div class="note error">
-            Agent runtime customization is unavailable until the tenant customization migrations are applied locally.
+            Agent runtime customization is unavailable until the required tenant customization and skill catalog migrations are applied locally.
         </div>
         <div class="hint" style="margin-top: 14px;">
-            Run the new tenant customization migrations locally, then refresh this page to enable prompt drafts, previews, and apply controls.
+            Run the required migrations locally, then refresh this page to enable prompt drafts, previews, and apply controls.
         </div>
     </section>
 @else

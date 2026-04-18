@@ -7,6 +7,8 @@ use App\Models\BusinessProfileFiles;
 use App\Models\Tenant;
 use App\Models\TenantAgentCustomization;
 use App\Models\TenantGoogleCredential;
+use App\Models\TenantSkillAssignment;
+use Illuminate\Support\Collection;
 use Illuminate\Filesystem\Filesystem;
 use RuntimeException;
 
@@ -23,7 +25,7 @@ class TenantRuntimeCustomizationComposer
 
     public function compose(Tenant $tenant, ?TenantAgentCustomization $customization = null, ?array $baseConfig = null): ComposedTenantRuntime
     {
-        $tenant->loadMissing(['businessProfile', 'businessProfileFiles', 'googleCredential', 'agentCustomization']);
+        $tenant->loadMissing(['businessProfile', 'businessProfileFiles', 'googleCredential', 'agentCustomization', 'skillAssignments.catalogVersion']);
 
         $profile = $tenant->businessProfile;
         $profileFiles = $tenant->businessProfileFiles;
@@ -34,10 +36,11 @@ class TenantRuntimeCustomizationComposer
 
         $customization ??= $tenant->agentCustomization;
         $promptOverrides = is_array($customization?->prompt_overrides_json) ? $customization->prompt_overrides_json : [];
-        $assignedPackIds = is_array($customization?->assigned_skill_pack_ids) ? $customization->assigned_skill_pack_ids : [];
         $agentDefaults = is_array($customization?->agent_defaults_json) ? $customization->agent_defaults_json : [];
+        $enabledAssignments = $this->enabledAssignments($tenant);
 
         $workspaceFiles = $this->baseWorkspaceFiles($tenant, $profile, $profileFiles);
+        $skillFiles = $this->skillRegistry->renderedSkillFiles($enabledAssignments);
         $baseDrifted = [
             'identity' => false,
             'soul' => false,
@@ -82,15 +85,16 @@ class TenantRuntimeCustomizationComposer
 
         $config = $this->composeOpenClawConfig($tenant, $customization, $baseConfig);
         $configJson = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL;
-        $manifest = array_keys($workspaceFiles);
+        $manifest = array_merge(array_keys($workspaceFiles), array_keys($skillFiles));
         sort($manifest);
 
         return new ComposedTenantRuntime(
             workspaceFiles: $workspaceFiles,
+            skillFiles: $skillFiles,
             openClawConfig: $configJson,
             baseDrifted: $baseDrifted,
             workspaceFileManifest: $manifest,
-            contentHash: $this->contentHash($workspaceFiles, $configJson),
+            contentHash: $this->contentHash($workspaceFiles, $skillFiles, $configJson),
         );
     }
 
@@ -99,7 +103,7 @@ class TenantRuntimeCustomizationComposer
      */
     public function composeOpenClawConfig(Tenant $tenant, ?TenantAgentCustomization $customization = null, ?array $baseConfig = null): array
     {
-        $tenant->loadMissing(['agentCustomization']);
+        $tenant->loadMissing(['agentCustomization', 'skillAssignments.catalogVersion']);
         $customization ??= $tenant->agentCustomization;
 
         $config = $baseConfig ?? $this->readLocalConfig($tenant);
@@ -109,54 +113,55 @@ class TenantRuntimeCustomizationComposer
         $config['skills'] = is_array($config['skills'] ?? null) ? $config['skills'] : [];
         $config['skills']['entries'] = is_array($config['skills']['entries'] ?? null) ? $config['skills']['entries'] : [];
 
-        $assignedPacks = $this->skillRegistry->resolve(is_array($customization?->assigned_skill_pack_ids) ? $customization->assigned_skill_pack_ids : []);
         $agentDefaults = is_array($customization?->agent_defaults_json) ? $customization->agent_defaults_json : [];
+        $enabledAssignments = $this->enabledAssignments($tenant);
+        $currentAssignedSkillIds = array_values(array_unique(array_merge(
+            $this->skillRegistry->openClawSkillIds($enabledAssignments),
+            $this->skillRegistry->defaultAgentSkillIds($enabledAssignments),
+            $this->normalizedSkillList((array) ($agentDefaults['default_skill_ids'] ?? [])),
+        )));
+        $currentDefaultSkillIds = array_values(array_unique(array_merge(
+            $this->skillRegistry->defaultAgentSkillIds($enabledAssignments),
+            $this->normalizedSkillList((array) ($agentDefaults['default_skill_ids'] ?? [])),
+        )));
+        $previousAssignedSkills = $this->previousAssignedSkillSnapshot($customization);
+        $removedSkillIds = array_values(array_diff($previousAssignedSkills, $currentAssignedSkillIds));
 
         if (is_string($agentDefaults['model'] ?? null) && trim((string) $agentDefaults['model']) !== '') {
             $config['agents']['defaults']['model'] = trim((string) $agentDefaults['model']);
         }
 
-        $skillIds = [];
-
-        foreach ($this->skillRegistry->openClawSkillIds($assignedPacks) as $skillId) {
-            if (! in_array($skillId, $skillIds, true)) {
-                $skillIds[] = $skillId;
-            }
-        }
-
-        foreach ($this->skillRegistry->defaultAgentSkillIds($assignedPacks) as $skillId) {
-            if (! in_array($skillId, $skillIds, true)) {
-                $skillIds[] = $skillId;
-            }
-        }
-
-        foreach ((array) ($agentDefaults['default_skill_ids'] ?? []) as $skillId) {
-            if (is_string($skillId) && trim($skillId) !== '' && ! in_array(trim($skillId), $skillIds, true)) {
-                $skillIds[] = trim($skillId);
-            }
-        }
-
-        foreach ($skillIds as $skillId) {
+        foreach ($currentAssignedSkillIds as $skillId) {
             $entry = $config['skills']['entries'][$skillId] ?? [];
             $config['skills']['entries'][$skillId] = array_merge(is_array($entry) ? $entry : [], [
                 'enabled' => true,
             ]);
         }
 
-        $config['agents']['defaults']['skills'] = $this->appendSkills(
+        foreach ($removedSkillIds as $skillId) {
+            $entry = $config['skills']['entries'][$skillId] ?? [];
+            $config['skills']['entries'][$skillId] = array_merge(is_array($entry) ? $entry : [], [
+                'enabled' => false,
+            ]);
+        }
+
+        $config['agents']['defaults']['skills'] = $this->replaceSkillSet(
             $config['agents']['defaults']['skills'] ?? [],
-            array_merge($this->skillRegistry->defaultAgentSkillIds($assignedPacks), (array) ($agentDefaults['default_skill_ids'] ?? [])),
+            $currentDefaultSkillIds,
+            $removedSkillIds,
         );
 
         if (is_array($config['agents']['list'] ?? null)) {
-            $defaultSkills = (array) ($config['agents']['defaults']['skills'] ?? []);
-
-            $config['agents']['list'] = array_map(function (mixed $agent) use ($defaultSkills): mixed {
+            $config['agents']['list'] = array_map(function (mixed $agent) use ($currentAssignedSkillIds, $removedSkillIds): mixed {
                 if (! is_array($agent)) {
                     return $agent;
                 }
 
-                $agent['skills'] = $this->appendSkills($agent['skills'] ?? [], $defaultSkills);
+                $agent['skills'] = $this->replaceSkillSet(
+                    $agent['skills'] ?? [],
+                    $currentAssignedSkillIds,
+                    $removedSkillIds,
+                );
 
                 return $agent;
             }, $config['agents']['list']);
@@ -204,12 +209,17 @@ class TenantRuntimeCustomizationComposer
         ];
     }
 
-    private function contentHash(array $workspaceFiles, string $openClawConfig): string
+    private function contentHash(array $workspaceFiles, array $skillFiles, string $openClawConfig): string
     {
         ksort($workspaceFiles);
+        ksort($skillFiles);
         $payload = '';
 
         foreach ($workspaceFiles as $name => $contents) {
+            $payload .= $name."\n".$contents."\n";
+        }
+
+        foreach ($skillFiles as $name => $contents) {
             $payload .= $name."\n".$contents."\n";
         }
 
@@ -252,7 +262,7 @@ class TenantRuntimeCustomizationComposer
      * @param  array<int, string>  $requiredSkills
      * @return array<int, string>
      */
-    private function appendSkills(mixed $skills, array $requiredSkills): array
+    private function replaceSkillSet(mixed $skills, array $requiredSkills, array $removedSkillIds): array
     {
         $normalized = [];
 
@@ -262,7 +272,72 @@ class TenantRuntimeCustomizationComposer
             }
         }
 
+        $normalized = array_values(array_filter(
+            $normalized,
+            fn (string $skill): bool => ! in_array($skill, $removedSkillIds, true),
+        ));
+
         foreach ($requiredSkills as $skill) {
+            if (is_string($skill) && trim($skill) !== '' && ! in_array(trim($skill), $normalized, true)) {
+                $normalized[] = trim($skill);
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return Collection<int, TenantSkillAssignment>
+     */
+    private function enabledAssignments(Tenant $tenant): Collection
+    {
+        return $tenant->skillAssignments
+            ->filter(fn (TenantSkillAssignment $assignment): bool => $assignment->is_enabled)
+            ->values();
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function previousAssignedSkillSnapshot(?TenantAgentCustomization $customization): array
+    {
+        $snapshot = is_array($customization?->last_applied_input_snapshot_json)
+            ? $customization->last_applied_input_snapshot_json
+            : [];
+        $skillIds = [];
+
+        foreach ((array) ($snapshot['assigned_skills'] ?? []) as $assignment) {
+            foreach ((array) ($assignment['openclaw_skill_ids'] ?? []) as $skillId) {
+                if (is_string($skillId) && trim($skillId) !== '' && ! in_array(trim($skillId), $skillIds, true)) {
+                    $skillIds[] = trim($skillId);
+                }
+            }
+
+            foreach ((array) ($assignment['default_agent_skill_ids'] ?? []) as $skillId) {
+                if (is_string($skillId) && trim($skillId) !== '' && ! in_array(trim($skillId), $skillIds, true)) {
+                    $skillIds[] = trim($skillId);
+                }
+            }
+        }
+
+        foreach ($this->normalizedSkillList((array) data_get($snapshot, 'agent_defaults.default_skill_ids', [])) as $skillId) {
+            if (! in_array($skillId, $skillIds, true)) {
+                $skillIds[] = $skillId;
+            }
+        }
+
+        return $skillIds;
+    }
+
+    /**
+     * @param  array<int, mixed>  $skills
+     * @return list<string>
+     */
+    private function normalizedSkillList(array $skills): array
+    {
+        $normalized = [];
+
+        foreach ($skills as $skill) {
             if (is_string($skill) && trim($skill) !== '' && ! in_array(trim($skill), $normalized, true)) {
                 $normalized[] = trim($skill);
             }

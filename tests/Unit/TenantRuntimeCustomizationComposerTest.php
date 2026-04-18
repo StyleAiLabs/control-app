@@ -6,8 +6,10 @@ use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
 use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
+use App\Models\SkillCatalogVersion;
 use App\Models\Tenant;
 use App\Models\TenantAgentCustomization;
+use App\Models\TenantSkillAssignment;
 use App\Models\User;
 use App\Services\TenantRuntimeCustomizationComposer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -21,6 +23,7 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
     public function test_it_composes_runtime_output_with_prompt_overrides_and_canonical_skill_shape(): void
     {
         $tenant = $this->seedTenant();
+        $this->artisan('sync360:skills:import')->assertExitCode(0);
 
         BusinessProfile::query()->create([
             'tenant_id' => $tenant->id,
@@ -53,7 +56,6 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
                     'base_snapshot' => "# Bootstrap\n\nBase bootstrap",
                 ],
             ],
-            'assigned_skill_pack_ids' => ['appointment-booking'],
             'agent_defaults_json' => [
                 'model' => 'gpt-4.1',
                 'default_skill_ids' => ['custom-default-skill'],
@@ -70,6 +72,12 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
                     'model' => 'gpt-4o',
                     'skills' => ['existing-skill'],
                 ],
+                'list' => [
+                    [
+                        'name' => 'assistant',
+                        'skills' => ['tenant-existing-skill'],
+                    ],
+                ],
             ],
             'skills' => [
                 'entries' => [
@@ -83,11 +91,21 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
             ],
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
 
+        TenantSkillAssignment::query()->create([
+            'tenant_id' => $tenant->id,
+            'skill_catalog_version_id' => SkillCatalogVersion::query()->where('skill_key', 'appointment-booking')->value('id'),
+            'skill_key' => 'appointment-booking',
+            'assigned_by' => $tenant->user_id,
+            'assigned_at' => now(),
+            'is_enabled' => true,
+        ]);
+
         $composed = app(TenantRuntimeCustomizationComposer::class)->compose($tenant->fresh([
             'businessProfile',
             'businessProfileFiles',
             'googleCredential',
             'agentCustomization',
+            'skillAssignments.catalogVersion',
         ]));
 
         $this->assertStringContainsString('Base identity', $composed->workspaceFiles['IDENTITY.md']);
@@ -107,6 +125,10 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
         $this->assertEqualsCanonicalizing(
             ['existing-skill', 'appointment-booking', 'custom-default-skill', 'gog'],
             data_get($config, 'agents.defaults.skills')
+        );
+        $this->assertEqualsCanonicalizing(
+            ['tenant-existing-skill', 'appointment-booking', 'custom-default-skill', 'gog'],
+            data_get($config, 'agents.list.0.skills')
         );
         $this->assertNotSame('', $composed->contentHash);
     }
@@ -140,7 +162,6 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
                     'base_snapshot' => "# Identity\n\nOld identity",
                 ],
             ],
-            'assigned_skill_pack_ids' => [],
             'agent_defaults_json' => [],
             'draft_version' => 1,
             'draft_updated_by' => $tenant->user_id,

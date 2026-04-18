@@ -169,11 +169,21 @@ class AdminDebugTest extends TestCase
         $this->get('/admin')
             ->assertOk()
             ->assertSee('Admin Overview')
+            ->assertSee('Overview')
+            ->assertSee('Tenants')
+            ->assertSee('Skill Catalog')
+            ->assertSee('Jobs')
             ->assertSee('Control App Deploy')
             ->assertSee('codex/control-app-prod-deploy')
             ->assertSee('deploy@161.97.74.128')
             ->assertSee('Fix control app deploy shell commands')
             ->assertSee('Fetch Latest And Deploy');
+
+        $this->get(route('admin.skills.index'))
+            ->assertOk()
+            ->assertSee('Skill Catalog')
+            ->assertSee('Scan Repo Skills')
+            ->assertSee('Import Repo Skills');
 
         $this->get(route('admin.deploy.control-app.status'))
             ->assertOk()
@@ -235,6 +245,32 @@ class AdminDebugTest extends TestCase
         $this->post(route('admin.deploy.control-app'))
             ->assertRedirect()
             ->assertSessionHas('status', 'Control app deploy started. Remote process id: 12345');
+    }
+
+    public function test_skill_catalog_feature_flags_hide_or_block_admin_actions(): void
+    {
+        $admin = User::query()->create([
+            'name' => 'Flagged Admin',
+            'email' => 'flags@example.com',
+            'password' => 'super-secret',
+            'is_admin' => true,
+        ]);
+
+        $this->actingAs($admin);
+
+        config()->set('sync360.skill_catalog.enabled', false);
+
+        $this->get(route('admin.skills.index'))->assertNotFound();
+
+        config()->set('sync360.skill_catalog.enabled', true);
+        config()->set('sync360.skill_catalog.scan_enabled', false);
+
+        $this->post(route('admin.skills.scan'))->assertNotFound();
+
+        config()->set('sync360.skill_catalog.scan_enabled', true);
+        config()->set('sync360.skill_catalog.import_enabled', false);
+
+        $this->post(route('admin.skills.import'))->assertNotFound();
     }
 
     public function test_admin_page_stays_available_when_control_app_deploy_status_is_misconfigured(): void

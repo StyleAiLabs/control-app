@@ -1234,6 +1234,27 @@ Notable changes:
 - Updated [README.md](/Users/gayanhewage/Projects/openclaw-saas/README.md) and [ARCHITECTURE.md](/Users/gayanhewage/Projects/openclaw-saas/ARCHITECTURE.md)
 
 Verification:
+## 2026-04-18 - Skill Catalog, Tenant Skill Assignment, and Runtime Skill Diagnostics
+
+Date: 2026-04-18
+Branch: `cdx-feature/V1SkillCatalogTenantAssignment`
+Commit: `uncommitted`
+
+Summary:
+- Added a scan-first Sync360 skill catalog, first-class tenant skill assignments, and tenant runtime skill diagnostics.
+
+Notable changes:
+- Added DB-backed skill catalog and tenant assignment models, migrations, and admin catalog screens.
+- Split tenant `Skills` management out from prompt/runtime customization while keeping one tenant apply pipeline.
+- Changed live custom skill materialization toward OpenClaw-native workspace `skills/` layout and removed legacy skill-pack delivery from the authoritative path.
+- Added scan/import commands and admin UI for repo-authored skills with `production_ready` manifest gating.
+- Added tenant `Runtime Available Skills` diagnostics using `openclaw skills list --eligible` with a refresh action in the tenant `Skills` tab.
+- Added the analytics discovery command and written finding gate instead of assuming runtime skill-usage logs already exist.
+
+Verification:
+- `php artisan test` passed with `129 passed (1039 assertions)`
+- `bash scripts/check-canonical-docs.sh --worktree` passes after the canonical doc updates in this release note set
+
 - `php artisan test` passes with `16 passed` and `171 assertions`
 - `php artisan test --filter=AdminDebugTest --stop-on-failure` passes
 - `php artisan test --filter=ControlAppDeploymentServiceTest --stop-on-failure` passes

@@ -130,6 +130,11 @@ class Tenant extends Model
         return $this->hasMany(TenantAgentCustomizationApply::class);
     }
 
+    public function skillAssignments(): HasMany
+    {
+        return $this->hasMany(TenantSkillAssignment::class);
+    }
+
     public function workspaceHost(): string
     {
         $this->loadMissing('server');

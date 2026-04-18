@@ -874,6 +874,10 @@ Notable current additions:
 - `services.google.client_secret`
 - `services.google.redirect_uri`
 - `services.google.project_id`
+- `skill_catalog.enabled`
+- `skill_catalog.scan_enabled`
+- `skill_catalog.import_enabled`
+- `skill_catalog.rollout_enabled`
 
 ## 11. Constraints and known gaps
 
@@ -884,6 +888,8 @@ Notable current additions:
 - Production assumptions should be verified against the deployed environment rather than inferred from repo docs alone.
 - Host-managed runtime capability commands are intentionally unsupported in `local` mode.
 - `goLive()` must continue to sync workspace markdown only and must not be extended to deliver host binaries or full runtime config.
+- Tenant skill management is now split between DB-backed catalog/assignment state and runtime diagnostics. The tenant `Skills` tab remains the assignment surface, while a separate read-only `Runtime Available Skills` panel shells into the tenant runtime with `openclaw skills list --eligible` for operator diagnostics only.
+- Tenant runtime skill discovery is diagnostic, not authoritative. Assignment and rollout still come from `SkillCatalogItem`, `SkillCatalogVersion`, `TenantSkillAssignment`, and the existing tenant customization/apply pipeline.
 
 ## 12. Code map for contributors
 
@@ -902,6 +908,9 @@ Start with these files:
 - `app/Services/GogAuthStorageService.php`
 - `app/Services/TenantRuntimeCapabilityService.php`
 - `app/Services/TenantRuntimeService.php`
+- `app/Services/SkillCatalogService.php`
+- `app/Services/TenantSkillAssignmentService.php`
+- `app/Services/TenantRuntimeSkillDiscoveryService.php`
 - `app/Services/TenantAgentSyncService.php`
 - `app/Services/TenantGatewayService.php`
 - `app/Services/TenantHealthCheckService.php`

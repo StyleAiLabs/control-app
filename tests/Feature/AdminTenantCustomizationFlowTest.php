@@ -9,12 +9,16 @@ use App\Jobs\ApplyTenantAgentCustomization;
 use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
 use App\Models\ProvisioningJob;
+use App\Models\SkillCatalogVersion;
 use App\Models\Tenant;
 use App\Models\TenantAgentCustomization;
 use App\Models\TenantAgentCustomizationApply;
+use App\Models\TenantSkillAssignment;
 use App\Models\User;
 use App\Services\TenantHealthCheckService;
+use App\Services\TenantRuntimeSkillDiscoveryService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
@@ -47,7 +51,7 @@ class AdminTenantCustomizationFlowTest extends TestCase
 
         $this->patch(route('admin.tenants.agent-customization.update', $tenant), [
             'return_tab' => 'skills',
-            'assigned_skill_pack_ids' => ['appointment-booking'],
+            'assigned_skill_keys' => ['appointment-booking'],
             'agent_defaults' => [
                 'default_skill_ids' => 'custom-default-skill, follow-up-skill',
             ],
@@ -57,7 +61,7 @@ class AdminTenantCustomizationFlowTest extends TestCase
 
         $this->assertSame(2, $customization->draft_version);
         $this->assertSame('append', data_get($customization->prompt_overrides_json, 'identity.mode'));
-        $this->assertSame(['appointment-booking'], $customization->assigned_skill_pack_ids);
+        $this->assertSame(['appointment-booking'], $tenant->skillAssignments()->where('is_enabled', true)->pluck('skill_key')->all());
         $this->assertSame('gpt-4.1', data_get($customization->agent_defaults_json, 'model'));
         $this->assertSame(
             ['custom-default-skill', 'follow-up-skill'],
@@ -103,14 +107,13 @@ class AdminTenantCustomizationFlowTest extends TestCase
         TenantAgentCustomization::query()->create([
             'tenant_id' => $tenant->id,
             'prompt_overrides_json' => [],
-            'assigned_skill_pack_ids' => [],
             'agent_defaults_json' => [],
             'draft_version' => 1,
             'draft_updated_by' => $admin->id,
             'draft_updated_at' => now(),
             'last_applied_input_snapshot_json' => [
                 'prompt_overrides' => [],
-                'assigned_skill_pack_ids' => [],
+                'assigned_skills' => [],
                 'agent_defaults' => [],
             ],
         ]);
@@ -130,7 +133,6 @@ class AdminTenantCustomizationFlowTest extends TestCase
         $customization = TenantAgentCustomization::query()->create([
             'tenant_id' => $tenant->id,
             'prompt_overrides_json' => [],
-            'assigned_skill_pack_ids' => [],
             'agent_defaults_json' => [],
             'draft_version' => 1,
             'draft_updated_by' => $admin->id,
@@ -143,7 +145,7 @@ class AdminTenantCustomizationFlowTest extends TestCase
             'applied_by' => $admin->id,
             'action' => TenantAgentCustomizationApply::ACTION_APPLY,
             'draft_version_applied' => 1,
-            'input_snapshot_json' => ['assigned_skill_pack_ids' => []],
+            'input_snapshot_json' => ['assigned_skills' => []],
             'before_output_hash' => null,
             'after_output_hash' => 'hash-1',
             'status' => TenantAgentCustomizationApply::STATUS_APPLIED,
@@ -164,7 +166,6 @@ class AdminTenantCustomizationFlowTest extends TestCase
         $customization = TenantAgentCustomization::query()->create([
             'tenant_id' => $tenant->id,
             'prompt_overrides_json' => [],
-            'assigned_skill_pack_ids' => ['appointment-booking'],
             'agent_defaults_json' => [
                 'model' => 'gpt-4o',
                 'default_skill_ids' => ['booking-skill'],
@@ -172,6 +173,15 @@ class AdminTenantCustomizationFlowTest extends TestCase
             'draft_version' => 2,
             'draft_updated_by' => $admin->id,
             'draft_updated_at' => now(),
+        ]);
+
+        TenantSkillAssignment::query()->create([
+            'tenant_id' => $tenant->id,
+            'skill_catalog_version_id' => SkillCatalogVersion::query()->where('skill_key', 'appointment-booking')->value('id'),
+            'skill_key' => 'appointment-booking',
+            'assigned_by' => $admin->id,
+            'assigned_at' => now(),
+            'is_enabled' => true,
         ]);
 
         TenantAgentCustomizationApply::query()->create([
@@ -182,7 +192,7 @@ class AdminTenantCustomizationFlowTest extends TestCase
             'draft_version_applied' => 1,
             'input_snapshot_json' => [
                 'prompt_overrides' => [],
-                'assigned_skill_pack_ids' => [],
+                'assigned_skills' => [],
                 'agent_defaults' => [],
             ],
             'before_output_hash' => null,
@@ -199,7 +209,13 @@ class AdminTenantCustomizationFlowTest extends TestCase
             'draft_version_applied' => 2,
             'input_snapshot_json' => [
                 'prompt_overrides' => [],
-                'assigned_skill_pack_ids' => ['appointment-booking'],
+                'assigned_skills' => [
+                    [
+                        'skill_key' => 'appointment-booking',
+                        'openclaw_skill_ids' => ['appointment-booking'],
+                        'default_agent_skill_ids' => ['appointment-booking'],
+                    ],
+                ],
                 'agent_defaults' => [
                     'model' => 'gpt-4o',
                     'default_skill_ids' => ['booking-skill'],
@@ -215,6 +231,8 @@ class AdminTenantCustomizationFlowTest extends TestCase
 
         $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'skills']))
             ->assertOk()
+            ->assertSee('applied')
+            ->assertSee('1 assigned')
             ->assertSee('Skill Change History')
             ->assertSee('Enabled skill pack: Appointment Booking')
             ->assertSee('Added default skill ID: booking-skill')
@@ -256,7 +274,6 @@ class AdminTenantCustomizationFlowTest extends TestCase
                     'base_snapshot' => '# Identity'.PHP_EOL.PHP_EOL.'Base identity',
                 ],
             ],
-            'assigned_skill_pack_ids' => [],
             'agent_defaults_json' => [
                 'model' => 'gpt-4.1',
             ],
@@ -269,7 +286,7 @@ class AdminTenantCustomizationFlowTest extends TestCase
 
         $this->patch(route('admin.tenants.agent-customization.update', $tenant), [
             'return_tab' => 'skills',
-            'assigned_skill_pack_ids' => ['appointment-booking'],
+            'assigned_skill_keys' => ['appointment-booking'],
             'agent_defaults' => [
                 'default_skill_ids' => 'booking-skill',
             ],
@@ -279,7 +296,7 @@ class AdminTenantCustomizationFlowTest extends TestCase
 
         $this->assertSame('Keep this prompt override', data_get($customization->prompt_overrides_json, 'identity.content'));
         $this->assertSame('gpt-4.1', data_get($customization->agent_defaults_json, 'model'));
-        $this->assertSame(['appointment-booking'], $customization->assigned_skill_pack_ids);
+        $this->assertSame(['appointment-booking'], $tenant->skillAssignments()->where('is_enabled', true)->pluck('skill_key')->all());
         $this->assertSame(['booking-skill'], data_get($customization->agent_defaults_json, 'default_skill_ids'));
     }
 
@@ -290,7 +307,6 @@ class AdminTenantCustomizationFlowTest extends TestCase
         TenantAgentCustomization::query()->create([
             'tenant_id' => $tenant->id,
             'prompt_overrides_json' => [],
-            'assigned_skill_pack_ids' => ['appointment-booking'],
             'agent_defaults_json' => [
                 'model' => 'gpt-4.1',
                 'default_skill_ids' => ['booking-skill'],
@@ -298,6 +314,15 @@ class AdminTenantCustomizationFlowTest extends TestCase
             'draft_version' => 1,
             'draft_updated_by' => $admin->id,
             'draft_updated_at' => now(),
+        ]);
+
+        TenantSkillAssignment::query()->create([
+            'tenant_id' => $tenant->id,
+            'skill_catalog_version_id' => SkillCatalogVersion::query()->where('skill_key', 'appointment-booking')->value('id'),
+            'skill_key' => 'appointment-booking',
+            'assigned_by' => $admin->id,
+            'assigned_at' => now(),
+            'is_enabled' => true,
         ]);
 
         $this->actingAs($admin);
@@ -317,7 +342,7 @@ class AdminTenantCustomizationFlowTest extends TestCase
 
         $customization = TenantAgentCustomization::query()->firstOrFail();
 
-        $this->assertSame(['appointment-booking'], $customization->assigned_skill_pack_ids);
+        $this->assertSame(['appointment-booking'], $tenant->skillAssignments()->where('is_enabled', true)->pluck('skill_key')->all());
         $this->assertSame(['booking-skill'], data_get($customization->agent_defaults_json, 'default_skill_ids'));
         $this->assertSame('gpt-4o', data_get($customization->agent_defaults_json, 'model'));
         $this->assertSame('Runtime-only update', data_get($customization->prompt_overrides_json, 'identity.content'));
@@ -359,12 +384,28 @@ class AdminTenantCustomizationFlowTest extends TestCase
         $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'skills']))
             ->assertOk()
             ->assertSee('Tenant Skills')
-            ->assertSee('Skill Packs')
-            ->assertSee('Default Skill IDs')
+            ->assertSee('Assignment Workflow')
+            ->assertSee('Available Skills')
+            ->assertSee('Advanced Agent Mapping')
+            ->assertSee('Runtime Available Skills')
+            ->assertSee('Refresh Runtime Skills')
+            ->assertSee('data-skill-catalog-layout="full-width"', false)
+            ->assertSee('no skills assigned')
+            ->assertSee('none assigned')
             ->assertSee('data-active-tab="skills"', false)
+            ->assertDontSee('draft only')
+            ->assertDontSee('draft v0')
             ->assertDontSee('Current IDENTITY.md')
             ->assertDontSee('Google Workspace Connection')
             ->assertDontSee('Permanent Delete');
+
+        $this->assertSame(
+            1,
+            substr_count(
+                $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'skills']))->getContent(),
+                'no skills assigned'
+            )
+        );
 
         $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']))
             ->assertOk()
@@ -375,6 +416,41 @@ class AdminTenantCustomizationFlowTest extends TestCase
             ->assertDontSee('Default Skill IDs')
             ->assertDontSee('Google Workspace Connection')
             ->assertDontSee('Permanent Delete');
+    }
+
+    public function test_admin_can_refresh_runtime_available_skills_from_skills_tab(): void
+    {
+        [$admin, $tenant] = $this->seedAdminAndTenant();
+
+        $this->mock(TenantRuntimeSkillDiscoveryService::class, function ($mock) use ($tenant): void {
+            $mock->shouldReceive('inspect')
+                ->once()
+                ->withArgs(fn (Tenant $candidate): bool => $candidate->is($tenant))
+                ->andReturn([
+                    'workspace_state' => 'running',
+                    'refreshed_at' => '2026-04-18 20:05:00',
+                    'skills' => ['appointment-booking', 'gog'],
+                    'raw_output' => "appointment-booking\ngog",
+                ]);
+        });
+
+        $this->actingAs($admin);
+
+        $response = $this->post(route('admin.tenants.skills.runtime-refresh', $tenant), [
+            'return_tab' => 'skills',
+        ]);
+
+        $response->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'skills']));
+
+        $this->followRedirects($response)
+            ->assertOk()
+            ->assertSee('Runtime skills refreshed.')
+            ->assertSee('Runtime Available Skills')
+            ->assertSee('appointment-booking')
+            ->assertSee('gog')
+            ->assertSee('Workspace state')
+            ->assertSee('running')
+            ->assertSee('Raw command output');
     }
 
     public function test_admin_tenant_page_uses_compact_sidebar_navigation(): void
@@ -425,7 +501,7 @@ class AdminTenantCustomizationFlowTest extends TestCase
 
         $this->patch(route('admin.tenants.agent-customization.update', $tenant), [
             'return_tab' => 'skills',
-            'assigned_skill_pack_ids' => ['appointment-booking'],
+            'assigned_skill_keys' => ['appointment-booking'],
             'agent_defaults' => [
                 'default_skill_ids' => 'custom-default-skill',
             ],
@@ -465,6 +541,27 @@ class AdminTenantCustomizationFlowTest extends TestCase
         Schema::dropIfExists('tenant_agent_customizations');
 
         $this->actingAs($admin);
+
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']))
+            ->assertOk()
+            ->assertSee('Agent runtime customization is unavailable')
+            ->assertDontSee('SQLSTATE');
+    }
+
+    public function test_admin_tenant_page_handles_missing_skill_catalog_tables_gracefully(): void
+    {
+        [$admin, $tenant] = $this->seedAdminAndTenant();
+
+        Schema::dropIfExists('tenant_skill_assignments');
+        Schema::dropIfExists('skill_catalog_versions');
+        Schema::dropIfExists('skill_catalog_items');
+
+        $this->actingAs($admin);
+
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'skills']))
+            ->assertOk()
+            ->assertSee('Tenant skills are unavailable')
+            ->assertDontSee('SQLSTATE');
 
         $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']))
             ->assertOk()
@@ -519,6 +616,10 @@ class AdminTenantCustomizationFlowTest extends TestCase
             'bootstrap_markdown' => "# Bootstrap\n\nBase bootstrap",
             'generated_at' => now(),
         ]);
+
+        Artisan::call('sync360:skills:import');
+        $version = SkillCatalogVersion::query()->where('skill_key', 'appointment-booking')->first();
+        $version?->forceFill(['is_active_published' => true])->save();
 
         $runtimeRoot = config('sync360.runtime_root').'/'.$tenant->slug;
         File::ensureDirectoryExists($runtimeRoot.'/config');
