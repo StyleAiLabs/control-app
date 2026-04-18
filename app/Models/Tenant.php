@@ -120,6 +120,16 @@ class Tenant extends Model
         return $this->hasOne(TenantGoogleCredential::class);
     }
 
+    public function agentCustomization(): HasOne
+    {
+        return $this->hasOne(TenantAgentCustomization::class);
+    }
+
+    public function agentCustomizationApplies(): HasMany
+    {
+        return $this->hasMany(TenantAgentCustomizationApply::class);
+    }
+
     public function workspaceHost(): string
     {
         $this->loadMissing('server');

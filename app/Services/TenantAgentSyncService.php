@@ -27,6 +27,7 @@ class TenantAgentSyncService
         private readonly GogCommandCatalogService $gogCommands,
         private readonly TenantGoogleWorkspaceSmokeTestService $googleWorkspaceSmokeTests,
         private readonly TenantRuntimeCapabilityService $runtimeCapabilities,
+        private readonly TenantRuntimeCustomizationComposer $runtimeCustomizationComposer,
     ) {
     }
 
@@ -166,12 +167,8 @@ class TenantAgentSyncService
             default => null, /* WhatsApp will be added in a future phase. */
         };
 
-        $config = $this->runtimeCapabilities->applyOpenClawSkills($config);
-
-        $this->files->put(
-            $configPath,
-            json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL,
-        );
+        $configContents = $this->renderComposedConfigContents($tenant, $config);
+        $this->files->put($configPath, $configContents);
 
         /* Restart the gateway so it picks up the new config. */
         if (app()->environment('local')) {
@@ -188,7 +185,7 @@ class TenantAgentSyncService
         $this->dockerCompose->putFile(
             $tenant->server,
             $remoteConfigPath,
-            json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL,
+            $configContents,
         );
 
         /* Restart instead of full up — faster and preserves session data. */
@@ -218,12 +215,9 @@ class TenantAgentSyncService
 
         $config = json_decode($this->files->get($configPath), true) ?: [];
         unset($config['channels']);
-        $config = $this->runtimeCapabilities->applyOpenClawSkills($config);
+        $configContents = $this->renderComposedConfigContents($tenant, $config);
 
-        $this->files->put(
-            $configPath,
-            json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL,
-        );
+        $this->files->put($configPath, $configContents);
 
         if (app()->environment('local')) {
             Log::info('[RemoveChannelConfig] Local dev mode — channels removed from config for tenant '.$tenant->slug);
@@ -239,7 +233,7 @@ class TenantAgentSyncService
         $this->dockerCompose->putFile(
             $tenant->server,
             $remoteConfigPath,
-            json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL,
+            $configContents,
         );
 
         $this->dockerCompose->runCommand(
@@ -283,7 +277,7 @@ class TenantAgentSyncService
         }
 
         $composeUpdate = $this->runtimeCapabilities->syncLocalCompose($tenant, ['gog']);
-        $configUpdate = $this->runtimeCapabilities->syncLocalOpenClawConfig($tenant, ['gog']);
+        $configUpdate = $this->syncLocalComposedOpenClawConfig($tenant);
 
         if (! app()->environment('local')) {
             $remoteConfigRoot = $this->gogAuthStorage->remoteConfigRoot($tenant);
@@ -354,7 +348,7 @@ class TenantAgentSyncService
 
         if (filled($tenant->runtime_path)) {
             $composeUpdate = $this->runtimeCapabilities->syncLocalCompose($tenant, ['gog']);
-            $configUpdate = $this->runtimeCapabilities->syncLocalOpenClawConfig($tenant, ['gog']);
+            $configUpdate = $this->syncLocalComposedOpenClawConfig($tenant);
         }
 
         if ($tenant->server && filled($tenant->runtime_path)) {
@@ -579,23 +573,50 @@ class TenantAgentSyncService
      */
     private function artifactContents(Tenant $tenant, BusinessProfile $profile, BusinessProfileFiles $profileFiles): array
     {
-        $googleCredential = GoogleWorkspaceFeature::isAvailable() ? $tenant->googleCredential : null;
-        $services = $this->stringList($profile->services);
-        $capabilities = $this->stringList($tenant->capabilities);
-        $channelLabel = match ($tenant->channel) {
-            'whatsapp' => 'WhatsApp',
-            'telegram' => 'Telegram',
-            default => 'Customer messaging channel',
-        };
+        return $this->runtimeCustomizationComposer->compose(
+            $tenant->fresh(['businessProfile', 'businessProfileFiles', 'googleCredential', 'agentCustomization'])
+        )->workspaceFiles;
+    }
+
+    /**
+     * @param  array<string, mixed>  $baseConfig
+     */
+    private function renderComposedConfigContents(Tenant $tenant, array $baseConfig): string
+    {
+        return json_encode(
+            $this->runtimeCustomizationComposer->composeOpenClawConfig(
+                $tenant->fresh(['agentCustomization']),
+                $tenant->fresh()->agentCustomization,
+                $baseConfig,
+            ),
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+        ).PHP_EOL;
+    }
+
+    /**
+     * @return array{changed:bool, contents:string, remote_config_file:string}
+     */
+    private function syncLocalComposedOpenClawConfig(Tenant $tenant): array
+    {
+        $localConfigPath = $this->runtime->localOpenClawConfigPath($tenant);
+
+        if (! $this->files->exists($localConfigPath)) {
+            throw new RuntimeException('The tenant OpenClaw config file does not exist yet, so runtime capabilities cannot be applied.');
+        }
+
+        $existingContents = $this->files->get($localConfigPath);
+        $existingConfig = json_decode($existingContents, true) ?: [];
+        $updatedContents = $this->renderComposedConfigContents($tenant, $existingConfig);
+        $changed = $updatedContents !== $existingContents;
+
+        if ($changed) {
+            $this->files->put($localConfigPath, $updatedContents);
+        }
 
         return [
-            'IDENTITY.md' => $this->normalizeMarkdown($profileFiles->identity_markdown),
-            'SOUL.md' => $this->normalizeMarkdown($profileFiles->soul_markdown),
-            'USER.md' => $this->normalizeMarkdown($profileFiles->user_markdown),
-            'BOOTSTRAP.md' => $this->normalizeMarkdown($profileFiles->bootstrap_markdown),
-            'TOOLS.md' => $this->normalizeMarkdown($this->buildToolsMarkdown($googleCredential)),
-            'PROFILE.md' => $this->normalizeMarkdown($this->buildProfileMarkdown($tenant, $profile, $services, $capabilities, $channelLabel, $googleCredential)),
-            'HEARTBEAT.md' => $this->normalizeMarkdown($this->buildHeartbeatMarkdown($tenant, $profile, $capabilities, $channelLabel, $googleCredential)),
+            'changed' => $changed,
+            'contents' => $updatedContents,
+            'remote_config_file' => $this->runtime->remoteOpenClawConfigPath($tenant),
         ];
     }
 

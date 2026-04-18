@@ -5,23 +5,30 @@ namespace App\Http\Controllers;
 use App\Contracts\DockerComposeRunner;
 use App\Enums\ProvisioningJobStatus;
 use App\Enums\TenantProvisioningStatus;
+use App\Jobs\ApplyTenantAgentCustomization;
 use App\Jobs\ProcessInitialGoogleWorkspaceSync;
 use App\Jobs\ProcessTenantProvisioning;
 use App\Models\ProvisioningJob;
 use App\Models\Tenant;
+use App\Models\TenantAgentCustomizationApply;
 use App\Models\TenantGoogleCredential;
 use App\Models\User;
 use App\Services\ControlAppDeploymentService;
+use App\Services\TenantAgentCustomizationService;
 use App\Services\TenantAgentSyncService;
 use App\Services\TenantDeletionService;
 use App\Services\TenantHealthCheckService;
 use App\Services\TenantProfileSyncService;
+use App\Services\TenantRuntimeCustomizationComposer;
+use App\Services\TenantSkillRegistryService;
 use App\Services\TenantRuntimeService;
 use App\Services\WorkspaceReadyEmailService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
@@ -38,6 +45,9 @@ class AdminController extends Controller
         private readonly WorkspaceReadyEmailService $workspaceReadyEmail,
         private readonly TenantRuntimeService $runtime,
         private readonly TenantDeletionService $tenantDeletion,
+        private readonly TenantAgentCustomizationService $tenantCustomizations,
+        private readonly TenantRuntimeCustomizationComposer $tenantRuntimeComposer,
+        private readonly TenantSkillRegistryService $skillRegistry,
     ) {}
 
     public function index(): View
@@ -106,6 +116,8 @@ class AdminController extends Controller
             'user',
             'server',
             'googleCredential',
+            'agentCustomization',
+            'agentCustomizationApplies',
             'businessProfile',
             'businessProfileFiles',
             'provisioningJobs' => fn ($query) => $query->latest('id'),
@@ -119,6 +131,8 @@ class AdminController extends Controller
             'latestJob' => $tenant->provisioningJobs->first(),
             'googleSyncJob' => $googleSyncJob,
             'googleState' => $this->googleStateFor($tenant, $googleSyncJob),
+            'skillRegistry' => array_values($this->skillRegistry->all()),
+            'canApplyAgentCustomization' => Gate::allows('admin.tenants.agent-customization.apply'),
         ]);
     }
 
@@ -314,6 +328,113 @@ class AdminController extends Controller
         ));
     }
 
+    public function updateAgentCustomization(Request $request, Tenant $tenant): RedirectResponse
+    {
+        $payload = $this->validatedCustomizationPayload($request, $tenant);
+        $this->tenantCustomizations->saveDraft($tenant->fresh(['businessProfileFiles', 'agentCustomization']), $request->user(), $payload);
+
+        return redirect()->route('admin.tenants.show', $tenant)->with('status', 'Tenant agent customization draft saved.');
+    }
+
+    public function previewAgentCustomization(Request $request, Tenant $tenant): JsonResponse
+    {
+        $tenant->loadMissing(['businessProfile', 'businessProfileFiles', 'googleCredential', 'agentCustomization']);
+
+        if ($request->all() !== []) {
+            $payload = $this->validatedCustomizationPayload($request, $tenant);
+            $customization = $tenant->agentCustomization ?: $tenant->agentCustomization()->make();
+            $customization->forceFill([
+                'prompt_overrides_json' => $payload['prompt_overrides'],
+                'assigned_skill_pack_ids' => $payload['assigned_skill_pack_ids'],
+                'agent_defaults_json' => $payload['agent_defaults'],
+            ]);
+        } else {
+            $customization = $tenant->agentCustomization;
+        }
+
+        $composed = $this->tenantRuntimeComposer->compose($tenant, $customization);
+
+        return response()->json($composed->diagnosticPayload());
+    }
+
+    public function applyAgentCustomization(Request $request, Tenant $tenant): RedirectResponse
+    {
+        Gate::authorize('admin.tenants.agent-customization.apply');
+
+        $customization = $tenant->agentCustomization;
+
+        if (! $customization) {
+            return redirect()->route('admin.tenants.show', $tenant)->with('status', 'Save a tenant agent customization draft before applying it.');
+        }
+
+        $job = ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Queued,
+            'payload_json' => [
+                'action' => TenantAgentCustomizationApply::ACTION_APPLY,
+            ],
+        ]);
+
+        ApplyTenantAgentCustomization::dispatch(
+            $tenant->id,
+            $job->id,
+            TenantAgentCustomizationApply::ACTION_APPLY,
+        )->afterCommit();
+
+        return redirect()->route('admin.tenants.show', $tenant)->with('status', 'Tenant agent customization apply queued.');
+    }
+
+    public function revertAgentCustomization(Request $request, Tenant $tenant): RedirectResponse
+    {
+        Gate::authorize('admin.tenants.agent-customization.apply');
+
+        $customization = $tenant->agentCustomization;
+
+        if (! $customization?->last_applied_input_snapshot_json) {
+            return redirect()->route('admin.tenants.show', $tenant)->with('status', 'There is no previously applied customization snapshot to restore.');
+        }
+
+        $job = ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Queued,
+            'payload_json' => [
+                'action' => TenantAgentCustomizationApply::ACTION_REVERT,
+            ],
+        ]);
+
+        ApplyTenantAgentCustomization::dispatch(
+            $tenant->id,
+            $job->id,
+            TenantAgentCustomizationApply::ACTION_REVERT,
+        )->afterCommit();
+
+        return redirect()->route('admin.tenants.show', $tenant)->with('status', 'Tenant agent customization revert queued.');
+    }
+
+    public function agentCustomizationApplyLog(Tenant $tenant): JsonResponse
+    {
+        $entries = $tenant->agentCustomizationApplies()
+            ->latest('id')
+            ->get()
+            ->map(fn (TenantAgentCustomizationApply $entry): array => [
+                'id' => $entry->id,
+                'action' => $entry->action,
+                'status' => $entry->status,
+                'draft_version_applied' => $entry->draft_version_applied,
+                'before_output_hash' => $entry->before_output_hash,
+                'after_output_hash' => $entry->after_output_hash,
+                'error' => $entry->error,
+                'created_at' => $entry->created_at?->toDateTimeString(),
+            ])
+            ->values();
+
+        return response()->json([
+            'data' => $entries,
+        ]);
+    }
+
     public function destroyTenant(Tenant $tenant): RedirectResponse
     {
         $validated = request()->validate([
@@ -383,6 +504,30 @@ class AdminController extends Controller
         return $this->dockerCompose->isRunning($tenant->server, $composeFile, $projectName)
             ? 'running'
             : 'stopped';
+    }
+
+    /**
+     * @return array{
+     *     prompt_overrides: array<string, array{mode:string, content:string, base_snapshot:string}>,
+     *     assigned_skill_pack_ids: array<int, string>,
+     *     agent_defaults: array<string, mixed>
+     * }
+     */
+    private function validatedCustomizationPayload(Request $request, Tenant $tenant): array
+    {
+        $validated = $request->validate([
+            'prompt_overrides' => ['nullable', 'array'],
+            'prompt_overrides.*.mode' => ['nullable', 'string', 'in:append,replace'],
+            'prompt_overrides.*.content' => ['nullable', 'string'],
+            'assigned_skill_pack_ids' => ['nullable', 'array'],
+            'assigned_skill_pack_ids.*' => ['string'],
+            'agent_defaults' => ['nullable', 'array'],
+            'agent_defaults.model' => ['nullable', 'string'],
+            'agent_defaults.default_skill_ids' => ['nullable', 'array'],
+            'agent_defaults.default_skill_ids.*' => ['string'],
+        ]);
+
+        return $this->tenantCustomizations->normalizedPayload($tenant->fresh(['businessProfileFiles']), $validated);
     }
 
     /**

@@ -86,6 +86,26 @@ return [
             'container_verify_command' => 'command -v gog >/dev/null 2>&1',
         ],
     ],
+    'skill_registry' => [
+        'appointment-booking' => [
+            'id' => 'appointment-booking',
+            'label' => 'Appointment Booking',
+            'version' => '1.0.0',
+            'description' => 'Guides customers through booking requests and next-step confirmation.',
+            'workspace_files' => [
+                'APPOINTMENT_BOOKING.md',
+                'skills/appointment-booking',
+            ],
+            'openclaw_skill_ids' => ['appointment-booking'],
+            'default_agent_skill_ids' => ['appointment-booking'],
+            'applicable_industries' => [],
+        ],
+    ],
+    'skill_registry_catalog_version' => 1,
+    'runtime_customization' => [
+        'apply_authorized_user_ids' => array_values(array_filter(array_map('trim', explode(',', (string) env('SYNC360_RUNTIME_CUSTOMIZATION_APPLY_USER_IDS', ''))))),
+        'apply_authorized_emails' => array_values(array_filter(array_map('trim', explode(',', (string) env('SYNC360_RUNTIME_CUSTOMIZATION_APPLY_EMAILS', ''))))),
+    ],
     'workspace_proxy' => [
         'control_app_upstream' => env('SYNC360_WORKSPACE_CONTROL_APP_UPSTREAM', env('APP_URL', 'http://localhost')),
         'public_readiness_timeout_seconds' => (int) env('SYNC360_WORKSPACE_PUBLIC_READY_TIMEOUT_SECONDS', 120),

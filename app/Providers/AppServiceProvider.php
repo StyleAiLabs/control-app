@@ -4,10 +4,12 @@ namespace App\Providers;
 
 use App\Contracts\DockerComposeRunner;
 use App\Contracts\TenantProvisioner;
+use App\Models\User;
 use App\Services\LocalDockerComposeRunner;
 use App\Services\LocalTenantProvisioningService;
 use App\Services\OpenClawProvisioner;
 use App\Services\SshDockerComposeRunner;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
@@ -41,6 +43,30 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Gate::define('admin.tenants.agent-customization.apply', function (User $user): bool {
+            if (! $user->is_admin) {
+                return false;
+            }
+
+            $authorizedUserIds = array_values(array_filter(
+                array_map('intval', (array) config('sync360.runtime_customization.apply_authorized_user_ids', [])),
+                static fn (int $id): bool => $id > 0,
+            ));
+            $authorizedEmails = array_values(array_filter(
+                array_map(
+                    static fn (mixed $email): ?string => is_string($email) && trim($email) !== '' ? strtolower(trim($email)) : null,
+                    (array) config('sync360.runtime_customization.apply_authorized_emails', [])
+                )
+            ));
+
+            if ($authorizedUserIds === [] && $authorizedEmails === []) {
+                return true;
+            }
+
+            return in_array($user->id, $authorizedUserIds, true)
+                || in_array(strtolower((string) $user->email), $authorizedEmails, true);
+        });
+
         // Inject sidebar alerts into the app layout on every authenticated page.
         // Alerts are derived from cached tenant DB state — no live Docker call here.
         // The full live workspace state is checked separately on the Dashboard page load.

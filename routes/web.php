@@ -73,6 +73,11 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/tenants/{tenant}/runtime/capabilities/sync', [AdminController::class, 'syncRuntimeCapabilities'])->name('tenants.runtime-capabilities.sync');
         Route::post('/tenants/{tenant}/google/sync', [AdminController::class, 'retryGoogleWorkspaceSync'])->name('tenants.google.sync');
         Route::post('/tenants/{tenant}/google/test', [AdminController::class, 'testGoogleWorkspace'])->name('tenants.google.test');
+        Route::patch('/tenants/{tenant}/agent-customization', [AdminController::class, 'updateAgentCustomization'])->name('tenants.agent-customization.update');
+        Route::post('/tenants/{tenant}/agent-customization/preview', [AdminController::class, 'previewAgentCustomization'])->name('tenants.agent-customization.preview');
+        Route::post('/tenants/{tenant}/agent-customization/apply', [AdminController::class, 'applyAgentCustomization'])->name('tenants.agent-customization.apply');
+        Route::post('/tenants/{tenant}/agent-customization/revert', [AdminController::class, 'revertAgentCustomization'])->name('tenants.agent-customization.revert');
+        Route::get('/tenants/{tenant}/agent-customization/apply-log', [AdminController::class, 'agentCustomizationApplyLog'])->name('tenants.agent-customization.apply-log');
         Route::post('/tenants/{tenant}/workspace/start', [AdminController::class, 'startWorkspace'])->name('workspace.start');
         Route::post('/tenants/{tenant}/workspace/stop', [AdminController::class, 'stopWorkspace'])->name('workspace.stop');
         Route::post('/tenants/{tenant}/workspace/restart', [AdminController::class, 'restartWorkspace'])->name('workspace.restart');

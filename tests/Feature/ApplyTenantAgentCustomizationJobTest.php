@@ -1,0 +1,235 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Contracts\DockerComposeRunner;
+use App\Enums\ProvisioningJobStatus;
+use App\Enums\TenantProvisioningStatus;
+use App\Enums\TrialStatus;
+use App\Jobs\ApplyTenantAgentCustomization;
+use App\Models\BusinessProfile;
+use App\Models\BusinessProfileFiles;
+use App\Models\ProvisioningJob;
+use App\Models\Tenant;
+use App\Models\TenantAgentCustomization;
+use App\Models\TenantAgentCustomizationApply;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\File;
+use Tests\TestCase;
+
+class ApplyTenantAgentCustomizationJobTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_apply_job_writes_runtime_artifacts_updates_hash_and_records_audit_row(): void
+    {
+        [$tenant, $customization] = $this->seedTenantAndCustomization();
+
+        $runner = new class implements DockerComposeRunner
+        {
+            public array $workspaceSyncs = [];
+
+            public array $putFiles = [];
+
+            public array $commands = [];
+
+            public function syncRuntime(\App\Models\Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
+            public function syncWorkspaceFiles(\App\Models\Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void
+            {
+                $this->workspaceSyncs[] = compact('localWorkspacePath', 'remoteWorkspacePath');
+            }
+            public function httpRequest(\App\Models\Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array { return ['status' => 200, 'body' => '']; }
+            public function putFile(\App\Models\Server $server, string $remotePath, string $contents, bool $sudo = false): void
+            {
+                $this->putFiles[] = compact('remotePath', 'contents');
+            }
+            public function removeFile(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function removeDirectory(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function runCommand(\App\Models\Server $server, string $command, bool $sudo = false): void
+            {
+                $this->commands[] = $command;
+            }
+            public function up(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function down(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function start(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function stop(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function isRunning(\App\Models\Server $server, string $composeFile, string $projectName): bool { return false; }
+            public function isHostPortInUse(\App\Models\Server $server, int $port): bool { return false; }
+            public function waitForHttpReady(\App\Models\Server $server, string $url, int $timeoutSeconds, int $pollIntervalMs): void {}
+        };
+
+        $this->instance(DockerComposeRunner::class, $runner);
+
+        $provisioningJob = ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Queued,
+            'payload_json' => [
+                'action' => TenantAgentCustomizationApply::ACTION_APPLY,
+            ],
+        ]);
+
+        $job = new ApplyTenantAgentCustomization($tenant->id, $provisioningJob->id, TenantAgentCustomizationApply::ACTION_APPLY);
+        $job->handle(
+            app(\App\Services\TenantAgentCustomizationService::class),
+            app(\App\Services\TenantRuntimeCustomizationComposer::class),
+        );
+
+        $customization->refresh();
+        $provisioningJob->refresh();
+
+        $skillPackFile = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skill-packs/appointment-booking/APPOINTMENT_BOOKING.md';
+        $identityFile = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/IDENTITY.md';
+
+        $this->assertFileExists($skillPackFile);
+        $this->assertFileExists($identityFile);
+        $this->assertStringContainsString('Admin identity notes', File::get($identityFile));
+        $this->assertNotNull($customization->applied_snapshot_hash);
+        $this->assertNotNull($customization->last_applied_input_snapshot_json);
+        $this->assertSame('applied', $customization->last_apply_status);
+        $this->assertSame(ProvisioningJobStatus::Completed, $provisioningJob->status);
+        $this->assertCount(1, $runner->workspaceSyncs);
+        $this->assertNotEmpty($runner->putFiles);
+        $this->assertNotEmpty($runner->commands);
+
+        $applyLog = TenantAgentCustomizationApply::query()->latest('id')->first();
+
+        $this->assertNotNull($applyLog);
+        $this->assertSame(TenantAgentCustomizationApply::ACTION_APPLY, $applyLog->action);
+        $this->assertSame(TenantAgentCustomizationApply::STATUS_APPLIED, $applyLog->status);
+        $this->assertSame($customization->applied_snapshot_hash, $applyLog->after_output_hash);
+    }
+
+    public function test_revert_job_restores_last_applied_input_snapshot_before_composing(): void
+    {
+        [$tenant, $customization] = $this->seedTenantAndCustomization();
+
+        $customization->forceFill([
+            'prompt_overrides_json' => [
+                'identity' => [
+                    'mode' => 'append',
+                    'content' => 'Changed draft',
+                    'base_snapshot' => '# Identity'.PHP_EOL.PHP_EOL.'Base identity',
+                ],
+            ],
+            'last_applied_input_snapshot_json' => [
+                'prompt_overrides' => [
+                    'identity' => [
+                        'mode' => 'append',
+                        'content' => 'Restored snapshot',
+                        'base_snapshot' => '# Identity'.PHP_EOL.PHP_EOL.'Base identity',
+                    ],
+                ],
+                'assigned_skill_pack_ids' => ['appointment-booking'],
+                'agent_defaults' => [],
+            ],
+        ])->save();
+
+        $provisioningJob = ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Queued,
+            'payload_json' => [
+                'action' => TenantAgentCustomizationApply::ACTION_REVERT,
+            ],
+        ]);
+
+        $job = new ApplyTenantAgentCustomization($tenant->id, $provisioningJob->id, TenantAgentCustomizationApply::ACTION_REVERT);
+        $job->handle(
+            app(\App\Services\TenantAgentCustomizationService::class),
+            app(\App\Services\TenantRuntimeCustomizationComposer::class),
+        );
+
+        $customization->refresh();
+
+        $this->assertSame('Restored snapshot', data_get($customization->prompt_overrides_json, 'identity.content'));
+        $this->assertSame(TenantAgentCustomizationApply::STATUS_APPLIED, $customization->last_apply_status);
+        $this->assertDatabaseHas('tenant_agent_customization_applies', [
+            'tenant_id' => $tenant->id,
+            'action' => TenantAgentCustomizationApply::ACTION_REVERT,
+        ]);
+    }
+
+    private function seedTenantAndCustomization(): array
+    {
+        $user = User::query()->create([
+            'name' => 'Owner',
+            'email' => 'owner@example.com',
+            'password' => 'secret',
+            'is_admin' => false,
+        ]);
+
+        $tenant = Tenant::query()->create([
+            'tenant_id' => 'tenant_customization_03',
+            'slug' => 'apply-shop',
+            'business_name' => 'Apply Shop',
+            'industry' => 'Retail',
+            'skill_pack' => 'Client Support',
+            'user_id' => $user->id,
+            'server_id' => 1,
+            'trial_status' => TrialStatus::Active,
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'agent_status' => 'live',
+            'workspace_url' => 'https://apply-shop.workspace.test',
+            'runtime_path' => '/srv/sync360/runtime/tenants/apply-shop',
+        ]);
+
+        BusinessProfile::query()->create([
+            'tenant_id' => $tenant->id,
+            'business_name' => 'Apply Shop',
+            'industry' => 'Retail',
+            'description' => 'Helpful team.',
+            'services' => ['Customer support'],
+        ]);
+
+        BusinessProfileFiles::query()->create([
+            'tenant_id' => $tenant->id,
+            'identity_markdown' => "# Identity\n\nBase identity",
+            'soul_markdown' => "# Soul\n\nBase soul",
+            'user_markdown' => "# User\n\nBase user",
+            'bootstrap_markdown' => "# Bootstrap\n\nBase bootstrap",
+            'generated_at' => now(),
+        ]);
+
+        $customization = TenantAgentCustomization::query()->create([
+            'tenant_id' => $tenant->id,
+            'prompt_overrides_json' => [
+                'identity' => [
+                    'mode' => 'append',
+                    'content' => 'Admin identity notes',
+                    'base_snapshot' => "# Identity\n\nBase identity",
+                ],
+            ],
+            'assigned_skill_pack_ids' => ['appointment-booking'],
+            'agent_defaults_json' => [
+                'model' => 'gpt-4.1',
+            ],
+            'draft_version' => 1,
+            'draft_updated_by' => $user->id,
+            'draft_updated_at' => now(),
+        ]);
+
+        $runtimeRoot = config('sync360.runtime_root').'/'.$tenant->slug;
+        File::ensureDirectoryExists($runtimeRoot.'/config');
+        File::ensureDirectoryExists($runtimeRoot.'/.openclaw/workspace');
+        File::put($runtimeRoot.'/config/openclaw.json', json_encode([
+            'agents' => [
+                'defaults' => [
+                    'model' => 'gpt-4o',
+                    'skills' => [],
+                ],
+            ],
+            'skills' => [
+                'entries' => [],
+            ],
+            'gateway' => [
+                'auth' => [
+                    'token' => 'keep-me',
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+
+        return [$tenant, $customization];
+    }
+}

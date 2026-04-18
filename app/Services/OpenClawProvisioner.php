@@ -22,6 +22,7 @@ class OpenClawProvisioner implements TenantProvisioner
         private readonly Filesystem $files,
         private readonly LiteLlmTenantKeyService $liteLlmKeys,
         private readonly TenantRuntimeCapabilityService $runtimeCapabilities,
+        private readonly TenantRuntimeCustomizationComposer $runtimeCustomizationComposer,
     ) {
     }
 
@@ -125,35 +126,38 @@ class OpenClawProvisioner implements TenantProvisioner
 
         $this->files->put(
             $configPath,
-            $this->runtimeCapabilities->renderOpenClawConfig([
-                'agents' => [
-                    'defaults' => [
-                        'model' => $defaultModel,
+            json_encode(
+                $this->runtimeCustomizationComposer->composeOpenClawConfig($tenant, baseConfig: [
+                    'agents' => [
+                        'defaults' => [
+                            'model' => $defaultModel,
+                        ],
                     ],
-                ],
-                'models' => [
-                    'mode' => 'replace',
-                    'providers' => [
-                        'openai' => [
-                            'baseUrl' => $liteLlmBaseUrl.'/v1',
-                            'models' => [
-                                ['id' => $defaultModel, 'name' => $defaultModel],
+                    'models' => [
+                        'mode' => 'replace',
+                        'providers' => [
+                            'openai' => [
+                                'baseUrl' => $liteLlmBaseUrl.'/v1',
+                                'models' => [
+                                    ['id' => $defaultModel, 'name' => $defaultModel],
+                                ],
                             ],
                         ],
                     ],
-                ],
-                'gateway' => [
-                    'mode' => 'local',
-                    'bind' => 'lan',
-                    'auth' => [
-                        'mode' => 'token',
-                        'token' => $gatewayToken,
+                    'gateway' => [
+                        'mode' => 'local',
+                        'bind' => 'lan',
+                        'auth' => [
+                            'mode' => 'token',
+                            'token' => $gatewayToken,
+                        ],
+                        'controlUi' => [
+                            'enabled' => false,
+                        ],
                     ],
-                    'controlUi' => [
-                        'enabled' => false,
-                    ],
-                ],
-            ]),
+                ]),
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+            ).PHP_EOL,
         );
     }
 
