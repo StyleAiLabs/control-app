@@ -43,6 +43,7 @@ class AdminController extends Controller
         'overview',
         'workspace',
         'google',
+        'skills',
         'agent-runtime',
         'support',
     ];
@@ -371,13 +372,13 @@ class AdminController extends Controller
     public function updateAgentCustomization(Request $request, Tenant $tenant): RedirectResponse
     {
         if (! $this->agentCustomizationTablesAvailable()) {
-            return $this->redirectToTenantShow($request, $tenant, 'agent-runtime', 'Agent runtime customization is unavailable until the tenant customization migrations are applied locally.');
+            return $this->redirectToTenantShow($request, $tenant, 'skills', 'Tenant customization is unavailable until the tenant customization migrations are applied locally.');
         }
 
         $payload = $this->validatedCustomizationPayload($request, $tenant);
         $this->tenantCustomizations->saveDraft($tenant->fresh(['businessProfileFiles', 'agentCustomization']), $request->user(), $payload);
 
-        return $this->redirectToTenantShow($request, $tenant, 'agent-runtime', 'Tenant agent customization draft saved.');
+        return $this->redirectToTenantShow($request, $tenant, $this->customizationTabFallback($request), 'Tenant customization draft saved.');
     }
 
     public function previewAgentCustomization(Request $request, Tenant $tenant): JsonResponse
@@ -412,13 +413,13 @@ class AdminController extends Controller
         Gate::authorize('admin.tenants.agent-customization.apply');
 
         if (! $this->agentCustomizationTablesAvailable()) {
-            return $this->redirectToTenantShow($request, $tenant, 'agent-runtime', 'Agent runtime customization is unavailable until the tenant customization migrations are applied locally.');
+            return $this->redirectToTenantShow($request, $tenant, $this->customizationTabFallback($request), 'Tenant customization is unavailable until the tenant customization migrations are applied locally.');
         }
 
         $customization = $tenant->agentCustomization;
 
         if (! $customization) {
-            return $this->redirectToTenantShow($request, $tenant, 'agent-runtime', 'Save a tenant agent customization draft before applying it.');
+            return $this->redirectToTenantShow($request, $tenant, $this->customizationTabFallback($request), 'Save a tenant customization draft before applying it.');
         }
 
         $job = ProvisioningJob::query()->create([
@@ -436,7 +437,7 @@ class AdminController extends Controller
             TenantAgentCustomizationApply::ACTION_APPLY,
         )->afterCommit();
 
-        return $this->redirectToTenantShow($request, $tenant, 'agent-runtime', 'Tenant agent customization apply queued.');
+        return $this->redirectToTenantShow($request, $tenant, $this->customizationTabFallback($request), 'Tenant customization apply queued.');
     }
 
     public function revertAgentCustomization(Request $request, Tenant $tenant): RedirectResponse
@@ -444,13 +445,13 @@ class AdminController extends Controller
         Gate::authorize('admin.tenants.agent-customization.apply');
 
         if (! $this->agentCustomizationTablesAvailable()) {
-            return $this->redirectToTenantShow($request, $tenant, 'agent-runtime', 'Agent runtime customization is unavailable until the tenant customization migrations are applied locally.');
+            return $this->redirectToTenantShow($request, $tenant, $this->customizationTabFallback($request), 'Tenant customization is unavailable until the tenant customization migrations are applied locally.');
         }
 
         $customization = $tenant->agentCustomization;
 
         if (! $customization?->last_applied_input_snapshot_json) {
-            return $this->redirectToTenantShow($request, $tenant, 'agent-runtime', 'There is no previously applied customization snapshot to restore.');
+            return $this->redirectToTenantShow($request, $tenant, $this->customizationTabFallback($request), 'There is no previously applied customization snapshot to restore.');
         }
 
         $job = ProvisioningJob::query()->create([
@@ -468,7 +469,7 @@ class AdminController extends Controller
             TenantAgentCustomizationApply::ACTION_REVERT,
         )->afterCommit();
 
-        return $this->redirectToTenantShow($request, $tenant, 'agent-runtime', 'Tenant agent customization revert queued.');
+        return $this->redirectToTenantShow($request, $tenant, $this->customizationTabFallback($request), 'Tenant customization revert queued.');
     }
 
     public function agentCustomizationApplyLog(Tenant $tenant): JsonResponse
@@ -599,7 +600,44 @@ class AdminController extends Controller
             'agent_defaults.default_skill_ids.*' => ['string'],
         ])->validate();
 
-        return $this->tenantCustomizations->normalizedPayload($tenant->fresh(['businessProfileFiles']), $validated);
+        $normalized = $this->tenantCustomizations->normalizedPayload($tenant->fresh(['businessProfileFiles']), $validated);
+        $scope = $this->resolveCustomizationScope($request);
+        $existingCustomization = $tenant->agentCustomization;
+        $existingPromptOverrides = is_array($existingCustomization?->prompt_overrides_json) ? $existingCustomization->prompt_overrides_json : [];
+        $existingAssignedSkillPackIds = is_array($existingCustomization?->assigned_skill_pack_ids) ? $existingCustomization->assigned_skill_pack_ids : [];
+        $existingAgentDefaults = is_array($existingCustomization?->agent_defaults_json) ? $existingCustomization->agent_defaults_json : [];
+
+        if ($scope === 'skills') {
+            $agentDefaults = $existingAgentDefaults;
+            unset($agentDefaults['default_skill_ids']);
+
+            if (array_key_exists('default_skill_ids', $normalized['agent_defaults'])) {
+                $agentDefaults['default_skill_ids'] = $normalized['agent_defaults']['default_skill_ids'];
+            }
+
+            return [
+                'prompt_overrides' => $existingPromptOverrides,
+                'assigned_skill_pack_ids' => $normalized['assigned_skill_pack_ids'],
+                'agent_defaults' => $agentDefaults,
+            ];
+        }
+
+        if ($scope === 'agent-runtime') {
+            $agentDefaults = $existingAgentDefaults;
+            unset($agentDefaults['model']);
+
+            if (array_key_exists('model', $normalized['agent_defaults'])) {
+                $agentDefaults['model'] = $normalized['agent_defaults']['model'];
+            }
+
+            return [
+                'prompt_overrides' => $normalized['prompt_overrides'],
+                'assigned_skill_pack_ids' => $existingAssignedSkillPackIds,
+                'agent_defaults' => $agentDefaults,
+            ];
+        }
+
+        return $normalized;
     }
 
     /**
@@ -820,6 +858,30 @@ class AdminController extends Controller
                 'tab' => $this->resolveTenantTab($request->input('return_tab', $fallbackTab)),
             ])
             ->with('status', $status);
+    }
+
+    private function customizationTabFallback(Request $request): string
+    {
+        return $this->resolveCustomizationScope($request) === 'agent-runtime'
+            ? 'agent-runtime'
+            : 'skills';
+    }
+
+    private function resolveCustomizationScope(Request $request): string
+    {
+        $scope = $request->input('customization_scope');
+
+        if (is_string($scope) && in_array($scope, ['skills', 'agent-runtime'], true)) {
+            return $scope;
+        }
+
+        $returnTab = $request->input('return_tab');
+
+        if (is_string($returnTab) && in_array($returnTab, ['skills', 'agent-runtime'], true)) {
+            return $returnTab;
+        }
+
+        return 'all';
     }
 
     private function agentCustomizationTablesAvailable(): bool

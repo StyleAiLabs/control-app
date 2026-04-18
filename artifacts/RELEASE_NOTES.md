@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-18 — Tenant Admin Skills Moved Out Of Agent Runtime
+
+Date: 2026-04-18
+Status: Implemented
+
+### Overview
+
+Refined the local-only super-admin tenant detail page so tenant skill management is no longer mixed into prompt/runtime behavior editing. The page now has a dedicated `Skills` tab for pack assignment and default skill IDs, while `Agent Runtime` focuses on model and markdown behavior.
+
+### What Changed
+
+- added a dedicated `Skills` tab to `admin/tenants/{tenant}` between `Google` and `Agent Runtime`
+- moved `Skill Packs`, `Default Skill IDs`, skill apply/revert actions, and apply history out of `Agent Runtime` and into the new `Skills` screen
+- narrowed the `Agent Runtime` screen to model defaults, prompt overrides, current markdown previews, preview output, and runtime-scoped apply/revert controls
+- updated the admin controller so customization saves are scoped by tab, preventing a `Skills` save from wiping prompt/model data and preventing an `Agent Runtime` save from wiping assigned skill packs or default skill IDs
+- expanded admin feature coverage to prove the new tab layout, tab-aware redirects, and cross-tab preservation behavior
+
 ## 2026-04-18 — Agent Runtime Draft Save Now Accepts Comma-Separated Default Skill IDs
 
 Date: 2026-04-18
