@@ -157,6 +157,78 @@ class AdminTenantCustomizationFlowTest extends TestCase
             ->assertJsonPath('data.0.action', TenantAgentCustomizationApply::ACTION_APPLY);
     }
 
+    public function test_skills_tab_shows_skill_change_history_and_runtime_tab_keeps_apply_history(): void
+    {
+        [$admin, $tenant] = $this->seedAdminAndTenant();
+
+        $customization = TenantAgentCustomization::query()->create([
+            'tenant_id' => $tenant->id,
+            'prompt_overrides_json' => [],
+            'assigned_skill_pack_ids' => ['appointment-booking'],
+            'agent_defaults_json' => [
+                'model' => 'gpt-4o',
+                'default_skill_ids' => ['booking-skill'],
+            ],
+            'draft_version' => 2,
+            'draft_updated_by' => $admin->id,
+            'draft_updated_at' => now(),
+        ]);
+
+        TenantAgentCustomizationApply::query()->create([
+            'tenant_agent_customization_id' => $customization->id,
+            'tenant_id' => $tenant->id,
+            'applied_by' => $admin->id,
+            'action' => TenantAgentCustomizationApply::ACTION_APPLY,
+            'draft_version_applied' => 1,
+            'input_snapshot_json' => [
+                'prompt_overrides' => [],
+                'assigned_skill_pack_ids' => [],
+                'agent_defaults' => [],
+            ],
+            'before_output_hash' => null,
+            'after_output_hash' => 'hash-0',
+            'status' => TenantAgentCustomizationApply::STATUS_APPLIED,
+            'created_at' => now()->subMinute(),
+        ]);
+
+        TenantAgentCustomizationApply::query()->create([
+            'tenant_agent_customization_id' => $customization->id,
+            'tenant_id' => $tenant->id,
+            'applied_by' => $admin->id,
+            'action' => TenantAgentCustomizationApply::ACTION_APPLY,
+            'draft_version_applied' => 2,
+            'input_snapshot_json' => [
+                'prompt_overrides' => [],
+                'assigned_skill_pack_ids' => ['appointment-booking'],
+                'agent_defaults' => [
+                    'model' => 'gpt-4o',
+                    'default_skill_ids' => ['booking-skill'],
+                ],
+            ],
+            'before_output_hash' => 'hash-0',
+            'after_output_hash' => 'hash-1',
+            'status' => TenantAgentCustomizationApply::STATUS_APPLIED,
+            'created_at' => now(),
+        ]);
+
+        $this->actingAs($admin);
+
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'skills']))
+            ->assertOk()
+            ->assertSee('Skill Change History')
+            ->assertSee('Enabled skill pack: Appointment Booking')
+            ->assertSee('Added default skill ID: booking-skill')
+            ->assertDontSee('Before: hash-0')
+            ->assertDontSee('After: hash-1');
+
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']))
+            ->assertOk()
+            ->assertSee('Apply History')
+            ->assertSee('Before: hash-0')
+            ->assertSee('After: hash-1')
+            ->assertDontSee('Skill Change History');
+    }
+
     public function test_admin_tenant_page_shows_current_base_prompt_content_in_customization_panel(): void
     {
         [$admin, $tenant] = $this->seedAdminAndTenant();

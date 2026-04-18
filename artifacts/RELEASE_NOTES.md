@@ -23,6 +23,7 @@ Refined the local-only super-admin tenant detail page so tenant skill management
 - narrowed the `Agent Runtime` screen to model defaults, prompt overrides, current markdown previews, preview output, and runtime-scoped apply/revert controls
 - updated the admin controller so customization saves are scoped by tab, preventing a `Skills` save from wiping prompt/model data and preventing an `Agent Runtime` save from wiping assigned skill packs or default skill IDs
 - expanded admin feature coverage to prove the new tab layout, tab-aware redirects, and cross-tab preservation behavior
+- changed the `Skills` history area to a human-readable skill change log showing pack enable/disable events and default-skill additions/removals, while moving the raw apply audit back under `Agent Runtime`
 
 ## 2026-04-18 — Tenant Admin Detail Became Tabbed + Canonical Docs Hook Was Hardened
 

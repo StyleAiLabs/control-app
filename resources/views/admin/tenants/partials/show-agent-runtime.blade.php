@@ -92,5 +92,25 @@
             <h3 style="margin-top:0;">Preview</h3>
             <pre data-customization-preview style="white-space:pre-wrap; max-height:420px; overflow:auto; background:rgba(0,0,0,0.24); padding:14px; border-radius:12px;">Preview output will appear here.</pre>
         </section>
+
+        <section style="margin-top:18px;">
+            <h3 style="margin-top:0;">Apply History</h3>
+            <div style="display:grid; gap:10px;">
+                @forelse ($tenant->agentCustomizationApplies->sortByDesc('id') as $entry)
+                    <div style="padding:12px; border:1px solid rgba(255,255,255,0.08); border-radius:12px;">
+                        <strong>{{ $entry->action }}</strong>
+                        <span class="badge {{ $entry->status === 'failed' ? 'failed' : 'ready' }}">{{ $entry->status }}</span>
+                        <div class="hint" style="margin-top:6px;">{{ $entry->created_at?->toDateTimeString() ?? 'Pending timestamp' }}</div>
+                        <div class="hint">Before: {{ $entry->before_output_hash ?? '—' }}</div>
+                        <div class="hint">After: {{ $entry->after_output_hash ?? '—' }}</div>
+                        @if ($entry->error)
+                            <div class="note error" style="margin-top:8px;">{{ $entry->error }}</div>
+                        @endif
+                    </div>
+                @empty
+                    <div class="hint">No apply history yet.</div>
+                @endforelse
+            </div>
+        </section>
     </section>
 @endif

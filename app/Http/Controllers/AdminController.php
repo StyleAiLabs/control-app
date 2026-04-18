@@ -174,6 +174,7 @@ class AdminController extends Controller
             'currentCustomizationPreview' => $currentCustomizationPreview,
             'activeTenantTab' => $activeTenantTab,
             'agentCustomizationAvailable' => $agentCustomizationAvailable,
+            'skillChangeHistory' => $agentCustomizationAvailable ? $this->skillChangeHistoryFor($tenant) : [],
         ]);
     }
 
@@ -905,5 +906,70 @@ class AdminController extends Controller
         }
 
         return $query->first();
+    }
+
+    /**
+     * @return array<int, array{entry: TenantAgentCustomizationApply, changes: array<int, string>}>
+     */
+    private function skillChangeHistoryFor(Tenant $tenant): array
+    {
+        $labelsById = collect($this->skillRegistry->all())
+            ->mapWithKeys(fn (array $pack): array => [(string) $pack['id'] => (string) $pack['label']])
+            ->all();
+
+        $history = [];
+        $previousSnapshot = [
+            'assigned_skill_pack_ids' => [],
+            'agent_defaults' => [
+                'default_skill_ids' => [],
+            ],
+        ];
+
+        foreach ($tenant->agentCustomizationApplies->sortBy('created_at') as $entry) {
+            if (! in_array($entry->status, [
+                TenantAgentCustomizationApply::STATUS_APPLIED,
+                TenantAgentCustomizationApply::STATUS_REVERTED,
+            ], true)) {
+                continue;
+            }
+
+            $snapshot = is_array($entry->input_snapshot_json) ? $entry->input_snapshot_json : [];
+            $currentPackIds = array_values(array_filter((array) ($snapshot['assigned_skill_pack_ids'] ?? []), 'is_string'));
+            $previousPackIds = array_values(array_filter((array) ($previousSnapshot['assigned_skill_pack_ids'] ?? []), 'is_string'));
+            $enabledPackIds = array_values(array_diff($currentPackIds, $previousPackIds));
+            $disabledPackIds = array_values(array_diff($previousPackIds, $currentPackIds));
+            $currentDefaultSkillIds = array_values(array_filter((array) data_get($snapshot, 'agent_defaults.default_skill_ids', []), 'is_string'));
+            $previousDefaultSkillIds = array_values(array_filter((array) data_get($previousSnapshot, 'agent_defaults.default_skill_ids', []), 'is_string'));
+            $addedDefaultSkillIds = array_values(array_diff($currentDefaultSkillIds, $previousDefaultSkillIds));
+            $removedDefaultSkillIds = array_values(array_diff($previousDefaultSkillIds, $currentDefaultSkillIds));
+            $changes = [];
+
+            foreach ($enabledPackIds as $packId) {
+                $changes[] = 'Enabled skill pack: '.($labelsById[$packId] ?? $packId);
+            }
+
+            foreach ($disabledPackIds as $packId) {
+                $changes[] = 'Disabled skill pack: '.($labelsById[$packId] ?? $packId);
+            }
+
+            foreach ($addedDefaultSkillIds as $skillId) {
+                $changes[] = 'Added default skill ID: '.$skillId;
+            }
+
+            foreach ($removedDefaultSkillIds as $skillId) {
+                $changes[] = 'Removed default skill ID: '.$skillId;
+            }
+
+            if ($changes !== []) {
+                $history[] = [
+                    'entry' => $entry,
+                    'changes' => $changes,
+                ];
+            }
+
+            $previousSnapshot = $snapshot;
+        }
+
+        return array_reverse($history);
     }
 }

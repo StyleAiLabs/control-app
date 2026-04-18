@@ -530,6 +530,7 @@ Implementation notes:
 - the tenant detail UI is now organized as one route with query-driven tabs: `Overview`, `Workspace`, `Google`, `Skills`, `Agent Runtime`, and `Support`
 - tenant skill packs and comma-separated `Default Skill IDs` live in the `Skills` tab, while `Agent Runtime` is reserved for model defaults, prompt overrides, current markdown previews, preview output, and runtime apply/revert controls
 - the controller still persists both surfaces into the same `tenant_agent_customizations` record, but save handling is scoped by tab so a `Skills` save preserves prompt/model data and an `Agent Runtime` save preserves assigned packs and default skill IDs
+- the `Skills` panel no longer shows the raw apply audit; instead it renders a derived skill change history such as enabled/disabled packs and added/removed default skill IDs, while the generic apply log with before/after hashes remains on `Agent Runtime`
 - the skill-id editor still uses a single comma-separated `Default Skill IDs` text input, and the controller normalizes that text into the canonical saved list before validation/composition
 - this keeps the panel and CLI paths behaviorally aligned
 

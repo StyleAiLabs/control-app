@@ -104,21 +104,24 @@
         </div>
 
         <section style="margin-top:18px;">
-            <h3 style="margin-top:0;">Apply History</h3>
+            <h3 style="margin-top:0;">Skill Change History</h3>
             <div style="display:grid; gap:10px;">
-                @forelse ($tenant->agentCustomizationApplies->sortByDesc('id') as $entry)
+                @forelse ($skillChangeHistory as $historyEntry)
+                    @php
+                        $entry = $historyEntry['entry'];
+                    @endphp
                     <div style="padding:12px; border:1px solid rgba(255,255,255,0.08); border-radius:12px;">
-                        <strong>{{ $entry->action }}</strong>
-                        <span class="badge {{ $entry->status === 'failed' ? 'failed' : 'ready' }}">{{ $entry->status }}</span>
+                        <strong>{{ $entry->action === 'revert' ? 'Revert applied' : 'Skill update applied' }}</strong>
+                        <span class="badge {{ $entry->status === 'reverted' ? 'pending' : 'ready' }}">{{ $entry->status }}</span>
                         <div class="hint" style="margin-top:6px;">{{ $entry->created_at?->toDateTimeString() ?? 'Pending timestamp' }}</div>
-                        <div class="hint">Before: {{ $entry->before_output_hash ?? '—' }}</div>
-                        <div class="hint">After: {{ $entry->after_output_hash ?? '—' }}</div>
-                        @if ($entry->error)
-                            <div class="note error" style="margin-top:8px;">{{ $entry->error }}</div>
-                        @endif
+                        <div style="display:grid; gap:6px; margin-top:10px;">
+                            @foreach ($historyEntry['changes'] as $change)
+                                <div>{{ $change }}</div>
+                            @endforeach
+                        </div>
                     </div>
                 @empty
-                    <div class="hint">No apply history yet.</div>
+                    <div class="hint">No skill enable, disable, or default-skill changes recorded yet.</div>
                 @endforelse
             </div>
         </section>
