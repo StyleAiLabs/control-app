@@ -18,3 +18,4 @@ Use this skill when a customer wants to:
 - If a required detail is missing, explain exactly what is still needed.
 - Do not promise an appointment is confirmed unless the business workflow says so.
 - Offer a human follow-up when availability or confirmation is uncertain.
+- Ask if a copy of booking invitation is required to send to the customer.
