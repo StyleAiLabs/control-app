@@ -33,22 +33,29 @@ class AdminTenantCustomizationFlowTest extends TestCase
         $this->actingAs($admin);
 
         $this->patch(route('admin.tenants.agent-customization.update', $tenant), [
+            'return_tab' => 'agent-runtime',
             'prompt_overrides' => [
                 'identity' => [
                     'mode' => 'append',
                     'content' => 'Custom admin identity guidance',
                 ],
             ],
-            'assigned_skill_pack_ids' => ['appointment-booking'],
             'agent_defaults' => [
                 'model' => 'gpt-4.1',
-                'default_skill_ids' => 'custom-default-skill, follow-up-skill',
             ],
         ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']));
 
+        $this->patch(route('admin.tenants.agent-customization.update', $tenant), [
+            'return_tab' => 'skills',
+            'assigned_skill_pack_ids' => ['appointment-booking'],
+            'agent_defaults' => [
+                'default_skill_ids' => 'custom-default-skill, follow-up-skill',
+            ],
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'skills']));
+
         $customization = TenantAgentCustomization::query()->firstOrFail();
 
-        $this->assertSame(1, $customization->draft_version);
+        $this->assertSame(2, $customization->draft_version);
         $this->assertSame('append', data_get($customization->prompt_overrides_json, 'identity.mode'));
         $this->assertSame(['appointment-booking'], $customization->assigned_skill_pack_ids);
         $this->assertSame('gpt-4.1', data_get($customization->agent_defaults_json, 'model'));
@@ -69,8 +76,9 @@ class AdminTenantCustomizationFlowTest extends TestCase
             (string) ($workspaceFiles['IDENTITY.md'] ?? '')
         );
 
-        $this->post(route('admin.tenants.agent-customization.apply', $tenant))
-            ->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']));
+        $this->post(route('admin.tenants.agent-customization.apply', $tenant), [
+            'return_tab' => 'skills',
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'skills']));
 
         $job = ProvisioningJob::query()->latest('id')->first();
 
@@ -163,6 +171,86 @@ class AdminTenantCustomizationFlowTest extends TestCase
             ->assertSee('Base bootstrap');
     }
 
+    public function test_saving_skills_tab_preserves_existing_runtime_customization_fields(): void
+    {
+        [$admin, $tenant] = $this->seedAdminAndTenant();
+
+        TenantAgentCustomization::query()->create([
+            'tenant_id' => $tenant->id,
+            'prompt_overrides_json' => [
+                'identity' => [
+                    'mode' => 'append',
+                    'content' => 'Keep this prompt override',
+                    'base_snapshot' => '# Identity'.PHP_EOL.PHP_EOL.'Base identity',
+                ],
+            ],
+            'assigned_skill_pack_ids' => [],
+            'agent_defaults_json' => [
+                'model' => 'gpt-4.1',
+            ],
+            'draft_version' => 1,
+            'draft_updated_by' => $admin->id,
+            'draft_updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin);
+
+        $this->patch(route('admin.tenants.agent-customization.update', $tenant), [
+            'return_tab' => 'skills',
+            'assigned_skill_pack_ids' => ['appointment-booking'],
+            'agent_defaults' => [
+                'default_skill_ids' => 'booking-skill',
+            ],
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'skills']));
+
+        $customization = TenantAgentCustomization::query()->firstOrFail();
+
+        $this->assertSame('Keep this prompt override', data_get($customization->prompt_overrides_json, 'identity.content'));
+        $this->assertSame('gpt-4.1', data_get($customization->agent_defaults_json, 'model'));
+        $this->assertSame(['appointment-booking'], $customization->assigned_skill_pack_ids);
+        $this->assertSame(['booking-skill'], data_get($customization->agent_defaults_json, 'default_skill_ids'));
+    }
+
+    public function test_saving_runtime_tab_preserves_existing_skill_customization_fields(): void
+    {
+        [$admin, $tenant] = $this->seedAdminAndTenant();
+
+        TenantAgentCustomization::query()->create([
+            'tenant_id' => $tenant->id,
+            'prompt_overrides_json' => [],
+            'assigned_skill_pack_ids' => ['appointment-booking'],
+            'agent_defaults_json' => [
+                'model' => 'gpt-4.1',
+                'default_skill_ids' => ['booking-skill'],
+            ],
+            'draft_version' => 1,
+            'draft_updated_by' => $admin->id,
+            'draft_updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin);
+
+        $this->patch(route('admin.tenants.agent-customization.update', $tenant), [
+            'return_tab' => 'agent-runtime',
+            'prompt_overrides' => [
+                'identity' => [
+                    'mode' => 'append',
+                    'content' => 'Runtime-only update',
+                ],
+            ],
+            'agent_defaults' => [
+                'model' => 'gpt-4o',
+            ],
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']));
+
+        $customization = TenantAgentCustomization::query()->firstOrFail();
+
+        $this->assertSame(['appointment-booking'], $customization->assigned_skill_pack_ids);
+        $this->assertSame(['booking-skill'], data_get($customization->agent_defaults_json, 'default_skill_ids'));
+        $this->assertSame('gpt-4o', data_get($customization->agent_defaults_json, 'model'));
+        $this->assertSame('Runtime-only update', data_get($customization->prompt_overrides_json, 'identity.content'));
+    }
+
     public function test_admin_tenant_page_defaults_to_overview_and_falls_back_for_invalid_tab(): void
     {
         [$admin, $tenant] = $this->seedAdminAndTenant();
@@ -193,13 +281,26 @@ class AdminTenantCustomizationFlowTest extends TestCase
             ->assertSee('data-active-tab="google"', false)
             ->assertSee('aria-current="page"', false)
             ->assertDontSee('Agent Runtime Customization')
+            ->assertDontSee('Tenant Skills')
+            ->assertDontSee('Permanent Delete');
+
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'skills']))
+            ->assertOk()
+            ->assertSee('Tenant Skills')
+            ->assertSee('Skill Packs')
+            ->assertSee('Default Skill IDs')
+            ->assertSee('data-active-tab="skills"', false)
+            ->assertDontSee('Current IDENTITY.md')
+            ->assertDontSee('Google Workspace Connection')
             ->assertDontSee('Permanent Delete');
 
         $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']))
             ->assertOk()
-            ->assertSee('Agent Runtime Customization')
+            ->assertSee('Agent Runtime')
             ->assertSee('Current IDENTITY.md')
             ->assertSee('data-active-tab="agent-runtime"', false)
+            ->assertDontSee('Skill Packs')
+            ->assertDontSee('Default Skill IDs')
             ->assertDontSee('Google Workspace Connection')
             ->assertDontSee('Permanent Delete');
     }
@@ -215,6 +316,7 @@ class AdminTenantCustomizationFlowTest extends TestCase
             ->assertSee('Overview')
             ->assertSee('Workspace')
             ->assertSee('Google')
+            ->assertSee('Skills')
             ->assertSee('Agent Runtime')
             ->assertSee('Support')
             ->assertDontSee('Status, identifiers, and the latest job snapshot.')
@@ -250,6 +352,14 @@ class AdminTenantCustomizationFlowTest extends TestCase
         $this->actingAs($admin);
 
         $this->patch(route('admin.tenants.agent-customization.update', $tenant), [
+            'return_tab' => 'skills',
+            'assigned_skill_pack_ids' => ['appointment-booking'],
+            'agent_defaults' => [
+                'default_skill_ids' => 'custom-default-skill',
+            ],
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'skills']));
+
+        $this->patch(route('admin.tenants.agent-customization.update', $tenant), [
             'return_tab' => 'agent-runtime',
             'prompt_overrides' => [
                 'identity' => [
@@ -257,10 +367,8 @@ class AdminTenantCustomizationFlowTest extends TestCase
                     'content' => 'Custom admin identity guidance',
                 ],
             ],
-            'assigned_skill_pack_ids' => ['appointment-booking'],
             'agent_defaults' => [
                 'model' => 'gpt-4.1',
-                'default_skill_ids' => 'custom-default-skill',
             ],
         ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']));
 
@@ -271,6 +379,10 @@ class AdminTenantCustomizationFlowTest extends TestCase
         $this->post(route('admin.tenants.health-check', $tenant), [
             'return_tab' => 'support',
         ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'support']));
+
+        $this->post(route('admin.tenants.agent-customization.apply', $tenant), [
+            'return_tab' => 'skills',
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'skills']));
     }
 
     public function test_admin_tenant_page_handles_missing_agent_customization_tables_gracefully(): void

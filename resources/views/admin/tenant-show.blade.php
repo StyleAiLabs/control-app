@@ -46,8 +46,8 @@
                 'badge_label' => $googleState['connection_label'],
                 'badge_class' => $googleState['connection_badge'],
             ],
-            'agent-runtime' => [
-                'label' => 'Agent Runtime',
+            'skills' => [
+                'label' => 'Skills',
                 'badge_label' => ! $agentCustomizationAvailable
                     ? 'setup needed'
                     : ($agentCustomization?->last_apply_status === 'failed'
@@ -60,6 +60,11 @@
                     : ($agentCustomization?->last_apply_status === 'failed'
                         ? 'failed'
                         : (($agentCustomization?->applied_snapshot_hash || ($agentCustomization?->draft_version ?? 0) > 0) ? 'pending' : 'pending')),
+            ],
+            'agent-runtime' => [
+                'label' => 'Agent Runtime',
+                'badge_label' => null,
+                'badge_class' => null,
             ],
             'support' => [
                 'label' => 'Support',
@@ -157,7 +162,7 @@
             <div>
                 <span class="eyebrow">Tenant Detail</span>
                 <h2>{{ $tenant->business_name }}</h2>
-                <p>Use the sidebar to move between tenant summary, workspace details, Google state, agent runtime controls, and support actions.</p>
+                <p>Use the sidebar to move between tenant summary, workspace details, Google state, tenant skills, agent runtime behavior, and support actions.</p>
             </div>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                 <a href="{{ route('admin.tenants') }}" class="button button--secondary">Back to Tenants</a>
@@ -201,6 +206,10 @@
 
                     @case('google')
                         @include('admin.tenants.partials.show-google')
+                        @break
+
+                    @case('skills')
+                        @include('admin.tenants.partials.show-skills')
                         @break
 
                     @case('agent-runtime')
