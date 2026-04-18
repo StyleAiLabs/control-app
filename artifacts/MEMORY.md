@@ -74,6 +74,7 @@ If those files conflict with the codebase, trust:
 - Admin model: super-admin area is behind `auth`, `admin`, and `local.only` middleware
 - Admin operator surface: the tenants list now shows each tenant's Google connection state, live-access/sync label, latest relevant timestamp, and latest recorded runtime error; the tenant detail screen now uses same-route tabbed subscreens (`overview`, `workspace`, `google`, `agent-runtime`, `support`) with query-string deep links, active-tab-preserving redirects, labeled global status badges, and tenant-scoped buttons for client-VPS bootstrap, runtime-capability sync, Google Workspace smoke testing, and re-queueing the existing initial Google sync job without introducing a second repair implementation
 - Admin agent-runtime customization model: `PATCH/POST /admin/tenants/{tenant}/agent-customization*` stores DB-backed drafts for prompt overrides, Sync360 skill-pack assignments, and agent defaults, previews the current effective workspace markdown plus `openclaw.json`, queues apply/revert through `ApplyTenantAgentCustomization`, and degrades gracefully with a setup-needed message when the customization tables are not migrated locally
+- Admin agent-runtime input contract: the tenant runtime customization form treats `Default Skill IDs` as one comma-separated text field, and the server normalizes that submitted text into the saved `agent_defaults.default_skill_ids` list before validation/composition so draft save matches the UI contract
 
 ## 4. Core flows at a glance
 

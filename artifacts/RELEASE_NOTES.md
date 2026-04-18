@@ -14,7 +14,7 @@ Status: Implemented
 
 ### Overview
 
-Refined the local-only super-admin tenant detail workflow so it scales better as the operator surface grows, and removed the last reason to bypass the canonical-docs hooks. The tenant page now behaves like a set of focused subscreens on one route, the new agent-runtime area is easier to inspect safely, and the docs check now fails cleanly on macOS Bash instead of crashing when required docs are missing.
+Refined the local-only super-admin tenant detail workflow so it scales better as the operator surface grows, fixed the `Default Skill IDs` draft-save contract in the new agent-runtime area, and removed the last reason to bypass the canonical-docs hooks. The tenant page now behaves like a set of focused subscreens on one route, the runtime customization panel accepts the comma-separated skill-id input it asks admins to type, and the docs check now fails cleanly on macOS Bash instead of crashing when required docs are missing.
 
 ### What Changed
 
@@ -22,6 +22,7 @@ Refined the local-only super-admin tenant detail workflow so it scales better as
 - preserved the active tenant tab across admin actions so Google operations return to `google`, agent-runtime actions return to `agent-runtime`, and support actions return to `support`
 - compacted the tenant-detail sidebar navigation, added clearer active-tab treatment, and labeled the top tenant-status chips so operators can tell which status belongs to provisioning, agent health, workspace state, and Google state
 - added current effective prompt-file previews to the `Agent Runtime` tab so admins can see the tenant's existing `IDENTITY.md`, `SOUL.md`, `USER.md`, and `BOOTSTRAP.md` content before appending or replacing overrides
+- fixed the `Default Skill IDs` draft form to submit the comma-separated text value the UI presents and normalize it into the canonical saved `default_skill_ids` array before validation and persistence
 - made the admin tenant detail page degrade gracefully when `tenant_agent_customizations` tables are not present locally, showing a setup-needed message instead of throwing a database exception
 - hardened `scripts/check-canonical-docs.sh` so its missing-doc failure path stays compatible with Bash 3 `set -u` behavior and reports the actual canonical-doc requirement instead of crashing on an empty-array expansion
 - refreshed the canonical docs to capture the tabbed tenant-detail IA, the admin runtime-customization surface, and the expectation that normal commits should pass the docs hook without `--no-verify`

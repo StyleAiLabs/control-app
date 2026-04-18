@@ -527,6 +527,7 @@ Implementation notes:
 - bootstrap targets the tenant's assigned server
 - runtime-capability sync targets the tenant slug and applies the full repair path for that tenant
 - Google smoke test targets the tenant slug and reports the existing layered verification result back through the flashed admin status message
+- the tenant runtime customization form uses a single comma-separated `Default Skill IDs` text input, and the controller normalizes that text into the canonical saved list before validation/composition
 - this keeps the panel and CLI paths behaviorally aligned
 
 ### Admin tenant-detail information architecture
