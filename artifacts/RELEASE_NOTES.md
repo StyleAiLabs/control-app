@@ -7,6 +7,25 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-18 — Tenant Admin Detail Became Tabbed + Canonical Docs Hook Was Hardened
+
+Date: 2026-04-18
+Status: Implemented
+
+### Overview
+
+Refined the local-only super-admin tenant detail workflow so it scales better as the operator surface grows, and removed the last reason to bypass the canonical-docs hooks. The tenant page now behaves like a set of focused subscreens on one route, the new agent-runtime area is easier to inspect safely, and the docs check now fails cleanly on macOS Bash instead of crashing when required docs are missing.
+
+### What Changed
+
+- reorganized `GET /admin/tenants/{tenant}` into same-route tabbed subscreens selected by `?tab=overview|workspace|google|agent-runtime|support`
+- preserved the active tenant tab across admin actions so Google operations return to `google`, agent-runtime actions return to `agent-runtime`, and support actions return to `support`
+- compacted the tenant-detail sidebar navigation, added clearer active-tab treatment, and labeled the top tenant-status chips so operators can tell which status belongs to provisioning, agent health, workspace state, and Google state
+- added current effective prompt-file previews to the `Agent Runtime` tab so admins can see the tenant's existing `IDENTITY.md`, `SOUL.md`, `USER.md`, and `BOOTSTRAP.md` content before appending or replacing overrides
+- made the admin tenant detail page degrade gracefully when `tenant_agent_customizations` tables are not present locally, showing a setup-needed message instead of throwing a database exception
+- hardened `scripts/check-canonical-docs.sh` so its missing-doc failure path stays compatible with Bash 3 `set -u` behavior and reports the actual canonical-doc requirement instead of crashing on an empty-array expansion
+- refreshed the canonical docs to capture the tabbed tenant-detail IA, the admin runtime-customization surface, and the expectation that normal commits should pass the docs hook without `--no-verify`
+
 ## 2026-04-18 — Admin Tenant Pages Now Show Google Sync Timeline + Requeue Action
 
 Date: 2026-04-18

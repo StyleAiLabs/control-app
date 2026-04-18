@@ -72,7 +72,8 @@ If those files conflict with the codebase, trust:
 - Conversation model: Telegram history is synced from workspace session logs with AI summaries; the control plane no longer exposes channel webhook ingress
 - Trial model: 14-day / budget-capped trial with scheduled expiry checks and email notifications
 - Admin model: super-admin area is behind `auth`, `admin`, and `local.only` middleware
-- Admin operator surface: the tenants list now shows each tenant's Google connection state, live-access/sync label, latest relevant timestamp, and latest recorded runtime error; the tenant detail screen also exposes tenant-scoped buttons for client-VPS bootstrap, runtime-capability sync, Google Workspace smoke testing, and re-queueing the existing initial Google sync job without introducing a second repair implementation
+- Admin operator surface: the tenants list now shows each tenant's Google connection state, live-access/sync label, latest relevant timestamp, and latest recorded runtime error; the tenant detail screen now uses same-route tabbed subscreens (`overview`, `workspace`, `google`, `agent-runtime`, `support`) with query-string deep links, active-tab-preserving redirects, labeled global status badges, and tenant-scoped buttons for client-VPS bootstrap, runtime-capability sync, Google Workspace smoke testing, and re-queueing the existing initial Google sync job without introducing a second repair implementation
+- Admin agent-runtime customization model: `PATCH/POST /admin/tenants/{tenant}/agent-customization*` stores DB-backed drafts for prompt overrides, Sync360 skill-pack assignments, and agent defaults, previews the current effective workspace markdown plus `openclaw.json`, queues apply/revert through `ApplyTenantAgentCustomization`, and degrades gracefully with a setup-needed message when the customization tables are not migrated locally
 
 ## 4. Core flows at a glance
 
@@ -142,6 +143,7 @@ If those files conflict with the codebase, trust:
 - Historical docs include implementation plans and rollout notes that are no longer safe to treat as current truth.
 - Customer-facing language should not expose backend platform names. The current tenant heartbeat sync includes identity guardrails for that reason.
 - The admin-panel runtime buttons are wrappers around the existing artisan commands, not a second implementation. If those commands change, the panel behavior should stay aligned with them rather than forking capability logic into the controller.
+- The canonical-docs hook is part of the normal local git workflow. It now needs the required canonical doc updates on core code changes, and its failure path must stay compatible with the repo's Bash 3 environment so it reports missing-doc problems instead of crashing on empty arrays under `set -u`.
 
 ## 6. Known mismatches to verify
 

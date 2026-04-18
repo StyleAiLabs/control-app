@@ -529,6 +529,40 @@ Implementation notes:
 - Google smoke test targets the tenant slug and reports the existing layered verification result back through the flashed admin status message
 - this keeps the panel and CLI paths behaviorally aligned
 
+### Admin tenant-detail information architecture
+
+`GET /admin/tenants/{tenant}` remains the only tenant-detail route, but the page is now organized as one shell with internal tabbed subscreens selected by `?tab=...`.
+
+Current allowlisted tabs:
+
+- `overview`
+- `workspace`
+- `google`
+- `agent-runtime`
+- `support`
+
+Implementation notes:
+
+- the controller validates the `tab` query parameter and falls back to `overview` for missing or invalid values
+- the page renders a compact left-side subnav on desktop and a horizontal tab row on smaller screens
+- top-level tenant state is shown as labeled chips such as provisioning, agent, health, workspace, and Google so operators can tell what each status refers to without opening a panel first
+- panel actions redirect back to the relevant tab so retry/apply/test flows preserve local context rather than bouncing operators to the top of the page
+- the active tab uses explicit visual treatment plus `aria-current="page"`
+
+### Admin agent-runtime customization surface
+
+The `agent-runtime` tab is an internal Sync360-owned configuration layer for tenant runtime customization. It does not expose arbitrary file editing or raw `openclaw.json` mutation.
+
+Current behavior:
+
+- the panel can save draft prompt overrides for `IDENTITY.md`, `SOUL.md`, `USER.md`, and `BOOTSTRAP.md`
+- the panel can assign allowlisted Sync360 skill packs and override allowlisted agent defaults such as the default model and extra default skill IDs
+- the page renders the tenant's current composed prompt content for those files before the override editors so operators can see the existing effective runtime content before appending or replacing it
+- preview, apply, revert, and apply-log actions all stay on the same tenant page and preserve the `agent-runtime` tab selection
+- apply and revert queue `ApplyTenantAgentCustomization` jobs through `provisioning_jobs` and record history in `tenant_agent_customization_applies`
+- a dedicated gate controls live apply/revert authority separately from broad admin read/edit access
+- if the customization tables are missing locally, the page skips eager-loading those relations and renders an unavailable/setup-needed state instead of throwing a 500
+
 ### Future skill flow
 
 When adding a new OpenClaw skill that depends on an external host binary, the canonical flow is:
@@ -745,6 +779,11 @@ Admin routes under `local.only` and `admin`:
 - `POST /admin/tenants/{tenant}/runtime/capabilities/sync`
 - `POST /admin/tenants/{tenant}/google/sync`
 - `POST /admin/tenants/{tenant}/google/test`
+- `PATCH /admin/tenants/{tenant}/agent-customization`
+- `POST /admin/tenants/{tenant}/agent-customization/preview`
+- `POST /admin/tenants/{tenant}/agent-customization/apply`
+- `POST /admin/tenants/{tenant}/agent-customization/revert`
+- `GET /admin/tenants/{tenant}/agent-customization/apply-log`
 - `POST /admin/tenants/{tenant}/workspace/start`
 - `POST /admin/tenants/{tenant}/workspace/stop`
 - `POST /admin/tenants/{tenant}/workspace/restart`

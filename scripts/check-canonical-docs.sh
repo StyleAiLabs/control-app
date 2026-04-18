@@ -138,12 +138,14 @@ fi
 missing_docs=()
 for doc in "${required_docs[@]}"; do
   found="false"
-  for changed in "${required_docs_changed[@]}"; do
-    if [[ "$changed" == "$doc" ]]; then
-      found="true"
-      break
-    fi
-  done
+  if [[ ${#required_docs_changed[@]} -gt 0 ]]; then
+    for changed in "${required_docs_changed[@]}"; do
+      if [[ "$changed" == "$doc" ]]; then
+        found="true"
+        break
+      fi
+    done
+  fi
 
   if [[ "$found" != "true" ]]; then
     missing_docs+=("$doc")

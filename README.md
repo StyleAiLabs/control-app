@@ -227,6 +227,8 @@ The local-only super-admin tenant detail page now exposes tenant-scoped runtime 
 - `Sync Runtime Capabilities` — runs the same tenant repair flow as `php artisan sync360:sync-runtime-capabilities <tenant>`
 - `Test Google Workspace` — runs the same smoke test as `php artisan sync360:test-google-workspace <tenant>`
 
+The tenant detail screen is now organized as same-route tabbed subscreens on `GET /admin/tenants/{tenant}?tab=overview|workspace|google|agent-runtime|support`, so admin actions preserve the relevant context panel instead of bouncing back to a long single scroll. The `Agent Runtime` tab also previews the tenant's current effective prompt files before override edits and shows a setup-needed state when the tenant customization tables have not been migrated locally yet.
+
 These admin actions call the existing artisan command paths. They do not change the `goLive()` invariant.
 
 The Google Workspace smoke path now verifies both runtime auth health and the native direct `gog` CLI surface that tenant assistants use:
