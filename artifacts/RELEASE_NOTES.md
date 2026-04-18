@@ -7,6 +7,27 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-19 — Google Verification Now Gates Customer-Ready Workspace Success And Go Live
+
+Date: 2026-04-19
+Status: Implemented
+
+### Overview
+
+Separated private runtime readiness from customer-facing readiness. Sync360 still marks a tenant runtime `ready` after private/public provisioning checks, but not-yet-live tenants now need a connected and `verified` Google Workspace before they can reach the workspace-ready success state or execute Go Live.
+
+### What Changed
+
+- added a shared tenant workspace readiness calculator that derives runtime-ready, customer-ready, go-live-ready, blocking reason, next action, and Google live-access labels from preloaded tenant + initial Google sync state
+- preserved the existing `workspace.ready` payload meaning for backward safety, while adding explicit `workspace.runtime_ready`, `workspace.customer_ready`, `workspace.go_live_ready`, `workspace.blocking_code`, `workspace.blocking_message`, and `workspace.next_action`
+- updated onboarding Step 6/Step 7 so Google Workspace is no longer treated as optional for not-yet-live tenants when the feature is available
+- removed the onboarding controller's old best-effort Google sync call from `POST /onboarding/go-live`, keeping the existing invariant that Go Live syncs workspace markdown files only
+- added an explicit server-side go-live guard so direct API calls are blocked until the readiness calculator reports `go_live_ready`
+- changed `TenantSetupController::show()`, `status()`, `ready()`, and the workspace-ready Blade to use customer-ready gating plus clearer Google-specific next steps
+- grandfathered already-live / already-complete skipped tenants so this deploy does not strand existing tenants behind the new Google gate
+- changed the post-provisioning Brevo email copy to a neutral "workspace created / continue setup" message instead of implying the customer workspace is fully ready immediately after provisioning
+- added feature and unit coverage for the new readiness gating, blocked workspace-ready route, grandfathered skipped tenants, go-live guard, and calculator purity contract
+
 ## 2026-04-19 — Tenant Assigned Skill Guidance Now Lives In Generated AGENTS.md
 
 Date: 2026-04-19

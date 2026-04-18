@@ -503,7 +503,7 @@
             <span class="eyebrow">Step 6</span>
             <h3 style="margin-top: 16px; font-size: 1.35rem;">Connect Google Workspace</h3>
             <p style="margin-top: 8px;">
-                Optionally connect Google Workspace so your digital employee can work with Gmail, Calendar, Drive, Contacts, Sheets, and Docs.
+                Connect Google Workspace so your digital employee can work with Gmail, Calendar, Drive, Contacts, Sheets, and Docs, and so your workspace can become customer-ready.
             </p>
 
             <div class="meta" style="margin-top: 18px;">
@@ -547,7 +547,7 @@
                 @elseif (($state['google_workspace']['status'] ?? null) === 'disconnected')
                     Google Workspace was disconnected. You can reconnect this account at any time.
                 @else
-                    This step is optional and never blocks Go Live. You can skip it now and come back later.
+                    Connect Google Workspace to finish preparing your customer-ready workspace.
                 @endif
             </div>
 
@@ -571,7 +571,7 @@
                     </a>
                 </div>
 
-                <form method="POST" action="{{ route('onboarding.google.skip') }}" id="google-workspace-skip-form" style="display: {{ (($state['google_workspace']['status'] ?? 'pending') === 'pending') ? 'block' : 'none' }};">
+                <form method="POST" action="{{ route('onboarding.google.skip') }}" id="google-workspace-skip-form" style="display: none;">
                     @csrf
                     <button type="submit" class="button button--secondary">Skip For Now</button>
                 </form>
@@ -593,7 +593,7 @@
             <span class="eyebrow">Step 7</span>
             <h3 style="margin-top: 16px; font-size: 1.35rem;">Bring it live</h3>
             <p style="margin-top: 8px;">
-                Once your business details, communication style, skills, and channel are in place, we'll activate your digital employee. Google Workspace is optional.
+                Once your business details, communication style, skills, channel, and Google Workspace are ready, we'll activate your digital employee.
             </p>
 
             <div class="meta" style="margin-top: 18px;">
@@ -619,11 +619,11 @@
 
             <div class="note" style="margin-top: 18px;" id="go-live-note">
                 @if (($state['agent_status'] ?? null) === 'live')
-                    Your digital employee is already active. Run this again after any changes to resync everything.
-                @elseif (($state['workspace']['ready'] ?? false) === true)
+                    Your digital employee is already active.
+                @elseif (($state['workspace']['go_live_ready'] ?? false) === true)
                     Everything is ready. Click below to activate your digital employee.
                 @else
-                    Your workspace is still being set up in the background — this usually takes a few minutes. You can activate once it is ready.
+                    {{ $state['workspace']['blocking_message'] ?? 'Finish the remaining setup steps before going live.' }}
                 @endif
             </div>
 
@@ -636,7 +636,7 @@
             @else
                 <form id="go-live-form" style="margin-top: 18px;">
                     @csrf
-                    <button type="submit">{{ ($state['agent_status'] ?? null) === 'live' ? 'Resync Assistant' : 'Go Live' }}</button>
+                    <button type="submit" {{ ($state['workspace']['go_live_ready'] ?? false) ? '' : 'disabled' }}>{{ ($state['agent_status'] ?? null) === 'live' ? 'Resync Assistant' : 'Go Live' }}</button>
                 </form>
             @endif
             <div class="note" style="margin-top: 18px; display: none;" id="go-live-success"></div>
@@ -689,6 +689,7 @@
         const channelStatusNote = document.getElementById('channel-status-note');
         const telegramBotTokenStatus = document.getElementById('telegram-bot-token-status');
         const goLiveForm = document.getElementById('go-live-form');
+        const goLiveSubmitButton = goLiveForm ? goLiveForm.querySelector('button[type="submit"]') : null;
         const goLiveSuccess = document.getElementById('go-live-success');
         const goLiveError = document.getElementById('go-live-error');
         const googleWorkspaceStatus = document.getElementById('google-workspace-status');
@@ -998,7 +999,7 @@
             const googleIsDisconnected = googleStatus === 'disconnected';
 
             googleWorkspaceConnectWrapper.style.display = googleIsConnected ? 'none' : 'block';
-            googleWorkspaceSkipForm.style.display = googleStatus === 'pending' ? 'block' : 'none';
+            googleWorkspaceSkipForm.style.display = 'none';
             googleWorkspaceDisconnectForm.style.display = googleIsConnected ? 'block' : 'none';
 
             if (state.google_workspace?.can_connect) {
@@ -1027,7 +1028,7 @@
             } else if (googleIsDisconnected) {
                 googleWorkspaceNote.textContent = 'Google Workspace was disconnected. You can reconnect this account at any time.';
             } else {
-                googleWorkspaceNote.textContent = 'This step is optional and never blocks Go Live. You can skip it now and come back later.';
+                googleWorkspaceNote.textContent = 'Connect Google Workspace to finish preparing your customer-ready workspace.';
             }
             googleWorkspaceError.textContent = state.google_workspace?.last_error || '';
             googleWorkspaceError.style.display = state.google_workspace?.last_error ? 'block' : 'none';
@@ -1036,9 +1037,13 @@
                 : 'Offline';
             goLiveNote.textContent = state.agent_status === 'live'
                 ? `Your digital employee is active${state.files?.synced_at ? ` — last synced at ${state.files.synced_at}.` : '.'}`
-                : state.workspace?.ready
+                : state.workspace?.go_live_ready
                     ? `Everything is ready. Click Go Live above to activate your digital employee.`
-                    : `Your workspace is still setting up. You can activate once it is ready.`;
+                    : (state.workspace?.blocking_message || 'Finish the remaining setup steps before going live.');
+
+            if (goLiveSubmitButton) {
+                goLiveSubmitButton.disabled = !state.workspace?.go_live_ready;
+            }
 
             /* Toggle connected panel vs form */
             const isConnected = state.channel_setup?.status === 'connected';

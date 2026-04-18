@@ -54,12 +54,15 @@ class ProvisioningFlowTest extends TestCase
             ->assertJson([
                 'provisioning_status' => 'ready',
                 'workspace_url' => 'https://acme-plumbing.workspace.test',
-            ]);
+            ])
+            ->assertJsonPath('ready_redirect', null)
+            ->assertJsonPath('customer_ready', false)
+            ->assertJsonPath('blocking_code', 'google_connect_required');
 
         $this->get('/tenant/workspace-ready')
             ->assertOk()
-            ->assertSee('https://acme-plumbing.workspace.test')
-            ->assertSee('your workspace is ready.', escape: false)
+            ->assertSee('Connect Google Workspace')
+            ->assertSee('Continue Setup')
             ->assertDontSee('Assigned Port')
             ->assertDontSee($tenant->runtime_path);
 
@@ -121,6 +124,8 @@ class ProvisioningFlowTest extends TestCase
             return $request->url() === 'https://api.brevo.com/v3/smtp/email'
                 && $request->hasHeader('api-key', 'test-brevo-key')
                 && ($data['to'][0]['email'] ?? null) === 'alice@example.com'
+                && str_contains((string) ($data['subject'] ?? ''), 'workspace has been created')
+                && str_contains((string) ($data['htmlContent'] ?? ''), 'continue your setup')
                 && str_contains((string) ($data['htmlContent'] ?? ''), 'Username:')
                 && str_contains((string) ($data['htmlContent'] ?? ''), 'Password:')
                 && str_contains((string) ($data['htmlContent'] ?? ''), 'https://acme-plumbing.workspace.test');

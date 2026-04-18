@@ -9,7 +9,9 @@ use App\Models\ConversationLog;
 use App\Models\Tenant;
 use App\Models\TenantGoogleCredential;
 use App\Services\LiteLlmTenantKeyService;
+use App\Services\TenantAgentSyncService;
 use App\Services\TenantRuntimeService;
+use App\Services\TenantWorkspaceReadinessService;
 use App\Support\GoogleWorkspaceFeature;
 use App\Support\OnboardingStepCatalog;
 use Illuminate\Contracts\View\View;
@@ -29,6 +31,8 @@ class DashboardController extends Controller
     public function __construct(
         private readonly DockerComposeRunner $dockerCompose,
         private readonly TenantRuntimeService $runtime,
+        private readonly TenantAgentSyncService $agentSync,
+        private readonly TenantWorkspaceReadinessService $workspaceReadiness,
     ) {}
 
     public function index(Request $request): Response|RedirectResponse
@@ -262,6 +266,13 @@ class DashboardController extends Controller
             ->all();
         $channelConfig = is_array($tenant->channel_config) ? $tenant->channel_config : [];
         $googleCredential = GoogleWorkspaceFeature::isAvailable() ? $tenant->googleCredential : null;
+        $googleSyncJob = null;
+
+        if (GoogleWorkspaceFeature::isAvailable() && $tenant->googleCredential?->isConnected()) {
+            $googleSyncJob = $this->agentSync->latestInitialGoogleWorkspaceSyncJob($tenant);
+        }
+
+        $workspaceReadiness = $this->workspaceReadiness->evaluate($tenant, GoogleWorkspaceFeature::isAvailable(), $googleSyncJob);
         $stepLabels = OnboardingStepCatalog::labels();
 
         $steps = [
@@ -289,7 +300,7 @@ class DashboardController extends Controller
             ],
             6 => [
                 'label' => $stepLabels[6],
-                'status' => (! GoogleWorkspaceFeature::isAvailable() || ($googleCredential?->unblocksOnboarding() ?? false)) ? 'complete' : 'incomplete',
+                'status' => $workspaceReadiness['customer_ready'] ? 'complete' : 'incomplete',
             ],
             7 => [
                 'label' => $stepLabels[7],

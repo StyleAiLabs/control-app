@@ -728,13 +728,44 @@ class OnboardingFlowTest extends TestCase
             ->assertJsonPath('google_workspace.last_error', 'Refresh token exchange failed inside the tenant runtime.');
     }
 
-    public function test_google_skip_marks_step_six_complete_without_blocking_go_live(): void
+    public function test_onboarding_state_preserves_runtime_ready_but_blocks_customer_ready_until_google_is_verified(): void
     {
         [$user, $tenant] = $this->seedTenantWithProfile();
 
         config()->set('services.google.client_id', 'google-client-id');
         config()->set('services.google.client_secret', 'google-client-secret');
         config()->set('services.google.redirect_uri', 'https://app.sync360.test/auth/google/callback');
+
+        $tenant->forceFill([
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
+            'onboarding_status' => 'in_progress',
+            'onboarding_step' => 5,
+        ])->save();
+
+        $this->actingAs($user);
+
+        $this->get('/onboarding/state')
+            ->assertOk()
+            ->assertJsonPath('workspace.ready', true)
+            ->assertJsonPath('workspace.runtime_ready', true)
+            ->assertJsonPath('workspace.customer_ready', false)
+            ->assertJsonPath('workspace.go_live_ready', false)
+            ->assertJsonPath('workspace.blocking_code', 'google_connect_required')
+            ->assertJsonPath('steps.6.status', 'incomplete');
+    }
+
+    public function test_google_skip_keeps_step_six_incomplete_for_non_live_tenants(): void
+    {
+        [$user, $tenant] = $this->seedTenantWithProfile();
+
+        config()->set('services.google.client_id', 'google-client-id');
+        config()->set('services.google.client_secret', 'google-client-secret');
+        config()->set('services.google.redirect_uri', 'https://app.sync360.test/auth/google/callback');
+        $tenant->forceFill([
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
+        ])->save();
         $this->actingAs($user);
 
         $this->post('/onboarding/google/skip')
@@ -744,6 +775,13 @@ class OnboardingFlowTest extends TestCase
 
         $this->assertSame(6, $tenant->onboarding_step);
         $this->assertSame(TenantGoogleCredential::STATUS_SKIPPED, $tenant->googleCredential?->status);
+
+        $this->get('/onboarding/state')
+            ->assertOk()
+            ->assertJsonPath('steps.6.status', 'incomplete')
+            ->assertJsonPath('workspace.customer_ready', false)
+            ->assertJsonPath('workspace.go_live_ready', false)
+            ->assertJsonPath('workspace.blocking_code', 'google_connect_required');
     }
 
     public function test_google_disconnect_clears_runtime_artifacts_and_marks_status_disconnected(): void
@@ -947,6 +985,57 @@ class OnboardingFlowTest extends TestCase
             ]);
     }
 
+    public function test_go_live_rejects_synced_but_unverified_google_workspace_state(): void
+    {
+        [$user, $tenant, $profile, $files] = $this->seedTenantWithProfile();
+
+        config()->set('services.google.client_id', 'google-client-id');
+        config()->set('services.google.client_secret', 'google-client-secret');
+        config()->set('services.google.redirect_uri', 'https://app.sync360.test/auth/google/callback');
+
+        $profile->forceFill([
+            'website_url' => 'https://acme.example',
+            'description' => 'Acme Plumbing helps homeowners with urgent repairs and scheduled installs.',
+            'services' => ['Emergency plumbing', 'Hot water cylinder installs'],
+        ])->save();
+
+        $files->forceFill([
+            'identity_markdown' => '# Identity',
+            'soul_markdown' => '# Soul',
+            'user_markdown' => '# User',
+            'bootstrap_markdown' => '# Bootstrap',
+            'generated_at' => now(),
+        ])->save();
+
+        $tenant->forceFill([
+            'onboarding_status' => 'in_progress',
+            'onboarding_step' => 6,
+            'tone' => 'friendly',
+            'capabilities' => ['faqs'],
+            'channel' => 'telegram',
+            'channel_config' => ['telegram_bot_token' => 'telegram-bot-token'],
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
+        ])->save();
+
+        $tenant->googleCredential()->create([
+            'status' => TenantGoogleCredential::STATUS_CONNECTED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_SYNCED,
+            'google_email' => 'owner@example.com',
+            'access_token' => 'google-access-token',
+            'refresh_token' => 'google-refresh-token',
+            'scopes' => ['openid', 'email'],
+            'connected_at' => now(),
+        ]);
+
+        $this->actingAs($user);
+
+        $this->postJson('/onboarding/go-live')
+            ->assertStatus(409)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('code', 'google_verifying');
+    }
+
     public function test_go_live_writes_runtime_files_syncs_and_marks_agent_live(): void
     {
         [$user, $tenant, $profile, $files] = $this->seedTenantWithProfile();
@@ -982,8 +1071,13 @@ class OnboardingFlowTest extends TestCase
         ])->save();
         TenantGoogleCredential::query()->create([
             'tenant_id' => $tenant->id,
-            'status' => TenantGoogleCredential::STATUS_SKIPPED,
-            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_PENDING,
+            'status' => TenantGoogleCredential::STATUS_CONNECTED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_VERIFIED,
+            'google_email' => 'owner@example.com',
+            'access_token' => 'google-access-token',
+            'refresh_token' => 'google-refresh-token',
+            'scopes' => ['openid', 'email'],
+            'connected_at' => now(),
         ]);
 
         $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;

@@ -142,14 +142,14 @@ class WorkspaceReadyEmailService
 
         return <<<HTML
 <p>Hi {$recipientName},</p>
-<p>Your <strong>{$businessName}</strong> workspace has been created and is ready to use.</p>
-<p>You can log in using the details below:</p>
+<p>Your <strong>{$businessName}</strong> workspace has been created.</p>
+<p>You can log in using the details below and continue your setup inside Sync360:</p>
 <p>
   <strong>Sync360 workspace URL:</strong> <a href="{$workspaceUrl}">{$workspaceUrl}</a><br>
   <strong>Username:</strong> {$email}<br>
   <strong>Password:</strong> {$password}
 </p>
-<p>We recommend signing in to Sync360 and updating your password after your first login.</p>
+<p>We recommend signing in to Sync360, updating your password after your first login, and finishing the remaining setup steps.</p>
 <p>If you need any help getting started, just reply to this email and our team will be happy to help.</p>
 <p>Regards,<br>Sync360</p>
 HTML;
@@ -160,15 +160,15 @@ HTML;
         return trim(implode(PHP_EOL, [
             sprintf('Hi %s,', $tenant->user?->name ?: $tenant->business_name),
             '',
-            sprintf('Your %s workspace has been created and is ready to use.', $tenant->business_name),
+            sprintf('Your %s workspace has been created.', $tenant->business_name),
             '',
-            'You can log in using the details below:',
+            'You can log in using the details below and continue your setup inside Sync360:',
             '',
             sprintf('Sync360 workspace URL: %s', $tenant->workspace_url),
             sprintf('Username: %s', $loginEmail),
             sprintf('Password: %s', $plainPassword),
             '',
-            'We recommend signing in to Sync360 and updating your password after your first login.',
+            'We recommend signing in to Sync360, updating your password after your first login, and finishing the remaining setup steps.',
             '',
             'If you need any help getting started, just reply to this email and our team will be happy to help.',
             '',

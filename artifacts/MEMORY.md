@@ -1,6 +1,6 @@
 # Sync360 Control App Memory
 
-Last verified: `2026-04-18`
+Last verified: `2026-04-19`
 
 This memory is based on the current repo code and current canonical docs. It is not a guarantee about live production state.
 
@@ -57,7 +57,7 @@ If those files conflict with the codebase, trust:
 - Workspace URL model: customer-facing Sync360 URL on the tenant hostname; private gateway stays behind the control plane
 - Local dev runtime model: the Docker Compose dev stack forces `SYNC360_INFRASTRUCTURE_DRIVER=local`, uses `docker-compose` inside the app/worker containers, and reaches tenant host ports through `host.docker.internal`
 - Host-managed runtime capability model: external tenant runtime dependencies are declared in `config/sync360.php` under `runtime_capabilities`; Sync360 installs pinned host binaries on SSH-managed client VPS hosts, bind-mounts them read-only into every tenant container, and verifies both the host binary and in-container visibility before treating the runtime as healthy
-- Onboarding model: signup provisions the runtime in the background, while the customer completes a seven-step setup flow ending in optional Google Workspace connect and Go Live; the onboarding UI shows explicit wizard/background progress, polls server state without wiping in-progress drafts, advances automatically after successful saves on the main setup steps, and now distinguishes Google Workspace `waiting for workspace`, `queued`, `syncing`, `checking`, `ready`, and `needs attention` live-access states on top of the persisted runtime sync result
+- Onboarding model: signup provisions the runtime in the background, while the customer completes a seven-step setup flow ending in required Google Workspace verification and Go Live for not-yet-live tenants when the Google feature is available; the onboarding UI now separates runtime-ready from customer-ready/go-live-ready workspace state, shows explicit blocking reasons/next actions, polls server state without wiping in-progress drafts, advances automatically after successful saves on the main setup steps, and distinguishes Google Workspace `waiting for workspace`, `queued`, `syncing`, `checking`, `ready`, and `needs attention` live-access states on top of the persisted runtime sync result
 - Channel-step navigation model: Step 5 now renders an explicit `Continue To Google Workspace` button in the channel panel navigation itself, even if the channel is already connected or the customer wants to skip ahead and come back later, so the wizard never traps them on the channel panel
 - Google Workspace messaging model: Step 6 customer-facing copy now frames runtime status as live-access progress (`connected`, checking, ready, needs attention) with calmer wording, so connected accounts are not immediately framed as broken or in need of reconnect unless the actual runtime error says so
 - Profile sync model: the Business Profile page now shows in-page assistant sync progress while a save/manual sync is running, shows the completion result after redirect, and live-tenant workspace prompt/tool-guidance changes can be pushed later with `sync360:resync-live-tenants` without reprovisioning the tenant
@@ -94,12 +94,12 @@ If those files conflict with the codebase, trust:
 2. `ServerPlacementService` selects a server.
 3. `ProcessTenantProvisioning` dispatches after commit.
 4. `OpenClawProvisioner` allocates a port, ensures a LiteLLM tenant key, prepares the runtime, writes OpenClaw and Compose config, syncs the runtime, starts the tenant container, checks private readiness through `TenantRuntimeService::gatewayBaseUrl()`, then checks the public workspace login URL.
-5. `WorkspaceReadyEmailService` sends the workspace-ready email after provisioning succeeds.
+5. `WorkspaceReadyEmailService` sends a neutral "workspace created / continue setup" email after provisioning succeeds.
 6. In `ssh` mode, operators bootstrap each client VPS with `sync360:bootstrap-client-vps`, which now also installs any pinned host-managed runtime capabilities declared in config, such as the `gog` binary used by Google Workspace tooling.
 
 ### Onboarding and go-live
 
-1. Customer works through `/onboarding` steps for website extraction, business info, tone, capabilities, channel setup, optional Google Workspace connect, and Go Live.
+1. Customer works through `/onboarding` steps for website extraction, business info, tone, capabilities, channel setup, Google Workspace connect, and Go Live.
 2. The onboarding Blade surfaces explicit step progress plus a background-setup status card so customers can see what step they are on and whether workspace provisioning is still running behind the scenes.
 3. The onboarding Blade polls `/onboarding/state`, but the client preserves unsaved local drafts so background refreshes do not collapse or clear in-progress setup.
 4. Successful saves on website extraction, business info, tone, capabilities, and channel setup advance the wizard to the next step automatically, so the customer does not need to save and then click Next separately.
@@ -109,13 +109,14 @@ If those files conflict with the codebase, trust:
 8. The initial Google sync job is persisted in `provisioning_jobs` as `initial_google_workspace_sync`, moves through `queued` / `running` / `completed` / `failed`, and runs the same Google auth reseed plus tenant-side smoke verification path used elsewhere.
 9. Google auth reseeding writes `.openclaw/gogcli/` artifacts from DB state, including an encrypted `gog`-compatible keyring token plus the token cache file, then the control plane can run the tenant-side Google smoke test to promote runtime status from `synced` to `verified`.
 10. Provisioning now also writes the bundled `gog` skill into tenant `config/openclaw.json` and ensures agent skill allowlists include `gog`; later Google runtime syncs re-apply that config so older tenants can be repaired during resync.
-11. `TenantAgentSyncService::goLive()` writes the full workspace artifact set into `.openclaw/workspace/` (`IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`, `TOOLS.md`, `PROFILE.md`, and `HEARTBEAT.md`) and syncs only workspace markdown files.
-12. The generated workspace artifacts now explicitly tell the tenant agent to use connected Google Workspace tools for owner requests about inboxes, calendars, files, contacts, sheets, and docs instead of giving a generic refusal.
-13. `TOOLS.md` now gives the tenant agent explicit environment-specific `gog` guidance, including using exec, checking `gog --help` / service help, using native direct `gog` CLI paths, and avoiding generic refusals when Google Workspace is connected.
-14. Successful Google verification and the explicit Google smoke-test command now clear the known stale Gmail/account failure memory files from the tenant workspace memory directory after the runtime proves healthy, so older reconnect/account-selection issue summaries stop lingering.
-15. `goLive()` still only syncs workspace markdown files and restarts the tenant without overwriting provisioned credentials.
-16. Existing live tenants do not automatically receive new generated workspace instructions when only the control app is deployed; operators can resync those prompt/workspace-file changes with `php artisan sync360:resync-live-tenants` after deploy.
-17. Existing ready tenants that predate a new host-managed runtime capability can be repaired with `php artisan sync360:sync-runtime-capabilities {tenantSelector?} {capability?}`, which installs/verifies the host binary, re-seeds tenant `.openclaw/gogcli/` auth artifacts for connected Google tenants, regenerates full staged compose/config files, pushes changed files, refreshes workspace guidance for live tenants, recreates the tenant when compose changed, corrects Google runtime status to `failed` if verification still breaks, and now clears the known stale Gmail/account failure memory files after a successful verification.
+11. A shared customer-readiness calculator now determines runtime-ready, customer-ready, go-live-ready, blocking reason, and next action from preloaded tenant + Google sync state; already-live/already-complete skipped tenants are grandfathered so they stay unblocked after deploy.
+12. `TenantAgentSyncService::goLive()` writes the full workspace artifact set into `.openclaw/workspace/` (`IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`, `TOOLS.md`, `PROFILE.md`, and `HEARTBEAT.md`) and syncs only workspace markdown files.
+13. The generated workspace artifacts now explicitly tell the tenant agent to use connected Google Workspace tools for owner requests about inboxes, calendars, files, contacts, sheets, and docs instead of giving a generic refusal.
+14. `TOOLS.md` now gives the tenant agent explicit environment-specific `gog` guidance, including using exec, checking `gog --help` / service help, using native direct `gog` CLI paths, and avoiding generic refusals when Google Workspace is connected.
+15. Successful Google verification and the explicit Google smoke-test command now clear the known stale Gmail/account failure memory files from the tenant workspace memory directory after the runtime proves healthy, so older reconnect/account-selection issue summaries stop lingering.
+16. `goLive()` still only syncs workspace markdown files and restarts the tenant without overwriting provisioned credentials, and the onboarding controller no longer piggybacks Google sync/verification onto the Go Live request.
+17. Existing live tenants do not automatically receive new generated workspace instructions when only the control app is deployed; operators can resync those prompt/workspace-file changes with `php artisan sync360:resync-live-tenants` after deploy.
+18. Existing ready tenants that predate a new host-managed runtime capability can be repaired with `php artisan sync360:sync-runtime-capabilities {tenantSelector?} {capability?}`, which installs/verifies the host binary, re-seeds tenant `.openclaw/gogcli/` auth artifacts for connected Google tenants, regenerates full staged compose/config files, pushes changed files, refreshes workspace guidance for live tenants, recreates the tenant when compose changed, corrects Google runtime status to `failed` if verification still breaks, and now clears the known stale Gmail/account failure memory files after a successful verification.
 
 ### Conversation logging and summaries
 
@@ -137,6 +138,7 @@ If those files conflict with the codebase, trust:
 - Host-managed runtime capabilities must never be delivered through `goLive()`. Host binaries are installed only through SSH runner commands (`sync360:bootstrap-client-vps` / `sync360:sync-runtime-capabilities`), and tenant runtime files are updated only through deterministic compose/config regeneration plus targeted remote writes.
 - Google Workspace auth sync must never piggyback on `goLive()` or use a full runtime sync. `TenantAgentSyncService::configureGoogleWorkspace()` uses targeted runner writes under `.openclaw/gogcli/` and can always re-seed runtime auth from the DB row.
 - Google Workspace `runtime_sync_status` is no longer equivalent to a plain file-write result. `pending` means the runtime has not been updated yet or an initial sync job is still queued/running, `synced` means auth artifacts were written, `verified` means the tenant-side smoke test reached live Gmail/Calendar APIs, and `failed` means runtime sync or verification needs attention.
+- Customer-facing workspace success is now separate from raw runtime readiness. For not-yet-live tenants in Google-enabled environments, `/tenant/workspace-ready` success and `POST /onboarding/go-live` require Google Workspace to be connected and `runtime_sync_status=verified`; already-live/already-complete skipped tenants are grandfathered.
 - A successful Google verification is also the cleanup signal for known stale Gmail/account failure memory files. Those files are safe to remove only after the runtime smoke path is healthy again; do not try to "fix" Google issues by deleting arbitrary workspace memory files before verification succeeds.
 - Host-managed runtime capability commands are intentionally SSH-only in v1. `local` mode does not emulate host installs or bind mounts; the commands fail early with a clear error instead.
 - Tenant compose generation now includes unconditional host-managed capability mounts declared in the catalog. For `gog`, every tenant compose file mounts `/usr/local/bin/gog` read-only from the host into the container, regardless of whether Google Workspace is currently connected.
@@ -162,7 +164,7 @@ Verified current code behavior:
 
 - Telegram onboarding currently calls `TenantAgentSyncService::configureChannel()`, which writes polling-mode Telegram config into `openclaw.json` and restarts the tenant runtime.
 - Telegram no longer exposes a control-app webhook path in the current codebase.
-- Google Workspace onboarding is now a separate optional step before Go Live. The control plane owns the OAuth redirect, callback, token exchange, and DB persistence, then re-seeds GOG runtime auth from `tenant_google_credentials`.
+- Google Workspace onboarding is now a required customer-readiness step before Go Live for not-yet-live tenants when the feature is available. The control plane owns the OAuth redirect, callback, token exchange, and DB persistence, then re-seeds GOG runtime auth from `tenant_google_credentials`.
 - WhatsApp is not implemented as a live channel integration. The onboarding UI only keeps a disabled "Coming Soon" placeholder.
 - The control plane no longer exposes WhatsApp or Telegram webhook routes.
 
@@ -181,6 +183,7 @@ Remaining documentation mismatch:
 - [`app/Services/TenantRuntimeCapabilityService.php`](../app/Services/TenantRuntimeCapabilityService.php) — host-managed capability catalog, compose/config mutation, SSH install flow, and host/container verification
 - [`app/Services/TenantRuntimeService.php`](../app/Services/TenantRuntimeService.php) — paths, ports, workspace URL, runtime generation
 - [`app/Services/TenantAgentSyncService.php`](../app/Services/TenantAgentSyncService.php) — go-live sync, channel config, heartbeat/profile sync
+- [`app/Services/TenantWorkspaceReadinessService.php`](../app/Services/TenantWorkspaceReadinessService.php) — shared runtime-ready vs customer-ready vs go-live-ready gating and UI blocking reasons
 - [`app/Console/Commands/SyncConversationReplies.php`](../app/Console/Commands/SyncConversationReplies.php) — session-log conversation sync
 - [`app/Services/TenantGatewayService.php`](../app/Services/TenantGatewayService.php) and [`app/Services/TenantHealthCheckService.php`](../app/Services/TenantHealthCheckService.php) — private gateway access and readiness checks
 

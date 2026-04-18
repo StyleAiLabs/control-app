@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
 use App\Models\Tenant;
+use App\Services\TenantAgentSyncService;
+use App\Services\TenantWorkspaceReadinessService;
+use App\Support\GoogleWorkspaceFeature;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -13,11 +16,20 @@ use Illuminate\Support\Str;
 
 class TenantSetupController extends Controller
 {
+    public function __construct(
+        private readonly TenantWorkspaceReadinessService $workspaceReadiness,
+        private readonly TenantAgentSyncService $agentSync,
+    ) {
+    }
+
     public function show(Request $request): View|RedirectResponse
     {
-        $tenant = $request->user()->tenant()->firstOrFail();
+        $tenant = $request->user()->tenant()
+            ->with(GoogleWorkspaceFeature::tenantRelations())
+            ->firstOrFail();
+        $readiness = $this->readinessFor($tenant);
 
-        if ($tenant->provisioning_status === TenantProvisioningStatus::Ready) {
+        if ($readiness['customer_ready']) {
             return redirect()->route('tenant.workspace-ready');
         }
 
@@ -28,7 +40,10 @@ class TenantSetupController extends Controller
 
     public function status(Request $request): JsonResponse
     {
-        $tenant = $request->user()->tenant()->firstOrFail();
+        $tenant = $request->user()->tenant()
+            ->with(GoogleWorkspaceFeature::tenantRelations())
+            ->firstOrFail();
+        $readiness = $this->readinessFor($tenant);
 
         return response()->json([
             'business_name' => $tenant->business_name,
@@ -36,29 +51,35 @@ class TenantSetupController extends Controller
             'trial_status' => $tenant->trial_status->value,
             'provisioning_status' => $tenant->provisioning_status->value,
             'workspace_url' => $tenant->workspace_url,
-            'workspace_route' => $tenant->provisioning_status === TenantProvisioningStatus::Ready
+            'workspace_route' => $readiness['customer_ready']
                 ? $tenant->workspace_url
                 : null,
-            'ready_redirect' => $tenant->provisioning_status === TenantProvisioningStatus::Ready
+            'ready_redirect' => $readiness['customer_ready']
                 ? route('tenant.workspace-ready')
                 : null,
+            'runtime_ready' => $readiness['runtime_ready'],
+            'customer_ready' => $readiness['customer_ready'],
+            'go_live_ready' => $readiness['go_live_ready'],
+            'blocking_code' => $readiness['blocking_code'],
+            'blocking_message' => $readiness['blocking_message'],
+            'next_action' => $readiness['next_action'],
             'error_message' => $tenant->provisioningJobs()->latest('id')->value('error_message'),
         ]);
     }
 
     public function ready(Request $request): View|RedirectResponse
     {
-        $tenant = $request->user()->tenant()->firstOrFail();
-
-        if ($tenant->provisioning_status !== TenantProvisioningStatus::Ready) {
-            return redirect()->route('tenant.setup');
-        }
+        $tenant = $request->user()->tenant()
+            ->with(GoogleWorkspaceFeature::tenantRelations())
+            ->firstOrFail();
+        $readiness = $this->readinessFor($tenant);
 
         return view('tenant.workspace-ready', [
             'tenant' => $tenant,
             'firstName' => Str::of($request->user()->name)->before(' ')->value() ?: $request->user()->name,
             'trialLabel' => $this->trialLabel($tenant->trial_status),
-            'nextSteps' => $this->nextSteps($tenant),
+            'nextSteps' => $this->nextSteps($tenant, $readiness),
+            'workspaceReadiness' => $readiness,
         ]);
     }
 
@@ -82,8 +103,31 @@ class TenantSetupController extends Controller
     /**
      * @return list<array{title: string, description: string}>
      */
-    private function nextSteps(Tenant $tenant): array
+    /**
+     * @param  array<string, mixed>  $workspaceReadiness
+     * @return list<array{title: string, description: string}>
+     */
+    private function nextSteps(Tenant $tenant, array $workspaceReadiness): array
     {
+        if (! $workspaceReadiness['customer_ready']) {
+            $nextActionLabel = (string) ($workspaceReadiness['next_action']['label'] ?? 'Continue Setup');
+
+            return [
+                [
+                    'title' => $nextActionLabel,
+                    'description' => $workspaceReadiness['blocking_message'] ?? 'Finish the remaining setup steps before opening the customer workspace.',
+                ],
+                [
+                    'title' => 'Return to onboarding',
+                    'description' => 'Open the setup flow and complete the Google Workspace step so the customer workspace is fully ready.',
+                ],
+                [
+                    'title' => 'Wait for the live sync to finish',
+                    'description' => 'If Google Workspace is already connected, stay on the onboarding flow and let the first live sync complete automatically.',
+                ],
+            ];
+        }
+
         return [
             [
                 'title' => 'Log in to Sync360',
@@ -102,5 +146,19 @@ class TenantSetupController extends Controller
                 'description' => 'Send a few sample owner-to-assistant messages and confirm the answers and behavior feel right.',
             ],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readinessFor(Tenant $tenant): array
+    {
+        $syncJob = null;
+
+        if (GoogleWorkspaceFeature::isAvailable() && $tenant->googleCredential?->isConnected()) {
+            $syncJob = $this->agentSync->latestInitialGoogleWorkspaceSyncJob($tenant);
+        }
+
+        return $this->workspaceReadiness->evaluate($tenant, GoogleWorkspaceFeature::isAvailable(), $syncJob);
     }
 }

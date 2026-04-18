@@ -1,14 +1,29 @@
 <x-layouts.app title="You're All Set — Sync360">
     <div class="topbar">
         <div>
-            <span class="eyebrow"><span style="display:inline-block; margin-right:4px;">🎉</span> You're All Set</span>
-            <h2>{{ $firstName }}, your workspace is ready.</h2>
-            <p>{{ $tenant->business_name }} is set up. Your workspace URL now takes you into the Sync360 login and dashboard experience.</p>
+            @if ($workspaceReadiness['customer_ready'])
+                <span class="eyebrow"><span style="display:inline-block; margin-right:4px;">🎉</span> You're All Set</span>
+                <h2>{{ $firstName }}, your workspace is ready.</h2>
+                <p>{{ $tenant->business_name }} is set up. Your workspace URL now takes you into the Sync360 login and dashboard experience.</p>
+            @else
+                <span class="eyebrow">Almost There</span>
+                <h2>{{ $firstName }}, your workspace has been created.</h2>
+                <p>{{ $workspaceReadiness['blocking_message'] ?? 'There is one last setup step to finish before the workspace is customer-ready.' }}</p>
+            @endif
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <a href="{{ $tenant->workspace_url }}" class="button button--primary">
-                Open Your Sync360 Workspace &rarr;
-            </a>
+            @if ($workspaceReadiness['customer_ready'])
+                <a href="{{ $tenant->workspace_url }}" class="button button--primary">
+                    Open Your Sync360 Workspace &rarr;
+                </a>
+            @else
+                <a href="{{ $workspaceReadiness['next_action']['route'] ?? route('onboarding.show') }}" class="button button--primary">
+                    {{ $workspaceReadiness['next_action']['label'] ?? 'Continue Setup' }}
+                </a>
+                <a href="{{ route('onboarding.show') }}" class="button button--secondary">
+                    Continue Setup
+                </a>
+            @endif
             @if (auth()->user()?->is_admin)
                 <a href="{{ route('admin.tenants') }}" class="button button--secondary">Inspect Tenant</a>
             @endif
@@ -52,9 +67,15 @@
                         </div>
                     </div>
                 @endforeach
-                <a href="{{ $tenant->workspace_url }}" class="button button--primary" style="margin-top: 4px;">
-                    Open Your Sync360 Workspace &rarr;
-                </a>
+                @if ($workspaceReadiness['customer_ready'])
+                    <a href="{{ $tenant->workspace_url }}" class="button button--primary" style="margin-top: 4px;">
+                        Open Your Sync360 Workspace &rarr;
+                    </a>
+                @else
+                    <a href="{{ $workspaceReadiness['next_action']['route'] ?? route('onboarding.show') }}" class="button button--primary" style="margin-top: 4px;">
+                        {{ $workspaceReadiness['next_action']['label'] ?? 'Continue Setup' }}
+                    </a>
+                @endif
             </div>
         </div>
     </section>
