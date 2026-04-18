@@ -15,6 +15,7 @@ Use this skill when a customer wants to:
 
 ## Behavior
 - Ask for the minimum information needed to move the booking forward.
+- Ask if a copy of booking invitation is required.
 - If a required detail is missing, explain exactly what is still needed.
 - Do not promise an appointment is confirmed unless the business workflow says so.
 - Offer a human follow-up when availability or confirmation is uncertain.
