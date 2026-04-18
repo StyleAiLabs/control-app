@@ -72,7 +72,7 @@
                     Default Skill IDs
                     <input
                         type="text"
-                        name="agent_defaults[default_skill_ids][]"
+                        name="agent_defaults[default_skill_ids]"
                         value="{{ implode(', ', $agentDefaults['default_skill_ids'] ?? []) }}"
                         placeholder="custom-default-skill"
                         data-skill-ids-input

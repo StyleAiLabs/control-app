@@ -42,7 +42,7 @@ class AdminTenantCustomizationFlowTest extends TestCase
             'assigned_skill_pack_ids' => ['appointment-booking'],
             'agent_defaults' => [
                 'model' => 'gpt-4.1',
-                'default_skill_ids' => ['custom-default-skill'],
+                'default_skill_ids' => 'custom-default-skill, follow-up-skill',
             ],
         ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']));
 
@@ -52,6 +52,10 @@ class AdminTenantCustomizationFlowTest extends TestCase
         $this->assertSame('append', data_get($customization->prompt_overrides_json, 'identity.mode'));
         $this->assertSame(['appointment-booking'], $customization->assigned_skill_pack_ids);
         $this->assertSame('gpt-4.1', data_get($customization->agent_defaults_json, 'model'));
+        $this->assertSame(
+            ['custom-default-skill', 'follow-up-skill'],
+            data_get($customization->agent_defaults_json, 'default_skill_ids')
+        );
 
         $preview = $this->postJson(route('admin.tenants.agent-customization.preview', $tenant));
 
@@ -256,7 +260,7 @@ class AdminTenantCustomizationFlowTest extends TestCase
             'assigned_skill_pack_ids' => ['appointment-booking'],
             'agent_defaults' => [
                 'model' => 'gpt-4.1',
-                'default_skill_ids' => ['custom-default-skill'],
+                'default_skill_ids' => 'custom-default-skill',
             ],
         ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']));
 

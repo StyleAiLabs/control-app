@@ -73,6 +73,7 @@ If those files conflict with the codebase, trust:
 - Trial model: 14-day / budget-capped trial with scheduled expiry checks and email notifications
 - Admin model: super-admin area is behind `auth`, `admin`, and `local.only` middleware
 - Admin operator surface: the tenants list now shows each tenant's Google connection state, live-access/sync label, latest relevant timestamp, and latest recorded runtime error; the tenant detail screen also exposes tenant-scoped buttons for client-VPS bootstrap, runtime-capability sync, Google Workspace smoke testing, and re-queueing the existing initial Google sync job without introducing a second repair implementation
+- Admin agent-runtime input contract: the tenant runtime customization form treats `Default Skill IDs` as one comma-separated text field, and the server normalizes that submitted text into the saved `agent_defaults.default_skill_ids` list before validation/composition so draft save matches the UI contract
 
 ## 4. Core flows at a glance
 
@@ -142,6 +143,7 @@ If those files conflict with the codebase, trust:
 - Historical docs include implementation plans and rollout notes that are no longer safe to treat as current truth.
 - Customer-facing language should not expose backend platform names. The current tenant heartbeat sync includes identity guardrails for that reason.
 - The admin-panel runtime buttons are wrappers around the existing artisan commands, not a second implementation. If those commands change, the panel behavior should stay aligned with them rather than forking capability logic into the controller.
+- The canonical-docs hook must stay compatible with the repo's Bash 3 environment. Empty arrays under `set -u` are not safe to expand directly inside `scripts/check-canonical-docs.sh`.
 
 ## 6. Known mismatches to verify
 

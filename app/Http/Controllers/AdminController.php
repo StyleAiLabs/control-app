@@ -32,6 +32,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
@@ -579,7 +580,14 @@ class AdminController extends Controller
      */
     private function validatedCustomizationPayload(Request $request, Tenant $tenant): array
     {
-        $validated = $request->validate([
+        $payload = $request->all();
+        $defaultSkillIds = data_get($payload, 'agent_defaults.default_skill_ids');
+
+        if (is_string($defaultSkillIds)) {
+            data_set($payload, 'agent_defaults.default_skill_ids', [$defaultSkillIds]);
+        }
+
+        $validated = Validator::make($payload, [
             'prompt_overrides' => ['nullable', 'array'],
             'prompt_overrides.*.mode' => ['nullable', 'string', 'in:append,replace'],
             'prompt_overrides.*.content' => ['nullable', 'string'],
@@ -589,7 +597,7 @@ class AdminController extends Controller
             'agent_defaults.model' => ['nullable', 'string'],
             'agent_defaults.default_skill_ids' => ['nullable', 'array'],
             'agent_defaults.default_skill_ids.*' => ['string'],
-        ]);
+        ])->validate();
 
         return $this->tenantCustomizations->normalizedPayload($tenant->fresh(['businessProfileFiles']), $validated);
     }

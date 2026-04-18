@@ -7,6 +7,22 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-18 — Agent Runtime Draft Save Now Accepts Comma-Separated Default Skill IDs
+
+Date: 2026-04-18
+Status: Implemented
+
+### Overview
+
+Fixed a contract mismatch in the local-only admin tenant runtime customization panel. The UI presents `Default Skill IDs` as one comma-separated text field, but the draft-save path had been validating it like a nested array payload, which caused legitimate saves to fail with `agent_defaults.default_skill_ids.0 must be a string`.
+
+### What Changed
+
+- changed the `Agent Runtime` draft form so `Default Skill IDs` submits as a single text value, matching the way the field is presented to the admin
+- updated the admin controller to normalize that single string into the canonical `default_skill_ids` array before validation and persistence, while still tolerating legacy array-shaped requests
+- expanded tenant customization feature coverage to prove comma-separated default skill IDs save successfully and are split into distinct normalized skill IDs
+- re-hardened `scripts/check-canonical-docs.sh` for Bash 3 `set -u` empty-array behavior in this workspace so canonical-doc failures report correctly instead of crashing before commit hooks can explain what is missing
+
 ## 2026-04-18 — Admin Tenant Pages Now Show Google Sync Timeline + Requeue Action
 
 Date: 2026-04-18
