@@ -69,7 +69,7 @@ class AdminTenantOperationsTest extends TestCase
 
         $runner = Mockery::mock(DockerComposeRunner::class);
         $runner->shouldReceive('isRunning')
-            ->twice()
+            ->times(3)
             ->withArgs(fn (Server $server, string $composeFile, string $projectName): bool => $composeFile === '/srv/sync360/runtime/tenants/ops-shop/compose.yaml' && $projectName === 'sync360-ops-shop')
             ->andReturnTrue();
         $runner->shouldReceive('stop')
@@ -140,39 +140,42 @@ class AdminTenantOperationsTest extends TestCase
             ->assertSee(route('admin.tenants.show', $tenant), false)
             ->assertDontSee('Permanent Delete');
 
-        $this->get(route('admin.tenants.show', $tenant))
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'support']))
             ->assertOk()
             ->assertSee('Health Check')
             ->assertSee('Resync Agent')
             ->assertSee('Bootstrap VPS')
-            ->assertSee('Sync Runtime Capabilities')
-            ->assertSee('Test Google Workspace')
             ->assertSee('Restart')
             ->assertSee('healthy')
             ->assertSee('Permanent Delete');
 
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'google']))
+            ->assertOk()
+            ->assertSee('Sync Runtime Capabilities')
+            ->assertSee('Test Google Workspace');
+
         $this->post(route('admin.tenants.health-check', $tenant))
-            ->assertRedirect()
+            ->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'support']))
             ->assertSessionHas('status', 'Workspace readiness check passed.');
 
         $this->post(route('admin.tenants.resync-agent', $tenant))
-            ->assertRedirect()
+            ->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'support']))
             ->assertSessionHas('status', 'Agent resync requested.');
 
         $this->post(route('admin.tenants.runtime.bootstrap', $tenant))
-            ->assertRedirect()
+            ->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'support']))
             ->assertSessionHas('status', 'Client VPS bootstrap finished for test-vps. Runtime capability [gog] installed');
 
         $this->post(route('admin.tenants.runtime-capabilities.sync', $tenant))
-            ->assertRedirect()
+            ->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'google']))
             ->assertSessionHas('status', 'Runtime capability sync finished for ops-shop. Runtime capability sync finished. Completed: 1. Failed: 0.');
 
         $this->post(route('admin.tenants.google.test', $tenant))
-            ->assertRedirect()
+            ->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'google']))
             ->assertSessionHas('status', 'Google Workspace smoke test passed for ops-shop. Google Workspace smoke test passed for [ops-shop]. Host capability verified. Container binary verified.');
 
         $this->post(route('admin.workspace.restart', $tenant))
-            ->assertRedirect()
+            ->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'support']))
             ->assertSessionHas('status', 'Workspace container restart requested.');
     }
 
@@ -251,7 +254,7 @@ class AdminTenantOperationsTest extends TestCase
             ->assertSee('Needs attention')
             ->assertSee('Refresh token exchange failed inside the tenant runtime.');
 
-        $this->get(route('admin.tenants.show', $tenant))
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'google']))
             ->assertOk()
             ->assertSee('Google Workspace Connection')
             ->assertSee('owner@example.com')
@@ -262,7 +265,7 @@ class AdminTenantOperationsTest extends TestCase
             ->assertSee('Queue Google Sync');
 
         $this->post(route('admin.tenants.google.sync', $tenant))
-            ->assertRedirect()
+            ->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'google']))
             ->assertSessionHas('status', 'Google Workspace sync queued for google-ops-shop.');
 
         Queue::assertPushed(ProcessInitialGoogleWorkspaceSync::class, function (ProcessInitialGoogleWorkspaceSync $job) use ($tenant): bool {

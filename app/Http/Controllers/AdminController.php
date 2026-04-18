@@ -31,12 +31,21 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
 
 class AdminController extends Controller
 {
+    private const TENANT_SHOW_TABS = [
+        'overview',
+        'workspace',
+        'google',
+        'agent-runtime',
+        'support',
+    ];
+
     public function __construct(
         private readonly DockerComposeRunner $dockerCompose,
         private readonly ControlAppDeploymentService $controlAppDeployment,
@@ -110,23 +119,34 @@ class AdminController extends Controller
         ]);
     }
 
-    public function showTenant(Tenant $tenant): View
+    public function showTenant(Request $request, Tenant $tenant): View
     {
-        $tenant->load([
+        $relations = [
             'user',
             'server',
             'googleCredential',
-            'agentCustomization',
-            'agentCustomizationApplies',
             'businessProfile',
             'businessProfileFiles',
             'provisioningJobs' => fn ($query) => $query->latest('id'),
-        ]);
+        ];
+        $agentCustomizationAvailable = $this->agentCustomizationTablesAvailable();
+
+        if ($agentCustomizationAvailable) {
+            $relations[] = 'agentCustomization';
+            $relations[] = 'agentCustomizationApplies';
+        }
+
+        $tenant->load($relations);
+
+        if (! $agentCustomizationAvailable) {
+            $tenant->setRelation('agentCustomization', null);
+            $tenant->setRelation('agentCustomizationApplies', collect());
+        }
 
         $googleSyncJob = $this->latestGoogleWorkspaceSyncJob($tenant);
         $currentCustomizationPreview = [];
 
-        if ($tenant->businessProfile && $tenant->businessProfileFiles) {
+        if ($agentCustomizationAvailable && $tenant->businessProfile && $tenant->businessProfileFiles) {
             try {
                 $currentCustomizationPreview = $this->tenantRuntimeComposer
                     ->compose($tenant)
@@ -139,6 +159,8 @@ class AdminController extends Controller
             }
         }
 
+        $activeTenantTab = $this->resolveTenantTab($request->query('tab'));
+
         return view('admin.tenant-show', [
             'tenant' => $tenant,
             'workspaceState' => $this->workspaceStateFor($tenant),
@@ -148,6 +170,8 @@ class AdminController extends Controller
             'skillRegistry' => array_values($this->skillRegistry->all()),
             'canApplyAgentCustomization' => Gate::allows('admin.tenants.agent-customization.apply'),
             'currentCustomizationPreview' => $currentCustomizationPreview,
+            'activeTenantTab' => $activeTenantTab,
+            'agentCustomizationAvailable' => $agentCustomizationAvailable,
         ]);
     }
 
@@ -161,7 +185,7 @@ class AdminController extends Controller
         ]);
     }
 
-    public function retry(Tenant $tenant): RedirectResponse
+    public function retry(Request $request, Tenant $tenant): RedirectResponse
     {
         $previousJob = $tenant->provisioningJobs()->latest('id')->first();
 
@@ -184,10 +208,10 @@ class AdminController extends Controller
 
         ProcessTenantProvisioning::dispatch($tenant->id, $job->id)->afterCommit();
 
-        return back()->with('status', 'Provisioning retry queued.');
+        return $this->redirectToTenantShow($request, $tenant, 'support', 'Provisioning retry queued.');
     }
 
-    public function startWorkspace(Tenant $tenant): RedirectResponse
+    public function startWorkspace(Request $request, Tenant $tenant): RedirectResponse
     {
         try {
             if (app()->environment('local')) {
@@ -197,13 +221,13 @@ class AdminController extends Controller
                 $this->dockerCompose->start($tenant->server, $composeFile, $projectName);
             }
         } catch (Throwable $exception) {
-            return back()->with('status', $exception->getMessage());
+            return $this->redirectToTenantShow($request, $tenant, 'support', $exception->getMessage());
         }
 
-        return back()->with('status', 'Workspace container start requested.');
+        return $this->redirectToTenantShow($request, $tenant, 'support', 'Workspace container start requested.');
     }
 
-    public function stopWorkspace(Tenant $tenant): RedirectResponse
+    public function stopWorkspace(Request $request, Tenant $tenant): RedirectResponse
     {
         try {
             if (app()->environment('local')) {
@@ -213,13 +237,13 @@ class AdminController extends Controller
                 $this->dockerCompose->stop($tenant->server, $composeFile, $projectName);
             }
         } catch (Throwable $exception) {
-            return back()->with('status', $exception->getMessage());
+            return $this->redirectToTenantShow($request, $tenant, 'support', $exception->getMessage());
         }
 
-        return back()->with('status', 'Workspace container stop requested.');
+        return $this->redirectToTenantShow($request, $tenant, 'support', 'Workspace container stop requested.');
     }
 
-    public function restartWorkspace(Tenant $tenant): RedirectResponse
+    public function restartWorkspace(Request $request, Tenant $tenant): RedirectResponse
     {
         try {
             if (app()->environment('local')) {
@@ -230,35 +254,35 @@ class AdminController extends Controller
                 $this->dockerCompose->start($tenant->server, $composeFile, $projectName);
             }
         } catch (Throwable $exception) {
-            return back()->with('status', $exception->getMessage());
+            return $this->redirectToTenantShow($request, $tenant, 'support', $exception->getMessage());
         }
 
-        return back()->with('status', 'Workspace container restart requested.');
+        return $this->redirectToTenantShow($request, $tenant, 'support', 'Workspace container restart requested.');
     }
 
-    public function healthCheck(Tenant $tenant): RedirectResponse
+    public function healthCheck(Request $request, Tenant $tenant): RedirectResponse
     {
         try {
             $result = $this->tenantHealthChecks->check($tenant);
         } catch (Throwable $exception) {
-            return back()->with('status', $exception->getMessage());
+            return $this->redirectToTenantShow($request, $tenant, 'support', $exception->getMessage());
         }
 
-        return back()->with('status', $result['message']);
+        return $this->redirectToTenantShow($request, $tenant, 'support', $result['message']);
     }
 
-    public function resyncAgent(Tenant $tenant): RedirectResponse
+    public function resyncAgent(Request $request, Tenant $tenant): RedirectResponse
     {
         try {
             $this->tenantProfileSync->regenerateAndSync($tenant->fresh(['businessProfile', 'businessProfileFiles', 'server']));
         } catch (Throwable $exception) {
-            return back()->with('status', $exception->getMessage());
+            return $this->redirectToTenantShow($request, $tenant, 'support', $exception->getMessage());
         }
 
-        return back()->with('status', 'Agent resync requested.');
+        return $this->redirectToTenantShow($request, $tenant, 'support', 'Agent resync requested.');
     }
 
-    public function bootstrapRuntimeHost(Tenant $tenant): RedirectResponse
+    public function bootstrapRuntimeHost(Request $request, Tenant $tenant): RedirectResponse
     {
         try {
             if (! $tenant->server) {
@@ -269,37 +293,37 @@ class AdminController extends Controller
                 'serverSelector' => (string) $tenant->server->id,
             ]);
         } catch (Throwable $exception) {
-            return back()->with('status', $exception->getMessage());
+            return $this->redirectToTenantShow($request, $tenant, 'support', $exception->getMessage());
         }
 
-        return back()->with('status', $this->formatArtisanStatus(
+        return $this->redirectToTenantShow($request, $tenant, 'support', $this->formatArtisanStatus(
             sprintf('Client VPS bootstrap finished for %s.', $tenant->server->name),
             $result['output'],
         ));
     }
 
-    public function syncRuntimeCapabilities(Tenant $tenant): RedirectResponse
+    public function syncRuntimeCapabilities(Request $request, Tenant $tenant): RedirectResponse
     {
         try {
             $result = $this->runArtisanCommand('sync360:sync-runtime-capabilities', [
                 'tenantSelector' => $tenant->slug,
             ]);
         } catch (Throwable $exception) {
-            return back()->with('status', $exception->getMessage());
+            return $this->redirectToTenantShow($request, $tenant, 'google', $exception->getMessage());
         }
 
-        return back()->with('status', $this->formatArtisanStatus(
+        return $this->redirectToTenantShow($request, $tenant, 'google', $this->formatArtisanStatus(
             sprintf('Runtime capability sync finished for %s.', $tenant->slug),
             $result['output'],
         ));
     }
 
-    public function retryGoogleWorkspaceSync(Tenant $tenant, TenantAgentSyncService $tenantAgentSync): RedirectResponse
+    public function retryGoogleWorkspaceSync(Request $request, Tenant $tenant, TenantAgentSyncService $tenantAgentSync): RedirectResponse
     {
         $tenant->loadMissing(['server', 'googleCredential']);
 
         if (! $tenant->googleCredential?->isConnected()) {
-            return back()->with('status', 'Google Workspace is not connected for this tenant.');
+            return $this->redirectToTenantShow($request, $tenant, 'google', 'Google Workspace is not connected for this tenant.');
         }
 
         $activeJob = $this->latestGoogleWorkspaceSyncJob($tenant, [
@@ -308,7 +332,7 @@ class AdminController extends Controller
         ]);
 
         if ($activeJob) {
-            return back()->with('status', sprintf(
+            return $this->redirectToTenantShow($request, $tenant, 'google', sprintf(
                 'Google Workspace sync is already %s for %s.',
                 $activeJob->status->value,
                 $tenant->slug,
@@ -321,23 +345,23 @@ class AdminController extends Controller
         );
 
         if (! $job) {
-            return back()->with('status', 'Workspace must be ready before Google Workspace sync can be queued.');
+            return $this->redirectToTenantShow($request, $tenant, 'google', 'Workspace must be ready before Google Workspace sync can be queued.');
         }
 
-        return back()->with('status', sprintf('Google Workspace sync queued for %s.', $tenant->slug));
+        return $this->redirectToTenantShow($request, $tenant, 'google', sprintf('Google Workspace sync queued for %s.', $tenant->slug));
     }
 
-    public function testGoogleWorkspace(Tenant $tenant): RedirectResponse
+    public function testGoogleWorkspace(Request $request, Tenant $tenant): RedirectResponse
     {
         try {
             $result = $this->runArtisanCommand('sync360:test-google-workspace', [
                 'tenantSelector' => $tenant->slug,
             ]);
         } catch (Throwable $exception) {
-            return back()->with('status', $exception->getMessage());
+            return $this->redirectToTenantShow($request, $tenant, 'google', $exception->getMessage());
         }
 
-        return back()->with('status', $this->formatArtisanStatus(
+        return $this->redirectToTenantShow($request, $tenant, 'google', $this->formatArtisanStatus(
             sprintf('Google Workspace smoke test passed for %s.', $tenant->slug),
             $result['output'],
         ));
@@ -345,14 +369,24 @@ class AdminController extends Controller
 
     public function updateAgentCustomization(Request $request, Tenant $tenant): RedirectResponse
     {
+        if (! $this->agentCustomizationTablesAvailable()) {
+            return $this->redirectToTenantShow($request, $tenant, 'agent-runtime', 'Agent runtime customization is unavailable until the tenant customization migrations are applied locally.');
+        }
+
         $payload = $this->validatedCustomizationPayload($request, $tenant);
         $this->tenantCustomizations->saveDraft($tenant->fresh(['businessProfileFiles', 'agentCustomization']), $request->user(), $payload);
 
-        return redirect()->route('admin.tenants.show', $tenant)->with('status', 'Tenant agent customization draft saved.');
+        return $this->redirectToTenantShow($request, $tenant, 'agent-runtime', 'Tenant agent customization draft saved.');
     }
 
     public function previewAgentCustomization(Request $request, Tenant $tenant): JsonResponse
     {
+        if (! $this->agentCustomizationTablesAvailable()) {
+            return response()->json([
+                'message' => 'Agent runtime customization is unavailable until the tenant customization migrations are applied locally.',
+            ], 409);
+        }
+
         $tenant->loadMissing(['businessProfile', 'businessProfileFiles', 'googleCredential', 'agentCustomization']);
 
         if ($request->all() !== []) {
@@ -376,10 +410,14 @@ class AdminController extends Controller
     {
         Gate::authorize('admin.tenants.agent-customization.apply');
 
+        if (! $this->agentCustomizationTablesAvailable()) {
+            return $this->redirectToTenantShow($request, $tenant, 'agent-runtime', 'Agent runtime customization is unavailable until the tenant customization migrations are applied locally.');
+        }
+
         $customization = $tenant->agentCustomization;
 
         if (! $customization) {
-            return redirect()->route('admin.tenants.show', $tenant)->with('status', 'Save a tenant agent customization draft before applying it.');
+            return $this->redirectToTenantShow($request, $tenant, 'agent-runtime', 'Save a tenant agent customization draft before applying it.');
         }
 
         $job = ProvisioningJob::query()->create([
@@ -397,17 +435,21 @@ class AdminController extends Controller
             TenantAgentCustomizationApply::ACTION_APPLY,
         )->afterCommit();
 
-        return redirect()->route('admin.tenants.show', $tenant)->with('status', 'Tenant agent customization apply queued.');
+        return $this->redirectToTenantShow($request, $tenant, 'agent-runtime', 'Tenant agent customization apply queued.');
     }
 
     public function revertAgentCustomization(Request $request, Tenant $tenant): RedirectResponse
     {
         Gate::authorize('admin.tenants.agent-customization.apply');
 
+        if (! $this->agentCustomizationTablesAvailable()) {
+            return $this->redirectToTenantShow($request, $tenant, 'agent-runtime', 'Agent runtime customization is unavailable until the tenant customization migrations are applied locally.');
+        }
+
         $customization = $tenant->agentCustomization;
 
         if (! $customization?->last_applied_input_snapshot_json) {
-            return redirect()->route('admin.tenants.show', $tenant)->with('status', 'There is no previously applied customization snapshot to restore.');
+            return $this->redirectToTenantShow($request, $tenant, 'agent-runtime', 'There is no previously applied customization snapshot to restore.');
         }
 
         $job = ProvisioningJob::query()->create([
@@ -425,11 +467,18 @@ class AdminController extends Controller
             TenantAgentCustomizationApply::ACTION_REVERT,
         )->afterCommit();
 
-        return redirect()->route('admin.tenants.show', $tenant)->with('status', 'Tenant agent customization revert queued.');
+        return $this->redirectToTenantShow($request, $tenant, 'agent-runtime', 'Tenant agent customization revert queued.');
     }
 
     public function agentCustomizationApplyLog(Tenant $tenant): JsonResponse
     {
+        if (! $this->agentCustomizationTablesAvailable()) {
+            return response()->json([
+                'data' => [],
+                'message' => 'Agent runtime customization is unavailable until the tenant customization migrations are applied locally.',
+            ], 409);
+        }
+
         $entries = $tenant->agentCustomizationApplies()
             ->latest('id')
             ->get()
@@ -744,6 +793,31 @@ class AdminController extends Controller
     private function formatArtisanOutput(string $output): string
     {
         return Str::limit(preg_replace('/\s+/', ' ', trim($output)) ?? '', 500);
+    }
+
+    private function resolveTenantTab(null|string|array $tab): string
+    {
+        if (! is_string($tab)) {
+            return 'overview';
+        }
+
+        return in_array($tab, self::TENANT_SHOW_TABS, true) ? $tab : 'overview';
+    }
+
+    private function redirectToTenantShow(Request $request, Tenant $tenant, string $fallbackTab, string $status): RedirectResponse
+    {
+        return redirect()
+            ->route('admin.tenants.show', [
+                'tenant' => $tenant,
+                'tab' => $this->resolveTenantTab($request->input('return_tab', $fallbackTab)),
+            ])
+            ->with('status', $status);
+    }
+
+    private function agentCustomizationTablesAvailable(): bool
+    {
+        return Schema::hasTable('tenant_agent_customizations')
+            && Schema::hasTable('tenant_agent_customization_applies');
     }
 
     private function latestGoogleWorkspaceSyncJob(Tenant $tenant, ?array $statuses = null): ?ProvisioningJob

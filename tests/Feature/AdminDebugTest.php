@@ -102,7 +102,7 @@ class AdminDebugTest extends TestCase
 
         $runner = Mockery::mock(DockerComposeRunner::class);
         $runner->shouldReceive('isRunning')
-            ->twice()
+            ->times(3)
             ->withArgs(fn (Server $server, string $composeFile, string $projectName): bool => $server->name === 'test-vps' && $composeFile === '/srv/sync360/runtime/tenants/debug-shop/compose.yaml' && $projectName === 'sync360-debug-shop')
             ->andReturnTrue();
         $runner->shouldReceive('start')
@@ -198,7 +198,10 @@ class AdminDebugTest extends TestCase
         $this->get(route('admin.tenants.show', $tenant))
             ->assertOk()
             ->assertSee('Debug Shop')
-            ->assertSee('Provisioner exploded.')
+            ->assertSee('Provisioner exploded.');
+
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'support']))
+            ->assertOk()
             ->assertSee('Permanent Delete');
 
         $this->get('/admin/jobs')
@@ -207,16 +210,16 @@ class AdminDebugTest extends TestCase
             ->assertSee('provision_tenant');
 
         $this->post(route('admin.workspace.start', $tenant))
-            ->assertRedirect()
+            ->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'support']))
             ->assertSessionHas('status', 'Workspace container start requested.');
 
         $this->post(route('admin.workspace.stop', $tenant))
-            ->assertRedirect()
+            ->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'support']))
             ->assertSessionHas('status', 'Workspace container stop requested.');
 
         $response = $this->post(route('admin.retry', $tenant));
 
-        $response->assertRedirect();
+        $response->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'support']));
         $response->assertSessionHas('status', 'Provisioning retry queued.');
         $this->assertDatabaseCount('provisioning_jobs', 2);
 

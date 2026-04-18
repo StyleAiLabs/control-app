@@ -13,9 +13,11 @@ use App\Models\Tenant;
 use App\Models\TenantAgentCustomization;
 use App\Models\TenantAgentCustomizationApply;
 use App\Models\User;
+use App\Services\TenantHealthCheckService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class AdminTenantCustomizationFlowTest extends TestCase
@@ -42,7 +44,7 @@ class AdminTenantCustomizationFlowTest extends TestCase
                 'model' => 'gpt-4.1',
                 'default_skill_ids' => ['custom-default-skill'],
             ],
-        ])->assertRedirect(route('admin.tenants.show', $tenant));
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']));
 
         $customization = TenantAgentCustomization::query()->firstOrFail();
 
@@ -64,7 +66,7 @@ class AdminTenantCustomizationFlowTest extends TestCase
         );
 
         $this->post(route('admin.tenants.agent-customization.apply', $tenant))
-            ->assertRedirect(route('admin.tenants.show', $tenant));
+            ->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']));
 
         $job = ProvisioningJob::query()->latest('id')->first();
 
@@ -149,12 +151,137 @@ class AdminTenantCustomizationFlowTest extends TestCase
 
         $this->actingAs($admin);
 
-        $this->get(route('admin.tenants.show', $tenant))
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']))
             ->assertOk()
             ->assertSee('Current IDENTITY.md')
             ->assertSee('Base identity')
             ->assertSee('Current BOOTSTRAP.md')
             ->assertSee('Base bootstrap');
+    }
+
+    public function test_admin_tenant_page_defaults_to_overview_and_falls_back_for_invalid_tab(): void
+    {
+        [$admin, $tenant] = $this->seedAdminAndTenant();
+
+        $this->actingAs($admin);
+
+        $this->get(route('admin.tenants.show', $tenant))
+            ->assertOk()
+            ->assertSee('Tenant Summary')
+            ->assertDontSee('Profile &amp; Channel', false)
+            ->assertSee('data-active-tab="overview"', false);
+
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'not-real']))
+            ->assertOk()
+            ->assertSee('Tenant Summary')
+            ->assertSee('data-active-tab="overview"', false);
+    }
+
+    public function test_admin_tenant_page_renders_requested_tab_only(): void
+    {
+        [$admin, $tenant] = $this->seedAdminAndTenant();
+
+        $this->actingAs($admin);
+
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'google']))
+            ->assertOk()
+            ->assertSee('Google Workspace Connection')
+            ->assertSee('data-active-tab="google"', false)
+            ->assertSee('aria-current="page"', false)
+            ->assertDontSee('Agent Runtime Customization')
+            ->assertDontSee('Permanent Delete');
+
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']))
+            ->assertOk()
+            ->assertSee('Agent Runtime Customization')
+            ->assertSee('Current IDENTITY.md')
+            ->assertSee('data-active-tab="agent-runtime"', false)
+            ->assertDontSee('Google Workspace Connection')
+            ->assertDontSee('Permanent Delete');
+    }
+
+    public function test_admin_tenant_page_uses_compact_sidebar_navigation(): void
+    {
+        [$admin, $tenant] = $this->seedAdminAndTenant();
+
+        $this->actingAs($admin);
+
+        $this->get(route('admin.tenants.show', $tenant))
+            ->assertOk()
+            ->assertSee('Overview')
+            ->assertSee('Workspace')
+            ->assertSee('Google')
+            ->assertSee('Agent Runtime')
+            ->assertSee('Support')
+            ->assertDontSee('Status, identifiers, and the latest job snapshot.')
+            ->assertDontSee('Profile, channel, runtime metadata, and provisioning context.');
+    }
+
+    public function test_admin_tenant_page_uses_labeled_status_badges(): void
+    {
+        [$admin, $tenant] = $this->seedAdminAndTenant();
+
+        $this->actingAs($admin);
+
+        $this->get(route('admin.tenants.show', $tenant))
+            ->assertOk()
+            ->assertSee('Provisioning: ready')
+            ->assertSee('Agent: live')
+            ->assertSee('Health: unchecked')
+            ->assertSee('Workspace:')
+            ->assertSee('Google:');
+    }
+
+    public function test_tenant_actions_redirect_back_to_active_tab(): void
+    {
+        Queue::fake([ApplyTenantAgentCustomization::class]);
+        [$admin, $tenant] = $this->seedAdminAndTenant();
+
+        $this->mock(TenantHealthCheckService::class, function ($mock): void {
+            $mock->shouldReceive('check')
+                ->once()
+                ->andReturn(['message' => 'Health check passed.']);
+        });
+
+        $this->actingAs($admin);
+
+        $this->patch(route('admin.tenants.agent-customization.update', $tenant), [
+            'return_tab' => 'agent-runtime',
+            'prompt_overrides' => [
+                'identity' => [
+                    'mode' => 'append',
+                    'content' => 'Custom admin identity guidance',
+                ],
+            ],
+            'assigned_skill_pack_ids' => ['appointment-booking'],
+            'agent_defaults' => [
+                'model' => 'gpt-4.1',
+                'default_skill_ids' => ['custom-default-skill'],
+            ],
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']));
+
+        $this->post(route('admin.tenants.google.sync', $tenant), [
+            'return_tab' => 'google',
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'google']));
+
+        $this->post(route('admin.tenants.health-check', $tenant), [
+            'return_tab' => 'support',
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'support']));
+    }
+
+    public function test_admin_tenant_page_handles_missing_agent_customization_tables_gracefully(): void
+    {
+        [$admin, $tenant] = $this->seedAdminAndTenant();
+
+        Schema::dropIfExists('tenant_agent_customization_applies');
+        Schema::dropIfExists('tenant_agent_customizations');
+
+        $this->actingAs($admin);
+
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']))
+            ->assertOk()
+            ->assertSee('Agent runtime customization is unavailable')
+            ->assertDontSee('SQLSTATE');
     }
 
     private function seedAdminAndTenant(string $email = 'allowed@example.com'): array
