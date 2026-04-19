@@ -358,6 +358,12 @@ Use `.note` for guidance, neutral warnings, blockers, and important context. Use
 
 Notes should explain the meaning or next action, not just repeat a status label.
 
+### Wizard Operation Notes
+
+The onboarding wizard uses a view-local `.wizard-operation-note` with `role="status"` and `aria-live="polite"` for in-flight save/connect/go-live progress. It appears only while a request is running and should use short action text such as "Saving business details..." or "Going live...".
+
+While this note is visible, wizard navigation and competing actions should be disabled or ignored so customers cannot accidentally move backward/forward while the current step is saving. Do not use this pattern as a permanent blocker; release it on both success and failure.
+
 ### Forms
 
 Use `.field-grid` for two-column form sections and `.field-single` for stacked fields.

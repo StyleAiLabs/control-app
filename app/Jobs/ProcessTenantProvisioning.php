@@ -44,6 +44,9 @@ class ProcessTenantProvisioning implements ShouldQueue
 
         try {
             $provisioner->provision($tenant, $provisioningJob);
+            $agentSync->syncSavedChannelIfReady(
+                $tenant->fresh(GoogleWorkspaceFeature::tenantRelations(['server']))
+            );
             $agentSync->dispatchInitialGoogleWorkspaceSync(
                 $tenant->fresh(GoogleWorkspaceFeature::tenantRelations(['server'])),
                 trigger: 'tenant_provisioning',

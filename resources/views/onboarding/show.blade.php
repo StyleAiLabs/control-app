@@ -88,6 +88,23 @@
             font-size: 0.84rem;
             color: var(--text-muted, #6b7280);
         }
+        .wizard-operation-note {
+            display: none;
+            margin-top: 10px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            background: #fff7ed;
+            color: #9a3412;
+            font-size: 0.86rem;
+            font-weight: 600;
+        }
+        .wizard-steps-bar.is-locked {
+            cursor: wait;
+        }
+        .wizard-steps-bar.is-locked li {
+            opacity: 0.65;
+            pointer-events: none;
+        }
 
         /* ── progress spinner from Step 1 ── */
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -143,6 +160,7 @@
                 <div class="wizard-auto-note" id="wizard-progress-note">
                     Move through the setup at your own pace. We’ll keep your place and carry on with the background workspace setup while you complete these steps.
                 </div>
+                <div class="wizard-operation-note" id="wizard-operation-note" role="status" aria-live="polite"></div>
             </div>
 
             <div class="wizard-status-card">
@@ -718,6 +736,7 @@
         const wizardProgressPercent = document.getElementById('wizard-progress-percent');
         const wizardProgressFill = document.getElementById('wizard-progress-fill');
         const wizardProgressNote = document.getElementById('wizard-progress-note');
+        const wizardOperationNote = document.getElementById('wizard-operation-note');
         const workspaceSetupBadge = document.getElementById('workspace-setup-badge');
         const workspaceSetupNote = document.getElementById('workspace-setup-note');
 
@@ -748,8 +767,17 @@
             capabilities: false,
             channel: false,
         };
+        const wizardOperation = {
+            active: false,
+            type: 'idle',
+            label: '',
+        };
 
-        function showWizardStep(step) {
+        function showWizardStep(step, options = {}) {
+            if (wizardOperation.active && options.force !== true) {
+                return false;
+            }
+
             currentStep = step;
             wizardPanels.forEach(p => {
                 const isActive = parseInt(p.dataset.wizardStep) === step;
@@ -761,6 +789,7 @@
             });
             updateWizardStatus(latestOnboardingState || {});
             window.scrollTo({ top: 0, behavior: 'smooth' });
+            return true;
         }
 
         /* next / prev buttons */
@@ -807,11 +836,19 @@
 
         function updateChannelStatusNote(state) {
             const selectedChannel = selectedChannelValue();
-            const isConnected = state?.channel_setup?.status === 'connected';
+            const channelStatus = state?.channel_setup?.status || 'pending';
+            const isConnected = channelStatus === 'connected';
 
             if (isConnected) {
                 channelStatusNote.textContent = '';
                 channelStatusNote.style.display = 'none';
+
+                return;
+            }
+
+            if (channelStatus === 'saved') {
+                channelStatusNote.textContent = 'Telegram is saved. We will apply it automatically as soon as the workspace runtime is ready.';
+                channelStatusNote.style.display = 'block';
 
                 return;
             }
@@ -839,24 +876,103 @@
         }
 
         function advanceAfterSave(nextStep) {
-            showWizardStep(nextStep);
+            showWizardStep(nextStep, { force: true });
         }
 
-        function withButtonBusy(button, busyLabel) {
+        function setWizardControlsLocked(locked) {
+            document.querySelectorAll('[data-wizard-next], [data-wizard-prev], button[type="submit"], button[type="button"]').forEach((button) => {
+                if (locked) {
+                    button.dataset.lockedBefore = button.disabled ? 'true' : 'false';
+                }
+
+                if (button.id === 'manual-focus-button') {
+                    button.disabled = locked || button.dataset.lockedBefore === 'true';
+                    if (!locked) {
+                        delete button.dataset.lockedBefore;
+                    }
+                    return;
+                }
+
+                button.disabled = locked || button.dataset.lockedBefore === 'true';
+
+                if (!locked) {
+                    delete button.dataset.lockedBefore;
+                }
+            });
+
+            wizardBarItems.forEach((li) => {
+                li.setAttribute('aria-disabled', locked ? 'true' : 'false');
+            });
+
+            document.getElementById('wizard-steps-bar')?.classList.toggle('is-locked', locked);
+
+            [googleWorkspaceSkipForm, googleWorkspaceDisconnectForm].forEach((form) => {
+                form?.querySelectorAll('button, input').forEach((control) => {
+                    if (locked) {
+                        control.dataset.lockedBefore = control.disabled ? 'true' : 'false';
+                    }
+                    control.disabled = locked || control.dataset.lockedBefore === 'true';
+                    if (!locked) {
+                        delete control.dataset.lockedBefore;
+                    }
+                });
+            });
+
+            if (googleWorkspaceConnectLink) {
+                googleWorkspaceConnectLink.style.pointerEvents = locked ? 'none' : '';
+                googleWorkspaceConnectLink.style.opacity = locked ? '0.45' : '';
+                googleWorkspaceConnectLink.setAttribute('aria-disabled', locked ? 'true' : 'false');
+            }
+        }
+
+        function startWizardOperation(type, label, button = null) {
+            wizardOperation.active = true;
+            wizardOperation.type = type;
+            wizardOperation.label = label;
+
+            if (wizardOperationNote) {
+                wizardOperationNote.textContent = label;
+                wizardOperationNote.style.display = 'block';
+            }
+
+            setWizardControlsLocked(true);
+
+            if (button) {
+                button.disabled = true;
+                button.textContent = label;
+            }
+        }
+
+        function finishWizardOperation() {
+            wizardOperation.active = false;
+            wizardOperation.type = 'idle';
+            wizardOperation.label = '';
+
+            if (wizardOperationNote) {
+                wizardOperationNote.textContent = '';
+                wizardOperationNote.style.display = 'none';
+            }
+
+            setWizardControlsLocked(false);
+            applyState(latestOnboardingState || {});
+        }
+
+        function withButtonBusy(button, busyLabel, operationType = 'working') {
             const originalLabel = button?.dataset.originalLabel || button?.textContent || '';
 
             if (button) {
                 button.dataset.originalLabel = originalLabel;
-                button.disabled = true;
-                button.textContent = busyLabel;
             }
 
+            startWizardOperation(operationType, busyLabel, button);
+
             return () => {
+                finishWizardOperation();
+
                 if (!button) {
                     return;
                 }
 
-                button.disabled = false;
                 button.textContent = button.dataset.originalLabel || originalLabel;
             };
         }
@@ -963,6 +1079,9 @@
             }
 
             telegramBotTokenStatus.textContent = state.channel_setup?.telegram?.bot_token_saved ? 'Saved' : 'Not saved yet';
+            if (state.channel_setup?.telegram?.bot_token_saved && !state.channel_setup?.telegram?.runtime_configured) {
+                telegramBotTokenStatus.textContent = 'Saved, waiting for workspace';
+            }
 
             updateChannelFields();
             updateChannelStatusNote(state);
@@ -992,7 +1111,7 @@
                 : `Once you save the capabilities, we'll prepare the internal setup files behind the scenes.`;
             goLiveWorkspaceStatus.textContent = state.workspace?.ready ? 'Ready' : 'Setting up…';
             goLiveChannelStatus.textContent = state.channel === 'telegram'
-                ? 'Telegram'
+                ? (state.channel_setup?.status === 'connected' ? 'Telegram' : 'Telegram saved')
                 : 'Not connected yet';
             googleWorkspaceStatus.textContent = formatStatus(state.google_workspace?.status || 'pending');
             googleWorkspaceEmail.textContent = state.google_workspace?.connected_email || 'Not connected yet';
@@ -1092,6 +1211,10 @@
         }
 
         async function refreshOnboardingState() {
+            if (wizardOperation.active) {
+                return;
+            }
+
             const response = await fetch(onboardingStateEndpoint, {
                 headers: {
                     'Accept': 'application/json',
@@ -1180,7 +1303,7 @@
 
         websiteForm.addEventListener('submit', async (event) => {
             event.preventDefault();
-            const releaseBusy = withButtonBusy(readWebsiteBtn, 'Reading Website…');
+            const releaseBusy = withButtonBusy(readWebsiteBtn, 'Reading Website…', 'reading_website');
             showWebsiteProgress();
 
             try {
@@ -1209,7 +1332,7 @@
             hideMessage(businessSuccess);
             hideMessage(businessError);
             const submitButton = businessForm.querySelector('button[type="submit"]');
-            const releaseBusy = withButtonBusy(submitButton, 'Saving Details…');
+            const releaseBusy = withButtonBusy(submitButton, 'Saving Details…', 'saving_business');
 
             try {
                 const data = await fetchJson(onboardingBusinessInfoEndpoint, {
@@ -1246,7 +1369,7 @@
             hideMessage(personalitySuccess);
             hideMessage(personalityError);
             const submitButton = personalityForm.querySelector('button[type="submit"]');
-            const releaseBusy = withButtonBusy(submitButton, 'Saving Style…');
+            const releaseBusy = withButtonBusy(submitButton, 'Saving Style…', 'saving_tone');
 
             const selectedTone = personalityForm.querySelector('input[name="tone"]:checked');
 
@@ -1274,7 +1397,7 @@
             hideMessage(capabilitiesSuccess);
             hideMessage(capabilitiesError);
             const submitButton = capabilitiesForm.querySelector('button[type="submit"]');
-            const releaseBusy = withButtonBusy(submitButton, 'Preparing Skills…');
+            const releaseBusy = withButtonBusy(submitButton, 'Preparing Skills…', 'preparing_files');
 
             const selectedCapabilities = Array.from(capabilitiesForm.querySelectorAll('input[name="capabilities[]"]:checked'))
                 .map((input) => input.value);
@@ -1308,7 +1431,7 @@
             hideMessage(channelSuccess);
             hideMessage(channelError);
             const submitButton = channelForm.querySelector('button[type="submit"]');
-            const releaseBusy = withButtonBusy(submitButton, 'Connecting Channel…');
+            const releaseBusy = withButtonBusy(submitButton, 'Connecting Channel…', 'connecting_channel');
 
             const payload = {
                 channel: selectedChannelValue(),
@@ -1332,8 +1455,7 @@
         disconnectChannelBtn.addEventListener('click', async () => {
             if (!confirm('Are you sure you want to disconnect this channel? Your assistant will stop receiving messages.')) return;
 
-            disconnectChannelBtn.disabled = true;
-            disconnectChannelBtn.textContent = 'Disconnecting…';
+            const releaseBusy = withButtonBusy(disconnectChannelBtn, 'Disconnecting…', 'disconnecting_channel');
 
             try {
                 const data = await fetchJson(onboardingChannelDisconnectEndpoint, {});
@@ -1345,8 +1467,7 @@
             } catch (error) {
                 showMessage(channelError, error.message);
             } finally {
-                disconnectChannelBtn.disabled = false;
-                disconnectChannelBtn.textContent = 'Disconnect';
+                releaseBusy();
             }
         });
 
@@ -1358,7 +1479,7 @@
             hideMessage(goLiveSuccess);
             hideMessage(goLiveError);
             const submitButton = goLiveForm.querySelector('button[type="submit"]');
-            const releaseBusy = withButtonBusy(submitButton, 'Going Live…');
+            const releaseBusy = withButtonBusy(submitButton, 'Going Live…', 'going_live');
 
             try {
                 const data = await fetchJson(onboardingGoLiveEndpoint, {});

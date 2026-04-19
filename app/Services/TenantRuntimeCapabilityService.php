@@ -165,13 +165,23 @@ class TenantRuntimeCapabilityService
         }
 
         $runtimeEnvironment = $this->parseRuntimeEnvFile($tenant);
+        $openClawConfig = $this->parseLocalOpenClawConfig($tenant);
+        $gatewayToken = (string) ($runtimeEnvironment['OPENCLAW_GATEWAY_TOKEN'] ?? data_get($openClawConfig, 'gateway.auth.token', ''));
+        $liteLlmKey = (string) $tenant->litellm_virtual_key;
+        $liteLlmBaseUrl = rtrim((string) config('services.litellm.base_url', ''), '/')
+            ?: (string) ($runtimeEnvironment['OPENAI_BASE_URL'] ?? '');
+
+        if ($liteLlmKey === '') {
+            throw new RuntimeException('The tenant LiteLLM virtual key is missing, so compose regeneration cannot safely preserve runtime credentials.');
+        }
+
         $updatedContents = $this->renderCompose(
             $tenant,
             $tenant->runtime_path ?: $this->runtime->remoteRuntimePath($tenant),
             (int) $tenant->assigned_port,
-            (string) ($runtimeEnvironment['OPENCLAW_GATEWAY_TOKEN'] ?? ''),
-            (string) ($runtimeEnvironment['OPENAI_API_KEY'] ?? ''),
-            (string) ($runtimeEnvironment['OPENAI_BASE_URL'] ?? ''),
+            $gatewayToken,
+            $liteLlmKey,
+            $liteLlmBaseUrl,
             $capabilityIds,
         );
         $existingContents = $this->files->get($localComposePath);
@@ -445,7 +455,7 @@ class TenantRuntimeCapabilityService
         $envPath = $this->runtime->localEnvPath($tenant);
 
         if (! $this->files->exists($envPath)) {
-            throw new RuntimeException('The tenant runtime .env file is missing, so compose regeneration cannot read the provisioned secrets.');
+            return [];
         }
 
         $values = [];
@@ -474,6 +484,22 @@ class TenantRuntimeCapabilityService
         }
 
         return $values;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseLocalOpenClawConfig(Tenant $tenant): array
+    {
+        $configPath = $this->runtime->localOpenClawConfigPath($tenant);
+
+        if (! $this->files->exists($configPath)) {
+            return [];
+        }
+
+        $decoded = json_decode($this->files->get($configPath), true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 
     /**

@@ -7,6 +7,24 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-20 — Fix: Onboarding Preserves LiteLLM Keys And Locks Busy Wizard Steps
+
+Date: 2026-04-20
+Status: Implemented
+
+### Overview
+
+Fixed onboarding journey bugs where runtime sync paths could reuse stale local credentials and where customers could navigate between wizard steps while save/connect/go-live work was still running. Saved Telegram channel setup is now tracked truthfully as saved-but-not-connected until runtime config has actually been applied.
+
+### What Changed
+
+- runtime compose regeneration now uses `Tenant::litellm_virtual_key` as the `OPENAI_API_KEY` source of truth and fails clearly if that key is missing
+- gateway token recovery falls back from local runtime `.env` to `config/openclaw.json`, while LiteLLM base URL prefers the configured service URL
+- onboarding channel state now distinguishes `pending`, `saved`, and `connected`, with `telegram.runtime_configured` indicating whether runtime Telegram config exists
+- provisioning completion and Go Live now replay saved Telegram config into `config/openclaw.json` when the runtime is ready
+- onboarding async actions now share a visible operation-progress lock that disables wizard navigation/actions and prevents accidental step changes while a request is in flight
+- added regression coverage for LiteLLM key preservation, compose credential precedence, channel replay, and the wizard operation-lock hooks
+
 ## 2026-04-20 — Fix: Hamburger Drawer Not Rendering And Button Showing Wrong Color
 
 Date: 2026-04-20

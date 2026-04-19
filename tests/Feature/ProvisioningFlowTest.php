@@ -175,6 +175,61 @@ class ProvisioningFlowTest extends TestCase
         $this->assertSame('queued', $syncJob?->status?->value);
     }
 
+    public function test_provisioning_completion_replays_saved_channel_config_when_runtime_is_ready(): void
+    {
+        [, $tenant, $job] = $this->seedTenantAndJob();
+
+        $tenant->forceFill([
+            'channel' => 'telegram',
+            'channel_config' => ['telegram_bot_token' => 'telegram-bot-token'],
+        ])->save();
+
+        $mock = Mockery::mock(TenantProvisioner::class);
+        $mock->shouldReceive('provision')
+            ->once()
+            ->withArgs(function (Tenant $provisioningTenant, ProvisioningJob $provisioningJob) use ($tenant, $job): bool {
+                $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
+                \Illuminate\Support\Facades\File::ensureDirectoryExists($localRuntimePath.'/config');
+                \Illuminate\Support\Facades\File::put($localRuntimePath.'/.env', implode(PHP_EOL, [
+                    'OPENCLAW_GATEWAY_TOKEN=test-token',
+                    'OPENAI_API_KEY=sk-tenant-acme',
+                    'OPENAI_BASE_URL=https://litellm.stylesoftware.co.nz',
+                    '',
+                ]));
+                \Illuminate\Support\Facades\File::put($localRuntimePath.'/config/openclaw.json', json_encode([
+                    'gateway' => [
+                        'auth' => [
+                            'mode' => 'token',
+                            'token' => 'test-token',
+                        ],
+                    ],
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+
+                $provisioningTenant->forceFill([
+                    'assigned_port' => 4100,
+                    'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
+                    'workspace_url' => 'https://acme-plumbing.workspace.test',
+                    'provisioning_status' => TenantProvisioningStatus::Ready,
+                ])->save();
+
+                $provisioningJob->forceFill([
+                    'status' => ProvisioningJobStatus::Completed,
+                    'completed_at' => now(),
+                ])->save();
+
+                return $provisioningTenant->is($tenant) && $provisioningJob->is($job);
+            })
+            ->andReturnNull();
+        $this->instance(TenantProvisioner::class, $mock);
+
+        ProcessTenantProvisioning::dispatchSync($tenant->id, $job->id);
+
+        $config = json_decode(\Illuminate\Support\Facades\File::get(config('sync360.runtime_root').'/'.$tenant->slug.'/config/openclaw.json'), true);
+
+        $this->assertSame('telegram-bot-token', $config['channels']['telegram']['botToken'] ?? null);
+        $this->assertSame('open', $config['channels']['telegram']['dmPolicy'] ?? null);
+    }
+
     public function test_brevo_failure_does_not_mark_provisioning_as_failed(): void
     {
         config()->set('services.brevo.enabled', true);

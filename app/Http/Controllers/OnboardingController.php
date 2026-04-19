@@ -504,11 +504,20 @@ class OnboardingController extends Controller
      */
     private function channelSetupPayload(Tenant $tenant, array $channelConfig): array
     {
+        $botTokenSaved = filled($channelConfig['telegram_bot_token'] ?? null);
+        $runtimeConfigured = $this->agentSync->isSavedChannelRuntimeConfigured($tenant);
+        $status = match (true) {
+            $botTokenSaved && $runtimeConfigured => 'connected',
+            $botTokenSaved => 'saved',
+            default => 'pending',
+        };
+
         return [
             'selected_channel' => $tenant->channel === 'telegram' ? 'telegram' : null,
-            'status' => $this->stepFiveComplete($tenant, $channelConfig) ? 'connected' : 'pending',
+            'status' => $status,
             'telegram' => [
-                'bot_token_saved' => filled($channelConfig['telegram_bot_token'] ?? null),
+                'bot_token_saved' => $botTokenSaved,
+                'runtime_configured' => $runtimeConfigured,
             ],
         ];
     }

@@ -80,6 +80,155 @@ class OnboardingFlowTest extends TestCase
         $this->assertSame($originalLastSyncedAt, $tenant->litellm_last_synced_at?->toISOString());
     }
 
+    public function test_mutating_onboarding_steps_do_not_regenerate_or_mutate_existing_tenant_litellm_key(): void
+    {
+        [$user, $tenant, $profile, $files] = $this->seedTenantWithProfile();
+
+        config()->set('services.litellm.base_url', 'https://litellm.stylesoftware.co.nz');
+        config()->set('services.litellm.master_key', 'litellm-master');
+        config()->set('services.litellm.virtual_key', null);
+        config()->set('services.google.client_id', 'google-client-id');
+        config()->set('services.google.client_secret', 'google-client-secret');
+        config()->set('services.google.redirect_uri', 'https://app.sync360.test/auth/google/callback');
+
+        Http::fake([
+            'https://litellm.stylesoftware.co.nz/key/generate' => Http::response(['key' => 'sk-unexpected-new-key'], 200),
+            'https://oauth2.googleapis.com/token' => Http::response([
+                'access_token' => 'google-access-token',
+                'refresh_token' => 'google-refresh-token',
+                'expires_in' => 3600,
+                'scope' => implode(' ', ['openid', 'email', 'profile']),
+                'token_type' => 'Bearer',
+            ], 200),
+            'https://openidconnect.googleapis.com/v1/userinfo' => Http::response([
+                'email' => 'owner@example.com',
+            ], 200),
+        ]);
+
+        $tenant->forceFill([
+            'litellm_virtual_key' => 'existing-tenant-key',
+            'litellm_key_alias' => 'openclaw-'.$tenant->tenant_id,
+            'litellm_plan_name' => 'trial',
+            'litellm_max_budget' => 25,
+            'litellm_budget_duration' => 'monthly',
+            'litellm_last_synced_at' => now()->subHour(),
+        ])->save();
+        $originalLastSyncedAt = $tenant->litellm_last_synced_at?->toISOString();
+
+        $this->actingAs($user);
+
+        $this->postJson('/onboarding/business-info', [
+            'business_name' => 'Acme Plumbing & Drainage',
+            'description' => 'We help homeowners with urgent callouts, maintenance, and installs.',
+            'industry' => 'Trades',
+            'services' => ['Emergency plumbing', 'Drain unblocking'],
+            'contact_email' => 'support@acme.example',
+            'contact_phone' => '+64 21 999 9999',
+            'website_url' => 'https://acme.example',
+        ])->assertOk();
+
+        $this->postJson('/onboarding/personality', [
+            'tone' => 'friendly',
+        ])->assertOk();
+
+        $this->postJson('/onboarding/capabilities', [
+            'capabilities' => ['faqs', 'messages'],
+        ])->assertOk();
+
+        $this->postJson('/onboarding/channel', [
+            'channel' => 'telegram',
+            'telegram_bot_token' => 'telegram-bot-token',
+        ])
+            ->assertOk()
+            ->assertJsonPath('state.channel_setup.status', 'saved')
+            ->assertJsonPath('state.channel_setup.telegram.bot_token_saved', true)
+            ->assertJsonPath('state.channel_setup.telegram.runtime_configured', false);
+
+        $this->get('/onboarding/google/connect')->assertRedirect();
+        $credential = $tenant->fresh('googleCredential')->googleCredential;
+        $this->get('/auth/google/callback?state='.urlencode((string) $credential?->oauth_state).'&code=test-code')
+            ->assertRedirect('/onboarding?step=6');
+
+        $this->post('/onboarding/google/skip')->assertRedirect('/onboarding?step=6');
+        $this->post('/onboarding/google/disconnect')->assertRedirect('/onboarding?step=6');
+
+        $files->refresh()->forceFill([
+            'identity_markdown' => '# Identity',
+            'soul_markdown' => '# Soul',
+            'user_markdown' => '# User',
+            'bootstrap_markdown' => '# Bootstrap',
+            'generated_at' => now(),
+        ])->save();
+        $profile->refresh()->forceFill([
+            'website_url' => 'https://acme.example',
+            'description' => 'Acme Plumbing helps homeowners with urgent repairs.',
+            'services' => ['Emergency plumbing'],
+        ])->save();
+        $tenant->refresh()->forceFill([
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'assigned_port' => 4100,
+            'workspace_url' => 'https://acme-plumbing.workspace.test',
+            'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
+        ])->save();
+        $tenant->googleCredential()->updateOrCreate(
+            ['tenant_id' => $tenant->id],
+            [
+                'status' => TenantGoogleCredential::STATUS_CONNECTED,
+                'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_VERIFIED,
+                'google_email' => 'owner@example.com',
+                'access_token' => 'google-access-token',
+                'refresh_token' => 'google-refresh-token',
+                'scopes' => ['openid', 'email'],
+                'connected_at' => now(),
+            ],
+        );
+
+        $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
+        File::ensureDirectoryExists($localRuntimePath.'/.openclaw/workspace');
+        File::ensureDirectoryExists($localRuntimePath.'/config');
+        File::put($localRuntimePath.'/.env', implode(PHP_EOL, [
+            'OPENCLAW_GATEWAY_TOKEN=test-token',
+            'OPENAI_API_KEY=existing-tenant-key',
+            'OPENAI_BASE_URL=https://litellm.stylesoftware.co.nz',
+            '',
+        ]));
+        File::put($localRuntimePath.'/config/openclaw.json', json_encode([
+            'gateway' => [
+                'auth' => [
+                    'mode' => 'token',
+                    'token' => 'test-token',
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+        File::put($localRuntimePath.'/compose.yaml', 'services: {}'.PHP_EOL);
+
+        $this->postJson('/onboarding/go-live')->assertOk();
+
+        $tenant->refresh();
+
+        $this->assertSame('existing-tenant-key', $tenant->litellm_virtual_key);
+        $this->assertSame('openclaw-'.$tenant->tenant_id, $tenant->litellm_key_alias);
+        $this->assertSame('trial', $tenant->litellm_plan_name);
+        $this->assertSame('25.00', $tenant->litellm_max_budget);
+        $this->assertSame('monthly', $tenant->litellm_budget_duration);
+        $this->assertSame($originalLastSyncedAt, $tenant->litellm_last_synced_at?->toISOString());
+        Http::assertNotSent(fn ($request): bool => $request->url() === 'https://litellm.stylesoftware.co.nz/key/generate');
+    }
+
+    public function test_onboarding_shell_contains_shared_operation_lock_hooks(): void
+    {
+        [$user] = $this->seedTenantWithProfile();
+
+        $this->actingAs($user);
+
+        $this->get('/onboarding')
+            ->assertOk()
+            ->assertSee('id="wizard-operation-note"', false)
+            ->assertSee('function startWizardOperation', false)
+            ->assertSee('function finishWizardOperation', false)
+            ->assertSee('wizardOperation.active', false);
+    }
+
     public function test_onboarding_gracefully_degrades_when_google_credentials_table_is_missing(): void
     {
         [$user] = $this->seedTenantWithProfile();
@@ -451,8 +600,9 @@ class OnboardingFlowTest extends TestCase
             ->assertJsonPath('state.steps.7.label', 'Go Live')
             ->assertJsonPath('state.steps.7.status', 'incomplete')
             ->assertJsonPath('state.channel_setup.selected_channel', 'telegram')
-            ->assertJsonPath('state.channel_setup.status', 'connected')
-            ->assertJsonPath('state.channel_setup.telegram.bot_token_saved', true);
+            ->assertJsonPath('state.channel_setup.status', 'saved')
+            ->assertJsonPath('state.channel_setup.telegram.bot_token_saved', true)
+            ->assertJsonPath('state.channel_setup.telegram.runtime_configured', false);
 
         $tenant->refresh();
 
@@ -540,6 +690,7 @@ class OnboardingFlowTest extends TestCase
             'provisioning_status' => TenantProvisioningStatus::Ready,
             'assigned_port' => 4100,
             'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
+            'litellm_virtual_key' => 'sk-tenant-acme',
         ])->save();
 
         Queue::fake([ProcessInitialGoogleWorkspaceSync::class]);
@@ -606,6 +757,7 @@ class OnboardingFlowTest extends TestCase
             'provisioning_status' => TenantProvisioningStatus::Ready,
             'assigned_port' => 4100,
             'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
+            'litellm_virtual_key' => 'sk-tenant-acme',
         ])->save();
 
         $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
@@ -798,6 +950,7 @@ class OnboardingFlowTest extends TestCase
             'provisioning_status' => TenantProvisioningStatus::Ready,
             'assigned_port' => 4100,
             'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
+            'litellm_virtual_key' => 'sk-tenant-acme',
         ])->save();
 
         $tenant->googleCredential()->create([
@@ -1344,6 +1497,82 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('Calendar read flow: use the native calendar events path', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Do not ask the owner to choose an account unless `gog` explicitly tells you there are multiple configured accounts or no default account.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Explain that as a scope or permission issue, not as a missing `credentials.json` issue.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
+    }
+
+    public function test_go_live_replays_saved_channel_config_before_syncing_workspace(): void
+    {
+        [$user, $tenant, $profile, $files] = $this->seedTenantWithProfile();
+
+        config()->set('services.google.client_id', 'google-client-id');
+        config()->set('services.google.client_secret', 'google-client-secret');
+        config()->set('services.google.redirect_uri', 'https://app.sync360.test/auth/google/callback');
+
+        $profile->forceFill([
+            'website_url' => 'https://acme.example',
+            'description' => 'Acme Plumbing helps homeowners with urgent repairs.',
+            'services' => ['Emergency plumbing'],
+        ])->save();
+
+        $files->forceFill([
+            'identity_markdown' => '# Identity',
+            'soul_markdown' => '# Soul',
+            'user_markdown' => '# User',
+            'bootstrap_markdown' => '# Bootstrap',
+            'generated_at' => now(),
+        ])->save();
+
+        $tenant->forceFill([
+            'onboarding_status' => 'in_progress',
+            'onboarding_step' => 6,
+            'tone' => 'friendly',
+            'capabilities' => ['faqs'],
+            'channel' => 'telegram',
+            'channel_config' => ['telegram_bot_token' => 'telegram-bot-token'],
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'assigned_port' => 4100,
+            'workspace_url' => 'https://acme-plumbing.workspace.test',
+            'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
+            'litellm_virtual_key' => 'sk-tenant-acme',
+        ])->save();
+
+        $tenant->googleCredential()->create([
+            'status' => TenantGoogleCredential::STATUS_CONNECTED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_VERIFIED,
+            'google_email' => 'owner@example.com',
+            'access_token' => 'google-access-token',
+            'refresh_token' => 'google-refresh-token',
+            'scopes' => ['openid', 'email'],
+            'connected_at' => now(),
+        ]);
+
+        $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
+        File::ensureDirectoryExists($localRuntimePath.'/.openclaw/workspace');
+        File::ensureDirectoryExists($localRuntimePath.'/config');
+        File::put($localRuntimePath.'/.env', implode(PHP_EOL, [
+            'OPENCLAW_GATEWAY_TOKEN=test-token',
+            'OPENAI_API_KEY=sk-tenant-acme',
+            'OPENAI_BASE_URL=https://litellm.stylesoftware.co.nz',
+            '',
+        ]));
+        File::put($localRuntimePath.'/config/openclaw.json', json_encode([
+            'gateway' => [
+                'auth' => [
+                    'mode' => 'token',
+                    'token' => 'test-token',
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+        File::put($localRuntimePath.'/compose.yaml', 'services: {}'.PHP_EOL);
+
+        $this->actingAs($user)
+            ->postJson('/onboarding/go-live')
+            ->assertOk()
+            ->assertJsonPath('state.channel_setup.status', 'connected')
+            ->assertJsonPath('state.channel_setup.telegram.runtime_configured', true);
+
+        $config = json_decode(File::get($localRuntimePath.'/config/openclaw.json'), true);
+
+        $this->assertSame('telegram-bot-token', $config['channels']['telegram']['botToken'] ?? null);
     }
 
     /**

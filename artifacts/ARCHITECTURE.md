@@ -251,7 +251,8 @@ Provisioning flow:
 11. wait for private `/readyz`
 12. wait for public `<workspace_url>/login`
 13. mark tenant/job ready/completed
-14. send a neutral post-provisioning "workspace created / continue setup" email
+14. replay any saved Telegram channel config into `config/openclaw.json` if the customer saved it before runtime readiness
+15. send a neutral post-provisioning "workspace created / continue setup" email
 
 During SSH-host preparation, `sync360:bootstrap-client-vps` now also installs pinned host-managed runtime capabilities declared in config. Provisioning then reuses the shared capability service so generated tenant compose/config files already include the required bind mounts and OpenClaw skill wiring.
 
@@ -282,6 +283,8 @@ Services involved:
 
 The onboarding Blade shows explicit wizard progress and a background-setup status card, then polls `/onboarding/state` in the background to refresh progress and readiness. The client preserves unsaved local drafts for website, business details, tone, capabilities, and channel setup so in-progress edits are not wiped by refreshes. Successful saves on the main setup steps auto-advance the wizard to the next step, and onboarding navigation/state polling does not regenerate the tenant LiteLLM key because key creation remains provisioning-only.
 
+Wizard async actions share a client-side operation state. While website reading, business save, tone save, file preparation, channel connect/disconnect, or Go Live is in flight, the Blade shows a visible status note, disables wizard next/back/step-bar/action controls, blocks `showWizardStep()` from changing the visible step, and pauses refresh-driven UI application until the request finishes. On success, server state is applied before the wizard advances; on failure, the lock is released and the customer stays on the same step with the existing error message.
+
 Customer-facing readiness is now computed by a shared readiness calculator instead of being inferred directly from `TenantProvisioningStatus`. That calculator is pure over preloaded tenant + Google sync inputs and produces:
 
 - runtime-ready / legacy `workspace.ready`
@@ -291,7 +294,7 @@ Customer-facing readiness is now computed by a shared readiness calculator inste
 
 This separates "the private tenant runtime is provisioned" from "the customer can open the workspace success screen or go live."
 
-The Channel step also keeps an explicit manual forward path. Step 5 now renders a `Continue To Google Workspace` button in the channel-panel navigation so customers can move on even when the channel is already connected or they prefer to finish Google Workspace later.
+The Channel step also keeps an explicit manual forward path. Step 5 now renders a `Continue To Google Workspace` button in the channel-panel navigation so customers can move on even when the channel is already connected or they prefer to finish Google Workspace later. A saved Telegram bot token is reported as `channel_setup.status=saved` until the runtime `config/openclaw.json` actually contains enabled Telegram config; only then does the onboarding state report `connected`. `TenantAgentSyncService::syncSavedChannelIfReady()` is the idempotent replay path used after provisioning and during Go Live.
 
 Google Workspace Step 6 now distinguishes between OAuth account status and live runtime readiness. The state payload can report Google Workspace as `pending`, `synced`, `verified`, or `failed`, and the Blade surfaces `last_error` when runtime verification needs attention instead of collapsing everything into a single optimistic "ready" message.
 
@@ -369,15 +372,17 @@ Runtime reload rule:
 `TenantAgentSyncService::goLive()`:
 
 1. validates tenant, profile, and generated files
-2. writes `IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`, `TOOLS.md`, `PROFILE.md`, and `HEARTBEAT.md` into `.openclaw/workspace/`
-3. syncs only workspace markdown files with `syncWorkspaceFiles()`
-4. restarts the tenant runtime if needed
-5. updates onboarding and sync timestamps
+2. replays saved Telegram channel config if the runtime config exists but the channel has not been applied yet
+3. writes `IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`, `TOOLS.md`, `PROFILE.md`, and `HEARTBEAT.md` into `.openclaw/workspace/`
+4. syncs only workspace markdown files with `syncWorkspaceFiles()`
+5. restarts the tenant runtime if needed
+6. updates onboarding and sync timestamps
 
 Critical invariant:
 
 - `goLive()` must never use `syncRuntime()` because that can overwrite provisioned credentials such as the tenant LiteLLM key in `compose.yaml`
 - the onboarding controller must not piggyback Google auth sync or verification onto Go Live; the Go Live request is guarded by the shared readiness calculator and only proceeds once Google verification is already complete
+- compose regeneration must use `Tenant::litellm_virtual_key` for `OPENAI_API_KEY`; local runtime `.env` is allowed to provide the gateway token/base URL fallback but is not the source of truth for the tenant LiteLLM key
 
 ### Conversation sync flow
 

@@ -59,6 +59,8 @@ class TenantAgentSyncService
         ])->save();
 
         try {
+            $this->syncSavedChannelIfReady($tenant);
+
             foreach ($artifacts as $filename => $contents) {
                 $this->files->put($workspacePath.DIRECTORY_SEPARATOR.$filename, $contents);
             }
@@ -242,6 +244,57 @@ class TenantAgentSyncService
         );
 
         Log::info('[RemoveChannelConfig] Channels removed and gateway restarted for tenant '.$tenant->slug);
+    }
+
+    public function syncSavedChannelIfReady(Tenant $tenant): bool
+    {
+        $tenant->loadMissing('server');
+
+        if ($tenant->channel !== 'telegram') {
+            return false;
+        }
+
+        $channelConfig = is_array($tenant->channel_config) ? $tenant->channel_config : [];
+
+        if (! filled($channelConfig['telegram_bot_token'] ?? null)) {
+            return false;
+        }
+
+        if (! $this->files->exists($this->runtime->localOpenClawConfigPath($tenant))) {
+            return false;
+        }
+
+        $this->configureChannel($tenant);
+
+        return $this->isSavedChannelRuntimeConfigured($tenant);
+    }
+
+    public function isSavedChannelRuntimeConfigured(Tenant $tenant): bool
+    {
+        if ($tenant->channel !== 'telegram') {
+            return false;
+        }
+
+        $channelConfig = is_array($tenant->channel_config) ? $tenant->channel_config : [];
+
+        if (! filled($channelConfig['telegram_bot_token'] ?? null)) {
+            return false;
+        }
+
+        $configPath = $this->runtime->localOpenClawConfigPath($tenant);
+
+        if (! $this->files->exists($configPath)) {
+            return false;
+        }
+
+        $config = json_decode($this->files->get($configPath), true);
+
+        if (! is_array($config)) {
+            return false;
+        }
+
+        return data_get($config, 'channels.telegram.enabled') === true
+            && filled(data_get($config, 'channels.telegram.botToken'));
     }
 
     public function configureGoogleWorkspace(Tenant $tenant): void
