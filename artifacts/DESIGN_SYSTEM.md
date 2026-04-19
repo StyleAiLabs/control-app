@@ -1,6 +1,6 @@
 # Sync360 Design System
 
-Last verified: `2026-04-19`
+Last verified: `2026-04-20`
 
 This document is the canonical design-system reference for the Sync360 Control App. It describes the current code-backed UI system used by the Blade surfaces in this repo.
 
@@ -480,14 +480,27 @@ Sync360 surfaces are responsive but intentionally do not use a universal breakpo
 
 Source: [app.blade.php:623](resources/views/components/layouts/app.blade.php#L623)
 
-One breakpoint at **≤980px**. Below it:
+Two breakpoints:
 
-- `.shell` collapses from sidebar + content (grid) to a single column
-- `.sidebar` changes from fixed-height vertical nav to a horizontal wrapping bar with reduced padding
-- `.sidebar-footer` is hidden
-- `.stats`, `.grid-2`, `.meta`, and `.field-grid` all collapse to a single column
+**≤980px (tablet/mobile):**
 
-Design intent: the app is sidebar-first on desktop and stacks vertically on tablet/mobile without a separate hamburger menu.
+- `.shell` collapses from sidebar + content grid to a single column
+- `.sidebar` becomes a sticky top bar (`position: sticky; top: 0; z-index: 100; flex-direction: row`) with brand left and hamburger button right
+- Desktop `<nav>` and `.sidebar-footer` are hidden (`display: none`)
+- `.hamburger-btn` becomes visible (`display: inline-flex`); three-bar icon animates to an × when open
+- When the hamburger is tapped, `.nav-open` is toggled on the sidebar; the `.mobile-drawer` expands below the top bar containing: alerts bell (with its own dropdown), all nav links with section labels, and a footer row with user name + logout button
+- Nothing is dropped on mobile — bell, nav links, user name, and logout are all present in the drawer
+- `toggleMobileNav()` manages `nav-open` and `aria-expanded`; `toggleNotifBell(dropdownId)` takes an explicit ID so desktop and mobile bells toggle independently
+- `.content` padding reduces to `var(--space-4)` (16px)
+- `.topbar` stacks vertically (`flex-direction: column`) so heading and action buttons don't crowd
+- `.stats`, `.grid-2`, `.meta`, and `.field-grid` collapse to a single column
+
+**≤480px (phone):**
+
+- `.content` padding tightens further to `var(--space-3)` (12px)
+- `.panel` padding reduces to `var(--space-4)` (16px)
+
+Design intent: the app is sidebar-first on desktop; on mobile it collapses to a compact sticky top bar with a hamburger drawer that preserves all navigation and account actions.
 
 ### Guest Layout
 

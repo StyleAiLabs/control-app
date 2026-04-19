@@ -2,7 +2,7 @@
 
 This document describes the current as-built architecture of the Sync360 Control App based on the repo code.
 
-Shared Blade layouts render keyboard-visible focus states via `:focus-visible` outlines on form controls, buttons, and navigation links, drawn using the brand `--accent` token (WCAG 2.4.7 Focus Visible).
+Shared Blade layouts render keyboard-visible focus states via `:focus-visible` outlines on form controls, buttons, and navigation links, drawn using the brand `--accent` token (WCAG 2.4.7 Focus Visible). The authenticated app layout is mobile-responsive: at ≤980px the sidebar collapses to a sticky hamburger top bar; a `.mobile-drawer` preserves all navigation elements (alerts bell, nav links, user name, logout) and is toggled by `toggleMobileNav()` with `aria-expanded` management.
 
 ## 1. Purpose and product boundary
 

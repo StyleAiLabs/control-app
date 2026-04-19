@@ -7,6 +7,28 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-20 — Feat: Hamburger Mobile Navigation With Full Element Preservation
+
+Date: 2026-04-20
+Status: Implemented
+
+### Overview
+
+Added a hamburger menu for the authenticated app layout on viewports ≤980px. The sidebar collapses to a sticky top bar (brand left, hamburger right); tapping the hamburger reveals a `.mobile-drawer` containing every navigation element — alerts bell, all nav links, user name, and logout button. Nothing is dropped or hidden.
+
+### What Changed
+
+- `.sidebar` becomes a sticky `flex-direction: row` top bar at ≤980px; brand left, `.hamburger-btn` right
+- desktop `<nav>` and `.sidebar-footer` are hidden on mobile; replaced by `.mobile-drawer` containing all elements
+- `.mobile-drawer` expands below the top bar when `.nav-open` is set on the sidebar; contains alerts bell (with dropdown), all nav section labels + links, and a footer row with user name + logout
+- `.hamburger-btn` three-bar icon animates to × via CSS `nth-child` transforms when `.nav-open` is active
+- `toggleMobileNav()` handles `nav-open` class + `aria-expanded` on the hamburger button
+- `toggleNotifBell(dropdownId)` now accepts an explicit dropdown ID — desktop bell opens `#notif-dropdown`, mobile bell opens `#notif-dropdown-mobile`, so they are fully independent
+- desktop `.sidebar-footer` now includes the alerts bell (restored), user info, and logout button — nothing was removed from desktop
+- outside-click handler closes each bell dropdown independently and closes the mobile drawer when clicking outside the sidebar
+- `≤480px` phone breakpoint tightens content and panel padding
+- updated §10 Responsive Behavior in `DESIGN_SYSTEM.md` to document the hamburger pattern
+
 ## 2026-04-20 — Design System: Dark Mode Strategy, Motion Guards, Form Validation, And Token Migration
 
 Date: 2026-04-20

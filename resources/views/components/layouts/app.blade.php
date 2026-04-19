@@ -254,6 +254,8 @@
         .sidebar-user-email { color: rgba(255,255,255,0.55); font-size: 0.80rem; margin-top: 2px; }
         .sidebar-user-role  { color: var(--accent); font-size: 0.74rem; font-weight: 700; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.07em; line-height: 1.3; }
 
+        .sidebar-logout-btn { width: 100%; }
+
         /* ── Main content ── */
         .content { padding: 32px; }
         .topbar {
@@ -657,19 +659,158 @@
             }
         }
 
+        /* ── Hamburger button (hidden on desktop) ── */
+        .hamburger-btn {
+            display: none;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.12);
+            color: white;
+            border-radius: var(--radius-md);
+            padding: var(--space-1-5) var(--space-2);
+            cursor: pointer;
+            flex-direction: column;
+            gap: 4px;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .hamburger-btn span {
+            display: block;
+            width: 16px;
+            height: 2px;
+            background: white;
+            border-radius: 2px;
+            transition: transform 0.15s ease, opacity 0.15s ease;
+        }
+        /* Animate to X when open */
+        .sidebar.nav-open .hamburger-btn span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+        .sidebar.nav-open .hamburger-btn span:nth-child(2) { opacity: 0; }
+        .sidebar.nav-open .hamburger-btn span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+        /* ── Mobile nav drawer ── */
+        .mobile-drawer {
+            display: none; /* shown only on mobile via media query */
+        }
+
         /* ── Responsive ── */
         @media (max-width: 980px) {
             .shell { grid-template-columns: 1fr; }
-            .sidebar { height: auto; position: static; flex-direction: row; flex-wrap: wrap; padding: 16px; }
-            .sidebar-brand { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
-            .sidebar-footer { display: none; }
+
+            /* Compact sticky top bar: brand left, hamburger right */
+            .sidebar {
+                height: auto;
+                position: sticky;
+                top: 0;
+                z-index: 100;
+                flex-direction: row;
+                align-items: center;
+                padding: var(--space-2) var(--space-3-5);
+                gap: var(--space-2);
+            }
+            .sidebar-brand {
+                flex: 1;
+                border-bottom: none;
+                margin-bottom: 0;
+                padding: 0;
+                min-width: 0;
+            }
+
+            /* Hide desktop-only nav and footer; show hamburger */
+            nav, .sidebar-footer { display: none; }
+            .hamburger-btn { display: inline-flex; }
+
+            /* Drawer: hidden by default, shown when .nav-open */
+            .mobile-drawer {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: #1A1A1A;
+                border-top: 1px solid rgba(255,255,255,0.08);
+                padding: var(--space-2) var(--space-3-5) var(--space-3);
+                flex-direction: column;
+                gap: var(--space-0-5);
+                box-shadow: 0 8px 24px rgba(0,0,0,0.32);
+                z-index: 99;
+                max-height: calc(100vh - 60px);
+                overflow-y: auto;
+            }
+            .sidebar.nav-open .mobile-drawer { display: flex; }
+
+            /* Nav links in drawer */
+            .mobile-drawer .nav-link {
+                border-left: 3px solid transparent;
+                border-radius: var(--radius-md);
+                font-size: 0.93rem;
+                padding: var(--space-2-5) var(--space-3);
+            }
+            .mobile-drawer .nav-link.active {
+                background: rgba(255, 107, 53, 0.12);
+                border-left-color: var(--accent);
+                color: white;
+            }
+            .mobile-drawer .nav-section-label {
+                display: block;
+                padding: var(--space-2) var(--space-3) var(--space-0-5);
+            }
+
+            /* Bell in drawer */
+            .mobile-drawer .notif-bell-wrap { margin-bottom: 0; }
+            .mobile-drawer .notif-bell-btn {
+                width: 100%;
+                border-radius: var(--radius-md);
+            }
+
+            /* User + logout in drawer footer */
+            .mobile-drawer-footer {
+                margin-top: var(--space-2);
+                padding-top: var(--space-2);
+                border-top: 1px solid rgba(255,255,255,0.08);
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: var(--space-2);
+            }
+            .mobile-drawer-user {
+                font-size: 0.85rem;
+                font-weight: 600;
+                color: rgba(255,255,255,0.75);
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .sidebar-logout-btn {
+                font-size: 0.82rem;
+                padding: var(--space-1-5) var(--space-3);
+                width: auto;
+                flex-shrink: 0;
+            }
+
+            /* Content */
+            .content { padding: var(--space-4); }
+            .topbar {
+                flex-direction: column;
+                align-items: stretch;
+                gap: var(--space-3);
+                margin-bottom: var(--space-5);
+            }
+            .topbar-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+            /* Grids */
             .stats, .grid-2, .meta, .field-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 480px) {
+            .content { padding: var(--space-3); }
+            .panel { padding: var(--space-4); }
         }
     </style>
 </head>
 <body>
 <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" id="main-sidebar">
         <div class="sidebar-brand">
             <div class="sidebar-brand-dot">
                 <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -683,6 +824,17 @@
             </div>
         </div>
 
+        <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMobileNav()" aria-label="Toggle navigation" aria-expanded="false" aria-controls="main-sidebar">
+            <span></span><span></span><span></span>
+        </button>
+
+        @php
+            $extraAlerts = $__env->yieldContent('sidebar-alerts-extra') !== '' ? json_decode($__env->yieldContent('sidebar-alerts-extra'), true) : [];
+            $allAlerts   = array_merge($sidebarAlerts ?? [], is_array($extraAlerts) ? $extraAlerts : []);
+            $alertCount  = count($allAlerts);
+        @endphp
+
+        {{-- Desktop sidebar nav --}}
         <nav>
             <div class="nav-section-label">Menu</div>
             <a href="{{ auth()->user()->is_admin && ! auth()->user()->tenant ? route('admin.index') : route('dashboard') }}"
@@ -726,36 +878,24 @@
             @endif
         </nav>
 
-        <div class="sidebar-footer">
-            {{-- Notification bell --}}
-            @php
-                // Merge any extra alerts pushed via a Blade stack from individual pages (e.g. dashboard)
-                $extraAlerts = $__env->yieldContent('sidebar-alerts-extra') !== '' ? json_decode($__env->yieldContent('sidebar-alerts-extra'), true) : [];
-                $allAlerts   = array_merge($sidebarAlerts ?? [], is_array($extraAlerts) ? $extraAlerts : []);
-                $alertCount  = count($allAlerts);
-            @endphp
+        {{-- Mobile nav drawer (visible when hamburger is open) --}}
+        <div class="mobile-drawer">
+            {{-- Bell/alerts in drawer --}}
             <div class="notif-bell-wrap">
-                <button class="notif-bell-btn" id="notif-bell-toggle" onclick="toggleNotifBell()">
+                <button class="notif-bell-btn" id="notif-bell-toggle-mobile" onclick="toggleNotifBell('notif-dropdown-mobile')">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
                         <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
                     </svg>
-                    @if ($alertCount > 0)
-                        <span class="notif-bell-badge"></span>
-                    @endif
+                    @if ($alertCount > 0)<span class="notif-bell-badge"></span>@endif
                     Alerts
-                    @if ($alertCount > 0)
-                        <span class="notif-bell-count">{{ $alertCount }}</span>
-                    @endif
+                    @if ($alertCount > 0)<span class="notif-bell-count">{{ $alertCount }}</span>@endif
                 </button>
-
-                <div class="notif-dropdown" id="notif-dropdown">
+                <div class="notif-dropdown" id="notif-dropdown-mobile">
                     <div class="notif-header">Alerts</div>
                     @forelse ($allAlerts as $alert)
                         <div class="notif-item">
-                            <div class="notif-item-title">
-                                {{ $alert['icon'] }} {{ $alert['title'] }}
-                            </div>
+                            <div class="notif-item-title">{{ $alert['icon'] }} {{ $alert['title'] }}</div>
                             <div class="notif-item-msg">{{ $alert['message'] }}</div>
                             @if (!empty($alert['cta']))
                                 <a href="{{ $alert['cta']['href'] }}" class="notif-item-cta">{{ $alert['cta']['text'] }} →</a>
@@ -767,6 +907,82 @@
                 </div>
             </div>
 
+            <div class="nav-section-label">Menu</div>
+            <a href="{{ auth()->user()->is_admin && ! auth()->user()->tenant ? route('admin.index') : route('dashboard') }}"
+               class="nav-link {{ request()->routeIs('dashboard') || request()->routeIs('admin.index') ? 'active' : '' }}">
+                Dashboard
+            </a>
+            @if (auth()->user()->tenant)
+                <a href="{{ route('conversations.index') }}"
+                   class="nav-link {{ request()->routeIs('conversations.*') ? 'active' : '' }}">
+                    Conversations
+                </a>
+                <a href="{{ route('profile.show') }}"
+                   class="nav-link {{ request()->routeIs('profile.*') ? 'active' : '' }}">
+                    Profile
+                </a>
+                <a href="{{ route('tenant.setup') }}"
+                   class="nav-link {{ request()->routeIs('tenant.*') ? 'active' : '' }}">
+                    Setup
+                </a>
+            @endif
+            @if (auth()->user()?->is_admin)
+                <div class="nav-section-label" style="margin-top:8px;">Admin</div>
+                <a href="{{ route('admin.index') }}"
+                   class="nav-link {{ request()->routeIs('admin.index') ? 'active' : '' }}">
+                    Overview
+                </a>
+                <a href="{{ route('admin.tenants') }}"
+                   class="nav-link {{ request()->routeIs('admin.tenants*') ? 'active' : '' }}">
+                    Tenants
+                </a>
+                @if (config('sync360.skill_catalog.enabled', false))
+                    <a href="{{ route('admin.skills.index') }}"
+                       class="nav-link {{ request()->routeIs('admin.skills.*') ? 'active' : '' }}">
+                        Skill Catalog
+                    </a>
+                @endif
+                <a href="{{ route('admin.jobs') }}"
+                   class="nav-link {{ request()->routeIs('admin.jobs') ? 'active' : '' }}">
+                    Jobs
+                </a>
+            @endif
+            <div class="mobile-drawer-footer">
+                <span class="mobile-drawer-user">{{ auth()->user()->name }}</span>
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" class="button button--ghost sidebar-logout-btn">Log Out</button>
+                </form>
+            </div>
+        </div>
+
+        {{-- Desktop sidebar footer --}}
+        <div class="sidebar-footer">
+            <div class="notif-bell-wrap">
+                <button class="notif-bell-btn" id="notif-bell-toggle" onclick="toggleNotifBell('notif-dropdown')">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                    </svg>
+                    @if ($alertCount > 0)<span class="notif-bell-badge"></span>@endif
+                    Alerts
+                    @if ($alertCount > 0)<span class="notif-bell-count">{{ $alertCount }}</span>@endif
+                </button>
+                <div class="notif-dropdown" id="notif-dropdown">
+                    <div class="notif-header">Alerts</div>
+                    @forelse ($allAlerts as $alert)
+                        <div class="notif-item">
+                            <div class="notif-item-title">{{ $alert['icon'] }} {{ $alert['title'] }}</div>
+                            <div class="notif-item-msg">{{ $alert['message'] }}</div>
+                            @if (!empty($alert['cta']))
+                                <a href="{{ $alert['cta']['href'] }}" class="notif-item-cta">{{ $alert['cta']['text'] }} →</a>
+                            @endif
+                        </div>
+                    @empty
+                        <div class="notif-empty">No alerts — all good ✓</div>
+                    @endforelse
+                </div>
+            </div>
             <div class="sidebar-user">
                 <div class="sidebar-user-name">{{ auth()->user()->name }}</div>
                 <div class="sidebar-user-email">{{ auth()->user()->email }}</div>
@@ -776,7 +992,7 @@
             </div>
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
-                <button type="submit" class="button button--ghost" style="width: 100%;">Log Out</button>
+                <button type="submit" class="button button--ghost sidebar-logout-btn">Log Out</button>
             </form>
         </div>
     </aside>
@@ -798,15 +1014,33 @@
     </main>
 </div>
 <script>
-    function toggleNotifBell() {
-        document.getElementById('notif-dropdown').classList.toggle('open');
+    function toggleNotifBell(dropdownId) {
+        var el = document.getElementById(dropdownId);
+        if (el) el.classList.toggle('open');
     }
-    // Close on outside click
+    function toggleMobileNav() {
+        var sidebar = document.getElementById('main-sidebar');
+        var btn     = document.getElementById('hamburger-btn');
+        var open    = sidebar.classList.toggle('nav-open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    // Close dropdowns on outside click
     document.addEventListener('click', function(e) {
-        var btn = document.getElementById('notif-bell-toggle');
-        var dd  = document.getElementById('notif-dropdown');
-        if (btn && dd && !btn.contains(e.target) && !dd.contains(e.target)) {
-            dd.classList.remove('open');
+        // Close each bell dropdown independently
+        [['notif-bell-toggle', 'notif-dropdown'], ['notif-bell-toggle-mobile', 'notif-dropdown-mobile']].forEach(function(pair) {
+            var bellBtn = document.getElementById(pair[0]);
+            var bellDd  = document.getElementById(pair[1]);
+            if (bellBtn && bellDd && !bellBtn.contains(e.target) && !bellDd.contains(e.target)) {
+                bellDd.classList.remove('open');
+            }
+        });
+        // Close mobile drawer on outside click
+        var sidebar   = document.getElementById('main-sidebar');
+        var hamburger = document.getElementById('hamburger-btn');
+        if (sidebar && hamburger && sidebar.classList.contains('nav-open')
+            && !sidebar.contains(e.target)) {
+            sidebar.classList.remove('nav-open');
+            hamburger.setAttribute('aria-expanded', 'false');
         }
     });
 </script>
