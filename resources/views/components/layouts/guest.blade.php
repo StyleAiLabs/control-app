@@ -52,6 +52,20 @@
             --space-12:  48px;
             --space-16:  64px;
             --space-18:  72px;
+
+            /* Radius scale. See artifacts/DESIGN_SYSTEM.md §5. */
+            --radius-sm:     8px;
+            --radius-md:     12px;
+            --radius-lg:     16px;
+            --radius-xl:     22px;
+            --radius-2xl:    26px;
+            --radius-3xl:    30px;
+            --radius-pill:   999px;
+            --radius-circle: 50%;
+
+            /* Elevation scale (--shadow is the hero/auth-card elevation, kept for existing references). */
+            --shadow-focus:    0 0 0 3px rgba(255, 107, 53, 0.14);
+            --shadow-elevated: var(--shadow);
         }
 
         * { box-sizing: border-box; }

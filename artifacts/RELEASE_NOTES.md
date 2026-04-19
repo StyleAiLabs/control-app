@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-19 — Design System: Responsive Rules Documented And Radius/Elevation Tokenized
+
+Date: 2026-04-19
+Status: Implemented
+
+### Overview
+
+Extended `artifacts/DESIGN_SYSTEM.md` with a new §10 Responsive Behavior section documenting the actual breakpoints used in the shared Blade layouts, and tokenized the corner-radius and shadow values that were previously described only as prose.
+
+### What Changed
+
+- added §10 Responsive Behavior to `artifacts/DESIGN_SYSTEM.md` documenting the authenticated app layout's single `≤980px` breakpoint and the guest layout's three-tier breakpoints (`≤1100px`, `≤900px`, `≤720px`) with per-tier collapse rules and rules for adding new responsive CSS
+- added `--radius-sm/md/lg/xl/2xl/[3xl]/pill/circle` tokens to both shared Blade layouts, with values tuned per surface (app uses tighter corners; guest uses softer, larger corners)
+- added semantic elevation tokens: `--shadow-panel` for default app panels, `--shadow-focus` for keyboard focus halos on both surfaces, and `--shadow-elevated` in guest aliasing the existing `--shadow` for hero/auth cards
+- replaced the prose Radius And Shadow subsection in §5 Design Tokens with two tokenized subsections (Radius Scale, Elevation) documenting per-surface tables and migration guidance
+- noted brand-colored button halos remain inline (not tokenized yet) because only two variants exist; will tokenize when a third lands
+
 ## 2026-04-19 — Visible Focus Ring Restored On Form Controls And Buttons
 
 Date: 2026-04-19

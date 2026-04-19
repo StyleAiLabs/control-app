@@ -173,15 +173,59 @@ Guest-only tokens (`--space-16`, `--space-18`) are not available in the authenti
 
 **Migration status:** these tokens were added on 2026-04-19. Most existing rules still use raw pixel values; migration is gradual. When editing or adding CSS, replace nearby raw values with the closest token on the scale. If a design needs a value not on the scale, first consider whether the scale value (+/- 2px) is acceptable; only extend the scale for a real, repeated need.
 
-### Radius And Shadow
+### Radius Scale
 
-- pill radius: `999px`
-- input and meta radius: `14px`
-- panel radius: `20px` app, up to `30px` guest hero/auth cards
-- app panel shadow: `0 4px 24px rgba(26, 26, 26, 0.05)`
-- guest shadow: `var(--shadow)`
+Radius is tokenized separately per layout because the guest surface uses softer, larger corners than the authenticated app.
 
-Do not introduce arbitrary new radius or shadow values unless a new component genuinely needs a different elevation. Radius and shadow are not yet tokenized; treat the values above as the allowed set.
+**Authenticated app layout:**
+
+| Token | Value | Typical use |
+|---|---|---|
+| `--radius-sm` | 8px | chips, tight pills, small inline controls |
+| `--radius-md` | 10px | note, meta item, compact card |
+| `--radius-lg` | 14px | input, meta grid, form controls |
+| `--radius-xl` | 20px | panel (default) |
+| `--radius-2xl` | 24px | large panel variants |
+| `--radius-pill` | 999px | badges, buttons, eyebrow |
+| `--radius-circle` | 50% | avatars, indicator dots |
+
+**Guest layout:**
+
+| Token | Value | Typical use |
+|---|---|---|
+| `--radius-sm` | 8px | small controls |
+| `--radius-md` | 12px | rounded inline tokens |
+| `--radius-lg` | 16px | panels, secondary cards |
+| `--radius-xl` | 22px | hero sub-card |
+| `--radius-2xl` | 26px | large atmospheric panel |
+| `--radius-3xl` | 30px | hero card, auth card |
+| `--radius-pill` | 999px | badges, buttons |
+| `--radius-circle` | 50% | indicator dots, avatars |
+
+Do not introduce intermediate radius values (e.g. `18px`, `22px` in the app layout). If a new component needs a radius outside the scale, first try the nearest token; only extend the scale for a real, repeated need.
+
+### Elevation (Shadow)
+
+Shadows are semantic — named by purpose rather than by size — so swapping an elevation doesn't require updating every callsite.
+
+**Authenticated app layout:**
+
+| Token | Value | Use |
+|---|---|---|
+| `--shadow-panel` | `0 4px 24px rgba(26, 26, 26, 0.05)` | default `.panel` elevation |
+| `--shadow-focus` | `0 0 0 3px rgba(255, 107, 53, 0.14)` | focus halo (paired with `outline: 2px solid var(--accent)`) |
+
+**Guest layout:**
+
+| Token | Value | Use |
+|---|---|---|
+| `--shadow` | `0 18px 60px rgba(0, 0, 0, 0.22)` | hero card, auth card (original token, kept for existing references) |
+| `--shadow-elevated` | aliases `--shadow` | semantic alias for hero/modal-like elevation |
+| `--shadow-focus` | `0 0 0 3px rgba(255, 107, 53, 0.14)` | focus halo |
+
+Brand-colored button halos (e.g. `0 6px 20px rgba(255, 107, 53, 0.28)`) are currently inline on `.button--primary` and `.button--danger`. They are not tokenized yet because they vary with the button's rest/hover state and with brand vs danger color — tokenize when a third variant lands.
+
+**Migration status:** radius and elevation tokens were added on 2026-04-19 alongside the spacing scale. Most existing rules still use raw values; migration is gradual. When editing or adding CSS, replace nearby raw values with the closest token.
 
 ## 6. Typography Rules
 
@@ -428,7 +472,52 @@ Sync360 targets WCAG 2.1 AA for all customer and control-plane surfaces.
 - Icon-only buttons must carry an `aria-label`. Badges that convey state ("failed", "ready") must either repeat the state in readable text or be paired with an `sr-only` span.
 - Notes and error surfaces should use `role="status"` or `role="alert"` when the state is conveyed only visually.
 
-## 10. Maintenance Rules
+## 10. Responsive Behavior
+
+Sync360 surfaces are responsive but intentionally do not use a universal breakpoint scale. Each layout has its own breakpoints, tuned to its content, which is why this section documents both.
+
+### Authenticated App Layout
+
+Source: [app.blade.php:623](resources/views/components/layouts/app.blade.php#L623)
+
+One breakpoint at **≤980px**. Below it:
+
+- `.shell` collapses from sidebar + content (grid) to a single column
+- `.sidebar` changes from fixed-height vertical nav to a horizontal wrapping bar with reduced padding
+- `.sidebar-footer` is hidden
+- `.stats`, `.grid-2`, `.meta`, and `.field-grid` all collapse to a single column
+
+Design intent: the app is sidebar-first on desktop and stacks vertically on tablet/mobile without a separate hamburger menu.
+
+### Guest Layout
+
+Source: [guest.blade.php:996](resources/views/components/layouts/guest.blade.php#L996), [:1026](resources/views/components/layouts/guest.blade.php#L1026), [:1053](resources/views/components/layouts/guest.blade.php#L1053)
+
+Three breakpoints:
+
+| Max-width | Intent |
+|---|---|
+| **≤1100px** | Landing hero, story grid, and auth wrap collapse to single column. Hero copy tightens (`gap`, `max-width`). Final CTA stacks vertically. |
+| **≤900px** | Dense grids collapse — `.field-grid`, `.preview-stats`, `.outcome-strip`, `.mini-grid`, `.auth-metric-grid`, `.preview-surface`. Preview sidebar rearranges to a 2-col sub-grid. |
+| **≤720px** | Phone. Containers inset to `100% - 28px`, section padding tightens, hero heading scales down (`clamp(2.7rem, 13vw, 4.2rem)`), nav wraps. |
+
+Design intent: the landing/auth experience is content-first; grids collapse progressively rather than snapping at one breakpoint.
+
+### Rules For New Responsive CSS
+
+- Prefer the existing breakpoints for the surface you're working on. Do not introduce a fourth guest breakpoint or a second app breakpoint without a real reason — content collapse should happen at one of the documented tiers.
+- Use **max-width** queries (mobile-adjusted-from-desktop) to match the existing style. Do not mix min-width and max-width in the same surface.
+- Collapse multi-column grids to a single column at the narrowest breakpoint where that content becomes unreadable, not preemptively.
+- `flex-wrap: wrap` is the standard fallback for toolbars, nav links, and CTA rows — use it instead of hiding elements unless there is a clear reason.
+- Do not hide operational information on narrow viewports in the control-plane UI. The sidebar may collapse, but tenant IDs, runtime status, and error notes must remain reachable.
+- Guest-layout hero typography uses `clamp(min, viewport-scaled, max)`; use this pattern for new display headings rather than fixed breakpoint jumps.
+
+### Known Responsive Gaps
+
+- The app layout has no breakpoint between 980px and the narrowest desktop sizes. Dense admin tables on small laptops (<1200px) can feel cramped; this is a known trade-off, not a documented behavior.
+- Guest `@media (max-width: 1100px)` and `@media (max-width: 900px)` ranges overlap for some rules — when editing, verify both queries to avoid drift.
+
+## 11. Maintenance Rules
 
 - Update this document when shared layout tokens, typography classes, or reusable component patterns change.
 - Update this document when a new repeated UI primitive is introduced.

@@ -43,6 +43,19 @@
             --space-9:   36px;
             --space-10:  40px;
             --space-12:  48px;
+
+            /* Radius scale. See artifacts/DESIGN_SYSTEM.md §5. */
+            --radius-sm:     8px;
+            --radius-md:     10px;
+            --radius-lg:     14px;
+            --radius-xl:     20px;
+            --radius-2xl:    24px;
+            --radius-pill:   999px;
+            --radius-circle: 50%;
+
+            /* Elevation scale. */
+            --shadow-panel: 0 4px 24px rgba(26, 26, 26, 0.05);
+            --shadow-focus: 0 0 0 3px rgba(255, 107, 53, 0.14);
         }
 
         * { box-sizing: border-box; }
