@@ -660,7 +660,7 @@
             @else
                 <form id="go-live-form" style="margin-top: 18px;">
                     @csrf
-                    <button type="submit" {{ ($state['workspace']['go_live_ready'] ?? false) ? '' : 'disabled' }}>{{ ($state['agent_status'] ?? null) === 'live' ? 'Resync Assistant' : 'Go Live' }}</button>
+                    <button type="submit" {{ (($state['workspace']['go_live_ready'] ?? false) || (($state['agent_status'] ?? null) === 'live')) ? '' : 'disabled' }}>{{ ($state['agent_status'] ?? null) === 'live' ? 'Resync Assistant' : 'Go Live' }}</button>
                 </form>
             @endif
             <div class="note" style="margin-top: 18px; display: none;" id="go-live-success"></div>
@@ -1167,7 +1167,8 @@
                     : (state.workspace?.blocking_message || 'Finish the remaining setup steps before going live.');
 
             if (goLiveSubmitButton) {
-                goLiveSubmitButton.disabled = !state.workspace?.go_live_ready;
+                goLiveSubmitButton.disabled = state.agent_status !== 'live' && !state.workspace?.go_live_ready;
+                goLiveSubmitButton.textContent = state.agent_status === 'live' ? 'Resync Assistant' : 'Go Live';
             }
 
             /* Toggle connected panel vs form */
@@ -1479,13 +1480,14 @@
             hideMessage(goLiveSuccess);
             hideMessage(goLiveError);
             const submitButton = goLiveForm.querySelector('button[type="submit"]');
-            const releaseBusy = withButtonBusy(submitButton, 'Going Live…', 'going_live');
+            const isResync = latestOnboardingState?.agent_status === 'live';
+            const releaseBusy = withButtonBusy(submitButton, isResync ? 'Resyncing Assistant…' : 'Going Live…', 'going_live');
 
             try {
                 const data = await fetchJson(onboardingGoLiveEndpoint, {});
 
                 applyState(data.state);
-                showMessage(goLiveSuccess, data.message || 'Your digital employee is now live.');
+                showMessage(goLiveSuccess, data.message || (isResync ? 'Your digital employee has been resynced.' : 'Your digital employee is now live.'));
             } catch (error) {
                 showMessage(goLiveError, error.message);
             } finally {

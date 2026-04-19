@@ -296,6 +296,8 @@ This separates "the private tenant runtime is provisioned" from "the customer ca
 
 The Channel step also keeps an explicit manual forward path. Step 5 now renders a `Continue To Google Workspace` button in the channel-panel navigation so customers can move on even when the channel is already connected or they prefer to finish Google Workspace later. A saved Telegram bot token is reported as `channel_setup.status=saved` until the runtime `config/openclaw.json` actually contains enabled Telegram config; only then does the onboarding state report `connected`. `TenantAgentSyncService::syncSavedChannelIfReady()` is the idempotent replay path used after provisioning and during Go Live.
 
+For already-live tenants, Step 7's submit action becomes `Resync Assistant`. It stays enabled even though `workspace.go_live_ready` is false for live agents, posts to the same `/onboarding/go-live` endpoint, and receives resync-specific progress/success copy. The controller bypasses the pre-live readiness gate only for `agent_status=live`; the sync service still performs its normal runtime/profile/file validation and returns any failure as a visible error.
+
 Google Workspace Step 6 now distinguishes between OAuth account status and live runtime readiness. The state payload can report Google Workspace as `pending`, `synced`, `verified`, or `failed`, and the Blade surfaces `last_error` when runtime verification needs attention instead of collapsing everything into a single optimistic "ready" message.
 
 For not-yet-live tenants when the Google feature is available, Step 6 is now part of the required customer-readiness path rather than an optional extra. Connected accounts are described as waiting for workspace, queued, syncing, checking, ready, or needing attention so customers can see the initial sync pipeline moving without being pushed toward reconnecting unless the actual runtime error indicates that reconnect is the right fix.
@@ -382,6 +384,7 @@ Critical invariant:
 
 - `goLive()` must never use `syncRuntime()` because that can overwrite provisioned credentials such as the tenant LiteLLM key in `compose.yaml`
 - the onboarding controller must not piggyback Google auth sync or verification onto Go Live; the Go Live request is guarded by the shared readiness calculator and only proceeds once Google verification is already complete
+- already-live tenants may reuse the Go Live endpoint as a resync action even though `workspace.go_live_ready` is false, but the underlying sync service must still validate runtime/profile/file readiness before writing workspace files
 - compose regeneration must use `Tenant::litellm_virtual_key` for `OPENAI_API_KEY`; local runtime `.env` is allowed to provide the gateway token/base URL fallback but is not the source of truth for the tenant LiteLLM key
 
 ### Conversation sync flow

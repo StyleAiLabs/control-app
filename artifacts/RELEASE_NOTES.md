@@ -7,6 +7,22 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-20 — Fix: Live Onboarding Resync Button Now Shows Progress
+
+Date: 2026-04-20
+Status: Implemented
+
+### Overview
+
+Fixed the Step 7 `Resync Assistant` button for already-live tenants. The button looked like a primary action, but the client and controller were still using the pre-live `workspace.go_live_ready` flag, which is intentionally false once the agent is already live.
+
+### What Changed
+
+- live tenants can now submit Step 7 as a resync action through the existing onboarding go-live endpoint
+- the button remains enabled for `agent_status=live` and shows `Resyncing Assistant...` while the request runs
+- successful live resyncs now return resync-specific success copy instead of the first-time go-live message
+- added onboarding regression coverage for the enabled live-resync button and endpoint behavior
+
 ## 2026-04-20 — Fix: Onboarding Preserves LiteLLM Keys And Locks Busy Wizard Steps
 
 Date: 2026-04-20

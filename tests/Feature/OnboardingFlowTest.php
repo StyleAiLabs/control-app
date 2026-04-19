@@ -13,12 +13,14 @@ use App\Models\Server;
 use App\Models\Tenant;
 use App\Models\TenantGoogleCredential;
 use App\Models\User;
+use App\Services\TenantAgentSyncService;
 use App\Services\TenantGoogleWorkspaceSmokeTestService;
 use Illuminate\Support\Facades\File;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
+use Mockery;
 use Tests\TestCase;
 
 class OnboardingFlowTest extends TestCase
@@ -227,6 +229,25 @@ class OnboardingFlowTest extends TestCase
             ->assertSee('function startWizardOperation', false)
             ->assertSee('function finishWizardOperation', false)
             ->assertSee('wizardOperation.active', false);
+    }
+
+    public function test_onboarding_shell_enables_resync_button_for_live_agent(): void
+    {
+        [$user, $tenant] = $this->seedTenantWithProfile();
+
+        $tenant->forceFill([
+            'agent_status' => 'live',
+            'onboarding_status' => 'complete',
+            'onboarding_step' => 7,
+        ])->save();
+
+        $this->actingAs($user);
+
+        $response = $this->get('/onboarding?step=7')
+            ->assertOk()
+            ->assertSee('Resync Assistant', false);
+
+        $this->assertDoesNotMatchRegularExpression('/<button[^>]*disabled[^>]*>Resync Assistant<\/button>/', $response->getContent());
     }
 
     public function test_onboarding_gracefully_degrades_when_google_credentials_table_is_missing(): void
@@ -1378,6 +1399,37 @@ class OnboardingFlowTest extends TestCase
         $this->assertCount(1, $runnerSpy->upCalls);
         $this->assertSame('/srv/sync360/runtime/tenants/acme-plumbing/.openclaw/workspace', $runnerSpy->syncCalls[0]['remote']);
         $this->assertSame('/srv/sync360/runtime/tenants/acme-plumbing/compose.yaml', $runnerSpy->upCalls[0]['compose_file']);
+    }
+
+    public function test_live_agent_can_use_go_live_endpoint_to_resync_assistant(): void
+    {
+        [$user, $tenant] = $this->seedTenantWithProfile();
+
+        $tenant->forceFill([
+            'agent_status' => 'live',
+            'onboarding_status' => 'complete',
+            'onboarding_step' => 7,
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
+        ])->save();
+
+        $agentSync = Mockery::mock(TenantAgentSyncService::class);
+        $agentSync->shouldReceive('goLive')
+            ->once()
+            ->withArgs(fn (Tenant $syncedTenant): bool => $syncedTenant->is($tenant))
+            ->andReturnNull();
+        $agentSync->shouldReceive('isSavedChannelRuntimeConfigured')
+            ->andReturnFalse();
+        $this->instance(TenantAgentSyncService::class, $agentSync);
+
+        $this->actingAs($user);
+
+        $this->postJson('/onboarding/go-live')
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('message', 'Your digital employee has been resynced with the latest setup details.')
+            ->assertJsonPath('state.agent_status', 'live')
+            ->assertJsonPath('state.workspace.go_live_ready', false);
     }
 
     public function test_go_live_includes_owner_google_workspace_guidance_when_connected(): void

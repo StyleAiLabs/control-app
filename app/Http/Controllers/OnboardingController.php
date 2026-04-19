@@ -340,8 +340,9 @@ class OnboardingController extends Controller
         $tenant = $this->tenantFor($request);
         $googleSyncJob = $this->latestInitialGoogleWorkspaceSyncJob($tenant);
         $readiness = $this->workspaceReadiness->evaluate($tenant, GoogleWorkspaceFeature::isAvailable(), $googleSyncJob);
+        $isResync = $tenant->agent_status === 'live';
 
-        if (! $readiness['go_live_ready']) {
+        if (! $isResync && ! $readiness['go_live_ready']) {
             return response()->json([
                 'success' => false,
                 'code' => $readiness['blocking_code'],
@@ -360,7 +361,9 @@ class OnboardingController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Your digital employee is now live and ready to start helping customers.',
+            'message' => $isResync
+                ? 'Your digital employee has been resynced with the latest setup details.'
+                : 'Your digital employee is now live and ready to start helping customers.',
             'state' => $this->statePayload($tenant->fresh(GoogleWorkspaceFeature::tenantRelations(['businessProfile', 'businessProfileFiles']))),
         ]);
     }
