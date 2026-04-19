@@ -241,15 +241,15 @@
 
         .button, button {
             border: 0;
-            border-radius: 999px;
+            border-radius: var(--radius-pill);
             cursor: pointer;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: var(--space-2);
             font: inherit;
             font-weight: 700;
-            padding: 13px 24px;
+            padding: var(--space-3-5) var(--space-6);
             transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
             text-decoration: none;
         }
@@ -778,16 +778,16 @@
         }
         .hero-card,
         .panel {
-            border-radius: 30px;
-            box-shadow: var(--shadow);
+            border-radius: var(--radius-3xl);
+            box-shadow: var(--shadow-elevated);
         }
         .hero-card {
-            padding: 34px;
+            padding: var(--space-8);
             background: linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0.04));
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
         .panel {
-            padding: 36px;
+            padding: var(--space-9);
             background: var(--panel-strong);
             color: var(--ink-dark);
             border: 1px solid var(--stroke-dark);
@@ -952,6 +952,22 @@
         }
         input::placeholder { color: #a29c97; }
 
+        /* ── Field-level validation ── */
+        input[aria-invalid="true"],
+        select[aria-invalid="true"],
+        textarea[aria-invalid="true"] {
+            border-color: var(--danger-ink);
+            box-shadow: 0 0 0 3px rgba(127, 29, 29, 0.10);
+        }
+        .field-error {
+            display: block;
+            color: var(--danger-ink);
+            font-size: 0.82rem;
+            font-weight: 500;
+            margin-top: var(--space-1);
+            line-height: 1.4;
+        }
+
         .mini-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1005,6 +1021,15 @@
             justify-content: space-between;
             flex-wrap: wrap;
             gap: 8px;
+        }
+
+        /* ── Reduced motion ── */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+            }
         }
 
         @media (max-width: 1100px) {

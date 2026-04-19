@@ -517,7 +517,143 @@ Design intent: the landing/auth experience is content-first; grids collapse prog
 - The app layout has no breakpoint between 980px and the narrowest desktop sizes. Dense admin tables on small laptops (<1200px) can feel cramped; this is a known trade-off, not a documented behavior.
 - Guest `@media (max-width: 1100px)` and `@media (max-width: 900px)` ranges overlap for some rules — when editing, verify both queries to avoid drift.
 
-## 11. Maintenance Rules
+## 11. Dark-Mode Strategy
+
+Sync360 does **not** implement OS-level dark mode on the authenticated app surface. There is no `@media (prefers-color-scheme: dark)` query and none is planned for the near term.
+
+### Why The Guest Layout Is Dark
+
+The guest layout (`guest.blade.php`) uses a dark atmospheric palette (`--bg: #110f0d`, `--bg-soft: #181512`) by design choice, not as a response to the user's OS preference. It is always dark regardless of system setting. The `-dark` suffix tokens in guest (e.g. `--ink-dark`, `--muted-dark`, `--stroke-dark`) are **surface-contrast tokens** — they provide the light-on-dark values needed when content sits on the lighter auth card or panel-strong surface within the dark page. They are not OS dark-mode tokens.
+
+### Authenticated App Surface
+
+The authenticated app layout is always light (`--bg: #f7f5f3`). There is no dark variant today.
+
+### If Dark Mode Is Added Later
+
+If an app dark-mode is introduced:
+- Add a `@media (prefers-color-scheme: dark)` block inside the app layout's `:root` that overrides the color tokens only.
+- Do not add a separate layout; the token system is designed to allow this override cleanly.
+- Test contrast ratios for all text/background token pairs under the new values before shipping.
+- Document the new dark-mode token set in this section.
+
+### Rules For New Code
+
+- Do not add `prefers-color-scheme` queries to individual views — if dark mode is added it must be centrally controlled via the layout's `:root`.
+- Do not assume the guest surface is "the dark mode" of the app. They are independent surfaces with independent palettes.
+
+## 12. Icon, Illustration, And Motion
+
+### Icons
+
+Sync360 currently uses **inline SVG** for all icons. There is no external icon library or sprite system.
+
+Rules:
+- Keep icons inline in Blade. Do not add an icon library dependency without a documented decision.
+- Size icons with `width`/`height` attributes or `em`-relative CSS. Do not use pixel-fixed icon sizes that won't scale with text.
+- Use `fill="currentColor"` or `stroke="currentColor"` so icons inherit text color from their parent.
+- Icon-only controls (buttons, links) must carry an `aria-label`. See §9 Accessibility.
+- Alert/notification icons in the app layout currently come from a `$alert['icon']` string (emoji or short text). Prefer SVG or a CSS-drawn indicator for new alert types.
+
+### Illustration
+
+No illustration system is currently defined. The guest landing preview uses CSS-drawn UI mockups (`.product-preview`, `.preview-surface`) rather than image assets. Prefer this approach for landing decorations — no image loading, no alt-text debt, scales cleanly.
+
+If raster or vector illustrations are added in future, document the asset location and naming convention here.
+
+### Motion
+
+Current motion in use:
+- **Hover transitions:** `transition: 0.15s ease` on nav links, inputs, and buttons (app); `0.18s ease` on buttons (guest). Properties: `background`, `color`, `border-color`, `transform`, `box-shadow`.
+- **Button lift:** `transform: translateY(-1px)` on `.button:hover` (app), `translateY(-2px)` (guest).
+- **Loading pulse:** `@keyframes pulse` animation on the branded progress bar in the app layout. Uses `translateX` + `opacity` cycling at `1.4s ease-in-out infinite alternate`.
+
+Known gap: **no `@media (prefers-reduced-motion: reduce)` guards exist.** All transitions and the pulse animation fire regardless of OS motion preference. This violates WCAG 2.3.3 (Animation from Interactions, AAA) and is poor practice even at AA. Fix by adding:
+
+```css
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}
+```
+
+Add this block to both shared layouts. Until it is added, do not introduce new keyframe animations or transitions longer than `0.2s`.
+
+Rules for new motion:
+- Use `transition-duration` of `0.1s`–`0.2s` for micro-interactions. Do not exceed `0.3s` for UI feedback.
+- Animate `transform` and `opacity` (GPU-composited). Avoid animating `width`, `height`, `padding`, or layout-affecting properties.
+- Never auto-play decorative animation on customer-facing screens without a reduced-motion guard.
+- Looping animations (spinners, pulse bars) must stop or reduce under `prefers-reduced-motion`.
+
+## 13. Form Validation States
+
+Sync360 has two levels of form error presentation: **page-level** (validation bag dump) and **field-level** (per-field error text and input state). Both surfaces implement page-level; field-level is available as a CSS primitive but not yet used in Blade views.
+
+### Page-Level Error (Validation Bag)
+
+Both layouts render `$errors->any()` at the top of the content area automatically.
+
+**Authenticated app layout** — uses `.note.error`:
+
+```html
+<div class="note error">
+    <div>The email field is required.</div>
+</div>
+```
+
+**Guest layout** — uses `.alert.alert--error`:
+
+```html
+<div class="alert alert--error">
+    <strong>Please fix the following:</strong>
+    <ul class="list">
+        <li>The email field is required.</li>
+    </ul>
+</div>
+```
+
+The guest layout also has `.alert.alert--success` for `session('status')` flash messages.
+
+### Field-Level Error
+
+Use `.field-error` for a per-field error message beneath an input, and `aria-invalid="true"` on the input itself to communicate the invalid state to screen readers.
+
+```html
+<div class="field-single">
+    <label class="type-label" for="email">Email</label>
+    <input id="email" name="email" type="email" aria-invalid="true" value="{{ old('email') }}">
+    <span class="field-error">Please enter a valid email address.</span>
+</div>
+```
+
+The invalid input gets a danger-colored border and halo automatically via:
+
+```css
+input[aria-invalid="true"],
+select[aria-invalid="true"],
+textarea[aria-invalid="true"] {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 3px rgba(159, 55, 55, 0.1);
+}
+```
+
+`.field-error` is defined in both shared layouts. It renders below the field using `display: block`, danger color, and a small top margin.
+
+### Success Flash
+
+Use `.note` (app) or `.alert.alert--success` (guest) for success flash messages. Do not use green text inline — keep success state at the page or section level, not per-field.
+
+### Rules
+
+- Always use `aria-invalid="true"` on inputs that fail server-side validation, not just a visual class.
+- Pair `aria-invalid` with `aria-describedby` pointing at the `.field-error` element when the error text is present.
+- Do not rely on color alone to communicate an error — the border change, the error text, and `aria-invalid` together cover visual, text, and assistive-tech channels.
+- Never surface raw server exception messages in customer-facing field errors. Validate at the Form Request level and return user-readable messages.
+
+## 14. Maintenance Rules
 
 - Update this document when shared layout tokens, typography classes, or reusable component patterns change.
 - Update this document when a new repeated UI primitive is introduced.

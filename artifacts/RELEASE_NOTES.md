@@ -7,6 +7,24 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-20 — Design System: Dark Mode Strategy, Motion Guards, Form Validation, And Token Migration
+
+Date: 2026-04-20
+Status: Implemented
+
+### Overview
+
+Completed the remaining design-system gaps: documented the dark-mode strategy, added `prefers-reduced-motion` guards to both shared layouts, defined field-level form validation CSS primitives, added three new doc sections, and migrated core component rules to `--space-*`, `--radius-*`, and `--shadow-*` tokens.
+
+### What Changed
+
+- added §11 Dark-Mode Strategy to `artifacts/DESIGN_SYSTEM.md` explaining that the guest layout is always dark by design (not OS-responsive), the app layout is always light, and how to add dark mode cleanly if needed later
+- added §12 Icon, Illustration, And Motion documenting the inline SVG icon approach, illustration conventions, current motion (0.15s/0.18s transitions + pulse keyframe), and rules for new motion
+- added `@media (prefers-reduced-motion: reduce)` guard to both shared layouts to suppress all transitions and animations for users who prefer reduced motion
+- added §13 Form Validation States documenting page-level error patterns (`.note.error` on app, `.alert.alert--error` on guest) and field-level patterns (`aria-invalid`, `.field-error`)
+- added `input/select/textarea[aria-invalid="true"]` CSS and `.field-error` class to both shared layouts for field-level validation state
+- migrated core component rules to design tokens: `.panel`, `.stat`, `.badge`, `.button`, `.meta`, `.meta-item`, `.note`, `th/td` in app layout; `.button`, `.hero-card`, `.panel` in guest layout now reference `--space-*`, `--radius-*`, and `--shadow-*` tokens instead of raw pixel values
+
 ## 2026-04-19 — Design System: Responsive Rules Documented And Radius/Elevation Tokenized
 
 Date: 2026-04-19

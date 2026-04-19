@@ -47,7 +47,7 @@ The repo supports a Docker Compose development stack and a production control-pl
 
 Blade UI design truth lives in [`artifacts/DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md). This architecture document describes application structure and runtime behavior; the design-system document describes UI principles, tokens, typography rules, component patterns, and usage guidance for the shared app/guest layouts and Blade surfaces.
 
-The shared app and guest layouts are the implementation home for the current type contract, spacing scale (`--space-*`), radius scale (`--radius-*`), semantic elevation tokens (`--shadow-panel`, `--shadow-focus`, `--shadow-elevated`), and reusable UI classes. View-level Blade files should consume those primitives instead of re-declaring font stacks, tracking, status badge behavior, or technical-string wrapping locally. Per-surface responsive breakpoints are documented in `DESIGN_SYSTEM.md` §10.
+The shared app and guest layouts are the implementation home for the current type contract, spacing scale (`--space-*`), radius scale (`--radius-*`), semantic elevation tokens (`--shadow-panel`, `--shadow-focus`, `--shadow-elevated`), field-level validation CSS (`aria-invalid`, `.field-error`), `prefers-reduced-motion` guards, and reusable UI classes. View-level Blade files should consume those primitives instead of re-declaring font stacks, tracking, status badge behavior, or technical-string wrapping locally. Per-surface responsive breakpoints, dark-mode strategy, motion rules, and form validation patterns are documented in `DESIGN_SYSTEM.md` §10–§13.
 
 ### Infrastructure modes
 
