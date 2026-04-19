@@ -113,16 +113,16 @@
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
                             {{-- Left: sender + status + summary --}}
                             <div style="flex: 1; min-width: 0;">
-                                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                                    <strong>{{ ucfirst($session['channel'] ?? 'Unknown') }}</strong>
-                                    <span class="hint">{{ $session['from_identifier'] ?? '—' }}</span>
+                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                    <strong class="type-value type-value--technical" style="font-size: 0.92rem;">{{ ucfirst($session['channel'] ?? 'Unknown') }}</strong>
+                                    <span class="hint type-tech">{{ $session['from_identifier'] ?? '—' }}</span>
                                     @if ($senderName)
                                         <span class="hint">· {{ $senderName }}</span>
                                     @endif
                                     @if ($session['has_reply'])
-                                        <span class="badge ready">Replied</span>
+                                        <span class="badge badge--technical ready">Replied</span>
                                     @else
-                                        <span class="badge pending">No reply</span>
+                                        <span class="badge badge--technical pending">No reply</span>
                                     @endif
                                 </div>
 
@@ -145,7 +145,7 @@
                                     {{ $session['message_count'] }} {{ Str::plural('message', $session['message_count']) }}
                                 </div>
                                 @if ($session['session_id'])
-                                    <div class="hint" style="margin-top: 4px; font-size: 0.72rem; font-family: monospace;">
+                                    <div class="hint type-tech" style="margin-top: 4px; font-size: 0.72rem;">
                                         {{ substr($session['session_id'], 0, 8) }}…
                                     </div>
                                 @endif

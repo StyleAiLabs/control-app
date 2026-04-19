@@ -129,7 +129,7 @@
 
         <div data-deploy-log-wrap class="meta-item" style="margin-top: 16px;{{ empty($controlAppDeployStatus['log_tail']) ? ' display: none;' : '' }}">
             <small>Last Deploy Log</small>
-            <pre data-deploy-field="log_tail" style="margin: 0; white-space: pre-wrap; font-family: 'Space Mono', monospace; font-size: 0.78rem; color: #374151;">{{ $controlAppDeployStatus['log_tail'] ?? '' }}</pre>
+            <pre data-deploy-field="log_tail" class="type-tech type-tech--wrap" style="margin: 0; color: #374151;">{{ $controlAppDeployStatus['log_tail'] ?? '' }}</pre>
         </div>
     </section>
 

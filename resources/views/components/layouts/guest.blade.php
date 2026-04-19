@@ -6,7 +6,7 @@
     <title>{{ $title ?? 'Sync360' }}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg: #110f0d;
@@ -26,6 +26,32 @@
             --danger-ink: #991b1b;
             --danger-bg: rgba(127, 29, 29, 0.12);
             --shadow: 0 18px 60px rgba(0, 0, 0, 0.22);
+            --type-display-tracking: -0.038em;
+            --type-heading-tracking: -0.026em;
+            --type-kicker-tracking: 0.08em;
+            --type-label-tracking: 0.05em;
+            --type-tech-tracking: 0.035em;
+
+            /* Spacing scale (4px base, 2px half-steps). See artifacts/DESIGN_SYSTEM.md §5. */
+            --space-0-5: 2px;
+            --space-1:   4px;
+            --space-1-5: 6px;
+            --space-2:   8px;
+            --space-2-5: 10px;
+            --space-3:   12px;
+            --space-3-5: 14px;
+            --space-4:   16px;
+            --space-4-5: 18px;
+            --space-5:   20px;
+            --space-5-5: 22px;
+            --space-6:   24px;
+            --space-7:   28px;
+            --space-8:   32px;
+            --space-9:   36px;
+            --space-10:  40px;
+            --space-12:  48px;
+            --space-16:  64px;
+            --space-18:  72px;
         }
 
         * { box-sizing: border-box; }
@@ -34,6 +60,7 @@
             margin: 0;
             font-family: "DM Sans", "Segoe UI", sans-serif;
             color: var(--ink);
+            line-height: 1.5;
             background:
                 radial-gradient(circle at 12% 18%, rgba(255, 107, 53, 0.18), transparent 28%),
                 radial-gradient(circle at 88% 12%, rgba(255, 170, 123, 0.12), transparent 24%),
@@ -52,6 +79,82 @@
         }
 
         a { color: inherit; text-decoration: none; }
+        .type-display {
+            margin: 0;
+            line-height: 0.98;
+            letter-spacing: var(--type-display-tracking);
+        }
+        .type-section-title {
+            margin: 0;
+            font-size: 1.7rem;
+            line-height: 1.14;
+            letter-spacing: var(--type-heading-tracking);
+        }
+        .type-body {
+            font-size: 0.98rem;
+            line-height: 1.62;
+        }
+        .type-muted,
+        .hint {
+            color: var(--muted-dark);
+            line-height: 1.58;
+        }
+        .hint { font-size: 0.92rem; }
+        .type-kicker,
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            width: fit-content;
+            padding: 9px 14px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: rgba(255, 244, 239, 0.92);
+            font-size: 0.78rem;
+            font-weight: 700;
+            line-height: 1.2;
+            letter-spacing: var(--type-kicker-tracking);
+            text-transform: uppercase;
+        }
+        .type-label {
+            display: block;
+            margin-bottom: 6px;
+            color: rgba(247, 245, 241, 0.66);
+            font-size: 0.74rem;
+            font-weight: 700;
+            letter-spacing: var(--type-label-tracking);
+            line-height: 1.35;
+            text-transform: uppercase;
+        }
+        .panel .type-label,
+        .auth-card .type-label {
+            color: rgba(17, 15, 13, 0.52);
+        }
+        .type-value {
+            display: block;
+            font-size: 1rem;
+            font-weight: 700;
+            line-height: 1.38;
+            overflow-wrap: anywhere;
+        }
+        .type-value--technical,
+        .type-tech {
+            font-family: "JetBrains Mono", monospace;
+            letter-spacing: var(--type-tech-tracking);
+        }
+        .type-value--technical {
+            font-size: 0.96rem;
+            line-height: 1.46;
+        }
+        .type-tech {
+            font-size: 0.82rem;
+            line-height: 1.45;
+        }
+        .type-tech--wrap {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
         .shell {
             min-height: 100vh;
             display: flex;
@@ -101,15 +204,13 @@
         }
         .brand-wordmark strong {
             font-size: 1.05rem;
-            letter-spacing: 0.18em;
-            line-height: 1;
+            letter-spacing: 0.04em;
+            line-height: 1.05;
         }
         .brand-wordmark span {
             color: rgba(247, 245, 241, 0.68);
-            font-size: 0.78rem;
-            text-transform: uppercase;
-            letter-spacing: 0.18em;
-            font-family: "Space Mono", monospace;
+            font-size: 0.88rem;
+            line-height: 1.3;
         }
         .nav-links {
             display: flex;
@@ -162,22 +263,6 @@
             box-shadow: none;
         }
 
-        .eyebrow {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            width: fit-content;
-            padding: 9px 14px;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            color: rgba(255, 244, 239, 0.92);
-            font-size: 0.8rem;
-            font-weight: 700;
-            font-family: "Space Mono", monospace;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-        }
         .eyebrow-dot {
             width: 7px;
             height: 7px;
@@ -186,9 +271,8 @@
             box-shadow: 0 0 0 6px rgba(255, 107, 53, 0.16);
         }
 
-        h1, h2, h3, h4 { margin: 0; line-height: 1.02; letter-spacing: -0.03em; }
+        h1, h2, h3, h4 { margin: 0; line-height: 1.08; letter-spacing: var(--type-heading-tracking); }
         p { margin: 0; color: var(--muted); line-height: 1.62; }
-        .hint { font-size: 0.92rem; color: var(--muted-dark); }
 
         .landing-page {
             display: grid;
@@ -243,7 +327,7 @@
             font-size: clamp(3rem, 5vw, 5.15rem);
             color: white;
             max-width: 8.2ch;
-            line-height: 0.92;
+            line-height: 0.96;
         }
         .hero-support {
             display: grid;
@@ -310,7 +394,6 @@
             padding: 4px 6px 12px;
             color: rgba(247, 245, 241, 0.72);
             font-size: 0.72rem;
-            font-family: "Space Mono", monospace;
             text-transform: uppercase;
             letter-spacing: 0.08em;
         }
@@ -350,7 +433,6 @@
             font-size: 0.7rem;
             text-transform: uppercase;
             letter-spacing: 0.1em;
-            font-family: "Space Mono", monospace;
         }
         .preview-nav,
         .preview-team {
@@ -399,7 +481,6 @@
             background: rgba(16, 185, 129, 0.12);
             color: #0f8b61;
             font-size: 0.68rem;
-            font-family: "Space Mono", monospace;
             text-transform: uppercase;
             letter-spacing: 0.08em;
             white-space: nowrap;
@@ -421,7 +502,6 @@
             font-size: 0.68rem;
             text-transform: uppercase;
             letter-spacing: 0.08em;
-            font-family: "Space Mono", monospace;
         }
         .preview-stat strong {
             display: block;
@@ -484,13 +564,13 @@
             background: rgba(255, 107, 53, 0.08);
             color: #d86438;
             font-size: 0.66rem;
-            font-family: "Space Mono", monospace;
+            font-family: "JetBrains Mono", monospace;
             letter-spacing: 0.08em;
         }
         .preview-item-meta time {
             color: #8b7d76;
             font-size: 0.72rem;
-            font-family: "Space Mono", monospace;
+            font-family: "JetBrains Mono", monospace;
         }
         .preview-item-copy p {
             color: #26201d;
@@ -557,7 +637,6 @@
             font-size: 0.78rem;
             text-transform: uppercase;
             letter-spacing: 0.1em;
-            font-family: "Space Mono", monospace;
         }
         .outcome-card strong {
             display: block;
@@ -635,7 +714,6 @@
             text-transform: uppercase;
             letter-spacing: 0.1em;
             font-size: 0.76rem;
-            font-family: "Space Mono", monospace;
         }
         .value-block h3 {
             margin-top: 12px;
@@ -750,7 +828,6 @@
             font-size: 0.76rem;
             text-transform: uppercase;
             letter-spacing: 0.1em;
-            font-family: "Space Mono", monospace;
         }
         .auth-metric strong {
             display: block;
@@ -780,7 +857,6 @@
         .auth-conversation-header span {
             color: rgba(247, 245, 241, 0.58);
             font-size: 0.78rem;
-            font-family: "Space Mono", monospace;
             text-transform: uppercase;
             letter-spacing: 0.08em;
         }
@@ -820,7 +896,6 @@
             font-size: 0.78rem;
             text-transform: uppercase;
             letter-spacing: 0.12em;
-            font-family: "Space Mono", monospace;
         }
 
         form { display: grid; gap: 16px; }

@@ -69,7 +69,7 @@ class AdminTenantOperationsTest extends TestCase
 
         $runner = Mockery::mock(DockerComposeRunner::class);
         $runner->shouldReceive('isRunning')
-            ->times(3)
+            ->times(4)
             ->withArgs(fn (Server $server, string $composeFile, string $projectName): bool => $composeFile === '/srv/sync360/runtime/tenants/ops-shop/compose.yaml' && $projectName === 'sync360-ops-shop')
             ->andReturnTrue();
         $runner->shouldReceive('stop')
@@ -148,6 +148,12 @@ class AdminTenantOperationsTest extends TestCase
             ->assertSee('Restart')
             ->assertSee('healthy')
             ->assertSee('Permanent Delete');
+
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'overview']))
+            ->assertOk()
+            ->assertSee('class="badge badge--technical', false)
+            ->assertSee('class="type-value type-value--technical"', false)
+            ->assertSee('class="type-label"', false);
 
         $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'google']))
             ->assertOk()

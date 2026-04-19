@@ -50,9 +50,9 @@
 
         <div class="panel auth-card">
             <header>
-                <span class="kicker">Complete reset</span>
-                <h2>Choose your new password</h2>
-                <p class="hint">Use the same email address the reset link was sent to.</p>
+                <span class="kicker type-kicker">Complete reset</span>
+                <h2 class="type-section-title">Choose your new password</h2>
+                <p class="hint type-muted">Use the same email address the reset link was sent to.</p>
             </header>
 
             <form method="POST" action="{{ route('password.update') }}">

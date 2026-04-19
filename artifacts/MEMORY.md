@@ -52,6 +52,7 @@ If those files conflict with the codebase, trust:
 
 - App shape: Laravel monolith with Blade, PostgreSQL, Redis, queues, scheduler-backed commands, and Laravel password-broker auth recovery
 - Design system shape: `artifacts/DESIGN_SYSTEM.md` is the canonical design-system reference for current Blade UI truth; shared app/guest layouts own the active tokens, typography classes, and component patterns
+- Typography shape: shared app/guest layouts load `DM Sans` as the product voice and `JetBrains Mono` as the technical accent; Blade views should use shared `type-*` classes and reserve mono for IDs, timestamps, ports, runtime strings, logs, and compact technical tokens
 - Authenticated dashboard responses are now sent with no-cache headers so workspace status cards do not get stuck on stale browser snapshots
 - Password reset delivery: uses Brevo's HTTP email API when Brevo is enabled; falls back to Laravel's default notification pipeline otherwise
 - Infrastructure modes: `local` and `ssh`

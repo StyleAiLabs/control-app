@@ -7,6 +7,24 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-19 — DM Sans Typography System Applied Across Blade UI
+
+Date: 2026-04-19
+Status: Implemented
+
+### Overview
+
+Applied the repo-wide typography polish so shared Blade UI surfaces use `DM Sans` as the product voice and `JetBrains Mono` only as a technical accent. This turns the design-system document into implemented UI behavior across app, guest, onboarding, dashboard, conversation, auth, workspace-ready, and admin surfaces.
+
+### What Changed
+
+- changed Tailwind font tokens and shared app/guest layout font imports from the old mono pairing to `DM Sans` plus `JetBrains Mono`
+- added reusable typography classes and spacing tokens to the shared layouts so page titles, section headings, body copy, labels, values, technical text, badges, and long strings follow one contract
+- reduced decorative mono usage across admin and customer-facing views, keeping mono for IDs, URLs, timestamps, ports, job names, runtime values, logs, and compact technical status chips
+- improved admin tenant-detail readability by using calmer labels, clearer value hierarchy, and better wrapping/leading for long operational strings
+- added typography rendering coverage for guest and authenticated layouts, and refreshed affected view assertions
+- ignored local `.claude/` and `.superpowers/` workflow directories so agent scratch files do not enter project commits
+
 ## 2026-04-19 — Canonical Design System Document Added
 
 Date: 2026-04-19

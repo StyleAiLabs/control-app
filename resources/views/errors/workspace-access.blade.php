@@ -13,9 +13,9 @@
 
         <div class="panel auth-card">
             <header>
-                <span class="kicker">Access blocked</span>
-                <h2>Use the correct workspace link</h2>
-                <p class="hint">We’ve blocked access here so one tenant can never open another tenant’s workspace host.</p>
+                <span class="kicker type-kicker">Access blocked</span>
+                <h2 class="type-section-title">Use the correct workspace link</h2>
+                <p class="hint type-muted">We’ve blocked access here so one tenant can never open another tenant’s workspace host.</p>
             </header>
 
             <div class="note" style="margin-top: 18px;">

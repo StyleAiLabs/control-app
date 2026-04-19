@@ -50,9 +50,9 @@
 
         <div class="panel auth-card">
             <header>
-                <span class="kicker">Password recovery</span>
-                <h2>Send me a reset link</h2>
-                <p class="hint">Use the email address you log in with and we’ll email the next step.</p>
+                <span class="kicker type-kicker">Password recovery</span>
+                <h2 class="type-section-title">Send me a reset link</h2>
+                <p class="hint type-muted">Use the email address you log in with and we’ll email the next step.</p>
             </header>
 
             <form method="POST" action="{{ route('password.email') }}">

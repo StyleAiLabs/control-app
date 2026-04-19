@@ -3,7 +3,7 @@
         <div class="topbar" style="margin-bottom: 16px;">
             <div>
                 <span class="eyebrow">Tenant Skills</span>
-                <h2 style="font-size: 1.2rem;">Tenant Skills</h2>
+                <h2 class="type-section-title">Tenant Skills</h2>
             </div>
         </div>
         <div class="note error">
@@ -18,12 +18,12 @@
         <div class="topbar" style="margin-bottom: 18px;">
             <div>
                 <span class="eyebrow">Tenant Skills</span>
-                <h2 style="font-size: 1.2rem;">Tenant Skills</h2>
-                <p>Assign published Sync360 skills to this tenant, save the draft, then apply when you want the runtime updated.</p>
+                <h2 class="type-section-title">Tenant Skills</h2>
+                <p class="type-body">Assign published Sync360 skills to this tenant, save the draft, then apply when you want the runtime updated.</p>
             </div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
                 @if (! empty($tenantSkillsStatus['summary_label']) && ($tenantSkillsStatus['summary_label'] ?? null) !== ($tenantSkillsStatus['label'] ?? null))
-                    <span class="badge {{ $tenantSkillsStatus['summary_class'] ?? 'pending' }}">
+                    <span class="badge badge--technical {{ $tenantSkillsStatus['summary_class'] ?? 'pending' }}">
                         {{ $tenantSkillsStatus['summary_label'] }}
                     </span>
                 @endif
@@ -62,7 +62,7 @@
                 <section data-skill-catalog-layout="full-width">
                     <div style="display:flex; justify-content:space-between; gap:12px; align-items:start; margin-bottom:14px;">
                         <div>
-                            <h3 style="margin:0;">Available Skills</h3>
+                            <h3 class="type-section-title" style="margin:0; font-size:1.12rem;">Available Skills</h3>
                             <div class="hint" style="margin-top:6px;">Assign published catalog skills to this tenant.</div>
                         </div>
                     </div>
@@ -87,7 +87,7 @@
                                                 <strong style="display:block; font-size:1rem; line-height:1.3;">{{ $skillPack->label }}</strong>
                                                 <div class="hint" style="margin-top:3px; font-size:0.82rem;">{{ $skillPack->skill_key }}</div>
                                             </div>
-                                            <span class="badge {{ $publishedVersion ? 'ready' : 'pending' }}" style="font-size:0.76rem;">
+                                            <span class="badge badge--technical {{ $publishedVersion ? 'ready' : 'pending' }}" style="font-size:0.76rem;">
                                                 {{ $publishedVersion ? 'published '.$publishedVersion->version : 'publish required' }}
                                             </span>
                                         </div>
@@ -111,7 +111,7 @@
 
                 <section style="max-width: 560px;">
                     <div style="padding:16px; border:1px solid var(--stroke); border-radius:16px; background:#faf9f8;">
-                        <h3 style="margin:0;">Advanced Agent Mapping</h3>
+                        <h3 class="type-section-title" style="margin:0; font-size:1.12rem;">Advanced Agent Mapping</h3>
                         <div class="hint" style="margin-top:8px;">
                             This optional field controls which raw skill IDs are written into the default agent skill list in <code>openclaw.json</code>.
                         </div>
@@ -137,7 +137,7 @@
         </form>
 
         <section style="margin-top:18px;">
-            <h3 style="margin-top:0;">Deployment</h3>
+            <h3 class="type-section-title" style="margin-top:0; font-size:1.12rem;">Deployment</h3>
             <div class="hint" style="margin-bottom:12px;">Save Draft updates Sync360 only. Apply pushes the current skill draft into the tenant runtime.</div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
                 <form method="POST" action="{{ route('admin.tenants.agent-customization.apply', $tenant) }}" class="inline">
@@ -158,7 +158,7 @@
         <section style="margin-top:18px;">
             <div style="display:flex; justify-content:space-between; gap:12px; align-items:start; flex-wrap:wrap;">
                 <div>
-                    <h3 style="margin-top:0;">Runtime Available Skills</h3>
+                    <h3 class="type-section-title" style="margin-top:0; font-size:1.12rem;">Runtime Available Skills</h3>
                     <div class="hint" style="margin-top:6px;">Diagnostic runtime visibility from <code>openclaw skills list --eligible</code>. Use this to confirm what the tenant runtime can currently expose.</div>
                 </div>
                 <form method="POST" action="{{ route('admin.tenants.skills.runtime-refresh', $tenant) }}" class="inline">
@@ -171,14 +171,14 @@
             <div style="margin-top:14px; padding:16px; border:1px solid var(--stroke); border-radius:16px; background:#faf9f8;">
                 @if ($runtimeSkillInspection)
                     <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-                        <span class="badge pending">Workspace state: {{ $runtimeSkillInspection['workspace_state'] }}</span>
-                        <span class="hint">Last refreshed: {{ $runtimeSkillInspection['refreshed_at'] }}</span>
+                        <span class="badge badge--technical pending">Workspace state: {{ $runtimeSkillInspection['workspace_state'] }}</span>
+                        <span class="hint type-tech">Last refreshed: {{ $runtimeSkillInspection['refreshed_at'] }}</span>
                     </div>
 
                     @if ($runtimeSkillInspection['skills'] !== [])
                         <div style="display:grid; gap:8px; margin-top:14px;">
                             @foreach ($runtimeSkillInspection['skills'] as $runtimeSkill)
-                                <div style="padding:10px 12px; border:1px solid var(--stroke); border-radius:12px; background:white; font-family:var(--font-mono); font-size:0.92rem;">
+                                <div class="type-value type-value--technical" style="padding:10px 12px; border:1px solid var(--stroke); border-radius:12px; background:white;">
                                     {{ $runtimeSkill }}
                                 </div>
                             @endforeach
@@ -190,7 +190,7 @@
                     @if ($runtimeSkillInspection['raw_output'] !== '')
                         <div style="margin-top:16px;">
                             <div class="hint" style="margin-bottom:6px;">Raw command output</div>
-                            <pre style="margin:0; padding:12px; background:white; border:1px solid var(--stroke); border-radius:12px; overflow:auto; font-size:0.84rem; line-height:1.45;">{{ $runtimeSkillInspection['raw_output'] }}</pre>
+                            <pre class="type-tech type-tech--wrap" style="margin:0; padding:12px; background:white; border:1px solid var(--stroke); border-radius:12px; overflow:auto;">{{ $runtimeSkillInspection['raw_output'] }}</pre>
                         </div>
                     @endif
                 @else
@@ -200,7 +200,7 @@
         </section>
 
         <section style="margin-top:18px;">
-            <h3 style="margin-top:0;">Skill Change History</h3>
+            <h3 class="type-section-title" style="margin-top:0; font-size:1.12rem;">Skill Change History</h3>
             <div style="display:grid; gap:10px;">
                 @forelse ($skillChangeHistory as $historyEntry)
                     @php
@@ -208,7 +208,7 @@
                     @endphp
                     <div style="padding:12px; border:1px solid rgba(255,255,255,0.08); border-radius:12px;">
                         <strong>{{ $entry->action === 'revert' ? 'Revert applied' : 'Skill update applied' }}</strong>
-                        <span class="badge {{ $entry->status === 'reverted' ? 'pending' : 'ready' }}">{{ $entry->status }}</span>
+                        <span class="badge badge--technical {{ $entry->status === 'reverted' ? 'pending' : 'ready' }}">{{ $entry->status }}</span>
                         <div class="hint" style="margin-top:6px;">{{ $entry->created_at?->toDateTimeString() ?? 'Pending timestamp' }}</div>
                         <div style="display:grid; gap:6px; margin-top:10px;">
                             @foreach ($historyEntry['changes'] as $change)

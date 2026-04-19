@@ -45,6 +45,8 @@ The repo supports a Docker Compose development stack and a production control-pl
 
 Blade UI design truth lives in [`artifacts/DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md). This architecture document describes application structure and runtime behavior; the design-system document describes UI principles, tokens, typography rules, component patterns, and usage guidance for the shared app/guest layouts and Blade surfaces.
 
+The shared app and guest layouts are the implementation home for the current type contract, spacing scale, and reusable UI classes. View-level Blade files should consume those primitives instead of re-declaring font stacks, tracking, status badge behavior, or technical-string wrapping locally.
+
 ### Infrastructure modes
 
 #### `local`

@@ -2,55 +2,55 @@
     <div class="topbar" style="margin-bottom: 16px;">
         <div>
             <span class="eyebrow">Google Workspace</span>
-            <h2 style="font-size: 1.2rem;">Google Workspace Connection</h2>
-            <p>Connection state, live sync progress, latest runtime error, and the repair actions that already exist in this control plane.</p>
+            <h2 class="type-section-title">Google Workspace Connection</h2>
+            <p class="type-body">Connection state, live sync progress, latest runtime error, and the repair actions that already exist in this control plane.</p>
         </div>
     </div>
 
     <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px;">
-        <span class="badge {{ $googleState['connection_badge'] }}">{{ $googleState['connection_label'] }}</span>
-        <span class="badge {{ $googleState['runtime_badge'] }}">{{ $googleState['runtime_label'] }}</span>
+        <span class="badge badge--technical {{ $googleState['connection_badge'] }}">{{ $googleState['connection_label'] }}</span>
+        <span class="badge badge--technical {{ $googleState['runtime_badge'] }}">{{ $googleState['runtime_label'] }}</span>
         @if ($googleState['sync_job_status'])
-            <span class="badge {{ $googleState['sync_job_badge'] }}">{{ $googleState['sync_job_status'] }}</span>
+            <span class="badge badge--technical {{ $googleState['sync_job_badge'] }}">{{ $googleState['sync_job_status'] }}</span>
         @endif
     </div>
 
     <div class="meta">
         <div class="meta-item">
-            <small>Google Email</small>
-            <strong>{{ $googleState['google_email'] ?? 'No Google account saved' }}</strong>
+            <small class="type-label">Google Email</small>
+            <strong class="type-value">{{ $googleState['google_email'] ?? 'No Google account saved' }}</strong>
         </div>
         <div class="meta-item">
-            <small>Connection Status</small>
-            <strong>{{ $googleState['connection_label'] }}</strong>
+            <small class="type-label">Connection Status</small>
+            <strong class="type-value type-value--technical">{{ $googleState['connection_label'] }}</strong>
         </div>
         <div class="meta-item">
-            <small>Live Access</small>
-            <strong>{{ $googleState['runtime_label'] }}</strong>
+            <small class="type-label">Live Access</small>
+            <strong class="type-value type-value--technical">{{ $googleState['runtime_label'] }}</strong>
         </div>
         <div class="meta-item">
-            <small>Connected At</small>
-            <strong>{{ $googleState['connected_at'] ?? '—' }}</strong>
+            <small class="type-label">Connected At</small>
+            <strong class="type-value type-value--technical">{{ $googleState['connected_at'] ?? '—' }}</strong>
         </div>
         <div class="meta-item">
-            <small>Disconnected At</small>
-            <strong>{{ $googleState['disconnected_at'] ?? '—' }}</strong>
+            <small class="type-label">Disconnected At</small>
+            <strong class="type-value type-value--technical">{{ $googleState['disconnected_at'] ?? '—' }}</strong>
         </div>
         <div class="meta-item">
-            <small>Last Synced At</small>
-            <strong>{{ $googleState['last_synced_at'] ?? '—' }}</strong>
+            <small class="type-label">Last Synced At</small>
+            <strong class="type-value type-value--technical">{{ $googleState['last_synced_at'] ?? '—' }}</strong>
         </div>
         <div class="meta-item">
-            <small>Initial Sync Job</small>
-            <strong>{{ $googleState['sync_job_status'] ?? 'No sync job recorded' }}</strong>
+            <small class="type-label">Initial Sync Job</small>
+            <strong class="type-value type-value--technical">{{ $googleState['sync_job_status'] ?? 'No sync job recorded' }}</strong>
         </div>
         <div class="meta-item">
-            <small>Sync Job Started</small>
-            <strong>{{ $googleState['sync_job_started_at'] ?? '—' }}</strong>
+            <small class="type-label">Sync Job Started</small>
+            <strong class="type-value type-value--technical">{{ $googleState['sync_job_started_at'] ?? '—' }}</strong>
         </div>
         <div class="meta-item">
-            <small>Sync Job Completed</small>
-            <strong>{{ $googleState['sync_job_completed_at'] ?? '—' }}</strong>
+            <small class="type-label">Sync Job Completed</small>
+            <strong class="type-value type-value--technical">{{ $googleState['sync_job_completed_at'] ?? '—' }}</strong>
         </div>
     </div>
 

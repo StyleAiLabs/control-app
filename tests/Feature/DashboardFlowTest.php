@@ -96,6 +96,8 @@ class DashboardFlowTest extends TestCase
             ->assertSee('Live')
             ->assertSee('Conversation Activity')
             ->assertSee('Open Sync360 Workspace')
+            ->assertSee('class="type-label"', false)
+            ->assertSee('class="type-value type-value--technical"', false)
             ->assertSee('Do you do emergency callouts?')
             ->assertSee('Yes, we do emergency callouts across Auckland.')
             ->assertSee('Telegram')

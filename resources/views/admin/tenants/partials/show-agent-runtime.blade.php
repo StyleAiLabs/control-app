@@ -3,7 +3,7 @@
         <div class="topbar" style="margin-bottom: 16px;">
             <div>
                 <span class="eyebrow">Agent Runtime</span>
-                <h2 style="font-size: 1.2rem;">Agent Runtime</h2>
+                <h2 class="type-section-title">Agent Runtime</h2>
             </div>
         </div>
         <div class="note error">
@@ -18,14 +18,14 @@
         <div class="topbar" style="margin-bottom: 16px;">
             <div>
                 <span class="eyebrow">Agent Runtime</span>
-                <h2 style="font-size: 1.2rem;">Agent Runtime</h2>
-                <p>Manage model defaults, prompt overrides, current markdown previews, and preview output for this tenant.</p>
+                <h2 class="type-section-title">Agent Runtime</h2>
+                <p class="type-body">Manage model defaults, prompt overrides, current markdown previews, and preview output for this tenant.</p>
             </div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                <span class="badge {{ $agentCustomization?->last_apply_status === 'failed' ? 'failed' : ($agentCustomization?->applied_snapshot_hash ? 'ready' : 'pending') }}">
+                <span class="badge badge--technical {{ $agentCustomization?->last_apply_status === 'failed' ? 'failed' : ($agentCustomization?->applied_snapshot_hash ? 'ready' : 'pending') }}">
                     {{ $agentCustomization?->last_apply_status ?? 'draft only' }}
                 </span>
-                <span class="badge pending">
+                <span class="badge badge--technical pending">
                     draft v{{ $agentCustomization?->draft_version ?? 0 }}
                 </span>
             </div>
@@ -38,7 +38,7 @@
             <input type="hidden" name="customization_scope" value="agent-runtime">
 
             <section>
-                <h3 style="margin-top:0;">Runtime Defaults</h3>
+                <h3 class="type-section-title" style="margin-top:0; font-size:1.12rem;">Runtime Defaults</h3>
                 <label>
                     Model
                     <input type="text" name="agent_defaults[model]" value="{{ $agentDefaults['model'] ?? '' }}" placeholder="gpt-4o">
@@ -53,7 +53,7 @@
                     <label>
                         {{ $label }}
                         <div class="hint" style="margin:8px 0 6px;">Current {{ $label }}</div>
-                        <pre style="white-space:pre-wrap; max-height:220px; overflow:auto; background:rgba(0,0,0,0.16); padding:12px; border-radius:12px; margin-bottom:10px;">{{ $currentCustomizationPreview[$label] ?? 'Current file content is not available yet.' }}</pre>
+                        <pre class="type-tech type-tech--wrap" style="max-height:220px; overflow:auto; background:rgba(0,0,0,0.16); padding:12px; border-radius:12px; margin-bottom:10px;">{{ $currentCustomizationPreview[$label] ?? 'Current file content is not available yet.' }}</pre>
                         @if ($key === 'agents')
                             <div class="hint">Generated from current enabled tenant skill assignments. This file updates automatically when skills are assigned or unassigned.</div>
                         @else
@@ -93,17 +93,17 @@
         </div>
 
         <section style="margin-top:18px;">
-            <h3 style="margin-top:0;">Preview</h3>
-            <pre data-customization-preview style="white-space:pre-wrap; max-height:420px; overflow:auto; background:rgba(0,0,0,0.24); padding:14px; border-radius:12px;">Preview output will appear here.</pre>
+            <h3 class="type-section-title" style="margin-top:0; font-size:1.12rem;">Preview</h3>
+            <pre data-customization-preview class="type-tech type-tech--wrap" style="max-height:420px; overflow:auto; background:rgba(0,0,0,0.24); padding:14px; border-radius:12px;">Preview output will appear here.</pre>
         </section>
 
         <section style="margin-top:18px;">
-            <h3 style="margin-top:0;">Apply History</h3>
+            <h3 class="type-section-title" style="margin-top:0; font-size:1.12rem;">Apply History</h3>
             <div style="display:grid; gap:10px;">
                 @forelse ($tenant->agentCustomizationApplies->sortByDesc('id') as $entry)
                     <div style="padding:12px; border:1px solid rgba(255,255,255,0.08); border-radius:12px;">
                         <strong>{{ $entry->action }}</strong>
-                        <span class="badge {{ $entry->status === 'failed' ? 'failed' : 'ready' }}">{{ $entry->status }}</span>
+                        <span class="badge badge--technical {{ $entry->status === 'failed' ? 'failed' : 'ready' }}">{{ $entry->status }}</span>
                         <div class="hint" style="margin-top:6px;">{{ $entry->created_at?->toDateTimeString() ?? 'Pending timestamp' }}</div>
                         <div class="hint">Before: {{ $entry->before_output_hash ?? '—' }}</div>
                         <div class="hint">After: {{ $entry->after_output_hash ?? '—' }}</div>

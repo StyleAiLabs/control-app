@@ -89,6 +89,9 @@
             gap: 10px;
             flex-wrap: wrap;
         }
+        .tenant-admin-status .badge {
+            padding-inline: 13px;
+        }
 
         .tenant-admin-layout {
             display: grid;
@@ -139,6 +142,7 @@
 
         .tenant-admin-tab__label {
             font-weight: 700;
+            line-height: 1.3;
         }
 
         .tenant-admin-panel-stack {
@@ -166,7 +170,7 @@
             <div>
                 <span class="eyebrow">Tenant Detail</span>
                 <h2>{{ $tenant->business_name }}</h2>
-                <p>Use the sidebar to move between tenant summary, workspace details, Google state, tenant skills, agent runtime behavior, and support actions.</p>
+                <p class="type-body">Use the sidebar to move between tenant summary, workspace details, Google state, tenant skills, agent runtime behavior, and support actions.</p>
             </div>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                 <a href="{{ route('admin.tenants') }}" class="button button--secondary">Back to Tenants</a>
@@ -177,11 +181,11 @@
         </div>
 
         <div class="tenant-admin-status">
-            <span class="badge {{ $tenant->provisioning_status->value }}">Provisioning: {{ $tenant->provisioning_status->value }}</span>
-            <span class="badge {{ $tenant->agent_status === 'live' ? 'ready' : ($tenant->agent_status === 'failed' ? 'failed' : 'pending') }}">Agent: {{ $tenant->agent_status ?? 'offline' }}</span>
-            <span class="badge {{ $tenant->last_health_check_status === 'healthy' ? 'ready' : ($tenant->last_health_check_status === 'failed' ? 'failed' : 'pending') }}">Health: {{ $tenant->last_health_check_status ?? 'unchecked' }}</span>
-            <span class="badge {{ $workspaceState === 'running' ? 'ready' : ($workspaceState === 'stopped' ? 'pending' : 'failed') }}">Workspace: {{ str_replace('_', ' ', $workspaceState) }}</span>
-            <span class="badge {{ $googleState['runtime_badge'] }}">Google: {{ $googleState['runtime_label'] }}</span>
+            <span class="badge badge--technical {{ $tenant->provisioning_status->value }}">Provisioning: {{ $tenant->provisioning_status->value }}</span>
+            <span class="badge badge--technical {{ $tenant->agent_status === 'live' ? 'ready' : ($tenant->agent_status === 'failed' ? 'failed' : 'pending') }}">Agent: {{ $tenant->agent_status ?? 'offline' }}</span>
+            <span class="badge badge--technical {{ $tenant->last_health_check_status === 'healthy' ? 'ready' : ($tenant->last_health_check_status === 'failed' ? 'failed' : 'pending') }}">Health: {{ $tenant->last_health_check_status ?? 'unchecked' }}</span>
+            <span class="badge badge--technical {{ $workspaceState === 'running' ? 'ready' : ($workspaceState === 'stopped' ? 'pending' : 'failed') }}">Workspace: {{ str_replace('_', ' ', $workspaceState) }}</span>
+            <span class="badge badge--technical {{ $googleState['runtime_badge'] }}">Google: {{ $googleState['runtime_label'] }}</span>
         </div>
 
         <div class="tenant-admin-layout">

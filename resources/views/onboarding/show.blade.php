@@ -12,9 +12,15 @@
         }
         .wizard-steps-bar li {
             flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
-            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em;
             color: var(--text-muted, #9ca3af); cursor: pointer; position: relative;
             transition: color 0.25s;
+        }
+        .wizard-step-label {
+            font-size: 0.74rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            line-height: 1.35;
+            text-transform: uppercase;
         }
         .wizard-steps-bar li::before {
             content: ''; display: block; width: 100%; height: 4px; border-radius: 2px;
@@ -100,7 +106,7 @@
             <div>
                 <span class="eyebrow">Guided Setup</span>
                 <h2>Set up your digital employee</h2>
-                <p style="margin-top: 4px;">Tell us about your business, choose how your digital employee should communicate, connect your messaging channel, and optionally add Google Workspace access.</p>
+                <p class="type-body" style="margin-top: 4px;">Tell us about your business, choose how your digital employee should communicate, connect your messaging channel, and optionally add Google Workspace access.</p>
             </div>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                 <a href="{{ route('dashboard') }}" class="button button--secondary">Back to Dashboard</a>
@@ -116,7 +122,7 @@
         <ul class="wizard-steps-bar" id="wizard-steps-bar">
             @foreach ($state['steps'] as $number => $step)
                 <li data-step="{{ $number }}" class="{{ $step['status'] === 'complete' ? 'done' : '' }}">
-                    <span></span>{{ $step['label'] }}
+                    <span></span><span class="wizard-step-label">{{ $step['label'] }}</span>
                 </li>
             @endforeach
         </ul>
@@ -127,7 +133,7 @@
                 <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-top: 12px;">
                     <div>
                         <strong id="wizard-step-counter" style="display: block; font-size: 1.15rem;">Step 1 of 7</strong>
-                        <span id="wizard-step-name" class="hint" style="display: block; margin-top: 4px;">Website</span>
+                        <span id="wizard-step-name" class="hint type-muted" style="display: block; margin-top: 4px;">Website</span>
                     </div>
                     <strong id="wizard-progress-percent" style="font-size: 0.92rem;">14%</strong>
                 </div>
@@ -153,8 +159,8 @@
         {{-- ═══════════════════ STEP 1 — Read Website ═══════════════════ --}}
         <div class="wizard-panel panel" data-wizard-step="1" id="wizard-step-1" style="display: none;">
             <span class="eyebrow">Step 1</span>
-            <h3 style="margin-top: 16px; font-size: 1.35rem;">Read your business website</h3>
-            <p style="margin-top: 8px;">
+            <h3 class="type-section-title" style="margin-top: 16px;">Read your business website</h3>
+            <p class="type-body" style="margin-top: 8px;">
                 Add your website and we'll pull in the basics for you. If website reading isn't available or your site is sparse, you can fill everything in manually in the next step.
             </p>
 
@@ -207,8 +213,8 @@
         {{-- ═══════════════════ STEP 2 — Business Details ═══════════════════ --}}
         <div class="wizard-panel panel" data-wizard-step="2" id="wizard-step-2" style="display: none;">
             <span class="eyebrow">Step 2</span>
-            <h3 style="margin-top: 16px; font-size: 1.35rem;">Confirm your business details</h3>
-            <p style="margin-top: 8px;">
+            <h3 class="type-section-title" style="margin-top: 16px;">Confirm your business details</h3>
+            <p class="type-body" style="margin-top: 8px;">
                 Check what we know so far and adjust anything that needs fixing. These details will shape how your digital employee talks about your business later.
             </p>
 
@@ -298,7 +304,7 @@
         {{-- ═══════════════════ STEP 3 — Personality ═══════════════════ --}}
         <div class="wizard-panel panel" data-wizard-step="3" id="wizard-step-3" style="display: none;">
             <span class="eyebrow">Step 3</span>
-            <h3 style="margin-top: 16px; font-size: 1.35rem;">Choose the communication style</h3>
+            <h3 class="type-section-title" style="margin-top: 16px;">Choose the communication style</h3>
             <p style="margin-top: 8px;">
                 Pick the style that feels most like your business. You can change this later.
             </p>
@@ -341,7 +347,7 @@
         {{-- ═══════════════════ STEP 4 — Capabilities ═══════════════════ --}}
         <div class="wizard-panel panel" data-wizard-step="4" id="wizard-step-4" style="display: none;">
             <span class="eyebrow">Step 4</span>
-            <h3 style="margin-top: 16px; font-size: 1.35rem;">Choose what it should handle</h3>
+            <h3 class="type-section-title" style="margin-top: 16px;">Choose what it should handle</h3>
             <p style="margin-top: 8px;">
                 Turn on the kinds of customer requests your digital employee should help with first.
             </p>
@@ -393,7 +399,7 @@
         {{-- ═══════════════════ STEP 5 — Channel ═══════════════════ --}}
         <div class="wizard-panel panel" data-wizard-step="5" id="wizard-step-5" style="display: none;">
             <span class="eyebrow">Step 5</span>
-            <h3 style="margin-top: 16px; font-size: 1.35rem;">Connect your messaging channel</h3>
+            <h3 class="type-section-title" style="margin-top: 16px;">Connect your messaging channel</h3>
             <p style="margin-top: 8px;">
                 Pick the messaging app you already use. Your digital employee will use this channel to reach you — so you can ask questions and get real-time updates directly from it.
             </p>
@@ -501,7 +507,7 @@
         {{-- ═══════════════════ STEP 6 — Google Workspace ═══════════════════ --}}
         <div class="wizard-panel panel" data-wizard-step="6" id="wizard-step-6" style="display: none;">
             <span class="eyebrow">Step 6</span>
-            <h3 style="margin-top: 16px; font-size: 1.35rem;">Connect Google Workspace</h3>
+            <h3 class="type-section-title" style="margin-top: 16px;">Connect Google Workspace</h3>
             <p style="margin-top: 8px;">
                 Connect Google Workspace so your digital employee can work with Gmail, Calendar, Drive, Contacts, Sheets, and Docs, and so your workspace can become customer-ready.
             </p>
@@ -591,7 +597,7 @@
         {{-- ═══════════════════ STEP 7 — Go Live ═══════════════════ --}}
         <div class="wizard-panel panel" data-wizard-step="7" id="wizard-step-7" style="display: none;">
             <span class="eyebrow">Step 7</span>
-            <h3 style="margin-top: 16px; font-size: 1.35rem;">Bring it live</h3>
+            <h3 class="type-section-title" style="margin-top: 16px;">Bring it live</h3>
             <p style="margin-top: 8px;">
                 Once your business details, communication style, skills, channel, and Google Workspace are ready, we'll activate your digital employee.
             </p>

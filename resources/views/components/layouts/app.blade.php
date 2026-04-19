@@ -6,7 +6,7 @@
     <title>{{ $title ?? 'Sync360' }}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg: #f7f5f3;
@@ -19,6 +19,30 @@
             --warning: #9c6a08;
             --danger: #9f3737;
             --danger-bg: #fff1f1;
+            --type-display-tracking: -0.032em;
+            --type-heading-tracking: -0.024em;
+            --type-kicker-tracking: 0.08em;
+            --type-label-tracking: 0.04em;
+            --type-tech-tracking: 0.035em;
+
+            /* Spacing scale (4px base, 2px half-steps). See artifacts/DESIGN_SYSTEM.md §5. */
+            --space-0-5: 2px;
+            --space-1:   4px;
+            --space-1-5: 6px;
+            --space-2:   8px;
+            --space-2-5: 10px;
+            --space-3:   12px;
+            --space-3-5: 14px;
+            --space-4:   16px;
+            --space-4-5: 18px;
+            --space-5:   20px;
+            --space-5-5: 22px;
+            --space-6:   24px;
+            --space-7:   28px;
+            --space-8:   32px;
+            --space-9:   36px;
+            --space-10:  40px;
+            --space-12:  48px;
         }
 
         * { box-sizing: border-box; }
@@ -26,11 +50,95 @@
             margin: 0;
             font-family: "DM Sans", "Segoe UI", sans-serif;
             color: var(--ink);
+            line-height: 1.5;
             background:
                 radial-gradient(circle at top left, rgba(255, 107, 53, 0.05), transparent 28%),
                 linear-gradient(180deg, #ffffff 0%, var(--bg) 100%);
         }
         a { color: inherit; text-decoration: none; }
+
+        /* ── Typography contract ── */
+        .type-display,
+        .topbar h2 {
+            margin: 0;
+            font-size: clamp(1.7rem, 4vw, 2.2rem);
+            line-height: 1.08;
+            letter-spacing: var(--type-display-tracking);
+        }
+        .type-section-title {
+            margin: 0;
+            font-size: 1.3rem;
+            line-height: 1.16;
+            letter-spacing: var(--type-heading-tracking);
+        }
+        .type-body {
+            font-size: 0.96rem;
+            line-height: 1.62;
+        }
+        .type-muted,
+        .topbar p,
+        .hint {
+            color: var(--muted);
+            line-height: 1.58;
+        }
+        .type-muted { font-size: 0.9rem; }
+        .hint { font-size: 0.875rem; }
+        .type-kicker,
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            width: fit-content;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: rgba(255, 107, 53, 0.10);
+            color: var(--accent-dark);
+            font-size: 0.74rem;
+            font-weight: 700;
+            line-height: 1.2;
+            letter-spacing: var(--type-kicker-tracking);
+            text-transform: uppercase;
+        }
+        .type-label {
+            display: block;
+            color: var(--muted);
+            margin-bottom: 6px;
+            font-size: 0.73rem;
+            font-weight: 700;
+            letter-spacing: var(--type-label-tracking);
+            line-height: 1.35;
+            text-transform: uppercase;
+        }
+        .type-value {
+            display: block;
+            color: var(--ink);
+            font-size: 1rem;
+            font-weight: 700;
+            line-height: 1.36;
+            overflow-wrap: anywhere;
+        }
+        .type-value--technical,
+        .type-tech {
+            font-family: "JetBrains Mono", monospace;
+            letter-spacing: var(--type-tech-tracking);
+        }
+        .type-value--technical {
+            font-size: 0.96rem;
+            line-height: 1.46;
+        }
+        .type-tech {
+            font-size: 0.82rem;
+            line-height: 1.45;
+        }
+        .type-tech--wrap {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+        .type-status {
+            font-size: 0.82rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
 
         /* ── Shell ── */
         .shell {
@@ -86,12 +194,12 @@
         }
         .nav-section-label {
             padding: 6px 12px 4px;
-            font-size: 0.68rem;
+            font-size: 0.72rem;
             font-weight: 700;
             letter-spacing: 0.08em;
             text-transform: uppercase;
             color: rgba(255,255,255,0.30);
-            font-family: "Space Mono", monospace;
+            line-height: 1.3;
         }
         .nav-link {
             display: flex;
@@ -131,7 +239,7 @@
         }
         .sidebar-user-name  { font-weight: 600; font-size: 0.92rem; }
         .sidebar-user-email { color: rgba(255,255,255,0.55); font-size: 0.80rem; margin-top: 2px; }
-        .sidebar-user-role  { color: var(--accent); font-size: 0.74rem; font-weight: 700; margin-top: 4px; font-family: "Space Mono", monospace; text-transform: uppercase; letter-spacing: 0.05em; }
+        .sidebar-user-role  { color: var(--accent); font-size: 0.74rem; font-weight: 700; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.07em; line-height: 1.3; }
 
         /* ── Main content ── */
         .content { padding: 32px; }
@@ -142,16 +250,7 @@
             margin-bottom: 28px;
             gap: 16px;
         }
-        .topbar h2 {
-            margin: 0;
-            font-size: clamp(1.7rem, 4vw, 2.2rem);
-            letter-spacing: -0.02em;
-        }
-        .topbar p {
-            margin: 6px 0 0;
-            color: var(--muted);
-            font-size: 0.95rem;
-        }
+        .topbar p { margin: 8px 0 0; max-width: 64ch; }
 
         /* ── Panels / Cards ── */
         .panel {
@@ -182,38 +281,30 @@
             font-weight: 700;
             margin-top: 8px;
             color: var(--ink);
-        }
-
-        /* ── Eyebrow badge ── */
-        .eyebrow {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            border-radius: 999px;
-            background: rgba(255, 107, 53, 0.10);
-            color: var(--accent-dark);
-            font-weight: 700;
-            font-size: 0.74rem;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            font-family: "Space Mono", monospace;
+            line-height: 1.18;
         }
 
         /* ── Status badges ── */
         .badge {
             display: inline-flex;
+            align-items: center;
             padding: 5px 12px;
             border-radius: 999px;
             font-size: 0.82rem;
             font-weight: 700;
-            font-family: "Space Mono", monospace;
-            letter-spacing: 0.02em;
+            line-height: 1.2;
+            letter-spacing: 0.01em;
+            font-family: "DM Sans", "Segoe UI", sans-serif;
         }
         .badge.pending, .badge.queued       { background: #fef3c7; color: #92400e; }
         .badge.provisioning, .badge.running { background: #dbeafe; color: #1d4ed8; }
         .badge.ready, .badge.completed, .badge.trial_active { background: #dcfce7; color: #15803d; }
         .badge.failed, .badge.trial_expired { background: var(--danger-bg); color: var(--danger); }
+        .badge--technical {
+            font-family: "JetBrains Mono", monospace;
+            font-size: 0.78rem;
+            letter-spacing: var(--type-tech-tracking);
+        }
 
         /* ── Tables ── */
         .table-wrap { overflow-x: auto; }
@@ -229,8 +320,7 @@
             font-size: 0.78rem;
             font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.06em;
-            font-family: "Space Mono", monospace;
+            letter-spacing: 0.05em;
             background: #faf9f8;
         }
         tr:last-child td { border-bottom: none; }
@@ -313,15 +403,18 @@
             background: #faf9f8;
             border: 1px solid var(--stroke);
         }
-        .meta-item small {
+        .meta-item > *:last-child {
+            margin-bottom: 0;
+        }
+        .meta-item small,
+        .meta-item .type-label {
+            margin-bottom: 6px;
+        }
+        .meta-item strong {
             display: block;
-            color: var(--muted);
-            margin-bottom: 5px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            font-size: 0.72rem;
-            font-weight: 700;
-            font-family: "Space Mono", monospace;
+            font-size: 1rem;
+            line-height: 1.38;
+            overflow-wrap: anywhere;
         }
 
         /* ── Notes / alerts ── */
@@ -364,7 +457,6 @@
         }
 
         /* ── Misc ── */
-        .hint { font-size: 0.875rem; color: var(--muted); }
         form.inline { display: inline; }
         form {
             display: grid;
@@ -460,7 +552,7 @@
             align-items: center;
             justify-content: center;
             padding: 0 5px;
-            font-family: "Space Mono", monospace;
+            font-family: "JetBrains Mono", monospace;
         }
         .notif-dropdown {
             display: none;
@@ -483,7 +575,6 @@
             text-transform: uppercase;
             letter-spacing: 0.08em;
             color: rgba(255,255,255,0.35);
-            font-family: "Space Mono", monospace;
             border-bottom: 1px solid rgba(255,255,255,0.07);
         }
         .notif-item {

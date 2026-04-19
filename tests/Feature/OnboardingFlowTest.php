@@ -36,6 +36,8 @@ class OnboardingFlowTest extends TestCase
             ->assertSee('Guided Setup')
             ->assertSee('Set up your digital employee')
             ->assertSee('Wizard Progress')
+            ->assertSee('class="wizard-step-label"', false)
+            ->assertSee('class="type-section-title"', false)
             ->assertSee('Behind The Scenes')
             ->assertSee('Read your business website')
             ->assertSee('Confirm your business details')

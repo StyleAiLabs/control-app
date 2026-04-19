@@ -50,9 +50,9 @@
 
         <div class="panel auth-card">
             <header>
-                <span class="kicker">Secure access</span>
-                <h2>Log in to your Sync360 workspace</h2>
-                <p class="hint">Pick up where you left off and get back to the conversations that matter.</p>
+                <span class="kicker type-kicker">Secure access</span>
+                <h2 class="type-section-title">Log in to your Sync360 workspace</h2>
+                <p class="hint type-muted">Pick up where you left off and get back to the conversations that matter.</p>
             </header>
 
             <form method="POST" action="{{ route('login.store') }}">

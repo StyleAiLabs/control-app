@@ -3,25 +3,25 @@
         <div class="topbar" style="margin-bottom: 16px;">
             <div>
                 <span class="eyebrow">Runtime</span>
-                <h2 style="font-size: 1.2rem;">Server & Workspace</h2>
+                <h2 class="type-section-title">Server & Workspace</h2>
             </div>
         </div>
         <div class="meta">
             <div class="meta-item">
-                <small>Client VPS</small>
-                <strong>{{ $tenant->server?->name ?? 'Unassigned' }}</strong>
+                <small class="type-label">Client VPS</small>
+                <strong class="type-value">{{ $tenant->server?->name ?? 'Unassigned' }}</strong>
             </div>
             <div class="meta-item">
-                <small>Host</small>
-                <strong>{{ $tenant->server?->host ?? '—' }}</strong>
+                <small class="type-label">Host</small>
+                <strong class="type-value type-value--technical">{{ $tenant->server?->host ?? '—' }}</strong>
             </div>
             <div class="meta-item">
-                <small>Runtime Path</small>
-                <strong>{{ $tenant->runtime_path ?? 'Pending' }}</strong>
+                <small class="type-label">Runtime Path</small>
+                <strong class="type-value type-value--technical">{{ $tenant->runtime_path ?? 'Pending' }}</strong>
             </div>
             <div class="meta-item">
-                <small>Last Health Message</small>
-                <strong>{{ $tenant->health_check_message ?? 'No health check run yet.' }}</strong>
+                <small class="type-label">Last Health Message</small>
+                <strong class="type-value">{{ $tenant->health_check_message ?? 'No health check run yet.' }}</strong>
             </div>
         </div>
     </section>
@@ -30,25 +30,25 @@
         <div class="topbar" style="margin-bottom: 16px;">
             <div>
                 <span class="eyebrow">Onboarding</span>
-                <h2 style="font-size: 1.2rem;">Profile & Channel</h2>
+                <h2 class="type-section-title">Profile & Channel</h2>
             </div>
         </div>
         <div class="meta">
             <div class="meta-item">
-                <small>Onboarding Status</small>
-                <strong>{{ $tenant->onboarding_status ?? 'not_started' }} (step {{ $tenant->onboarding_step ?? 0 }})</strong>
+                <small class="type-label">Onboarding Status</small>
+                <strong class="type-value type-value--technical">{{ $tenant->onboarding_status ?? 'not_started' }} (step {{ $tenant->onboarding_step ?? 0 }})</strong>
             </div>
             <div class="meta-item">
-                <small>Tone</small>
-                <strong>{{ $tenant->tone ?? 'Not set' }}</strong>
+                <small class="type-label">Tone</small>
+                <strong class="type-value">{{ $tenant->tone ?? 'Not set' }}</strong>
             </div>
             <div class="meta-item">
-                <small>Capabilities</small>
-                <strong>{{ is_array($tenant->capabilities) && $tenant->capabilities !== [] ? implode(', ', $tenant->capabilities) : 'None saved yet' }}</strong>
+                <small class="type-label">Capabilities</small>
+                <strong class="type-value">{{ is_array($tenant->capabilities) && $tenant->capabilities !== [] ? implode(', ', $tenant->capabilities) : 'None saved yet' }}</strong>
             </div>
             <div class="meta-item">
-                <small>Channel</small>
-                <strong>{{ $tenant->channel ?? 'Not connected' }}</strong>
+                <small class="type-label">Channel</small>
+                <strong class="type-value">{{ $tenant->channel ?? 'Not connected' }}</strong>
                 @if ($tenant->channel === 'telegram')
                     <div class="hint" style="margin-top: 6px;">Bot token saved: {{ filled($channelConfig['telegram_bot_token'] ?? null) ? 'Yes' : 'No' }}</div>
                 @elseif ($tenant->channel === 'whatsapp')
@@ -63,25 +63,25 @@
     <div class="topbar" style="margin-bottom: 16px;">
         <div>
             <span class="eyebrow">Latest Job</span>
-            <h2 style="font-size: 1.2rem;">Provisioning Outcome</h2>
+            <h2 class="type-section-title">Provisioning Outcome</h2>
         </div>
     </div>
     <div class="meta">
         <div class="meta-item">
-            <small>Job Type</small>
-            <strong>{{ $latestJob?->job_type ?? 'No jobs yet' }}</strong>
+            <small class="type-label">Job Type</small>
+            <strong class="type-value type-value--technical">{{ $latestJob?->job_type ?? 'No jobs yet' }}</strong>
         </div>
         <div class="meta-item">
-            <small>Status</small>
-            <strong>{{ $latestJob?->status?->value ?? '—' }}</strong>
+            <small class="type-label">Status</small>
+            <strong class="type-value type-value--technical">{{ $latestJob?->status?->value ?? '—' }}</strong>
         </div>
         <div class="meta-item">
-            <small>Started</small>
-            <strong>{{ $latestJob?->started_at?->toDateTimeString() ?? '—' }}</strong>
+            <small class="type-label">Started</small>
+            <strong class="type-value type-value--technical">{{ $latestJob?->started_at?->toDateTimeString() ?? '—' }}</strong>
         </div>
         <div class="meta-item">
-            <small>Completed</small>
-            <strong>{{ $latestJob?->completed_at?->toDateTimeString() ?? '—' }}</strong>
+            <small class="type-label">Completed</small>
+            <strong class="type-value type-value--technical">{{ $latestJob?->completed_at?->toDateTimeString() ?? '—' }}</strong>
         </div>
     </div>
     <div class="note{{ $latestJob?->error_message ? ' error' : '' }}" style="margin-top: 16px;">
@@ -93,14 +93,14 @@
     <div class="topbar" style="margin-bottom: 16px;">
         <div>
             <span class="eyebrow">Trial</span>
-            <h2 style="font-size: 1.2rem;">Trial & AI Usage</h2>
+            <h2 class="type-section-title">Trial & AI Usage</h2>
         </div>
         <div>
             @if ($tenant->isTrialExpired())
-                <span class="badge failed">trial expired</span>
+                <span class="badge badge--technical failed">trial expired</span>
             @else
                 @php $urgency = $tenant->trialUrgency(); @endphp
-                <span class="badge {{ $urgency === 'critical' ? 'failed' : ($urgency === 'warning' ? 'pending' : 'ready') }}">
+                <span class="badge badge--technical {{ $urgency === 'critical' ? 'failed' : ($urgency === 'warning' ? 'pending' : 'ready') }}">
                     {{ $tenant->trialDaysLeft() }} days left
                 </span>
             @endif
@@ -139,38 +139,38 @@
         </div>
     @endif
 
-    <div class="meta">
+        <div class="meta">
         <div class="meta-item">
-            <small>Trial Status</small>
-            <strong>{{ $tenant->trial_status->value }}</strong>
+            <small class="type-label">Trial Status</small>
+            <strong class="type-value type-value--technical">{{ $tenant->trial_status->value }}</strong>
         </div>
         <div class="meta-item">
-            <small>Trial Ends At</small>
-            <strong>{{ $tenant->trial_ends_at?->toDateTimeString() ?? 'Not set (backfill pending)' }}</strong>
+            <small class="type-label">Trial Ends At</small>
+            <strong class="type-value type-value--technical">{{ $tenant->trial_ends_at?->toDateTimeString() ?? 'Not set (backfill pending)' }}</strong>
         </div>
         <div class="meta-item">
-            <small>AI Spend (cached)</small>
-            <strong>${{ number_format((float)($tenant->litellm_spend ?? 0), 4) }}</strong>
+            <small class="type-label">AI Spend (cached)</small>
+            <strong class="type-value type-value--technical">${{ number_format((float)($tenant->litellm_spend ?? 0), 4) }}</strong>
         </div>
         <div class="meta-item">
-            <small>Spend Cached At</small>
-            <strong>{{ $tenant->litellm_spend_cached_at?->toDateTimeString() ?? 'Not yet cached' }}</strong>
+            <small class="type-label">Spend Cached At</small>
+            <strong class="type-value type-value--technical">{{ $tenant->litellm_spend_cached_at?->toDateTimeString() ?? 'Not yet cached' }}</strong>
         </div>
         <div class="meta-item">
-            <small>80% Budget Email</small>
-            <strong>{{ $tenant->trial_80pct_notified_at?->toDateTimeString() ?? '—' }}</strong>
+            <small class="type-label">80% Budget Email</small>
+            <strong class="type-value type-value--technical">{{ $tenant->trial_80pct_notified_at?->toDateTimeString() ?? '—' }}</strong>
         </div>
         <div class="meta-item">
-            <small>3-Day Warning Email</small>
-            <strong>{{ $tenant->trial_3day_notified_at?->toDateTimeString() ?? '—' }}</strong>
+            <small class="type-label">3-Day Warning Email</small>
+            <strong class="type-value type-value--technical">{{ $tenant->trial_3day_notified_at?->toDateTimeString() ?? '—' }}</strong>
         </div>
         <div class="meta-item">
-            <small>Expiry Email</small>
-            <strong>{{ $tenant->trial_expired_notified_at?->toDateTimeString() ?? '—' }}</strong>
+            <small class="type-label">Expiry Email</small>
+            <strong class="type-value type-value--technical">{{ $tenant->trial_expired_notified_at?->toDateTimeString() ?? '—' }}</strong>
         </div>
         <div class="meta-item">
-            <small>LiteLLM Plan</small>
-            <strong>{{ $tenant->litellm_plan_name ?? '—' }}</strong>
+            <small class="type-label">LiteLLM Plan</small>
+            <strong class="type-value type-value--technical">{{ $tenant->litellm_plan_name ?? '—' }}</strong>
         </div>
     </div>
 </section>

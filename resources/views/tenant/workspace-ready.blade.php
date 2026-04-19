@@ -4,11 +4,11 @@
             @if ($workspaceReadiness['customer_ready'])
                 <span class="eyebrow"><span style="display:inline-block; margin-right:4px;">🎉</span> You're All Set</span>
                 <h2>{{ $firstName }}, your workspace is ready.</h2>
-                <p>{{ $tenant->business_name }} is set up. Your workspace URL now takes you into the Sync360 login and dashboard experience.</p>
+                <p class="type-body">{{ $tenant->business_name }} is set up. Your workspace URL now takes you into the Sync360 login and dashboard experience.</p>
             @else
                 <span class="eyebrow">Almost There</span>
                 <h2>{{ $firstName }}, your workspace has been created.</h2>
-                <p>{{ $workspaceReadiness['blocking_message'] ?? 'There is one last setup step to finish before the workspace is customer-ready.' }}</p>
+                <p class="type-body">{{ $workspaceReadiness['blocking_message'] ?? 'There is one last setup step to finish before the workspace is customer-ready.' }}</p>
             @endif
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
@@ -35,19 +35,19 @@
             <span class="eyebrow">Your Plan</span>
             <div class="meta" style="margin-top: 18px;">
                 <div class="meta-item">
-                    <small>Business</small>
-                    {{ $tenant->business_name }}
+                    <small class="type-label">Business</small>
+                    <span class="type-value">{{ $tenant->business_name }}</span>
                 </div>
                 <div class="meta-item">
-                    <small>Industry</small>
-                    {{ $tenant->industry }}
+                    <small class="type-label">Industry</small>
+                    <span class="type-value">{{ $tenant->industry }}</span>
                 </div>
                 <div class="meta-item">
-                    <small>Skill Pack</small>
-                    {{ $tenant->skill_pack }}
+                    <small class="type-label">Skill Pack</small>
+                    <span class="type-value">{{ $tenant->skill_pack }}</span>
                 </div>
                 <div class="meta-item">
-                    <small>Trial Status</small>
+                    <small class="type-label">Trial Status</small>
                     <span class="badge {{ $tenant->trial_status->value }}">
                         {{ $trialLabel }}
                     </span>
@@ -62,8 +62,8 @@
                     <div style="display: flex; gap: 14px; align-items: flex-start;">
                         <div style="width: 28px; height: 28px; border-radius: 50%; background: rgba(255,107,53,0.12); color: var(--accent-dark); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; flex-shrink: 0;">{{ $index + 1 }}</div>
                         <div>
-                            <div style="font-weight: 600;">{{ $step['title'] }}</div>
-                            <div class="hint">{{ $step['description'] }}</div>
+                            <div class="type-value" style="font-size: 0.98rem;">{{ $step['title'] }}</div>
+                            <div class="hint type-muted">{{ $step['description'] }}</div>
                         </div>
                     </div>
                 @endforeach

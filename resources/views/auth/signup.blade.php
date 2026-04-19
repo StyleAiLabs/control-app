@@ -48,9 +48,9 @@
 
         <div class="panel auth-card">
             <header>
-                <span class="kicker">Create workspace</span>
-                <h2>Start your free trial</h2>
-                <p class="hint">Tell us a bit about your business and we will get your workspace ready.</p>
+                <span class="kicker type-kicker">Create workspace</span>
+                <h2 class="type-section-title">Start your free trial</h2>
+                <p class="hint type-muted">Tell us a bit about your business and we will get your workspace ready.</p>
             </header>
 
             <form method="POST" action="{{ route('signup.store') }}">

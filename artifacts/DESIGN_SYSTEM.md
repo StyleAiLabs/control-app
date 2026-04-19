@@ -18,6 +18,8 @@ Known tech debt: most design-system CSS lives inside Blade `<style>` blocks rath
 
 Use shared classes and tokens from those files before adding view-local inline styles. If a new UI primitive is needed across more than one screen, add it to the relevant shared layout first, then document it here.
 
+Implementation status, 2026-04-19: the shared app and guest layouts now load `DM Sans` plus `JetBrains Mono`, expose the reusable `type-*` typography classes, and define the current spacing scale. Existing Blade views are being migrated toward those classes as they are touched.
+
 ## 2. Design Principles
 
 - Customer clarity first. Product screens should explain what is ready, blocked, or next without exposing backend implementation details.

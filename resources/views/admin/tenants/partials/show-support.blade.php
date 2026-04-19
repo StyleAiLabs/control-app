@@ -2,7 +2,7 @@
     <div class="topbar" style="margin-bottom: 16px;">
         <div>
             <span class="eyebrow">Support Actions</span>
-            <h2 style="font-size: 1.2rem;">Operational Controls</h2>
+            <h2 class="type-section-title">Operational Controls</h2>
         </div>
     </div>
 
@@ -53,8 +53,8 @@
     <div class="topbar" style="margin-bottom: 16px;">
         <div>
             <span class="eyebrow">Danger Zone</span>
-            <h2 style="font-size: 1.2rem;">Permanent Delete</h2>
-            <p>This removes the control-app tenant record, linked customer account, tenant runtime, and LiteLLM resources permanently.</p>
+            <h2 class="type-section-title">Permanent Delete</h2>
+            <p class="type-body">This removes the control-app tenant record, linked customer account, tenant runtime, and LiteLLM resources permanently.</p>
         </div>
     </div>
 

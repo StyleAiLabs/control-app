@@ -247,23 +247,23 @@
             <span class="eyebrow">Your Business</span>
             <div class="meta" style="margin-top: 18px;">
                 <div class="meta-item">
-                    <small>Business Name</small>
-                    {{ $businessProfile?->business_name ?: $tenant->business_name }}
+                    <small class="type-label">Business Name</small>
+                    <span class="type-value">{{ $businessProfile?->business_name ?: $tenant->business_name }}</span>
                 </div>
                 <div class="meta-item">
-                    <small>Industry</small>
-                    {{ $businessProfile?->industry ?: $tenant->industry }}
+                    <small class="type-label">Industry</small>
+                    <span class="type-value">{{ $businessProfile?->industry ?: $tenant->industry }}</span>
                 </div>
                 <div class="meta-item">
-                    <small>Skill Pack</small>
-                    {{ $tenant->skill_pack }}
+                    <small class="type-label">Skill Pack</small>
+                    <span class="type-value">{{ $tenant->skill_pack }}</span>
                 </div>
                 <div class="meta-item">
-                    <small>Contact Details</small>
-                    {{ $businessProfile?->contact_email ?: 'No email yet' }}{{ $businessProfile?->contact_phone ? ' • '.$businessProfile->contact_phone : '' }}
+                    <small class="type-label">Contact Details</small>
+                    <span class="type-value">{{ $businessProfile?->contact_email ?: 'No email yet' }}{{ $businessProfile?->contact_phone ? ' • '.$businessProfile->contact_phone : '' }}</span>
                 </div>
                 <div class="meta-item">
-                    <small>Trial Status</small>
+                    <small class="type-label">Trial Status</small>
                     <span class="badge {{ $tenant->trial_status->value }}">
                         {{ $trialContent['label'] }}
                     </span>
@@ -278,40 +278,40 @@
             <span class="eyebrow">Digital Employee Status</span>
             <div style="margin-top: 18px; display: grid; gap: 14px;">
                 <div>
-                    <small class="hint">Current status</small><br>
+                    <small class="type-label" style="margin-bottom: 8px;">Current status</small>
                     <span class="badge {{ $agentContent['badge'] }}" style="margin-top: 6px; display: inline-flex;">
                         {{ $agentContent['label'] }}
                     </span>
                 </div>
                 <div>
-                    <small class="hint">What this means</small>
-                    <div style="margin-top: 6px; font-weight: 600;">{{ $agentContent['description'] }}</div>
+                    <small class="type-label" style="margin-bottom: 8px;">What this means</small>
+                    <div class="type-value" style="font-size: 0.98rem; margin-top: 6px;">{{ $agentContent['description'] }}</div>
                 </div>
                 <div class="meta" style="margin-top: 4px;">
                     <div class="meta-item">
-                        <small>Channel</small>
+                        <small class="type-label">Channel</small>
                         @if ($tenant->channel === 'whatsapp')
-                            <span style="color: var(--text-muted, #9ca3af);">WhatsApp (coming soon)</span>
+                            <span class="type-value">WhatsApp (coming soon)</span>
                         @elseif ($tenant->channel === 'telegram')
-                            <span style="display: inline-flex; align-items: center; gap: 6px;">
+                            <span class="type-value type-value--technical" style="display: inline-flex; align-items: center; gap: 6px;">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-.98-.19-1.46-.35-.59-.2-1.06-.3-1.02-.64.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z" fill="#229ED9"/></svg>
                                 Telegram
                             </span>
                         @else
-                            <span style="color: var(--text-muted, #9ca3af);">Not connected yet</span>
+                            <span class="type-value">Not connected yet</span>
                         @endif
                     </div>
                     <div class="meta-item">
-                        <small>Tone</small>
-                        {{ $tenant->tone ? ucfirst($tenant->tone) : 'Not set yet' }}
+                        <small class="type-label">Tone</small>
+                        <span class="type-value">{{ $tenant->tone ? ucfirst($tenant->tone) : 'Not set yet' }}</span>
                     </div>
                     <div class="meta-item">
-                        <small>Skills</small>
-                        {{ is_array($tenant->capabilities) && $tenant->capabilities !== [] ? implode(', ', $tenant->capabilities) : 'Not selected yet' }}
+                        <small class="type-label">Skills</small>
+                        <span class="type-value">{{ is_array($tenant->capabilities) && $tenant->capabilities !== [] ? implode(', ', $tenant->capabilities) : 'Not selected yet' }}</span>
                     </div>
                     <div class="meta-item">
-                        <small>Last synced</small>
-                        {{ $businessProfile?->last_synced_to_agent?->diffForHumans() ?: 'Not synced yet' }}
+                        <small class="type-label">Last synced</small>
+                        <span class="type-value type-value--technical">{{ $businessProfile?->last_synced_to_agent?->diffForHumans() ?: 'Not synced yet' }}</span>
                     </div>
                 </div>
                 <a href="{{ $agentContent['primary_cta_route'] }}" class="button button--primary" style="align-self: start;" @if ($tenant->agent_status === 'live' && filled($tenant->workspace_url)) rel="noreferrer" @endif>
@@ -336,7 +336,7 @@
                 <div style="margin-top: 18px; display: grid; gap: 14px;">
                     @foreach ($onboardingSummary['steps'] as $number => $step)
                         <div class="meta-item">
-                            <small>Step {{ $number }}</small>
+                            <small class="type-label">Step {{ $number }}</small>
                             <div style="display: flex; justify-content: space-between; gap: 12px; align-items: center;">
                                 <strong>{{ $step['label'] }}</strong>
                                 <span class="badge ready">Done</span>
@@ -351,7 +351,7 @@
                 <div style="margin-top: 18px; display: grid; gap: 14px;">
                     @foreach ($onboardingSummary['steps'] as $number => $step)
                         <div class="meta-item">
-                            <small>Step {{ $number }}</small>
+                            <small class="type-label">Step {{ $number }}</small>
                             <div style="display: flex; justify-content: space-between; gap: 12px; align-items: center;">
                                 <strong>{{ $step['label'] }}</strong>
                                 @if ($step['status'] === 'complete')
@@ -387,10 +387,10 @@
                     <strong>{{ $conversationStats['week'] }}</strong>
                     <p>Sessions in the current week.</p>
                 </div>
-                <div class="stat">
-                    <div class="hint">Channel</div>
-                    @if ($tenant->channel === 'telegram')
-                        <strong style="display: inline-flex; align-items: center; gap: 5px; font-size: 1rem;">
+                        <div class="stat">
+                            <div class="hint">Channel</div>
+                        @if ($tenant->channel === 'telegram')
+                        <strong class="type-value type-value--technical" style="display: inline-flex; align-items: center; gap: 5px; font-size: 1rem;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-.98-.19-1.46-.35-.59-.2-1.06-.3-1.02-.64.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z" fill="#229ED9"/></svg>
                             Telegram
                         </strong>
