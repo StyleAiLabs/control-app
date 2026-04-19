@@ -673,14 +673,27 @@
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
+            /* Override the global `button { background: var(--accent) }` rule */
+            box-shadow: none;
+        }
+        /* Higher-specificity rule to override the `button { background: var(--accent) }` cascade */
+        .sidebar .hamburger-btn,
+        .sidebar .hamburger-btn:hover {
+            background: rgba(255,255,255,0.08);
+            box-shadow: none;
+            transform: none;
+            color: white;
+        }
+        .sidebar .hamburger-btn:hover {
+            background: rgba(255,255,255,0.15);
         }
         .hamburger-btn span {
             display: block;
-            width: 16px;
+            width: 18px;
             height: 2px;
             background: white;
             border-radius: 2px;
-            transition: transform 0.15s ease, opacity 0.15s ease;
+            transition: transform 0.2s ease, opacity 0.15s ease;
         }
         /* Animate to X when open */
         .sidebar.nav-open .hamburger-btn span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
@@ -706,6 +719,8 @@
                 align-items: center;
                 padding: var(--space-2) var(--space-3-5);
                 gap: var(--space-2);
+                /* Must be visible so the absolute-positioned drawer isn't clipped */
+                overflow: visible;
             }
             .sidebar-brand {
                 flex: 1;

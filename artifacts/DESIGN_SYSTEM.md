@@ -491,6 +491,7 @@ Two breakpoints:
 - When the hamburger is tapped, `.nav-open` is toggled on the sidebar; the `.mobile-drawer` expands below the top bar containing: alerts bell (with its own dropdown), all nav links with section labels, and a footer row with user name + logout button
 - Nothing is dropped on mobile — bell, nav links, user name, and logout are all present in the drawer
 - `toggleMobileNav()` manages `nav-open` and `aria-expanded`; `toggleNotifBell(dropdownId)` takes an explicit ID so desktop and mobile bells toggle independently
+- **Critical**: `.sidebar` must have `overflow: visible` at ≤980px — the desktop `overflow-y: auto` would otherwise clip the absolutely-positioned drawer. Always set `overflow: visible` when toggling from a scrollable vertical sidebar to a sticky horizontal bar.
 - `.content` padding reduces to `var(--space-4)` (16px)
 - `.topbar` stacks vertically (`flex-direction: column`) so heading and action buttons don't crowd
 - `.stats`, `.grid-2`, `.meta`, and `.field-grid` collapse to a single column

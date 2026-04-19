@@ -7,6 +7,21 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-20 — Fix: Hamburger Drawer Not Rendering And Button Showing Wrong Color
+
+Date: 2026-04-20
+Status: Implemented
+
+### Overview
+
+Two bugs in the hamburger mobile nav: (1) the `.mobile-drawer` never appeared when the hamburger was tapped because the desktop `overflow-y: auto` on `.sidebar` was clipping the absolutely-positioned drawer; (2) the hamburger button was rendering orange instead of translucent-white because the global `button { background: var(--accent) }` tag rule was overriding `.hamburger-btn` in some cascade scenarios.
+
+### What Changed
+
+- added `overflow: visible` to `.sidebar` inside the `@media (max-width: 980px)` block — the desktop `overflow-y: auto` would clip any `position: absolute` child that overflows the sticky bar
+- added `.sidebar .hamburger-btn` and `.sidebar .hamburger-btn:hover` rules with higher specificity (descendant + class, 0,2,0) to guarantee the translucent-white background wins over the `button { background: var(--accent) }` tag rule (0,0,1)
+- increased hamburger bar width from 16px to 18px for easier tap target
+
 ## 2026-04-20 — Feat: Hamburger Mobile Navigation With Full Element Preservation
 
 Date: 2026-04-20
