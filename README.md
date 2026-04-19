@@ -26,6 +26,7 @@ Start here when opening a new chat or trying to understand the repo:
 
 - `README.md` — canonical repo entrypoint
 - [`artifacts/MEMORY.md`](artifacts/MEMORY.md) — canonical new-chat starter and durable project memory
+- [`artifacts/DESIGN_SYSTEM.md`](artifacts/DESIGN_SYSTEM.md) — canonical UI/design-system reference for Blade surfaces
 - [`artifacts/ARCHITECTURE.md`](artifacts/ARCHITECTURE.md) — canonical as-built technical architecture reference
 - [`artifacts/RELEASE_NOTES.md`](artifacts/RELEASE_NOTES.md) — canonical chronological engineering and product history
 
@@ -35,6 +36,7 @@ Canonical/core docs:
 
 - `README.md`
 - [`artifacts/MEMORY.md`](artifacts/MEMORY.md)
+- [`artifacts/DESIGN_SYSTEM.md`](artifacts/DESIGN_SYSTEM.md)
 - [`artifacts/ARCHITECTURE.md`](artifacts/ARCHITECTURE.md)
 - [`artifacts/RELEASE_NOTES.md`](artifacts/RELEASE_NOTES.md)
 
@@ -56,7 +58,7 @@ Local enforcement helpers:
 If those files conflict with the codebase, the source of truth is:
 
 1. current code
-2. canonical docs in `artifacts/MEMORY.md` and `artifacts/ARCHITECTURE.md`
+2. canonical docs in `artifacts/MEMORY.md`, `artifacts/DESIGN_SYSTEM.md`, and `artifacts/ARCHITECTURE.md`
 3. `artifacts/RELEASE_NOTES.md`
 
 ## What The App Proves
@@ -318,6 +320,8 @@ The hooks fail if code changes land under `app/`, `routes/`, `config/`, or `reso
 - updates to `artifacts/ARCHITECTURE.md`
 - a descriptive added entry in `artifacts/RELEASE_NOTES.md`
 
+Frontend presentation changes under `resources/views/` or `resources/css/` also require an update to `artifacts/DESIGN_SYSTEM.md` so UI truth stays aligned with the shared Blade design contract.
+
 `README.md` remains optional and should be updated when repo entrypoint, setup, or operator guidance changed.
 
 ## Scope Notes
@@ -331,4 +335,4 @@ This repo does not treat the following as complete product areas yet:
 - multi-region scheduling and placement
 - comprehensive production observability
 
-Use `artifacts/RELEASE_NOTES.md` for historical changes and `artifacts/ARCHITECTURE.md` for the current technical shape.
+Use `artifacts/RELEASE_NOTES.md` for historical changes, `artifacts/ARCHITECTURE.md` for the current technical shape, and `artifacts/DESIGN_SYSTEM.md` for current UI/design-system truth.

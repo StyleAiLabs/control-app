@@ -41,6 +41,10 @@ Authenticated dashboard responses are intentionally marked `no-store` / `no-cach
 
 The repo supports a Docker Compose development stack and a production control-plane stack in `docker-compose.prod.yml`.
 
+### Frontend design contract
+
+Blade UI design truth lives in [`artifacts/DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md). This architecture document describes application structure and runtime behavior; the design-system document describes UI principles, tokens, typography rules, component patterns, and usage guidance for the shared app/guest layouts and Blade surfaces.
+
 ### Infrastructure modes
 
 #### `local`

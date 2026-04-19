@@ -26,11 +26,13 @@ Use the docs in this order:
 
 1. this file
 2. [`ARCHITECTURE.md`](ARCHITECTURE.md)
-3. [`RELEASE_NOTES.md`](RELEASE_NOTES.md)
+3. [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md) for UI/design work
+4. [`RELEASE_NOTES.md`](RELEASE_NOTES.md)
 
 Canonical docs:
 
 - `artifacts/MEMORY.md` is the durable new-chat starter
+- `artifacts/DESIGN_SYSTEM.md` is the UI/design-system source of truth for Blade surfaces
 - `artifacts/ARCHITECTURE.md` is the technical deep dive
 - `artifacts/RELEASE_NOTES.md` is the historical changelog
 
@@ -49,6 +51,7 @@ If those files conflict with the codebase, trust:
 ## 3. Current system snapshot
 
 - App shape: Laravel monolith with Blade, PostgreSQL, Redis, queues, scheduler-backed commands, and Laravel password-broker auth recovery
+- Design system shape: `artifacts/DESIGN_SYSTEM.md` is the canonical design-system reference for current Blade UI truth; shared app/guest layouts own the active tokens, typography classes, and component patterns
 - Authenticated dashboard responses are now sent with no-cache headers so workspace status cards do not get stuck on stale browser snapshots
 - Password reset delivery: uses Brevo's HTTP email API when Brevo is enabled; falls back to Laravel's default notification pipeline otherwise
 - Infrastructure modes: `local` and `ssh`
@@ -202,3 +205,4 @@ Treat `artifacts/archive/` and other historical docs as inputs for future work, 
 Use a prompt like this in a fresh chat:
 
 > Read `artifacts/MEMORY.md` first, then `artifacts/ARCHITECTURE.md`, then `artifacts/RELEASE_NOTES.md`. Ground answers in current repo code, especially `routes/web.php`, `routes/console.php`, `config/sync360.php`, and the provisioning/onboarding/conversation services. Assume the canonical docs win over historical plans, but code wins over docs. Pay special attention to the private gateway model, session-log conversation sync, and the rule that `goLive()` must sync workspace files only, never the full runtime. Before ending each chat session, update `artifacts/MEMORY.md`, `artifacts/ARCHITECTURE.md`, and `README.md` if the current project truth changed, and update `artifacts/RELEASE_NOTES.md` if the session introduced a user-facing or architectural change worth recording chronologically.
+> For UI/design work, read `artifacts/DESIGN_SYSTEM.md` immediately after `artifacts/MEMORY.md` and treat it as the current Blade design-system source of truth. Ignore historical redesign artifacts unless the user explicitly asks for background context.

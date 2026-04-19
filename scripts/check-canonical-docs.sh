@@ -12,8 +12,9 @@ Usage:
   scripts/check-canonical-docs.sh --worktree
   scripts/check-canonical-docs.sh --range <git-range>
 
-Checks whether changes under core implementation paths are accompanied by
-required canonical doc updates and a descriptive release-notes entry.
+Checks whether changes under implementation paths are accompanied by
+required canonical doc updates, frontend design-system updates when needed,
+and a descriptive release-notes entry.
 EOF
 }
 
@@ -81,6 +82,12 @@ while IFS= read -r line; do
   changed_files+=("$line")
 done < <("${diff_cmd[@]}")
 
+if [[ "$mode" == "worktree" ]]; then
+  while IFS= read -r line; do
+    changed_files+=("$line")
+  done < <(git ls-files --others --exclude-standard)
+fi
+
 if [[ ${#changed_files[@]} -eq 0 ]]; then
   echo "docs-check: no relevant changes detected for mode '$mode'."
   exit 0
@@ -91,6 +98,7 @@ code_prefixes=(
   "routes/"
   "config/"
   "resources/views/"
+  "resources/css/"
 )
 
 required_docs=(
@@ -99,12 +107,23 @@ required_docs=(
   "artifacts/RELEASE_NOTES.md"
 )
 
+frontend_prefixes=(
+  "resources/views/"
+  "resources/css/"
+)
+
+frontend_required_docs=(
+  "artifacts/DESIGN_SYSTEM.md"
+)
+
 optional_docs=(
   "README.md"
 )
 
 code_changed=()
+frontend_changed=()
 required_docs_changed=()
+frontend_required_docs_changed=()
 optional_docs_changed=()
 
 for file in "${changed_files[@]}"; do
@@ -115,9 +134,23 @@ for file in "${changed_files[@]}"; do
     fi
   done
 
+  for prefix in "${frontend_prefixes[@]}"; do
+    if [[ "$file" == "$prefix"* ]]; then
+      frontend_changed+=("$file")
+      break
+    fi
+  done
+
   for doc in "${required_docs[@]}"; do
     if [[ "$file" == "$doc" ]]; then
       required_docs_changed+=("$file")
+      break
+    fi
+  done
+
+  for doc in "${frontend_required_docs[@]}"; do
+    if [[ "$file" == "$doc" ]]; then
+      frontend_required_docs_changed+=("$file")
       break
     fi
   done
@@ -131,7 +164,7 @@ for file in "${changed_files[@]}"; do
 done
 
 if [[ ${#code_changed[@]} -eq 0 ]]; then
-  echo "docs-check: no core code changes in app/, routes/, config/, or resources/views/."
+  echo "docs-check: no implementation changes in app/, routes/, config/, resources/views/, or resources/css/."
   exit 0
 fi
 
@@ -151,6 +184,25 @@ for doc in "${required_docs[@]}"; do
     missing_docs+=("$doc")
   fi
 done
+
+missing_frontend_docs=()
+if [[ ${#frontend_changed[@]} -gt 0 ]]; then
+  for doc in "${frontend_required_docs[@]}"; do
+    found="false"
+    if [[ ${#frontend_required_docs_changed[@]} -gt 0 ]]; then
+      for changed in "${frontend_required_docs_changed[@]}"; do
+        if [[ "$changed" == "$doc" ]]; then
+          found="true"
+          break
+        fi
+      done
+    fi
+
+    if [[ "$found" != "true" ]]; then
+      missing_frontend_docs+=("$doc")
+    fi
+  done
+fi
 
 release_notes_has_descriptive_addition="false"
 while IFS= read -r line; do
@@ -177,10 +229,14 @@ while IFS= read -r line; do
   fi
 done < <("${release_notes_diff_cmd[@]}" -- artifacts/RELEASE_NOTES.md)
 
-if [[ ${#missing_docs[@]} -eq 0 && "$release_notes_has_descriptive_addition" == "true" ]]; then
+if [[ ${#missing_docs[@]} -eq 0 && ${#missing_frontend_docs[@]} -eq 0 && "$release_notes_has_descriptive_addition" == "true" ]]; then
   echo "docs-check: passed."
   echo "  code changes: ${#code_changed[@]}"
   echo "  required docs updated: ${required_docs[*]}"
+  if [[ ${#frontend_changed[@]} -gt 0 ]]; then
+    echo "  frontend presentation changes: ${#frontend_changed[@]}"
+    echo "  frontend docs updated: ${frontend_required_docs[*]}"
+  fi
   if [[ ${#optional_docs_changed[@]} -gt 0 ]]; then
     echo "  optional docs touched: ${optional_docs_changed[*]}"
   fi
@@ -189,7 +245,7 @@ fi
 
 echo "docs-check: failed."
 echo
-echo "Detected changes under the core implementation paths:"
+echo "Detected changes under implementation paths:"
 for file in "${code_changed[@]:0:12}"; do
   echo "  - $file"
 done
@@ -205,6 +261,14 @@ if [[ ${#missing_docs[@]} -gt 0 ]]; then
   echo
 fi
 
+if [[ ${#missing_frontend_docs[@]} -gt 0 ]]; then
+  echo "Missing required design-system doc updates for frontend presentation changes:"
+  for doc in "${missing_frontend_docs[@]}"; do
+    echo "  - $doc"
+  done
+  echo
+fi
+
 if [[ "$release_notes_has_descriptive_addition" != "true" ]]; then
   echo "Release notes requirement not met:"
   echo "  - artifacts/RELEASE_NOTES.md must include a descriptive added line for this change"
@@ -214,6 +278,11 @@ fi
 
 echo "Required on core implementation changes:"
 for doc in "${required_docs[@]}"; do
+  echo "  - $doc"
+done
+echo
+echo "Required on frontend presentation changes in resources/views/ or resources/css/:"
+for doc in "${frontend_required_docs[@]}"; do
   echo "  - $doc"
 done
 echo

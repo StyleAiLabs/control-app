@@ -7,6 +7,26 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-19 — Canonical Design System Document Added
+
+Date: 2026-04-19
+Status: Implemented
+
+### Overview
+
+Added `artifacts/DESIGN_SYSTEM.md` as the canonical UI/design-system reference for current Sync360 Blade surfaces. Future UI work should align to this code-backed design-system truth instead of relying on historical redesign artifacts or implicit layout knowledge alone.
+
+### What Changed
+
+- documented the current design principles, brand voice, surface split, color/typography/spacing/radius/shadow tokens, component patterns, and usage examples in `artifacts/DESIGN_SYSTEM.md`
+- made the DM Sans + JetBrains Mono typography contract explicit, including when mono is appropriate for IDs, timestamps, ports, runtime strings, log output, and technical status tokens
+- promoted the design-system document into the canonical docs map, durable memory, and architecture references so UI/design truth has a stable home
+- updated the canonical-doc guardrail so frontend presentation changes under `resources/views/` or `resources/css/` require `artifacts/DESIGN_SYSTEM.md`, while unrelated backend-only changes do not
+- taught the worktree docs check to include untracked files, so newly added canonical docs are visible before staging
+- clarified that historical redesign artifacts are reference-only and that current code plus the canonical docs define the active design contract
+- added a 4px-base spacing token scale (`--space-0-5` through `--space-12`, plus `--space-16`/`--space-18` on guest) to both shared Blade layouts so new CSS can reference tokens instead of raw pixel values; migration of existing rules is gradual
+- added an Accessibility section (WCAG 2.1 AA targets) and a Badge State Map to `artifacts/DESIGN_SYSTEM.md`, and flagged the existing missing-focus-ring bug on form inputs as a known gap to fix in code
+
 ## 2026-04-19 — Google Verification Now Gates Customer-Ready Workspace Success And Go Live
 
 Date: 2026-04-19
