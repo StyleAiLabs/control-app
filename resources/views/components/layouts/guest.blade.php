@@ -850,11 +850,16 @@
             color: var(--ink-dark);
             transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
         }
-        input:focus, select:focus {
-            outline: none;
+        input:focus-visible, select:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
             border-color: var(--accent);
             box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.14);
             background: white;
+        }
+        .button:focus-visible, button:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 3px;
         }
         input::placeholder { color: #a29c97; }
 

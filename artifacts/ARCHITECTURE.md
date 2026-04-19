@@ -2,6 +2,8 @@
 
 This document describes the current as-built architecture of the Sync360 Control App based on the repo code.
 
+Shared Blade layouts render keyboard-visible focus states via `:focus-visible` outlines on form controls, buttons, and navigation links, drawn using the brand `--accent` token (WCAG 2.4.7 Focus Visible).
+
 ## 1. Purpose and product boundary
 
 Sync360 Control App is a Laravel monolith that acts as the control plane for tenant-specific OpenClaw workspaces.

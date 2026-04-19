@@ -400,11 +400,20 @@
             min-height: 120px;
             resize: vertical;
         }
-        input:focus, select:focus, textarea:focus {
-            outline: none;
+        input:focus-visible, select:focus-visible, textarea:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
             border-color: var(--accent);
             box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.14);
             background: white;
+        }
+        .button:focus-visible, button:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 3px;
+        }
+        .nav-link:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: -2px;
         }
         input::placeholder,
         textarea::placeholder { color: #a29c97; }
