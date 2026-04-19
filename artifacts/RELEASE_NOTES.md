@@ -7,6 +7,21 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-19 — Visible Focus Ring Restored On Form Controls And Buttons
+
+Date: 2026-04-19
+Status: Implemented
+
+### Overview
+
+Replaced the `outline: none` rules on focused inputs, selects, textareas, and buttons in the shared Blade layouts with `:focus-visible` rings drawn using the brand accent. Keyboard users can now see which control has focus, resolving a WCAG 2.4.7 (Focus Visible) violation. Mouse clicks do not trigger the ring because `:focus-visible` scopes it to keyboard and assistive-tech focus.
+
+### What Changed
+
+- switched authenticated app layout input/select/textarea focus styling from `:focus` with `outline: none` to `:focus-visible` with a 2px accent outline while preserving the existing border and box-shadow glow
+- switched guest layout input/select focus styling to the same `:focus-visible` accent outline approach
+- added `:focus-visible` outline rings for `.button`, bare `button`, and `.nav-link` in the authenticated layout and for `.button`/bare `button` in the guest layout so keyboard navigation across primary actions is also visible
+
 ## 2026-04-19 — DM Sans Typography System Applied Across Blade UI
 
 Date: 2026-04-19

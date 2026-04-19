@@ -415,7 +415,7 @@ Sync360 targets WCAG 2.1 AA for all customer and control-plane surfaces.
 
 - Every interactive element (buttons, links, nav links, inputs, selects, textareas) must show a visible focus indicator for keyboard users.
 - Use `:focus-visible` so the ring appears for keyboard navigation but not for mouse clicks.
-- Known gap: the current layouts apply `input:focus { outline: none }` ([app.blade.php:477](resources/views/components/layouts/app.blade.php#L477), [guest.blade.php:908](resources/views/components/layouts/guest.blade.php#L908)) without a replacement ring. This is a bug to fix in code, not a pattern to copy. New form controls should either keep the default outline or define an explicit `:focus-visible` ring using `var(--accent)`.
+- The shared layouts draw a 2px `var(--accent)` outline with a 2–3px offset on focused inputs, selects, textareas, buttons, and nav links. New interactive elements should follow the same pattern.
 
 ### Motion
 
