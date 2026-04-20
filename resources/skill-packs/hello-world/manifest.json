@@ -1,0 +1,29 @@
+{
+    "skill_id": "hello-world",
+    "version": "1.0.4",
+    "label": "Hello World (by Sync360)",
+    "description": "A simple hello world skill for testing purposes.",
+    "category": "testing",
+    "production_ready": false,
+    "openclaw_skill_ids": [
+        "hello-world"
+    ],
+    "default_agent_skill_ids": [
+        "hello-world"
+    ],
+    "applicable_industries": [],
+    "analytics": {
+        "enabled": true,
+        "conversion_type": "hello_world_completed",
+        "success_event_type": "conversion_succeeded",
+        "required_success_fields": [
+            "event_id",
+            "customer_label",
+            "outcome.greeting"
+        ],
+        "roi_defaults": {
+            "human_effort_minutes": 1,
+            "agent_effort_minutes": 1
+        }
+    }
+}

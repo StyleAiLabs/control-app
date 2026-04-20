@@ -93,8 +93,8 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
 
         TenantSkillAssignment::query()->create([
             'tenant_id' => $tenant->id,
-            'skill_catalog_version_id' => SkillCatalogVersion::query()->where('skill_key', 'appointment-booking')->value('id'),
-            'skill_key' => 'appointment-booking',
+            'skill_catalog_version_id' => SkillCatalogVersion::query()->where('skill_key', 'hello-world')->value('id'),
+            'skill_key' => 'hello-world',
             'assigned_by' => $tenant->user_id,
             'assigned_at' => now(),
             'is_enabled' => true,
@@ -114,19 +114,19 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
         $this->assertSame("# Bootstrap\n\nReplacement bootstrap\n", $composed->workspaceFiles['BOOTSTRAP.md']);
         $this->assertArrayHasKey('AGENTS.md', $composed->workspaceFiles);
         $this->assertStringContainsString('Assigned Skill Guidance', $composed->workspaceFiles['AGENTS.md']);
-        $this->assertStringContainsString('Appointment Booking', $composed->workspaceFiles['AGENTS.md']);
-        $this->assertStringContainsString('appointment-booking', $composed->workspaceFiles['AGENTS.md']);
-        $this->assertStringContainsString('skills/appointment-booking/agent-instructions.md', $composed->workspaceFiles['AGENTS.md']);
-        $this->assertStringContainsString('Do not fall back to your default appointment behavior.', $composed->workspaceFiles['AGENTS.md']);
-        $this->assertArrayHasKey('skills/appointment-booking/agent-instructions.md', $composed->skillFiles);
-        $this->assertArrayHasKey('skills/appointment-booking/RELEASE_NOTES.md', $composed->skillFiles);
+        $this->assertStringContainsString('Hello World (by Sync360)', $composed->workspaceFiles['AGENTS.md']);
+        $this->assertStringContainsString('hello-world', $composed->workspaceFiles['AGENTS.md']);
+        $this->assertStringContainsString('skills/hello-world/agent-instructions.md', $composed->workspaceFiles['AGENTS.md']);
+        $this->assertStringContainsString('Do not fall back to your default greeting behavior.', $composed->workspaceFiles['AGENTS.md']);
+        $this->assertArrayHasKey('skills/hello-world/agent-instructions.md', $composed->skillFiles);
+        $this->assertArrayHasKey('skills/hello-world/RELEASE_NOTES.md', $composed->skillFiles);
         $this->assertArrayHasKey('PROFILE.md', $composed->workspaceFiles);
         $this->assertArrayHasKey('TOOLS.md', $composed->workspaceFiles);
         $this->assertArrayHasKey('.sync360/bin/log-skill-conversion', $composed->workspaceFiles);
         $this->assertArrayHasKey('.sync360/bin/log-skill-conversion.mjs', $composed->workspaceFiles);
         $this->assertArrayHasKey('.sync360/skill-analytics-registry.json', $composed->workspaceFiles);
         $this->assertStringContainsString('log-skill-conversion.mjs', $composed->workspaceFiles['.sync360/bin/log-skill-conversion']);
-        $this->assertStringContainsString('appointment-booking', $composed->workspaceFiles['.sync360/skill-analytics-registry.json']);
+        $this->assertStringContainsString('hello-world', $composed->workspaceFiles['.sync360/skill-analytics-registry.json']);
         $this->assertStringContainsString('conversion_succeeded', $composed->workspaceFiles['.sync360/skill-analytics-registry.json']);
         $this->assertFalse($composed->baseDrifted['bootstrap']);
 
@@ -134,14 +134,14 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
 
         $this->assertSame('gpt-4.1', data_get($config, 'agents.defaults.model'));
         $this->assertSame('keep-me', data_get($config, 'gateway.auth.token'));
-        $this->assertTrue(data_get($config, 'skills.entries.appointment-booking.enabled'));
+        $this->assertTrue(data_get($config, 'skills.entries.hello-world.enabled'));
         $this->assertTrue(data_get($config, 'skills.entries.custom-default-skill.enabled'));
         $this->assertEqualsCanonicalizing(
-            ['existing-skill', 'appointment-booking', 'custom-default-skill', 'gog'],
+            ['existing-skill', 'hello-world', 'custom-default-skill', 'gog'],
             data_get($config, 'agents.defaults.skills')
         );
         $this->assertEqualsCanonicalizing(
-            ['tenant-existing-skill', 'appointment-booking', 'custom-default-skill', 'gog'],
+            ['tenant-existing-skill', 'hello-world', 'custom-default-skill', 'gog'],
             data_get($config, 'agents.list.0.skills')
         );
         $this->assertNotSame('', $composed->contentHash);
@@ -228,8 +228,8 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
 
         TenantSkillAssignment::query()->create([
             'tenant_id' => $tenant->id,
-            'skill_catalog_version_id' => SkillCatalogVersion::query()->where('skill_key', 'appointment-booking')->value('id'),
-            'skill_key' => 'appointment-booking',
+            'skill_catalog_version_id' => SkillCatalogVersion::query()->where('skill_key', 'hello-world')->value('id'),
+            'skill_key' => 'hello-world',
             'assigned_by' => $tenant->user_id,
             'assigned_at' => now(),
             'is_enabled' => false,
@@ -248,11 +248,11 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
 
         $this->assertArrayHasKey('AGENTS.md', $composed->workspaceFiles);
         $this->assertStringNotContainsString('Assigned Skill Guidance', $composed->workspaceFiles['AGENTS.md']);
-        $this->assertStringNotContainsString('Appointment Booking', $composed->workspaceFiles['AGENTS.md']);
+        $this->assertStringNotContainsString('Hello World (by Sync360)', $composed->workspaceFiles['AGENTS.md']);
         $this->assertStringNotContainsString('agent-instructions.md', $composed->workspaceFiles['AGENTS.md']);
-        $this->assertStringNotContainsString('Do not fall back to your default appointment behavior.', $composed->workspaceFiles['AGENTS.md']);
-        $this->assertArrayNotHasKey('skills/appointment-booking/agent-instructions.md', $composed->skillFiles);
-        $this->assertArrayNotHasKey('skills/appointment-booking/RELEASE_NOTES.md', $composed->skillFiles);
+        $this->assertStringNotContainsString('Do not fall back to your default greeting behavior.', $composed->workspaceFiles['AGENTS.md']);
+        $this->assertArrayNotHasKey('skills/hello-world/agent-instructions.md', $composed->skillFiles);
+        $this->assertArrayNotHasKey('skills/hello-world/RELEASE_NOTES.md', $composed->skillFiles);
     }
 
     private function seedTenant(): Tenant

@@ -82,7 +82,7 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         $customization->refresh();
         $provisioningJob->refresh();
 
-        $skillPackFile = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skills/appointment-booking/SKILL.md';
+        $skillPackFile = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skills/hello-world/SKILL.md';
         $identityFile = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/IDENTITY.md';
 
         $this->assertFileExists($skillPackFile);
@@ -126,10 +126,10 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
                 ],
                 'assigned_skills' => [
                     [
-                        'skill_key' => 'appointment-booking',
-                        'skill_catalog_version_id' => SkillCatalogVersion::query()->where('skill_key', 'appointment-booking')->value('id'),
-                        'openclaw_skill_ids' => ['appointment-booking'],
-                        'default_agent_skill_ids' => ['appointment-booking'],
+                        'skill_key' => 'hello-world',
+                        'skill_catalog_version_id' => SkillCatalogVersion::query()->where('skill_key', 'hello-world')->value('id'),
+                        'openclaw_skill_ids' => ['hello-world'],
+                        'default_agent_skill_ids' => ['hello-world'],
                     ],
                 ],
                 'agent_defaults' => [],
@@ -169,10 +169,10 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
             'last_applied_input_snapshot_json' => [
                 'assigned_skills' => [
                     [
-                        'skill_key' => 'appointment-booking',
-                        'skill_catalog_version_id' => SkillCatalogVersion::query()->where('skill_key', 'appointment-booking')->value('id'),
-                        'openclaw_skill_ids' => ['appointment-booking'],
-                        'default_agent_skill_ids' => ['appointment-booking'],
+                        'skill_key' => 'hello-world',
+                        'skill_catalog_version_id' => SkillCatalogVersion::query()->where('skill_key', 'hello-world')->value('id'),
+                        'openclaw_skill_ids' => ['hello-world'],
+                        'default_agent_skill_ids' => ['hello-world'],
                     ],
                 ],
                 'agent_defaults' => [],
@@ -243,7 +243,7 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         $this->assertNotNull($configUpload);
         $config = json_decode($configUpload['contents'], true);
 
-        $this->assertFalse(data_get($config, 'skills.entries.appointment-booking.enabled'));
+        $this->assertFalse(data_get($config, 'skills.entries.hello-world.enabled'));
         $this->assertSame([], $runner->removedDirectories);
         $this->assertNotEmpty($runner->workspaceSyncs);
     }
@@ -290,7 +290,7 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         ]);
 
         Artisan::call('sync360:skills:import');
-        $catalogVersionId = SkillCatalogVersion::query()->where('skill_key', 'appointment-booking')->value('id');
+        $catalogVersionId = SkillCatalogVersion::query()->where('skill_key', 'hello-world')->value('id');
 
         $customization = TenantAgentCustomization::query()->create([
             'tenant_id' => $tenant->id,
@@ -312,7 +312,7 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         TenantSkillAssignment::query()->create([
             'tenant_id' => $tenant->id,
             'skill_catalog_version_id' => $catalogVersionId,
-            'skill_key' => 'appointment-booking',
+            'skill_key' => 'hello-world',
             'assigned_by' => $user->id,
             'assigned_at' => now(),
             'is_enabled' => true,

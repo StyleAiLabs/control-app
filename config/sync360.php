@@ -87,17 +87,17 @@ return [
         ],
     ],
     'skill_registry' => [
-        'appointment-booking' => [
-            'id' => 'appointment-booking',
-            'label' => 'Appointment Booking',
-            'version' => '1.0.0',
-            'description' => 'Guides customers through booking requests and next-step confirmation.',
+        'hello-world' => [
+            'id' => 'hello-world',
+            'label' => 'Hello World (by Sync360)',
+            'version' => '1.0.4',
+            'description' => 'A simple hello world skill for testing purposes.',
             'workspace_files' => [
-                'APPOINTMENT_BOOKING.md',
-                'skills/appointment-booking',
+                'HELLO_WORLD.md',
+                'skills/hello-world',
             ],
-            'openclaw_skill_ids' => ['appointment-booking'],
-            'default_agent_skill_ids' => ['appointment-booking'],
+            'openclaw_skill_ids' => ['hello-world'],
+            'default_agent_skill_ids' => ['hello-world'],
             'applicable_industries' => [],
         ],
     ],

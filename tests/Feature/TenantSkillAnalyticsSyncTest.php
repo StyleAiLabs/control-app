@@ -33,19 +33,18 @@ class TenantSkillAnalyticsSyncTest extends TestCase
         ]);
 
         $this->artisan('sync360:skills:import')->assertExitCode(0);
-        $this->assignAppointmentBookingSkill($tenant, $owner);
+        $this->assignHelloWorldSkill($tenant, $owner);
         $this->materializeWorkspaceArtifacts($tenant);
 
         $workspacePath = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace';
         $payload = json_encode([
-            'event_id' => 'booking-event-001',
+            'event_id' => 'hello-event-001',
             'occurred_at' => '2026-04-20T10:15:00+00:00',
             'session_id' => 'session-001',
             'customer_label' => 'Jane Doe',
             'contact_masked' => 'j***@example.com',
             'outcome' => [
-                'scheduled_at' => '2026-04-21T09:30:00+00:00',
-                'service_name' => 'Initial consultation',
+                'greeting' => 'Hello, world!',
             ],
         ], JSON_UNESCAPED_SLASHES);
 
@@ -53,9 +52,9 @@ class TenantSkillAnalyticsSyncTest extends TestCase
             'sh',
             '.sync360/bin/log-skill-conversion',
             '--skill',
-            'appointment-booking',
+            'hello-world',
             '--conversion-id',
-            'booking-ref-001',
+            'hello-ref-001',
             '--payload-json',
             $payload,
         ], $workspacePath);
@@ -67,14 +66,14 @@ class TenantSkillAnalyticsSyncTest extends TestCase
 
         $this->assertDatabaseHas('tenant_skill_conversion_events', [
             'tenant_id' => $tenant->id,
-            'event_id' => 'booking-event-001',
-            'skill_key' => 'appointment-booking',
-            'skill_version' => '1.0.3',
-            'conversion_type' => 'appointment_booked',
-            'conversion_id' => 'booking-ref-001',
+            'event_id' => 'hello-event-001',
+            'skill_key' => 'hello-world',
+            'skill_version' => '1.0.4',
+            'conversion_type' => 'hello_world_completed',
+            'conversion_id' => 'hello-ref-001',
             'customer_label' => 'Jane Doe',
             'contact_masked' => 'j***@example.com',
-            'human_effort_minutes' => 10,
+            'human_effort_minutes' => 1,
             'agent_effort_minutes' => 1,
             'productivity_score' => 1,
         ]);
@@ -89,7 +88,7 @@ class TenantSkillAnalyticsSyncTest extends TestCase
             ->assertSee('Skill Outcomes')
             ->assertSee('Estimated Time Saved')
             ->assertSee('Productivity Score')
-            ->assertSee('Appointment Booking')
+            ->assertSee('Hello World')
             ->assertSee('1 successful conversion')
             ->assertDontSee('Estimated Value Created');
 
@@ -97,15 +96,15 @@ class TenantSkillAnalyticsSyncTest extends TestCase
             ->get(route('admin.analytics.skills'))
             ->assertOk()
             ->assertSee('Skill Analytics')
-            ->assertSee('Appointment Booking')
+            ->assertSee('Hello World')
             ->assertSee('Acme Analytics')
-            ->assertSee('booking-ref-001');
+            ->assertSee('hello-ref-001');
 
         $this->actingAs($admin)
             ->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'analytics']))
             ->assertOk()
             ->assertSee('Estimated Skill Impact')
-            ->assertSee('booking-ref-001')
+            ->assertSee('hello-ref-001')
             ->assertSee('session-001');
     }
 
@@ -114,7 +113,7 @@ class TenantSkillAnalyticsSyncTest extends TestCase
         [$tenant, $owner] = $this->seedTenant('analytics-prune', 'Analytics Prune');
 
         $this->artisan('sync360:skills:import')->assertExitCode(0);
-        $this->assignAppointmentBookingSkill($tenant, $owner);
+        $this->assignHelloWorldSkill($tenant, $owner);
         $this->materializeWorkspaceArtifacts($tenant);
 
         $dbPath = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/data/analytics/skill-events.sqlite';
@@ -157,10 +156,10 @@ class TenantSkillAnalyticsSyncTest extends TestCase
 
         $statement->execute([
             'event_id' => 'broken-event-001',
-            'skill_key' => 'appointment-booking',
-            'skill_version' => '1.0.3',
+            'skill_key' => 'hello-world',
+            'skill_version' => '1.0.4',
             'event_type' => 'conversion_succeeded',
-            'conversion_type' => 'appointment_booked',
+            'conversion_type' => 'hello_world_completed',
             'conversion_id' => 'broken-ref',
             'occurred_at' => now()->subDays(10)->toIso8601String(),
             'session_id' => null,
@@ -266,14 +265,14 @@ class TenantSkillAnalyticsSyncTest extends TestCase
         return [$tenant, $owner];
     }
 
-    private function assignAppointmentBookingSkill(Tenant $tenant, User $owner): void
+    private function assignHelloWorldSkill(Tenant $tenant, User $owner): void
     {
-        $version = SkillCatalogVersion::query()->where('skill_key', 'appointment-booking')->firstOrFail();
+        $version = SkillCatalogVersion::query()->where('skill_key', 'hello-world')->firstOrFail();
 
         TenantSkillAssignment::query()->create([
             'tenant_id' => $tenant->id,
             'skill_catalog_version_id' => $version->id,
-            'skill_key' => 'appointment-booking',
+            'skill_key' => 'hello-world',
             'assigned_by' => $owner->id,
             'assigned_at' => now(),
             'is_enabled' => true,

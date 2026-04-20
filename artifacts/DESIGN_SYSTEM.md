@@ -79,6 +79,8 @@ Control-plane UI should be:
 - precise for IDs, paths, ports, timestamps, logs, and runtime state
 - comfortable showing compact rollups plus recent evidence rows on the same screen for admin analytics surfaces
 
+Admin skill forms should use concrete placeholder examples that match the current catalog reference skill. Use `hello-world` for the built-in custom-skill example rather than historical `appointment-booking` copy.
+
 ### Shared Rules
 
 - Use `DM Sans` by default.

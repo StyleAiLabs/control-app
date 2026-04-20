@@ -29,20 +29,20 @@ class TenantSkillRuntimeLayoutTest extends TestCase
         [$tenant, $customization] = $this->seedTenantAndCustomization();
 
         $version = \App\Models\SkillCatalogVersion::query()
-            ->where('skill_key', 'appointment-booking')
+            ->where('skill_key', 'hello-world')
             ->firstOrFail();
 
         \App\Models\TenantSkillAssignment::query()->create([
             'tenant_id' => $tenant->id,
             'skill_catalog_version_id' => $version->id,
-            'skill_key' => 'appointment-booking',
+            'skill_key' => 'hello-world',
             'assigned_by' => $customization->draft_updated_by,
             'assigned_at' => now(),
             'is_enabled' => true,
         ]);
 
-        File::ensureDirectoryExists(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skill-packs/appointment-booking');
-        File::put(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skill-packs/appointment-booking/STALE.md', 'stale');
+        File::ensureDirectoryExists(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skill-packs/hello-world');
+        File::put(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skill-packs/hello-world/STALE.md', 'stale');
 
         $runner = new class implements DockerComposeRunner
         {
@@ -79,13 +79,13 @@ class TenantSkillRuntimeLayoutTest extends TestCase
             app(\App\Services\TenantRuntimeCustomizationComposer::class),
         );
 
-        $this->assertFileDoesNotExist(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skill-packs/appointment-booking/STALE.md');
-        $this->assertFileExists(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skills/appointment-booking/SKILL.md');
-        $this->assertFileExists(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skills/appointment-booking/agent-instructions.md');
-        $this->assertFileExists(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skills/appointment-booking/RELEASE_NOTES.md');
-        $this->assertFileExists(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skills/appointment-booking/docs/APPOINTMENT_BOOKING.md');
-        $this->assertStringContainsString('Do not fall back to your default appointment behavior.', File::get(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/AGENTS.md'));
-        $this->assertFileDoesNotExist(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skills/appointment-booking/skills/appointment-booking/README.md');
+        $this->assertFileDoesNotExist(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skill-packs/hello-world/STALE.md');
+        $this->assertFileExists(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skills/hello-world/SKILL.md');
+        $this->assertFileExists(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skills/hello-world/agent-instructions.md');
+        $this->assertFileExists(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skills/hello-world/RELEASE_NOTES.md');
+        $this->assertFileExists(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skills/hello-world/docs/HELLO_WORLD.md');
+        $this->assertStringContainsString('Do not fall back to your default greeting behavior.', File::get(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/AGENTS.md'));
+        $this->assertFileDoesNotExist(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skills/hello-world/skills/hello-world/README.md');
     }
 
     private function seedTenantAndCustomization(): array

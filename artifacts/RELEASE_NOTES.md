@@ -19,8 +19,9 @@ Added a required pack-level `RELEASE_NOTES.md` and tightened the custom skill au
 ### What Changed
 
 - made skill scan/import reject missing, empty, or stale root `RELEASE_NOTES.md` files that do not mention the current manifest version
-- bumped the appointment-booking skill pack to `1.0.3`
-- added appointment-booking release notes describing the runtime agent-instruction change
+- renamed the reference custom skill from `appointment-booking` to `hello-world` with label `Hello World (by Sync360)`
+- bumped the hello-world skill pack to `1.0.4`
+- added hello-world release notes describing the runtime agent-instruction change
 - updated custom skill authoring guidance to require version bumps and release note entries for even small skill-info changes
 
 ## 2026-04-21 — Feature: Skill Agent Instructions Inject Into Tenant `AGENTS.md`
@@ -105,14 +106,14 @@ Status: Implemented
 
 ### Overview
 
-Simplified the repo-authored appointment-booking skill layout so the local source tree matches the runtime materialization model.
+Simplified the repo-authored hello-world skill layout so the local source tree matches the runtime materialization model.
 
 ### What Changed
 
-- moved supporting appointment-booking guidance under `resources/skill-packs/appointment-booking/docs/`
-- removed the confusing nested `resources/skill-packs/appointment-booking/skills/appointment-booking/` scaffold
+- moved supporting hello-world guidance under `resources/skill-packs/hello-world/docs/`
+- removed the confusing nested `resources/skill-packs/hello-world/skills/hello-world/` scaffold
 - added `resources/skill-packs/CUSTOM_SKILL_AUTHORING_PROMPT.md` as the reusable guideline prompt for creating platform-compliant custom skills with analytics and tracking
-- added regression coverage that tenant runtime materialization creates `skills/appointment-booking/docs/...` and does not recreate nested `skills/appointment-booking/skills/appointment-booking/...`
+- added regression coverage that tenant runtime materialization creates `skills/hello-world/docs/...` and does not recreate nested `skills/hello-world/skills/hello-world/...`
 
 ## 2026-04-20 — Feat: Custom Skill Conversion Analytics Via Runtime SQLite Sync
 
@@ -131,7 +132,7 @@ Implemented v1 custom-skill conversion analytics with a Sync360-owned runtime SQ
 - added control-plane ingestion with per-tenant cursoring and 7-day runtime-row pruning through `sync360:sync-skill-conversions`, scheduled every 30 minutes
 - added `tenant_skill_conversion_events` and `tenant_skill_analytics_sync_states` for central storage
 - tenant dashboard now shows a `Skill Outcomes` panel with estimated conversions, time saved, productivity score, and ROI, while admin now has both a global `Skill Analytics` page and a tenant-detail `Analytics` tab
-- updated the reference `appointment-booking` skill to include the analytics contract and guidance for emitting success events
+- updated the reference `hello-world` skill to include the analytics contract and guidance for emitting success events
 
 ## 2026-04-20 — Hardening: LiteLLM Key Generation Is Now Provisioning-Only
 

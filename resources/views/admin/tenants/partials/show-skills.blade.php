@@ -122,7 +122,7 @@
                                 type="text"
                                 name="agent_defaults[default_skill_ids]"
                                 value="{{ implode(', ', $agentDefaults['default_skill_ids'] ?? []) }}"
-                                placeholder="appointment-booking, follow-up-skill"
+                                placeholder="hello-world, follow-up-skill"
                                 data-skill-ids-input
                             >
                         </label>

@@ -14,6 +14,7 @@ use App\Models\TenantAgentCustomization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
@@ -27,7 +28,7 @@ class TenantSkillCatalogWorkflowTest extends TestCase
     {
         $this->artisan('sync360:skills:scan')
             ->assertExitCode(0)
-            ->expectsOutputToContain('appointment-booking');
+            ->expectsOutputToContain('hello-world');
 
         $this->assertDatabaseCount('skill_catalog_items', 0);
         $this->assertDatabaseCount('skill_catalog_versions', 0);
@@ -35,9 +36,9 @@ class TenantSkillCatalogWorkflowTest extends TestCase
 
     public function test_scan_command_can_filter_to_one_skill(): void
     {
-        $this->artisan('sync360:skills:scan', ['--skill' => 'appointment-booking'])
+        $this->artisan('sync360:skills:scan', ['--skill' => 'hello-world'])
             ->assertExitCode(0)
-            ->expectsOutputToContain('appointment-booking');
+            ->expectsOutputToContain('hello-world');
     }
 
     public function test_scan_command_surfaces_invalid_manifest_instead_of_silently_skipping(): void
@@ -60,13 +61,13 @@ class TenantSkillCatalogWorkflowTest extends TestCase
 
     public function test_scan_command_requires_agent_instructions_file(): void
     {
-        $instructionsPath = base_path('resources/skill-packs/appointment-booking/agent-instructions.md');
-        $holdingPath = storage_path('framework/testing/appointment-booking-agent-instructions.md');
+        $instructionsPath = base_path('resources/skill-packs/hello-world/agent-instructions.md');
+        $holdingPath = storage_path('framework/testing/hello-world-agent-instructions.md');
         File::ensureDirectoryExists(dirname($holdingPath));
         File::move($instructionsPath, $holdingPath);
 
         try {
-            $this->artisan('sync360:skills:scan', ['--skill' => 'appointment-booking'])
+            $this->artisan('sync360:skills:scan', ['--skill' => 'hello-world'])
                 ->assertExitCode(1)
                 ->expectsOutputToContain('agent-instructions.md');
         } finally {
@@ -78,13 +79,13 @@ class TenantSkillCatalogWorkflowTest extends TestCase
 
     public function test_scan_command_requires_release_notes_file(): void
     {
-        $releaseNotesPath = base_path('resources/skill-packs/appointment-booking/RELEASE_NOTES.md');
-        $holdingPath = storage_path('framework/testing/appointment-booking-release-notes.md');
+        $releaseNotesPath = base_path('resources/skill-packs/hello-world/RELEASE_NOTES.md');
+        $holdingPath = storage_path('framework/testing/hello-world-release-notes.md');
         File::ensureDirectoryExists(dirname($holdingPath));
         File::move($releaseNotesPath, $holdingPath);
 
         try {
-            $this->artisan('sync360:skills:scan', ['--skill' => 'appointment-booking'])
+            $this->artisan('sync360:skills:scan', ['--skill' => 'hello-world'])
                 ->assertExitCode(1)
                 ->expectsOutputToContain('RELEASE_NOTES.md');
         } finally {
@@ -96,12 +97,12 @@ class TenantSkillCatalogWorkflowTest extends TestCase
 
     public function test_scan_command_requires_release_notes_to_include_current_manifest_version(): void
     {
-        $releaseNotesPath = base_path('resources/skill-packs/appointment-booking/RELEASE_NOTES.md');
+        $releaseNotesPath = base_path('resources/skill-packs/hello-world/RELEASE_NOTES.md');
         $originalReleaseNotes = File::get($releaseNotesPath);
-        File::put($releaseNotesPath, str_replace('1.0.3', '1.0.2', $originalReleaseNotes));
+        File::put($releaseNotesPath, str_replace('1.0.4', '1.0.2', $originalReleaseNotes));
 
         try {
-            $this->artisan('sync360:skills:scan', ['--skill' => 'appointment-booking'])
+            $this->artisan('sync360:skills:scan', ['--skill' => 'hello-world'])
                 ->assertExitCode(1)
                 ->expectsOutputToContain('current manifest version');
         } finally {
@@ -111,7 +112,7 @@ class TenantSkillCatalogWorkflowTest extends TestCase
 
     public function test_local_import_includes_non_production_ready_skills(): void
     {
-        $manifestPath = base_path('resources/skill-packs/appointment-booking/manifest.json');
+        $manifestPath = base_path('resources/skill-packs/hello-world/manifest.json');
         $originalManifest = json_decode(File::get($manifestPath), true);
         $modifiedManifest = $originalManifest;
         $modifiedManifest['production_ready'] = false;
@@ -122,10 +123,10 @@ class TenantSkillCatalogWorkflowTest extends TestCase
 
             $this->artisan('sync360:skills:import')
                 ->assertExitCode(0)
-                ->expectsOutputToContain('Imported appointment-booking@1.0.3');
+                ->expectsOutputToContain('Imported hello-world@1.0.4');
 
             $this->assertDatabaseHas('skill_catalog_items', [
-                'skill_key' => 'appointment-booking',
+                'skill_key' => 'hello-world',
             ]);
         } finally {
             File::put($manifestPath, json_encode($originalManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
@@ -134,7 +135,7 @@ class TenantSkillCatalogWorkflowTest extends TestCase
 
     public function test_non_local_import_skips_non_production_ready_skills(): void
     {
-        $manifestPath = base_path('resources/skill-packs/appointment-booking/manifest.json');
+        $manifestPath = base_path('resources/skill-packs/hello-world/manifest.json');
         $originalManifest = json_decode(File::get($manifestPath), true);
         $modifiedManifest = $originalManifest;
         $modifiedManifest['production_ready'] = false;
@@ -145,10 +146,10 @@ class TenantSkillCatalogWorkflowTest extends TestCase
 
             $this->artisan('sync360:skills:import')
                 ->assertExitCode(0)
-                ->expectsOutputToContain('skipped appointment-booking');
+                ->expectsOutputToContain('skipped hello-world');
 
             $this->assertDatabaseMissing('skill_catalog_items', [
-                'skill_key' => 'appointment-booking',
+                'skill_key' => 'hello-world',
             ]);
         } finally {
             File::put($manifestPath, json_encode($originalManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
@@ -185,7 +186,7 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $this->artisan('sync360:skills:import')->assertExitCode(0);
 
         $publishedVersion = \App\Models\SkillCatalogVersion::query()
-            ->where('skill_key', 'appointment-booking')
+            ->where('skill_key', 'hello-world')
             ->first();
 
         $this->assertNotNull($publishedVersion);
@@ -194,7 +195,7 @@ class TenantSkillCatalogWorkflowTest extends TestCase
             \App\Models\TenantSkillAssignment::query()->create([
                 'tenant_id' => $tenant->id,
                 'skill_catalog_version_id' => $publishedVersion->id,
-                'skill_key' => 'appointment-booking',
+                'skill_key' => 'hello-world',
                 'assigned_by' => $admin->id,
                 'assigned_at' => now(),
                 'is_enabled' => true,
@@ -213,11 +214,11 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $this->actingAs($admin);
 
         $this->post(route('admin.skills.versions.rollout', [
-            'skill' => 'appointment-booking',
+            'skill' => 'hello-world',
             'version' => $publishedVersion->id,
         ]), [
             'tenant_ids' => [$tenantA->id, $tenantB->id],
-        ])->assertRedirect(route('admin.skills.show', 'appointment-booking'));
+        ])->assertRedirect(route('admin.skills.show', 'hello-world'));
 
         $jobs = ProvisioningJob::query()
             ->where('job_type', ApplyTenantAgentCustomization::JOB_TYPE)
@@ -233,13 +234,13 @@ class TenantSkillCatalogWorkflowTest extends TestCase
     {
         $this->assertTrue(Artisan::call('sync360:skills:import') === 0);
 
-        $skill = \App\Models\SkillCatalogItem::query()->firstWhere('skill_key', 'appointment-booking');
+        $skill = \App\Models\SkillCatalogItem::query()->firstWhere('skill_key', 'hello-world');
         $this->assertNotNull($skill);
 
-        $orphanedHoldingPath = storage_path('framework/testing/appointment-booking-orphaned-test');
+        $orphanedHoldingPath = storage_path('framework/testing/hello-world-orphaned-test');
         File::ensureDirectoryExists(dirname($orphanedHoldingPath));
         File::move(
-            base_path('resources/skill-packs/appointment-booking'),
+            base_path('resources/skill-packs/hello-world'),
             $orphanedHoldingPath
         );
 
@@ -255,10 +256,154 @@ class TenantSkillCatalogWorkflowTest extends TestCase
             if (File::isDirectory($orphanedHoldingPath)) {
                 File::move(
                     $orphanedHoldingPath,
-                    base_path('resources/skill-packs/appointment-booking')
+                    base_path('resources/skill-packs/hello-world')
                 );
             }
         }
+    }
+
+    public function test_appointment_booking_to_hello_world_migration_updates_catalog_assignments_events_and_snapshots(): void
+    {
+        $tenant = $this->seedTenant('migration-shop', 'Migration Shop');
+        $now = now();
+
+        $itemId = DB::table('skill_catalog_items')->insertGetId([
+            'skill_key' => 'appointment-booking',
+            'label' => 'Appointment Booking',
+            'description' => 'Guides customers through booking requests and next-step confirmation.',
+            'category' => 'operations',
+            'is_assignable' => true,
+            'is_orphaned' => false,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $versionId = DB::table('skill_catalog_versions')->insertGetId([
+            'skill_catalog_item_id' => $itemId,
+            'skill_key' => 'appointment-booking',
+            'version' => '1.0.3',
+            'manifest_json' => json_encode([
+                'skill_id' => 'appointment-booking',
+                'version' => '1.0.3',
+                'label' => 'Appointment Booking',
+                'analytics' => [
+                    'enabled' => true,
+                    'conversion_type' => 'appointment_booked',
+                ],
+            ], JSON_UNESCAPED_SLASHES),
+            'is_active_published' => true,
+            'is_archived' => false,
+            'is_available' => true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        \App\Models\TenantSkillAssignment::query()->create([
+            'tenant_id' => $tenant->id,
+            'skill_catalog_version_id' => $versionId,
+            'skill_key' => 'appointment-booking',
+            'assigned_by' => $tenant->user_id,
+            'assigned_at' => $now,
+            'is_enabled' => true,
+        ]);
+
+        DB::table('tenant_skill_conversion_events')->insert([
+            'tenant_id' => $tenant->id,
+            'event_id' => 'migration-event-001',
+            'skill_key' => 'appointment-booking',
+            'skill_version' => '1.0.3',
+            'event_type' => 'conversion_succeeded',
+            'conversion_type' => 'appointment_booked',
+            'conversion_id' => 'migration-conversion-001',
+            'occurred_at' => $now,
+            'customer_label' => 'Migration Customer',
+            'human_effort_minutes' => 10,
+            'agent_effort_minutes' => 1,
+            'net_minutes_saved' => 9,
+            'productivity_score' => 1,
+            'outcome_json' => json_encode(['service_name' => 'Migration'], JSON_UNESCAPED_SLASHES),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $customization = TenantAgentCustomization::query()->create([
+            'tenant_id' => $tenant->id,
+            'prompt_overrides_json' => [],
+            'agent_defaults_json' => [
+                'default_skill_ids' => ['appointment-booking'],
+            ],
+            'draft_version' => 1,
+            'draft_updated_by' => $tenant->user_id,
+            'draft_updated_at' => $now,
+            'last_applied_input_snapshot_json' => [
+                'assigned_skills' => [
+                    [
+                        'skill_key' => 'appointment-booking',
+                        'openclaw_skill_ids' => ['appointment-booking'],
+                        'default_agent_skill_ids' => ['appointment-booking'],
+                    ],
+                ],
+            ],
+        ]);
+
+        DB::table('tenant_agent_customization_applies')->insert([
+            'tenant_agent_customization_id' => $customization->id,
+            'tenant_id' => $tenant->id,
+            'applied_by' => $tenant->user_id,
+            'action' => 'apply',
+            'draft_version_applied' => 1,
+            'input_snapshot_json' => json_encode([
+                'assigned_skills' => [
+                    [
+                        'skill_key' => 'appointment-booking',
+                        'openclaw_skill_ids' => ['appointment-booking'],
+                    ],
+                ],
+            ], JSON_UNESCAPED_SLASHES),
+            'composed_output_json' => json_encode([
+                'workspace_files' => [
+                    'AGENTS.md' => 'Appointment Booking uses appointment-booking and appointment_booked.',
+                ],
+            ], JSON_UNESCAPED_SLASHES),
+            'status' => 'applied',
+            'created_at' => $now,
+        ]);
+
+        $migration = require base_path('database/migrations/2026_04_21_103602_migrate_appointment_booking_to_hello_world_skill.php');
+        $migration->up();
+
+        $this->assertDatabaseHas('skill_catalog_items', [
+            'skill_key' => 'hello-world',
+            'label' => 'Hello World (by Sync360)',
+        ]);
+        $this->assertDatabaseHas('skill_catalog_versions', [
+            'skill_key' => 'hello-world',
+            'version' => '1.0.3',
+        ]);
+        $this->assertDatabaseHas('tenant_skill_assignments', [
+            'tenant_id' => $tenant->id,
+            'skill_key' => 'hello-world',
+        ]);
+        $this->assertDatabaseHas('tenant_skill_conversion_events', [
+            'tenant_id' => $tenant->id,
+            'skill_key' => 'hello-world',
+            'conversion_type' => 'hello_world_completed',
+        ]);
+
+        $manifest = json_decode((string) DB::table('skill_catalog_versions')->value('manifest_json'), true);
+        $this->assertSame('hello-world', $manifest['skill_id']);
+        $this->assertSame('1.0.3', $manifest['version']);
+        $this->assertSame('Hello World (by Sync360)', $manifest['label']);
+        $this->assertSame('hello_world_completed', data_get($manifest, 'analytics.conversion_type'));
+
+        $customization->refresh();
+        $this->assertSame(['hello-world'], data_get($customization->agent_defaults_json, 'default_skill_ids'));
+        $this->assertSame('hello-world', data_get($customization->last_applied_input_snapshot_json, 'assigned_skills.0.skill_key'));
+
+        $apply = DB::table('tenant_agent_customization_applies')->first();
+        $this->assertStringContainsString('hello-world', (string) $apply->input_snapshot_json);
+        $this->assertStringContainsString('Hello World (by Sync360)', (string) $apply->composed_output_json);
+        $this->assertStringContainsString('hello_world_completed', (string) $apply->composed_output_json);
     }
 
     public function test_skill_analytics_discovery_command_writes_a_finding_document(): void
@@ -277,12 +422,12 @@ class TenantSkillCatalogWorkflowTest extends TestCase
 
     public function test_import_fails_when_analytics_enabled_skill_manifest_is_missing_required_fields(): void
     {
-        $manifestPath = base_path('resources/skill-packs/appointment-booking/manifest.json');
+        $manifestPath = base_path('resources/skill-packs/hello-world/manifest.json');
         $originalManifest = json_decode(File::get($manifestPath), true);
         $modifiedManifest = $originalManifest;
         $modifiedManifest['analytics'] = [
             'enabled' => true,
-            'conversion_type' => 'appointment_booked',
+            'conversion_type' => 'hello_world_completed',
         ];
         File::put($manifestPath, json_encode($modifiedManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
 
@@ -293,10 +438,10 @@ class TenantSkillCatalogWorkflowTest extends TestCase
 
             $this->artisan('sync360:skills:import')
                 ->assertExitCode(0)
-                ->expectsOutputToContain('skipped appointment-booking');
+                ->expectsOutputToContain('skipped hello-world');
 
             $this->assertDatabaseMissing('skill_catalog_items', [
-                'skill_key' => 'appointment-booking',
+                'skill_key' => 'hello-world',
             ]);
         } finally {
             File::put($manifestPath, json_encode($originalManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
