@@ -7,6 +7,21 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-21 — Fix: Calendar Booking Uses Correct `gog` Create Shape
+
+Date: 2026-04-21
+Status: Implemented
+
+### Overview
+
+Fixed the generated Google Workspace guidance that let the tenant assistant invent unsupported Calendar booking/reminder flags even though the tenant `gog` runtime was healthy.
+
+### What Changed
+
+- added explicit `gog calendar create <calendarId> --summary ... --from ... --to ... --reminder ...` guidance for Calendar booking/reminder requests
+- warned against unsupported `gog calendar event create`, `--title`, `--start`, `--end`, and `--calendar` forms that the pinned `gog` CLI rejects
+- added regression coverage for the generated Calendar write command shape
+
 ## 2026-04-21 — Fix: Skill Analytics Added To Sidebar Navigation
 
 Date: 2026-04-21

@@ -561,6 +561,8 @@ The Google smoke path now verifies the real native direct `gog` CLI surface the 
 - `gog <service> --help` succeeds for the broader allowlisted services
 - then the existing refresh-token, Gmail API, and Calendar API smoke checks run
 
+Generated tenant `TOOLS.md` also documents the write-side Calendar command shape because the pinned `gog` CLI uses `gog calendar create <calendarId> --summary ... --from ... --to ...` for bookings/reminders. It explicitly rejects the unsupported `gog calendar event create`, `--title`, `--start`, `--end`, and `--calendar` shapes so the assistant does not recover from a read-only smoke pass by inventing non-existent write flags.
+
 This closes the previous gap where auth/API smoke could pass while the assistant still improvised an invalid `gog` command and misreported it as a `credentials.json` problem.
 
 If capability verification fails during repair or Google sync, Sync360 explicitly writes `runtime_sync_status=failed` and stores the precise `last_error`, even if the tenant had previously been marked verified.

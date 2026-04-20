@@ -67,6 +67,29 @@ class GogCommandCatalogServiceTest extends TestCase
         ], $service->runtimeEnvironmentFor($tenant->fresh('googleCredential')));
     }
 
+    public function test_tool_guidance_includes_calendar_write_command_shape(): void
+    {
+        /** @var GogCommandCatalogService $service */
+        $service = app(GogCommandCatalogService::class);
+        $tenant = $this->seedTenant();
+        $credential = $tenant->googleCredential()->create([
+            'status' => TenantGoogleCredential::STATUS_CONNECTED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_VERIFIED,
+            'google_email' => 'owner@example.com',
+            'access_token' => 'google-access-token',
+            'refresh_token' => 'google-refresh-token',
+            'scopes' => ['openid', 'email'],
+            'connected_at' => now(),
+        ]);
+
+        $guidance = implode("\n", $service->toolGuidanceLines($credential));
+
+        $this->assertStringContainsString('gog --json calendar create primary --summary', $guidance);
+        $this->assertStringContainsString('--from 2026-04-22T09:00:00+12:00 --to 2026-04-22T09:15:00+12:00', $guidance);
+        $this->assertStringContainsString('--reminder popup:0m --no-input', $guidance);
+        $this->assertStringContainsString('Do not use unsupported calendar write shapes such as `gog calendar event create`, `--title`, `--start`, `--end`, or `--calendar`', $guidance);
+    }
+
     private function seedTenant(): Tenant
     {
         $user = User::query()->create([

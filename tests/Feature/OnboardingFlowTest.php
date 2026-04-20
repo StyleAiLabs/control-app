@@ -1638,6 +1638,8 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('Recent email retrieval: use the native Gmail search path', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Sync360 owns OAuth and account configuration. Do not run `gog auth ...`', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Calendar read flow: use the native calendar events path', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
+        $this->assertStringContainsString('Calendar create/reminder flow: use the native create path', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
+        $this->assertStringContainsString('Do not use unsupported calendar write shapes such as `gog calendar event create`, `--title`, `--start`, `--end`, or `--calendar`', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Do not ask the owner to choose an account unless `gog` explicitly tells you there are multiple configured accounts or no default account.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Explain that as a scope or permission issue, not as a missing `credentials.json` issue.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
     }
