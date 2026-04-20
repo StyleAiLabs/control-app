@@ -7,6 +7,22 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-21 — Bugfix: Skill Assignability Requires Published Version
+
+Date: 2026-04-21
+Status: Implemented
+
+### Overview
+
+Fixed the admin Skill Catalog status so imported skills are not marked assignable until they have an active published catalog version.
+
+### What Changed
+
+- stopped repo import from setting `skill_catalog_items.is_assignable` before publish
+- made publish/archive resync item assignability from active published versions
+- added a migration to repair stale DB rows where unpublished skills were already flagged assignable
+- kept tenant assignment guarded by the existing active-published-version requirement
+
 ## 2026-04-21 — Feature: Skill Packs Require Versioned Release Notes
 
 Date: 2026-04-21

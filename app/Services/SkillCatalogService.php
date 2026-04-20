@@ -47,6 +47,8 @@ class SkillCatalogService
                 'environment_label' => $this->environmentLabelFor($manifestValid, $productionReady),
                 'error' => $entry['error'] ?? null,
                 'description' => $entry['description'] ?? null,
+                'category' => $entry['category'] ?? null,
+                'manifest_json' => $entry['manifest_json'] ?? null,
             ];
         }
 
@@ -97,14 +99,14 @@ class SkillCatalogService
                     continue;
                 }
 
-                $skill = $this->registry->find((string) $skillKey);
+                $versionString = (string) ($row['version'] ?? '0.0.0');
                 $item = SkillCatalogItem::query()->updateOrCreate(
                     ['skill_key' => $skillKey],
                     [
-                        'label' => $skill['label'],
-                        'description' => $skill['description'],
-                        'category' => $skill['category'] ?? null,
-                        'is_assignable' => true,
+                        'label' => $row['label'] ?? $skillKey,
+                        'description' => $row['description'] ?? null,
+                        'category' => $row['category'] ?? null,
+                        'is_assignable' => false,
                         'is_orphaned' => false,
                         'orphaned_warning' => null,
                         'last_imported_at' => now(),
@@ -113,12 +115,12 @@ class SkillCatalogService
 
                 $version = SkillCatalogVersion::query()->firstOrNew([
                     'skill_catalog_item_id' => $item->id,
-                    'version' => $skill['version'],
+                    'version' => $versionString,
                 ]);
 
                 $version->forceFill([
                     'skill_key' => $skillKey,
-                    'manifest_json' => $skill['manifest_json'],
+                    'manifest_json' => is_array($row['manifest_json'] ?? null) ? $row['manifest_json'] : [],
                     'is_available' => true,
                     'discovered_at' => $version->exists ? $version->discovered_at : now(),
                     'last_imported_at' => now(),
@@ -127,10 +129,12 @@ class SkillCatalogService
                 SkillCatalogVersion::query()
                     ->where('skill_catalog_item_id', $item->id)
                     ->whereKeyNot($version->id)
-                    ->whereNotIn('version', [$skill['version']])
+                    ->whereNotIn('version', [$versionString])
                     ->update(['is_available' => false]);
 
-                $imported[] = sprintf('%s@%s', $skillKey, $skill['version']);
+                $this->syncItemAssignability($item);
+
+                $imported[] = sprintf('%s@%s', $skillKey, $versionString);
             }
 
             if (! $selectedMode) {
@@ -163,18 +167,20 @@ class SkillCatalogService
                 'is_available' => true,
             ])->save();
 
-            $version->item->forceFill([
-                'is_assignable' => ! $version->item->is_orphaned,
-            ])->save();
+            $this->syncItemAssignability($version->item);
         });
     }
 
     public function archiveVersion(SkillCatalogVersion $version): void
     {
-        $version->forceFill([
-            'is_active_published' => false,
-            'is_archived' => true,
-        ])->save();
+        DB::transaction(function () use ($version): void {
+            $version->forceFill([
+                'is_active_published' => false,
+                'is_archived' => true,
+            ])->save();
+
+            $this->syncItemAssignability($version->item);
+        });
     }
 
     public function activePublishedVersion(string $skillKey): ?SkillCatalogVersion
@@ -182,6 +188,7 @@ class SkillCatalogService
         return SkillCatalogVersion::query()
             ->where('skill_key', $skillKey)
             ->where('is_active_published', true)
+            ->where('is_archived', false)
             ->first();
     }
 
@@ -276,6 +283,19 @@ class SkillCatalogService
 
             $item->versions()->update(['is_available' => false]);
         }
+    }
+
+    private function syncItemAssignability(SkillCatalogItem $item): void
+    {
+        $hasActivePublishedVersion = SkillCatalogVersion::query()
+            ->where('skill_catalog_item_id', $item->id)
+            ->where('is_active_published', true)
+            ->where('is_archived', false)
+            ->exists();
+
+        $item->forceFill([
+            'is_assignable' => ! $item->is_orphaned && $hasActivePublishedVersion,
+        ])->save();
     }
 
     private function isLocalEnvironment(): bool

@@ -127,10 +127,58 @@ class TenantSkillCatalogWorkflowTest extends TestCase
 
             $this->assertDatabaseHas('skill_catalog_items', [
                 'skill_key' => 'hello-world',
+                'is_assignable' => false,
             ]);
         } finally {
             File::put($manifestPath, json_encode($originalManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
         }
+    }
+
+    public function test_imported_skills_are_unavailable_until_published_and_archive_removes_assignability(): void
+    {
+        $admin = User::query()->create([
+            'name' => 'Admin',
+            'email' => 'skill-status-admin@example.com',
+            'password' => 'secret',
+            'is_admin' => true,
+        ]);
+
+        $this->artisan('sync360:skills:import')->assertExitCode(0);
+
+        $skill = \App\Models\SkillCatalogItem::query()->firstWhere('skill_key', 'hello-world');
+        $version = \App\Models\SkillCatalogVersion::query()->where('skill_key', 'hello-world')->first();
+
+        $this->assertNotNull($skill);
+        $this->assertNotNull($version);
+        $this->assertFalse((bool) $skill->is_assignable);
+
+        $this->actingAs($admin)
+            ->get(route('admin.skills.index'))
+            ->assertOk()
+            ->assertSee('Not published')
+            ->assertSee('unavailable');
+
+        app(\App\Services\SkillCatalogService::class)->publishVersion($version);
+
+        $skill->refresh();
+        $this->assertTrue((bool) $skill->is_assignable);
+
+        $this->actingAs($admin)
+            ->get(route('admin.skills.index'))
+            ->assertOk()
+            ->assertSee('1.0.4')
+            ->assertSee('assignable');
+
+        app(\App\Services\SkillCatalogService::class)->archiveVersion($version->fresh());
+
+        $skill->refresh();
+        $this->assertFalse((bool) $skill->is_assignable);
+
+        $this->actingAs($admin)
+            ->get(route('admin.skills.index'))
+            ->assertOk()
+            ->assertSee('Not published')
+            ->assertSee('unavailable');
     }
 
     public function test_non_local_import_skips_non_production_ready_skills(): void
@@ -404,6 +452,65 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $this->assertStringContainsString('hello-world', (string) $apply->input_snapshot_json);
         $this->assertStringContainsString('Hello World (by Sync360)', (string) $apply->composed_output_json);
         $this->assertStringContainsString('hello_world_completed', (string) $apply->composed_output_json);
+    }
+
+    public function test_skill_catalog_assignability_migration_syncs_stale_flags_to_published_versions(): void
+    {
+        $now = now();
+
+        $unpublishedItemId = DB::table('skill_catalog_items')->insertGetId([
+            'skill_key' => 'unpublished-skill',
+            'label' => 'Unpublished Skill',
+            'description' => 'No published version yet.',
+            'is_assignable' => true,
+            'is_orphaned' => false,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('skill_catalog_versions')->insert([
+            'skill_catalog_item_id' => $unpublishedItemId,
+            'skill_key' => 'unpublished-skill',
+            'version' => '1.0.0',
+            'manifest_json' => json_encode(['skill_id' => 'unpublished-skill'], JSON_UNESCAPED_SLASHES),
+            'is_active_published' => false,
+            'is_archived' => false,
+            'is_available' => true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $publishedItemId = DB::table('skill_catalog_items')->insertGetId([
+            'skill_key' => 'published-skill',
+            'label' => 'Published Skill',
+            'description' => 'Has a published version.',
+            'is_assignable' => false,
+            'is_orphaned' => false,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('skill_catalog_versions')->insert([
+            'skill_catalog_item_id' => $publishedItemId,
+            'skill_key' => 'published-skill',
+            'version' => '1.0.0',
+            'manifest_json' => json_encode(['skill_id' => 'published-skill'], JSON_UNESCAPED_SLASHES),
+            'is_active_published' => true,
+            'is_archived' => false,
+            'is_available' => true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $migration = require base_path('database/migrations/2026_04_21_120000_sync_skill_catalog_assignability_to_published_versions.php');
+        $migration->up();
+
+        $this->assertDatabaseHas('skill_catalog_items', [
+            'skill_key' => 'unpublished-skill',
+            'is_assignable' => false,
+        ]);
+        $this->assertDatabaseHas('skill_catalog_items', [
+            'skill_key' => 'published-skill',
+            'is_assignable' => true,
+        ]);
     }
 
     public function test_skill_analytics_discovery_command_writes_a_finding_document(): void

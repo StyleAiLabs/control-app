@@ -81,6 +81,8 @@ Control-plane UI should be:
 
 Admin skill forms should use concrete placeholder examples that match the current catalog reference skill. Use `hello-world` for the built-in custom-skill example rather than historical `appointment-booking` copy.
 
+The Skill Catalog status badge must describe publish-gated availability: imported skills without an active published version show `unavailable`, not `assignable`, even if the repo scan/import succeeded.
+
 ### Shared Rules
 
 - Use `DM Sans` by default.

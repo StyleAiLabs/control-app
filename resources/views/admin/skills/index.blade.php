@@ -47,15 +47,19 @@
                     </thead>
                     <tbody>
                         @forelse ($skills as $skill)
+                            @php
+                                $publishedVersion = $skill->activePublishedVersion;
+                                $isAssignable = ! $skill->is_orphaned && (bool) $skill->is_assignable && $publishedVersion !== null;
+                            @endphp
                             <tr>
                                 <td>
                                     <strong>{{ $skill->label }}</strong>
                                     <div class="hint">{{ $skill->description }}</div>
                                 </td>
-                                <td>{{ $skill->activePublishedVersion?->version ?? 'Not published' }}</td>
+                                <td>{{ $publishedVersion?->version ?? 'Not published' }}</td>
                                 <td>
-                                    <span class="badge {{ $skill->is_orphaned ? 'failed' : ($skill->is_assignable ? 'ready' : 'pending') }}">
-                                        {{ $skill->is_orphaned ? 'orphaned' : ($skill->is_assignable ? 'assignable' : 'unavailable') }}
+                                    <span class="badge {{ $skill->is_orphaned ? 'failed' : ($isAssignable ? 'ready' : 'pending') }}">
+                                        {{ $skill->is_orphaned ? 'orphaned' : ($isAssignable ? 'assignable' : 'unavailable') }}
                                     </span>
                                 </td>
                                 <td>
