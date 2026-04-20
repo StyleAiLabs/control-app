@@ -8,6 +8,7 @@
         <div style="display: flex; gap: 10px;">
             <a href="{{ route('admin.users') }}" class="button button--secondary">View Users</a>
             <a href="{{ route('admin.tenants') }}" class="button button--primary">View Tenants</a>
+            <a href="{{ route('admin.analytics.skills') }}" class="button button--secondary">Skill Analytics</a>
             <a href="{{ route('admin.jobs') }}" class="button button--secondary">View Jobs</a>
         </div>
     </div>

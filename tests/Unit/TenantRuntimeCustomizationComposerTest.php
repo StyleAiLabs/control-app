@@ -118,6 +118,12 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
         $this->assertStringContainsString('appointment-booking', $composed->workspaceFiles['AGENTS.md']);
         $this->assertArrayHasKey('PROFILE.md', $composed->workspaceFiles);
         $this->assertArrayHasKey('TOOLS.md', $composed->workspaceFiles);
+        $this->assertArrayHasKey('.sync360/bin/log-skill-conversion', $composed->workspaceFiles);
+        $this->assertArrayHasKey('.sync360/bin/log-skill-conversion.mjs', $composed->workspaceFiles);
+        $this->assertArrayHasKey('.sync360/skill-analytics-registry.json', $composed->workspaceFiles);
+        $this->assertStringContainsString('log-skill-conversion.mjs', $composed->workspaceFiles['.sync360/bin/log-skill-conversion']);
+        $this->assertStringContainsString('appointment-booking', $composed->workspaceFiles['.sync360/skill-analytics-registry.json']);
+        $this->assertStringContainsString('conversion_succeeded', $composed->workspaceFiles['.sync360/skill-analytics-registry.json']);
         $this->assertFalse($composed->baseDrifted['bootstrap']);
 
         $config = json_decode($composed->openClawConfig, true);

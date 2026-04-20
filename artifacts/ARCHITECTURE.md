@@ -256,6 +256,39 @@ Provisioning flow:
 
 During SSH-host preparation, `sync360:bootstrap-client-vps` now also installs pinned host-managed runtime capabilities declared in config. Provisioning then reuses the shared capability service so generated tenant compose/config files already include the required bind mounts and OpenClaw skill wiring.
 
+### Custom skill conversion analytics
+
+Custom-skill analytics now use a Sync360-owned SQLite database inside each tenant runtime rather than log-file rereads or OpenClaw-owned storage.
+
+Runtime contract:
+
+1. analytics-enabled skills declare an `analytics` block in `resources/skill-packs/<skill>/manifest.json`
+2. catalog scan/import validates that contract and rejects analytics-enabled skills that are missing required fields
+3. `TenantRuntimeCustomizationComposer` always deploys a shared helper plus runtime registry into the tenant workspace:
+   - `.sync360/bin/log-skill-conversion`
+   - `.sync360/bin/log-skill-conversion.mjs`
+   - `.sync360/skill-analytics-registry.json`
+4. skills emit analytics through the workspace exec tool by shelling the helper instead of writing files or SQL directly
+5. the helper writes one row per successful conversion into `.openclaw/data/analytics/skill-events.sqlite` and enables SQLite WAL mode during initialization
+
+Control-plane sync contract:
+
+1. `sync360:sync-skill-conversions` reads only runtime rows after the per-tenant cursor
+2. malformed rows are logged, skipped, and cursor-advanced so they are never retried forever
+3. synced runtime rows older than 7 days are pruned from the tenant runtime DB
+4. central rows are stored in `tenant_skill_conversion_events`
+5. per-tenant cursor state is stored in `tenant_skill_analytics_sync_states`
+6. the scheduler runs analytics sync every 30 minutes
+
+Metric rules in v1:
+
+- successful conversions = count of synced `conversion_succeeded` events
+- productivity score = successful conversion count
+- estimated time saved derives from manifest defaults or event-level effort overrides
+- estimated ROI is an operational time-return ratio from those same defaults/overrides
+- estimated value is shown only when a manifest default or event override supplies it
+- `session_id` can support measured agent elapsed time later, but that remains a v2 improvement
+
 `LiteLlmTenantKeyService::ensureTenantKey()` is now intentionally provisioning-only. It returns the existing DB-backed key for already-keyed tenants, but if the tenant has no stored LiteLLM key it will only generate one while `provisioning_status=provisioning`. This prevents future onboarding, Google sync, initial Google sync, go-live/resync, or runtime-capability callers from silently minting a key just by reusing the convenience method.
 
 For local Docker dev, the private readiness check targets the Docker host alias configured by `sync360.host_port_probe_host`, not container-local loopback.

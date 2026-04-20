@@ -7,6 +7,25 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-20 — Feat: Custom Skill Conversion Analytics Via Runtime SQLite Sync
+
+Date: 2026-04-20
+Status: Implemented
+
+### Overview
+
+Implemented v1 custom-skill conversion analytics with a Sync360-owned runtime SQLite database, a shared workspace helper for skill-emitted success events, scheduled control-plane sync, and tenant/admin reporting surfaces.
+
+### What Changed
+
+- analytics-enabled skill manifests now declare a required `analytics` contract and catalog import rejects incomplete analytics definitions
+- tenant runtime customization now always deploys `.sync360/bin/log-skill-conversion`, its Node implementation, and `.sync360/skill-analytics-registry.json`
+- skills can emit `conversion_succeeded` events into `.openclaw/data/analytics/skill-events.sqlite`; helper initialization enables SQLite WAL mode and validates required payload fields against the runtime registry
+- added control-plane ingestion with per-tenant cursoring and 7-day runtime-row pruning through `sync360:sync-skill-conversions`, scheduled every 30 minutes
+- added `tenant_skill_conversion_events` and `tenant_skill_analytics_sync_states` for central storage
+- tenant dashboard now shows a `Skill Outcomes` panel with estimated conversions, time saved, productivity score, and ROI, while admin now has both a global `Skill Analytics` page and a tenant-detail `Analytics` tab
+- updated the reference `appointment-booking` skill to include the analytics contract and guidance for emitting success events
+
 ## 2026-04-20 — Hardening: LiteLLM Key Generation Is Now Provisioning-Only
 
 Date: 2026-04-20

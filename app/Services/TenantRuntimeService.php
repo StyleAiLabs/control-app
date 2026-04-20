@@ -162,6 +162,12 @@ class TenantRuntimeService
         return $this->localWorkspacePath($tenant).DIRECTORY_SEPARATOR.'memory';
     }
 
+    public function localSkillAnalyticsDbPath(Tenant $tenant): string
+    {
+        return $this->localRuntimePath($tenant)
+            .DIRECTORY_SEPARATOR.'.openclaw'.DIRECTORY_SEPARATOR.'data'.DIRECTORY_SEPARATOR.'analytics'.DIRECTORY_SEPARATOR.'skill-events.sqlite';
+    }
+
     public function remoteOpenClawConfigPath(Tenant $tenant): string
     {
         return rtrim($tenant->runtime_path ?: $this->remoteRuntimePath($tenant), DIRECTORY_SEPARATOR)
@@ -177,6 +183,12 @@ class TenantRuntimeService
     public function remoteWorkspaceMemoryPath(Tenant $tenant): string
     {
         return $this->remoteWorkspacePath($tenant).DIRECTORY_SEPARATOR.'memory';
+    }
+
+    public function remoteSkillAnalyticsDbPath(Tenant $tenant): string
+    {
+        return rtrim($tenant->runtime_path ?: $this->remoteRuntimePath($tenant), DIRECTORY_SEPARATOR)
+            .DIRECTORY_SEPARATOR.'.openclaw'.DIRECTORY_SEPARATOR.'data'.DIRECTORY_SEPARATOR.'analytics'.DIRECTORY_SEPARATOR.'skill-events.sqlite';
     }
 
     public function caddySitePath(Tenant $tenant): string

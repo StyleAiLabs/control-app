@@ -90,8 +90,21 @@ class TenantSkillRegistryService
             }
 
             $normalized = $this->normalizedSkillDefinition($manifest, $directory);
+            $analyticsValidationError = $this->analyticsValidationError($manifest);
 
             if ($requestedSkillKey !== null && ! in_array($requestedSkillKey, [$directoryName, $normalized['id']], true)) {
+                continue;
+            }
+
+            if ($analyticsValidationError !== null) {
+                $entries[] = [
+                    'skill_key' => $normalized['id'],
+                    'directory' => $directory,
+                    'manifest_path' => $manifestPath,
+                    'manifest_valid' => false,
+                    'error' => sprintf('Skill manifest [%s] analytics contract is invalid: %s', $manifestPath, $analyticsValidationError),
+                ];
+
                 continue;
             }
 
@@ -152,6 +165,41 @@ class TenantSkillRegistryService
         ksort($rendered);
 
         return $rendered;
+    }
+
+    /**
+     * @param  Collection<int, TenantSkillAssignment>|array<int, TenantSkillAssignment>  $assignments
+     * @return array<string, array<string, mixed>>
+     */
+    public function analyticsRegistryEntries(Collection|array $assignments): array
+    {
+        $entries = [];
+
+        foreach ($assignments as $assignment) {
+            if (! $assignment instanceof TenantSkillAssignment || ! $assignment->is_enabled) {
+                continue;
+            }
+
+            $skill = $this->skillDefinitionForAssignment($assignment);
+            $analytics = $this->normalizedAnalyticsDefinition($skill['manifest_json'] ?? []);
+
+            if (($analytics['enabled'] ?? false) !== true) {
+                continue;
+            }
+
+            $entries[$assignment->skill_key] = [
+                'skill_key' => $assignment->skill_key,
+                'skill_version' => (string) ($skill['version'] ?? '0.0.0'),
+                'conversion_type' => $analytics['conversion_type'],
+                'success_event_type' => $analytics['success_event_type'],
+                'required_success_fields' => $analytics['required_success_fields'],
+                'roi_defaults' => $analytics['roi_defaults'],
+            ];
+        }
+
+        ksort($entries);
+
+        return $entries;
     }
 
     /**
@@ -250,8 +298,76 @@ class TenantSkillRegistryService
             'applicable_industries' => $this->normalizedStringList($manifest['applicable_industries'] ?? []),
             'openclaw_skill_ids' => $this->normalizedStringList($manifest['openclaw_skill_ids'] ?? [$skillId]),
             'default_agent_skill_ids' => $this->normalizedStringList($manifest['default_agent_skill_ids'] ?? [$skillId]),
+            'analytics' => $this->normalizedAnalyticsDefinition($manifest),
             'manifest_json' => $manifest,
             'source_root' => $directory,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $manifest
+     */
+    private function analyticsValidationError(array $manifest): ?string
+    {
+        $analytics = $manifest['analytics'] ?? null;
+
+        if (! is_array($analytics) || ($analytics['enabled'] ?? false) !== true) {
+            return null;
+        }
+
+        if (! is_string($analytics['conversion_type'] ?? null) || trim((string) $analytics['conversion_type']) === '') {
+            return 'conversion_type is required when analytics.enabled is true.';
+        }
+
+        if (($analytics['success_event_type'] ?? null) !== 'conversion_succeeded') {
+            return 'success_event_type must equal conversion_succeeded.';
+        }
+
+        $roiDefaults = $analytics['roi_defaults'] ?? null;
+
+        if (! is_array($roiDefaults)) {
+            return 'roi_defaults is required when analytics.enabled is true.';
+        }
+
+        foreach (['human_effort_minutes', 'agent_effort_minutes'] as $field) {
+            if (! is_numeric($roiDefaults[$field] ?? null) || (float) $roiDefaults[$field] < 0) {
+                return sprintf('roi_defaults.%s must be a non-negative number.', $field);
+            }
+        }
+
+        $requiredFields = $analytics['required_success_fields'] ?? null;
+
+        if (! is_array($requiredFields) || $this->normalizedStringList($requiredFields) === []) {
+            return 'required_success_fields must contain at least one field name.';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $manifest
+     * @return array<string, mixed>
+     */
+    private function normalizedAnalyticsDefinition(array $manifest): array
+    {
+        $analytics = is_array($manifest['analytics'] ?? null) ? $manifest['analytics'] : [];
+        $roiDefaults = is_array($analytics['roi_defaults'] ?? null) ? $analytics['roi_defaults'] : [];
+
+        $valueAmount = $roiDefaults['value_amount'] ?? null;
+
+        return [
+            'enabled' => ($analytics['enabled'] ?? false) === true,
+            'conversion_type' => is_string($analytics['conversion_type'] ?? null) ? trim((string) $analytics['conversion_type']) : null,
+            'success_event_type' => is_string($analytics['success_event_type'] ?? null) ? trim((string) $analytics['success_event_type']) : null,
+            'required_success_fields' => $this->normalizedStringList($analytics['required_success_fields'] ?? []),
+            'roi_defaults' => [
+                'human_effort_minutes' => is_numeric($roiDefaults['human_effort_minutes'] ?? null) ? (int) $roiDefaults['human_effort_minutes'] : null,
+                'agent_effort_minutes' => is_numeric($roiDefaults['agent_effort_minutes'] ?? null) ? (int) $roiDefaults['agent_effort_minutes'] : null,
+                'value_amount' => is_numeric($valueAmount) ? (float) $valueAmount : null,
+                'currency' => is_string($roiDefaults['currency'] ?? null) && trim((string) $roiDefaults['currency']) !== ''
+                    ? trim((string) $roiDefaults['currency'])
+                    : null,
+            ],
         ];
     }
 }

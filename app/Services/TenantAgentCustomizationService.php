@@ -270,7 +270,9 @@ class TenantAgentCustomizationService
         $this->files->ensureDirectoryExists($workspacePath.DIRECTORY_SEPARATOR.'skills');
 
         foreach ($composed->workspaceFiles as $filename => $contents) {
-            $this->files->put($workspacePath.DIRECTORY_SEPARATOR.$filename, $contents);
+            $targetPath = $workspacePath.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $filename);
+            $this->files->ensureDirectoryExists(dirname($targetPath));
+            $this->files->put($targetPath, $contents);
         }
 
         foreach ($composed->skillFiles as $relativePath => $contents) {

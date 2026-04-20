@@ -135,6 +135,16 @@ class Tenant extends Model
         return $this->hasMany(TenantSkillAssignment::class);
     }
 
+    public function skillConversionEvents(): HasMany
+    {
+        return $this->hasMany(TenantSkillConversionEvent::class);
+    }
+
+    public function skillAnalyticsSyncState(): HasOne
+    {
+        return $this->hasOne(TenantSkillAnalyticsSyncState::class);
+    }
+
     public function workspaceHost(): string
     {
         $this->loadMissing('server');

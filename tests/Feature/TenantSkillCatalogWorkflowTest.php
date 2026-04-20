@@ -71,7 +71,7 @@ class TenantSkillCatalogWorkflowTest extends TestCase
 
             $this->artisan('sync360:skills:import')
                 ->assertExitCode(0)
-                ->expectsOutputToContain('Imported appointment-booking@1.0.0');
+                ->expectsOutputToContain('Imported appointment-booking@1.0.2');
 
             $this->assertDatabaseHas('skill_catalog_items', [
                 'skill_key' => 'appointment-booking',
@@ -222,6 +222,34 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $this->assertStringContainsString('Runtime log path', File::get($path));
         $this->assertStringContainsString('Format sample', File::get($path));
         $this->assertStringContainsString('Stable dedup ID', File::get($path));
+    }
+
+    public function test_import_fails_when_analytics_enabled_skill_manifest_is_missing_required_fields(): void
+    {
+        $manifestPath = base_path('resources/skill-packs/appointment-booking/manifest.json');
+        $originalManifest = json_decode(File::get($manifestPath), true);
+        $modifiedManifest = $originalManifest;
+        $modifiedManifest['analytics'] = [
+            'enabled' => true,
+            'conversion_type' => 'appointment_booked',
+        ];
+        File::put($manifestPath, json_encode($modifiedManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+
+        try {
+            $this->artisan('sync360:skills:scan')
+                ->assertExitCode(1)
+                ->expectsOutputToContain('analytics');
+
+            $this->artisan('sync360:skills:import')
+                ->assertExitCode(0)
+                ->expectsOutputToContain('skipped appointment-booking');
+
+            $this->assertDatabaseMissing('skill_catalog_items', [
+                'skill_key' => 'appointment-booking',
+            ]);
+        } finally {
+            File::put($manifestPath, json_encode($originalManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+        }
     }
 
     private function seedTenant(string $slug, string $businessName): Tenant

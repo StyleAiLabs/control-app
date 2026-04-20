@@ -10,6 +10,7 @@ use App\Models\Tenant;
 use App\Models\TenantGoogleCredential;
 use App\Services\LiteLlmTenantKeyService;
 use App\Services\TenantAgentSyncService;
+use App\Services\TenantSkillAnalyticsReportService;
 use App\Services\TenantRuntimeService;
 use App\Services\TenantWorkspaceReadinessService;
 use App\Support\GoogleWorkspaceFeature;
@@ -33,6 +34,7 @@ class DashboardController extends Controller
         private readonly TenantRuntimeService $runtime,
         private readonly TenantAgentSyncService $agentSync,
         private readonly TenantWorkspaceReadinessService $workspaceReadiness,
+        private readonly TenantSkillAnalyticsReportService $skillAnalytics,
     ) {}
 
     public function index(Request $request): Response|RedirectResponse
@@ -98,6 +100,7 @@ class DashboardController extends Controller
             'provisioningContent' => $this->provisioningContent($tenant->provisioning_status),
             'trialData'           => $this->trialData($tenant),
             'workspaceState'      => $workspaceState,
+            'impactSummary'       => $this->skillAnalytics->tenantSummary($tenant),
         ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, private')
             ->header('Pragma', 'no-cache')
             ->header('Expires', 'Fri, 01 Jan 1990 00:00:00 GMT');

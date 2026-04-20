@@ -65,6 +65,11 @@
                 'badge_label' => $tenantSkillsStatus['label'],
                 'badge_class' => $tenantSkillsStatus['class'],
             ],
+            'analytics' => [
+                'label' => 'Analytics',
+                'badge_label' => null,
+                'badge_class' => null,
+            ],
             'agent-runtime' => [
                 'label' => 'Agent Runtime',
                 'badge_label' => null,
@@ -218,6 +223,10 @@
 
                     @case('skills')
                         @include('admin.tenants.partials.show-skills')
+                        @break
+
+                    @case('analytics')
+                        @include('admin.tenants.partials.show-analytics')
                         @break
 
                     @case('agent-runtime')

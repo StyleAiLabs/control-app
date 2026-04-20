@@ -444,4 +444,55 @@
             @endif
         </div>
     </section>
+
+    <section class="panel" style="margin-top: 18px;">
+        <span class="eyebrow">Skill Outcomes</span>
+        @if (($impactSummary['conversions'] ?? 0) === 0)
+            <div class="note" style="margin-top: 18px;">
+                Estimated skill impact will appear here after an analytics-enabled custom skill records a successful conversion.
+            </div>
+        @else
+            <section class="stats" style="margin-top: 18px; margin-bottom: 0;">
+                <div class="stat">
+                    <div class="hint">Successful Conversions</div>
+                    <strong>{{ $impactSummary['conversions'] }}</strong>
+                    <p>{{ $impactSummary['conversions'] === 1 ? '1 successful conversion' : $impactSummary['conversions'].' successful conversions' }} in the last {{ $impactSummary['window_days'] }} days.</p>
+                </div>
+                <div class="stat">
+                    <div class="hint">Estimated Time Saved</div>
+                    <strong>{{ $impactSummary['estimated_net_minutes'] }} min</strong>
+                    <p>{{ $impactSummary['estimated_human_minutes'] }} human vs {{ $impactSummary['estimated_agent_minutes'] }} agent minutes.</p>
+                </div>
+                <div class="stat">
+                    <div class="hint">Productivity Score</div>
+                    <strong>{{ $impactSummary['productivity_score'] }}</strong>
+                    <p>V1 counts successful conversions as the productivity score.</p>
+                </div>
+                <div class="stat">
+                    <div class="hint">Estimated ROI</div>
+                    <strong>{{ $impactSummary['estimated_roi_ratio'] ? number_format($impactSummary['estimated_roi_ratio'], 1).'x' : 'n/a' }}</strong>
+                    <p>Estimated from Sync360 benchmark defaults for the installed skill.</p>
+                </div>
+                @if ($impactSummary['has_estimated_value'])
+                    <div class="stat">
+                        <div class="hint">Estimated Value Created</div>
+                        <strong>${{ number_format((float) $impactSummary['estimated_value'], 2) }}</strong>
+                        <p>Only shown when the skill contract provides a value estimate.</p>
+                    </div>
+                @endif
+            </section>
+
+            <div style="margin-top: 18px; display: grid; gap: 14px;">
+                @foreach ($impactSummary['top_skills'] as $skill)
+                    <div class="meta-item">
+                        <div style="display:flex; justify-content:space-between; gap:12px; align-items:center;">
+                            <strong>{{ \Illuminate\Support\Str::headline($skill->skill_key) }}</strong>
+                            <span class="badge ready">{{ $skill->conversions }} conversions</span>
+                        </div>
+                        <div class="hint" style="margin-top: 8px;">{{ $skill->net_minutes_saved }} estimated minutes saved in the last {{ $impactSummary['window_days'] }} days.</div>
+                    </div>
+                @endforeach
+            </div>
+        @endif
+    </section>
 </x-layouts.app>

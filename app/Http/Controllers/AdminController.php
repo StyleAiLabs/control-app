@@ -25,6 +25,7 @@ use App\Services\TenantHealthCheckService;
 use App\Services\TenantProfileSyncService;
 use App\Services\TenantRuntimeCustomizationComposer;
 use App\Services\TenantRuntimeSkillDiscoveryService;
+use App\Services\TenantSkillAnalyticsReportService;
 use App\Services\TenantSkillAssignmentService;
 use App\Services\TenantSkillRegistryService;
 use App\Services\TenantRuntimeService;
@@ -50,6 +51,7 @@ class AdminController extends Controller
         'workspace',
         'google',
         'skills',
+        'analytics',
         'agent-runtime',
         'support',
     ];
@@ -67,6 +69,7 @@ class AdminController extends Controller
         private readonly TenantSkillRegistryService $skillRegistry,
         private readonly SkillCatalogService $skillCatalog,
         private readonly TenantSkillAssignmentService $tenantSkillAssignments,
+        private readonly TenantSkillAnalyticsReportService $skillAnalytics,
     ) {}
 
     public function index(): View
@@ -126,6 +129,13 @@ class AdminController extends Controller
             'tenants' => $tenants,
             'workspaceStates' => $workspaceStates,
             'googleStates' => $googleStates,
+        ]);
+    }
+
+    public function skillAnalytics(): View
+    {
+        return view('admin.skills-analytics', [
+            'analyticsSummary' => $this->skillAnalytics->adminSummary(),
         ]);
     }
 
@@ -199,6 +209,7 @@ class AdminController extends Controller
             'tenantSkillsAvailable' => $tenantSkillsAvailable,
             'runtimeCustomizationAvailable' => $runtimeCustomizationAvailable,
             'skillChangeHistory' => $runtimeCustomizationAvailable ? $this->skillChangeHistoryFor($tenant) : [],
+            'tenantAnalytics' => $this->skillAnalytics->tenantSummary($tenant),
         ]);
     }
 

@@ -62,6 +62,7 @@ Customer UI may be more expressive:
 - larger headings on landing/auth surfaces
 - warmer onboarding copy
 - friendly progress and next-action language
+- impact/analytics cards should use estimated wording when metrics come from Sync360-authored defaults rather than measured tenant workflow data
 
 Customer UI must stay readable and avoid internal system names unless the customer must act on them.
 
@@ -76,6 +77,7 @@ Control-plane UI should be:
 - explicit about operational status
 - careful with destructive actions
 - precise for IDs, paths, ports, timestamps, logs, and runtime state
+- comfortable showing compact rollups plus recent evidence rows on the same screen for admin analytics surfaces
 
 ### Shared Rules
 
@@ -84,6 +86,8 @@ Control-plane UI should be:
 - Use badges for compact status, not for long explanations.
 - Use notes for guidance, blockers, and warnings.
 - Use panels/cards to group a single decision area or data set.
+- When an analytics metric is undefined, omit the card/row instead of showing a misleading zero value.
+- For estimated operational metrics such as time saved or ROI, label them explicitly as estimated in headings or supporting copy.
 
 ## 5. Design Tokens
 

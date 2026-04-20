@@ -20,3 +20,10 @@ Use this skill when a customer wants to:
 - Do not promise an appointment is confirmed unless the business workflow says so.
 - Offer a human follow-up when availability or confirmation is uncertain.
 - Ask if a copy of booking invitation is required to send to the customer.
+
+## Analytics Contract
+- Emit analytics only after the booking outcome is authoritative and confirmed.
+- Use the workspace exec tool to run `sh .sync360/bin/log-skill-conversion`.
+- Pass `--skill appointment-booking` and a stable `--conversion-id` booking reference.
+- Include `event_id`, `customer_label`, and `outcome.scheduled_at` plus `outcome.service_name` in `--payload-json`.
+- Do not emit analytics for partial intake, pending follow-up, or unconfirmed availability.

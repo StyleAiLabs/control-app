@@ -7,6 +7,7 @@ use App\Models\Tenant;
 use App\Models\Server;
 use App\Services\LiteLlmTenantKeyService;
 use App\Services\TenantAgentSyncService;
+use App\Services\TenantSkillAnalyticsSyncService;
 use App\Services\TenantRuntimeCapabilityService;
 use App\Services\TenantProfileSyncService;
 use App\Services\TenantGoogleWorkspaceSmokeTestService;
@@ -252,6 +253,43 @@ Schedule::command('sync360:check-trial-expiry')->everyThirtyMinutes();
 // The command class lives in app/Console/Commands/SyncConversationReplies.php
 // and is registered via withCommands() in bootstrap/app.php.
 Schedule::command('sync360:sync-replies')->everyTenMinutes();
+
+Artisan::command('sync360:sync-skill-conversions {tenantSelector? : Tenant id, tenant_id, or slug. Omit to sync every tenant runtime with analytics events}', function (?string $tenantSelector = null) {
+    $tenant = null;
+
+    if (is_string($tenantSelector) && trim($tenantSelector) !== '') {
+        $selector = trim($tenantSelector);
+        $tenant = Tenant::query()
+            ->with('server')
+            ->where(function ($query) use ($selector): void {
+                if (ctype_digit($selector)) {
+                    $query->where('id', (int) $selector);
+                }
+
+                $query->orWhere('tenant_id', $selector)
+                    ->orWhere('slug', $selector);
+            })
+            ->first();
+
+        if (! $tenant) {
+            throw new \RuntimeException(sprintf('No tenant matched [%s].', $selector));
+        }
+    }
+
+    /** @var TenantSkillAnalyticsSyncService $analytics */
+    $analytics = app(TenantSkillAnalyticsSyncService::class);
+    $result = $analytics->sync($tenant);
+
+    $this->components->info(sprintf(
+        'Skill conversion sync finished. Imported %d. Skipped %d. Pruned %d. Tenants %d.',
+        $result['imported'],
+        $result['skipped'],
+        $result['pruned'],
+        $result['tenants'],
+    ));
+})->purpose('Sync tenant runtime skill conversion analytics into the control plane');
+
+Schedule::command('sync360:sync-skill-conversions')->everyThirtyMinutes();
 
 Artisan::command('sync360:resync-live-tenants {tenantSelector? : Tenant id, tenant_id, or slug. Omit to resync every live tenant}', function (?string $tenantSelector = null) {
     $tenants = Tenant::query()

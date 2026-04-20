@@ -11,5 +11,20 @@
     "default_agent_skill_ids": [
         "appointment-booking"
     ],
-    "applicable_industries": []
+    "applicable_industries": [],
+    "analytics": {
+        "enabled": true,
+        "conversion_type": "appointment_booked",
+        "success_event_type": "conversion_succeeded",
+        "required_success_fields": [
+            "event_id",
+            "customer_label",
+            "outcome.scheduled_at",
+            "outcome.service_name"
+        ],
+        "roi_defaults": {
+            "human_effort_minutes": 10,
+            "agent_effort_minutes": 1
+        }
+    }
 }
