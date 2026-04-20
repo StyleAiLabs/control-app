@@ -7,6 +7,21 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-20 — Fix: Skill Analytics Helper Scripts Moved To Templates
+
+Date: 2026-04-20
+Status: Implemented
+
+### Overview
+
+Moved the tenant skill analytics helper shell and Node script bodies out of `TenantRuntimeCustomizationComposer` and into resource templates so PHP tooling no longer has to parse a large embedded JavaScript nowdoc.
+
+### What Changed
+
+- `TenantRuntimeCustomizationComposer` now reads the deployed analytics helper scripts from `resources/runtime-helpers/sync360/`
+- the generated tenant workspace files remain `.sync360/bin/log-skill-conversion` and `.sync360/bin/log-skill-conversion.mjs`
+- kept the runtime helper behavior unchanged while eliminating the editor/parser syntax warnings around the embedded helper script
+
 ## 2026-04-20 — Cleanup: Custom Skill Pack Layout Uses Root Skill Files Plus Docs Folder
 
 Date: 2026-04-20

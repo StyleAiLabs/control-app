@@ -266,7 +266,7 @@ Runtime contract:
 
 1. analytics-enabled skills declare an `analytics` block in `resources/skill-packs/<skill>/manifest.json`
 2. catalog scan/import validates that contract and rejects analytics-enabled skills that are missing required fields
-3. `TenantRuntimeCustomizationComposer` always deploys a shared helper plus runtime registry into the tenant workspace:
+3. `TenantRuntimeCustomizationComposer` always deploys a shared helper plus runtime registry into the tenant workspace; the helper shell and Node implementations are sourced from `resources/runtime-helpers/sync360/` templates so the PHP composer does not embed large script nowdocs:
    - `.sync360/bin/log-skill-conversion`
    - `.sync360/bin/log-skill-conversion.mjs`
    - `.sync360/skill-analytics-registry.json`
