@@ -7,6 +7,21 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-20 — Hardening: LiteLLM Key Generation Is Now Provisioning-Only
+
+Date: 2026-04-20
+Status: Implemented
+
+### Overview
+
+Continued the LiteLLM token refresh investigation and added a service-level guard so missing LiteLLM keys cannot be silently generated from onboarding-adjacent code paths. Provisioning is still the only intended credential-generation path; onboarding, Google runtime sync, initial Google sync, runtime-capability sync, and go-live/resync all continue to use the existing tenant DB key only.
+
+### What Changed
+
+- `LiteLlmTenantKeyService::ensureTenantKey()` now throws if asked to generate a missing key while the tenant is not in active `provisioning` status
+- added focused regression coverage proving the ready Google callback sync path and the queued initial Google sync job do not call LiteLLM `/key/generate`
+- kept the existing compose-regeneration rule that `OPENAI_API_KEY` must come from `tenants.litellm_virtual_key`, never from a local runtime `.env`
+
 ## 2026-04-20 — Fix: Live Onboarding Resync Button Now Shows Progress
 
 Date: 2026-04-20

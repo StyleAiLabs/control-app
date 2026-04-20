@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Contracts\DockerComposeRunner;
+use App\Enums\ProvisioningJobStatus;
 use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
 use App\Jobs\ProcessInitialGoogleWorkspaceSync;
@@ -669,6 +670,7 @@ class OnboardingFlowTest extends TestCase
         $state = $credential?->oauth_state;
 
         Http::fake([
+            'https://litellm.stylesoftware.co.nz/key/generate' => Http::response(['key' => 'sk-unexpected-new-key'], 200),
             'https://oauth2.googleapis.com/token' => Http::response([
                 'access_token' => 'google-access-token',
                 'refresh_token' => 'google-refresh-token',
@@ -871,6 +873,95 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('"enabled": true', File::get($localRuntimePath.'/config/openclaw.json'));
         $this->assertFileDoesNotExist($staleMemoryPath);
         $this->assertFileExists($otherMemoryPath);
+        Http::assertNotSent(fn ($request): bool => $request->url() === 'https://litellm.stylesoftware.co.nz/key/generate');
+    }
+
+    public function test_initial_google_workspace_sync_job_does_not_generate_or_rotate_litellm_key(): void
+    {
+        [$user, $tenant] = $this->seedTenantWithProfile();
+
+        config()->set('services.litellm.base_url', 'https://litellm.stylesoftware.co.nz');
+
+        $tenant->forceFill([
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'assigned_port' => 4100,
+            'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
+            'litellm_virtual_key' => 'existing-tenant-key',
+            'litellm_key_alias' => 'openclaw-'.$tenant->tenant_id,
+            'litellm_plan_name' => 'trial',
+            'litellm_max_budget' => 25,
+            'litellm_budget_duration' => 'monthly',
+            'litellm_last_synced_at' => now()->subHour(),
+        ])->save();
+        $originalLastSyncedAt = $tenant->litellm_last_synced_at?->toISOString();
+
+        $tenant->googleCredential()->create([
+            'status' => TenantGoogleCredential::STATUS_CONNECTED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_PENDING,
+            'google_email' => 'owner@example.com',
+            'access_token' => 'google-access-token',
+            'refresh_token' => 'google-refresh-token',
+            'scopes' => ['openid', 'email'],
+            'connected_at' => now(),
+        ]);
+
+        $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
+        File::ensureDirectoryExists($localRuntimePath.'/config');
+        File::ensureDirectoryExists($localRuntimePath.'/.openclaw/workspace/memory');
+        File::put($localRuntimePath.'/.env', implode(PHP_EOL, [
+            'OPENCLAW_GATEWAY_TOKEN=test-token',
+            'OPENAI_API_KEY=existing-tenant-key',
+            'OPENAI_BASE_URL=https://litellm.stylesoftware.co.nz',
+            '',
+        ]));
+        File::put($localRuntimePath.'/config/openclaw.json', json_encode([
+            'agents' => [
+                'defaults' => [
+                    'model' => 'gpt-4o',
+                ],
+            ],
+            'gateway' => [
+                'auth' => [
+                    'mode' => 'token',
+                    'token' => 'test-token',
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+        File::put($localRuntimePath.'/compose.yaml', 'services: {}'.PHP_EOL);
+
+        Http::fake([
+            'https://litellm.stylesoftware.co.nz/key/generate' => Http::response(['key' => 'sk-unexpected-new-key'], 200),
+        ]);
+
+        $this->mock(TenantGoogleWorkspaceSmokeTestService::class, function ($mock): void {
+            $mock->shouldReceive('run')
+                ->once()
+                ->andReturn([
+                    'tenant_slug' => 'acme-plumbing',
+                    'google_email' => 'owner@example.com',
+                    'runtime_artifacts_verified' => true,
+                    'container_smoke_passed' => true,
+                ]);
+        });
+
+        $job = ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ProcessInitialGoogleWorkspaceSync::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Queued,
+            'payload_json' => ['trigger' => 'test'],
+        ]);
+
+        ProcessInitialGoogleWorkspaceSync::dispatchSync($tenant->id, $job->id);
+
+        $tenant->refresh();
+
+        $this->assertSame('existing-tenant-key', $tenant->litellm_virtual_key);
+        $this->assertSame('openclaw-'.$tenant->tenant_id, $tenant->litellm_key_alias);
+        $this->assertSame('trial', $tenant->litellm_plan_name);
+        $this->assertSame('25.00', $tenant->litellm_max_budget);
+        $this->assertSame('monthly', $tenant->litellm_budget_duration);
+        $this->assertSame($originalLastSyncedAt, $tenant->litellm_last_synced_at?->toISOString());
+        Http::assertNotSent(fn ($request): bool => $request->url() === 'https://litellm.stylesoftware.co.nz/key/generate');
     }
 
     public function test_onboarding_state_exposes_google_workspace_attention_details(): void

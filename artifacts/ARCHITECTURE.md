@@ -256,6 +256,8 @@ Provisioning flow:
 
 During SSH-host preparation, `sync360:bootstrap-client-vps` now also installs pinned host-managed runtime capabilities declared in config. Provisioning then reuses the shared capability service so generated tenant compose/config files already include the required bind mounts and OpenClaw skill wiring.
 
+`LiteLlmTenantKeyService::ensureTenantKey()` is now intentionally provisioning-only. It returns the existing DB-backed key for already-keyed tenants, but if the tenant has no stored LiteLLM key it will only generate one while `provisioning_status=provisioning`. This prevents future onboarding, Google sync, initial Google sync, go-live/resync, or runtime-capability callers from silently minting a key just by reusing the convenience method.
+
 For local Docker dev, the private readiness check targets the Docker host alias configured by `sync360.host_port_probe_host`, not container-local loopback.
 
 Because the tenant container name is fixed to `sync360-<slug>`, provisioning cleanup also force-removes any stale same-name container before bring-up. This protects delete-and-recreate flows when a prior runtime cleanup was incomplete on the target host.
@@ -297,6 +299,8 @@ This separates "the private tenant runtime is provisioned" from "the customer ca
 The Channel step also keeps an explicit manual forward path. Step 5 now renders a `Continue To Google Workspace` button in the channel-panel navigation so customers can move on even when the channel is already connected or they prefer to finish Google Workspace later. A saved Telegram bot token is reported as `channel_setup.status=saved` until the runtime `config/openclaw.json` actually contains enabled Telegram config; only then does the onboarding state report `connected`. `TenantAgentSyncService::syncSavedChannelIfReady()` is the idempotent replay path used after provisioning and during Go Live.
 
 For already-live tenants, Step 7's submit action becomes `Resync Assistant`. It stays enabled even though `workspace.go_live_ready` is false for live agents, posts to the same `/onboarding/go-live` endpoint, and receives resync-specific progress/success copy. The controller bypasses the pre-live readiness gate only for `agent_status=live`; the sync service still performs its normal runtime/profile/file validation and returns any failure as a visible error.
+
+Google OAuth callback, queued initial Google sync, Google disconnect, and the `sync360:sync-runtime-capabilities` repair command all flow through `TenantAgentSyncService` plus `TenantRuntimeCapabilityService::syncLocalCompose()`. Those paths may regenerate staged `compose.yaml`, but they now always source `OPENAI_API_KEY` from `Tenant::litellm_virtual_key`; they do not mint or rotate LiteLLM keys.
 
 Google Workspace Step 6 now distinguishes between OAuth account status and live runtime readiness. The state payload can report Google Workspace as `pending`, `synced`, `verified`, or `failed`, and the Blade surfaces `last_error` when runtime verification needs attention instead of collapsing everything into a single optimistic "ready" message.
 
@@ -386,6 +390,7 @@ Critical invariant:
 - the onboarding controller must not piggyback Google auth sync or verification onto Go Live; the Go Live request is guarded by the shared readiness calculator and only proceeds once Google verification is already complete
 - already-live tenants may reuse the Go Live endpoint as a resync action even though `workspace.go_live_ready` is false, but the underlying sync service must still validate runtime/profile/file readiness before writing workspace files
 - compose regeneration must use `Tenant::litellm_virtual_key` for `OPENAI_API_KEY`; local runtime `.env` is allowed to provide the gateway token/base URL fallback but is not the source of truth for the tenant LiteLLM key
+- LiteLLM key generation is now hard-blocked outside active provisioning. The intended credential path is `OpenClawProvisioner -> LiteLlmTenantKeyService::ensureTenantKey()` after the tenant/job has been marked provisioning.
 
 ### Conversation sync flow
 

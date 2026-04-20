@@ -31,6 +31,9 @@ class LiteLlmTenantKeyServiceTest extends TestCase
         ]);
 
         $tenant = $this->tenant();
+        $tenant->forceFill([
+            'provisioning_status' => TenantProvisioningStatus::Provisioning,
+        ])->save();
         $service = app(LiteLlmTenantKeyService::class);
 
         $generated = $service->ensureTenantKey($tenant);
@@ -81,6 +84,24 @@ class LiteLlmTenantKeyServiceTest extends TestCase
             && $request['budget_duration'] === null);
         Http::assertSent(fn ($request) => $request->url() === 'https://litellm.stylesoftware.co.nz/key/delete'
             && $request['keys'] === ['sk-tenant-acme']);
+    }
+
+    public function test_ensure_tenant_key_rejects_generation_outside_provisioning(): void
+    {
+        config()->set('services.litellm.base_url', 'https://litellm.stylesoftware.co.nz');
+        config()->set('services.litellm.master_key', 'litellm-master');
+
+        Http::fake([
+            'https://litellm.stylesoftware.co.nz/key/generate' => Http::response(['key' => 'sk-tenant-acme'], 200),
+        ]);
+
+        $tenant = $this->tenant();
+        $service = app(LiteLlmTenantKeyService::class);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('LiteLLM key generation is only allowed during active tenant provisioning.');
+
+        $service->ensureTenantKey($tenant);
     }
 
     private function tenant(): Tenant

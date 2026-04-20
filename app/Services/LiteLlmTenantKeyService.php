@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\TenantProvisioningStatus;
 use App\Models\Tenant;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Client\Response;
@@ -20,6 +21,10 @@ class LiteLlmTenantKeyService
     {
         if ($tenant->litellm_virtual_key) {
             return $this->detailsFromTenant($tenant->fresh());
+        }
+
+        if ($tenant->provisioning_status !== TenantProvisioningStatus::Provisioning) {
+            throw new RuntimeException('LiteLLM key generation is only allowed during active tenant provisioning.');
         }
 
         return $this->generateTenantKey($tenant);
