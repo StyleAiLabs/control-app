@@ -869,6 +869,10 @@
                    class="nav-link {{ request()->routeIs('tenant.*') ? 'active' : '' }}">
                     Setup
                 </a>
+                <a href="{{ route('dashboard') }}#skill-outcomes"
+                   class="nav-link">
+                    Skill Outcomes
+                </a>
             @endif
             @if (auth()->user()?->is_admin)
                 <div class="nav-section-label" style="margin-top:12px;">Admin</div>
@@ -879,6 +883,10 @@
                 <a href="{{ route('admin.tenants') }}"
                    class="nav-link {{ request()->routeIs('admin.tenants*') ? 'active' : '' }}">
                     Tenants
+                </a>
+                <a href="{{ route('admin.analytics.skills') }}"
+                   class="nav-link {{ request()->routeIs('admin.analytics.skills') ? 'active' : '' }}">
+                    Skill Analytics
                 </a>
                 @if (config('sync360.skill_catalog.enabled', false))
                     <a href="{{ route('admin.skills.index') }}"
@@ -940,6 +948,10 @@
                    class="nav-link {{ request()->routeIs('tenant.*') ? 'active' : '' }}">
                     Setup
                 </a>
+                <a href="{{ route('dashboard') }}#skill-outcomes"
+                   class="nav-link">
+                    Skill Outcomes
+                </a>
             @endif
             @if (auth()->user()?->is_admin)
                 <div class="nav-section-label" style="margin-top:8px;">Admin</div>
@@ -950,6 +962,10 @@
                 <a href="{{ route('admin.tenants') }}"
                    class="nav-link {{ request()->routeIs('admin.tenants*') ? 'active' : '' }}">
                     Tenants
+                </a>
+                <a href="{{ route('admin.analytics.skills') }}"
+                   class="nav-link {{ request()->routeIs('admin.analytics.skills') ? 'active' : '' }}">
+                    Skill Analytics
                 </a>
                 @if (config('sync360.skill_catalog.enabled', false))
                     <a href="{{ route('admin.skills.index') }}"

@@ -288,6 +288,7 @@ Metric rules in v1:
 - productivity score = successful conversion count
 - estimated time saved derives from manifest defaults or event-level effort overrides
 - estimated ROI is an operational time-return ratio from those same defaults/overrides
+- tenant users reach their analytics through the sidebar `Skill Outcomes` link, which anchors into `/dashboard#skill-outcomes`; admins reach cross-tenant rollups through the sidebar `Skill Analytics` link at `/admin/analytics/skills`
 - estimated value is shown only when a manifest default or event override supplies it
 - `session_id` can support measured agent elapsed time later, but that remains a v2 improvement
 

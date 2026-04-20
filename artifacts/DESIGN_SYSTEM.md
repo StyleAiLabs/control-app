@@ -384,6 +384,8 @@ Authenticated app navigation uses the sidebar:
 - section labels
 - `.nav-link`
 - active state with orange accent
+- tenant users can reach `Skill Outcomes` from the sidebar; it anchors to the dashboard impact panel
+- admins can reach the global `Skill Analytics` surface from the admin sidebar section
 
 Guest navigation uses the brand mark/wordmark and top nav links. Keep guest nav simpler and more brand-led.
 

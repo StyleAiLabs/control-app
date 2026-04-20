@@ -445,7 +445,7 @@
         </div>
     </section>
 
-    <section class="panel" style="margin-top: 18px;">
+    <section class="panel" id="skill-outcomes" style="margin-top: 18px;">
         <span class="eyebrow">Skill Outcomes</span>
         @if (($impactSummary['conversions'] ?? 0) === 0)
             <div class="note" style="margin-top: 18px;">

@@ -7,6 +7,21 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-21 — Fix: Skill Analytics Added To Sidebar Navigation
+
+Date: 2026-04-21
+Status: Implemented
+
+### Overview
+
+Made the skill analytics surfaces discoverable from the shared authenticated navigation instead of only through direct URLs or dashboard/admin content.
+
+### What Changed
+
+- tenant users now have a `Skill Outcomes` sidebar link that jumps to the dashboard analytics panel
+- admins now have a `Skill Analytics` sidebar link to `/admin/analytics/skills`
+- mobile hamburger navigation includes the same tenant and admin analytics links as desktop
+
 ## 2026-04-20 — Fix: Skill Analytics Helper Scripts Moved To Templates
 
 Date: 2026-04-20
