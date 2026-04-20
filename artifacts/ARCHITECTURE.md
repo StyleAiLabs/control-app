@@ -94,6 +94,8 @@ Sync360 currently has two different installation models for tenant runtime skill
 - Catalog-managed skill packs:
   - use this when the skill is effectively a repo-authored OpenClaw skill folder (`manifest.json`, `SKILL.md`, supporting files) and does not require extra host or container dependencies
   - the skill should live under `resources/skill-packs/<skill-id>/`, be scanned/imported into the Sync360 catalog, published, assigned, and rolled out through the existing tenant apply pipeline
+  - the pack root owns `manifest.json` and `SKILL.md`; richer supporting docs should live under `docs/`, not under a nested `skills/<skill-id>/` folder, because Sync360 already materializes the whole pack into `.openclaw/workspace/skills/<skill-id>/`
+  - use `resources/skill-packs/CUSTOM_SKILL_AUTHORING_PROMPT.md` when creating or updating a skill so manifest shape, analytics emission, tracking payloads, privacy rules, and runtime materialization stay consistent
 - Host-managed runtime capabilities:
   - use this when the skill depends on an external CLI, binary, auth store, mounted config directory, or other runtime dependency that must exist outside the plain skill folder
   - in that case the skill is not "just a catalog skill"; it needs a capability model similar to `gog`, where Sync360 installs/verifies the dependency on the VPS, mounts it into tenant containers, manages auth/config separately, then exposes the corresponding OpenClaw skill

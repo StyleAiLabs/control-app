@@ -7,6 +7,22 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-20 — Cleanup: Custom Skill Pack Layout Uses Root Skill Files Plus Docs Folder
+
+Date: 2026-04-20
+Status: Implemented
+
+### Overview
+
+Simplified the repo-authored appointment-booking skill layout so the local source tree matches the runtime materialization model.
+
+### What Changed
+
+- moved supporting appointment-booking guidance under `resources/skill-packs/appointment-booking/docs/`
+- removed the confusing nested `resources/skill-packs/appointment-booking/skills/appointment-booking/` scaffold
+- added `resources/skill-packs/CUSTOM_SKILL_AUTHORING_PROMPT.md` as the reusable guideline prompt for creating platform-compliant custom skills with analytics and tracking
+- added regression coverage that tenant runtime materialization creates `skills/appointment-booking/docs/...` and does not recreate nested `skills/appointment-booking/skills/appointment-booking/...`
+
 ## 2026-04-20 — Feat: Custom Skill Conversion Analytics Via Runtime SQLite Sync
 
 Date: 2026-04-20
