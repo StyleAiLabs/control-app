@@ -49,6 +49,8 @@ Blade UI design truth lives in [`artifacts/DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md).
 
 The shared app and guest layouts are the implementation home for the current type contract, spacing scale (`--space-*`), radius scale (`--radius-*`), semantic elevation tokens (`--shadow-panel`, `--shadow-focus`, `--shadow-elevated`), field-level validation CSS (`aria-invalid`, `.field-error`), `prefers-reduced-motion` guards, and reusable UI classes. View-level Blade files should consume those primitives instead of re-declaring font stacks, tracking, status badge behavior, or technical-string wrapping locally. Per-surface responsive breakpoints, dark-mode strategy, motion rules, and form validation patterns are documented in `DESIGN_SYSTEM.md` §10–§13.
 
+Primary authenticated navigation lives in the shared sidebar and mobile drawer; admin overview does not duplicate those sidebar destinations as header action buttons.
+
 ### Infrastructure modes
 
 #### `local`

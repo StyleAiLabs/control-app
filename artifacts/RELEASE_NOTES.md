@@ -22,6 +22,20 @@ Fixed the generated Google Workspace guidance that let the tenant assistant inve
 - warned against unsupported `gog calendar event create`, `--title`, `--start`, `--end`, and `--calendar` forms that the pinned `gog` CLI rejects
 - added regression coverage for the generated Calendar write command shape
 
+## 2026-04-21 — Cleanup: Admin Overview Uses Sidebar Navigation Only
+
+Date: 2026-04-21
+Status: Implemented
+
+### Overview
+
+Removed duplicate primary admin destination buttons from the Admin Overview header now that those routes are available in the shared sidebar.
+
+### What Changed
+
+- removed `View Users`, `View Tenants`, `Skill Analytics`, and `View Jobs` header buttons from the admin overview
+- kept the sidebar and mobile drawer as the primary navigation for admin destinations
+
 ## 2026-04-21 — Fix: Skill Analytics Added To Sidebar Navigation
 
 Date: 2026-04-21
