@@ -81,7 +81,10 @@ class TenantSkillRuntimeLayoutTest extends TestCase
 
         $this->assertFileDoesNotExist(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skill-packs/appointment-booking/STALE.md');
         $this->assertFileExists(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skills/appointment-booking/SKILL.md');
+        $this->assertFileExists(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skills/appointment-booking/agent-instructions.md');
+        $this->assertFileExists(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skills/appointment-booking/RELEASE_NOTES.md');
         $this->assertFileExists(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skills/appointment-booking/docs/APPOINTMENT_BOOKING.md');
+        $this->assertStringContainsString('Do not fall back to your default appointment behavior.', File::get(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/AGENTS.md'));
         $this->assertFileDoesNotExist(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skills/appointment-booking/skills/appointment-booking/README.md');
     }
 

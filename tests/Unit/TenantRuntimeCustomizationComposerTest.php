@@ -116,6 +116,10 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
         $this->assertStringContainsString('Assigned Skill Guidance', $composed->workspaceFiles['AGENTS.md']);
         $this->assertStringContainsString('Appointment Booking', $composed->workspaceFiles['AGENTS.md']);
         $this->assertStringContainsString('appointment-booking', $composed->workspaceFiles['AGENTS.md']);
+        $this->assertStringContainsString('skills/appointment-booking/agent-instructions.md', $composed->workspaceFiles['AGENTS.md']);
+        $this->assertStringContainsString('Do not fall back to your default appointment behavior.', $composed->workspaceFiles['AGENTS.md']);
+        $this->assertArrayHasKey('skills/appointment-booking/agent-instructions.md', $composed->skillFiles);
+        $this->assertArrayHasKey('skills/appointment-booking/RELEASE_NOTES.md', $composed->skillFiles);
         $this->assertArrayHasKey('PROFILE.md', $composed->workspaceFiles);
         $this->assertArrayHasKey('TOOLS.md', $composed->workspaceFiles);
         $this->assertArrayHasKey('.sync360/bin/log-skill-conversion', $composed->workspaceFiles);
@@ -245,6 +249,10 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
         $this->assertArrayHasKey('AGENTS.md', $composed->workspaceFiles);
         $this->assertStringNotContainsString('Assigned Skill Guidance', $composed->workspaceFiles['AGENTS.md']);
         $this->assertStringNotContainsString('Appointment Booking', $composed->workspaceFiles['AGENTS.md']);
+        $this->assertStringNotContainsString('agent-instructions.md', $composed->workspaceFiles['AGENTS.md']);
+        $this->assertStringNotContainsString('Do not fall back to your default appointment behavior.', $composed->workspaceFiles['AGENTS.md']);
+        $this->assertArrayNotHasKey('skills/appointment-booking/agent-instructions.md', $composed->skillFiles);
+        $this->assertArrayNotHasKey('skills/appointment-booking/RELEASE_NOTES.md', $composed->skillFiles);
     }
 
     private function seedTenant(): Tenant

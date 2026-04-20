@@ -69,7 +69,7 @@ class TenantSkillAnalyticsSyncTest extends TestCase
             'tenant_id' => $tenant->id,
             'event_id' => 'booking-event-001',
             'skill_key' => 'appointment-booking',
-            'skill_version' => '1.0.2',
+            'skill_version' => '1.0.3',
             'conversion_type' => 'appointment_booked',
             'conversion_id' => 'booking-ref-001',
             'customer_label' => 'Jane Doe',
@@ -158,7 +158,7 @@ class TenantSkillAnalyticsSyncTest extends TestCase
         $statement->execute([
             'event_id' => 'broken-event-001',
             'skill_key' => 'appointment-booking',
-            'skill_version' => '1.0.2',
+            'skill_version' => '1.0.3',
             'event_type' => 'conversion_succeeded',
             'conversion_type' => 'appointment_booked',
             'conversion_id' => 'broken-ref',

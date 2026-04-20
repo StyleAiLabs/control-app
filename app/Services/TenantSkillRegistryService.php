@@ -96,6 +96,20 @@ class TenantSkillRegistryService
                 continue;
             }
 
+            $sourceFileValidationError = $this->sourceFileValidationError($directory, (string) $normalized['version']);
+
+            if ($sourceFileValidationError !== null) {
+                $entries[] = [
+                    'skill_key' => $normalized['id'],
+                    'directory' => $directory,
+                    'manifest_path' => $manifestPath,
+                    'manifest_valid' => false,
+                    'error' => sprintf('Skill pack [%s] source files are invalid: %s', $normalized['id'], $sourceFileValidationError),
+                ];
+
+                continue;
+            }
+
             if ($analyticsValidationError !== null) {
                 $entries[] = [
                     'skill_key' => $normalized['id'],
@@ -225,6 +239,24 @@ class TenantSkillRegistryService
         return $skillIds;
     }
 
+    public function agentInstructionsForAssignment(TenantSkillAssignment $assignment): ?string
+    {
+        if (! $assignment->is_enabled) {
+            return null;
+        }
+
+        $skill = $this->skillDefinitionForAssignment($assignment);
+        $path = (string) $skill['source_root'].DIRECTORY_SEPARATOR.'agent-instructions.md';
+
+        if (! $this->files->exists($path)) {
+            return null;
+        }
+
+        $contents = trim($this->files->get($path));
+
+        return $contents === '' ? null : $contents;
+    }
+
     /**
      * @param  Collection<int, TenantSkillAssignment>|array<int, TenantSkillAssignment>  $assignments
      * @return list<string>
@@ -339,6 +371,25 @@ class TenantSkillRegistryService
 
         if (! is_array($requiredFields) || $this->normalizedStringList($requiredFields) === []) {
             return 'required_success_fields must contain at least one field name.';
+        }
+
+        return null;
+    }
+
+    private function sourceFileValidationError(string $directory, string $version): ?string
+    {
+        foreach (['SKILL.md', 'agent-instructions.md', 'RELEASE_NOTES.md'] as $filename) {
+            $path = $directory.DIRECTORY_SEPARATOR.$filename;
+
+            if (! $this->files->exists($path) || trim($this->files->get($path)) === '') {
+                return sprintf('%s is required and cannot be empty.', $filename);
+            }
+        }
+
+        $releaseNotes = $this->files->get($directory.DIRECTORY_SEPARATOR.'RELEASE_NOTES.md');
+
+        if ($version !== '' && ! str_contains($releaseNotes, $version)) {
+            return sprintf('RELEASE_NOTES.md must include the current manifest version [%s].', $version);
         }
 
         return null;

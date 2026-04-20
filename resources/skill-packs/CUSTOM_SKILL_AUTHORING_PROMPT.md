@@ -11,6 +11,8 @@ Required source layout:
 - Put the skill under `resources/skill-packs/<skill-id>/`.
 - The pack root must contain `manifest.json`.
 - The pack root must contain `SKILL.md`.
+- The pack root must contain `agent-instructions.md`.
+- The pack root must contain `RELEASE_NOTES.md`.
 - Optional supporting guidance belongs under `docs/`.
 - Do not create a nested `skills/<skill-id>/` folder inside the pack. Sync360 already materializes the pack into the runtime `skills/<skill-id>/` folder.
 
@@ -25,6 +27,12 @@ Required `manifest.json` fields:
 - `default_agent_skill_ids`: list of default agent skills to attach when assigned.
 - `applicable_industries`: list, empty when not industry-specific.
 - `analytics`: required for conversion-tracked skills.
+
+Versioning rules:
+- Increment `manifest.json.version` for every change that affects skill behavior, instructions, metadata, analytics, privacy guidance, or supporting docs.
+- Increment the version even when the change feels like "just skill info", such as edits to `label`, `description`, `SKILL.md`, `agent-instructions.md`, analytics defaults, trigger guidance, or docs.
+- Do not edit a previously published version in place without changing the version; tenant assignments are version-pinned until an operator rolls out a newer published version.
+- Add a short entry to `RELEASE_NOTES.md` for every version increment.
 
 Analytics manifest contract:
 - `analytics.enabled`: true for skills that emit conversion analytics.
@@ -87,6 +95,21 @@ Required `SKILL.md` content:
   - when not to emit analytics
   - the exact helper invocation pattern
 
+Required `agent-instructions.md` content:
+- This file tells the OpenClaw agent to use the custom skill instead of its default behavior.
+- Without this file, the agent will handle requests using built-in capabilities and skip the custom workflow and analytics.
+- Must include a `Why this skill exists` section explaining what the custom skill adds over default behavior (workflow control, analytics, privacy rules).
+- Must include a `When to activate` section listing specific trigger conditions (user requests, upstream skill suggestions, etc.).
+- Must include a `What to do` section with numbered steps: read SKILL.md, follow the workflow, run the analytics helper, do not fall back to default behavior.
+- Must explicitly state: "Do not fall back to your default [capability] behavior."
+- Must reference the SKILL.md path: `skills/<skill-id>/SKILL.md`.
+
+Required `RELEASE_NOTES.md` content:
+- A short heading for the skill release notes.
+- A section for the current manifest version.
+- One to three concise bullets describing what changed and why operators should roll it out.
+- No customer private data, credentials, or long implementation logs.
+
 Quality bar:
 - The skill must not invent external confirmations.
 - The skill must ask for missing required customer data before claiming success.
@@ -97,6 +120,7 @@ Quality bar:
 Verification checklist:
 - `php artisan sync360:skills:scan --skill=<skill-id>` reports the manifest as valid.
 - `php artisan sync360:skills:import --skill=<skill-id>` imports the skill.
+- Scan/import fails if `RELEASE_NOTES.md` is missing, empty, or does not include the current manifest version.
 - Runtime materialization places files under `.openclaw/workspace/skills/<skill-id>/`.
 - Runtime materialization does not create `.openclaw/workspace/skills/<skill-id>/skills/<skill-id>/`.
 - The emitted analytics payload passes helper validation.
@@ -107,6 +131,8 @@ Verification checklist:
 Now create the complete skill pack:
 1. `resources/skill-packs/<skill-id>/manifest.json`
 2. `resources/skill-packs/<skill-id>/SKILL.md`
-3. optional `resources/skill-packs/<skill-id>/docs/*.md`
-4. focused tests or updates proving scan/import/runtime materialization and analytics behavior where practical.
+3. `resources/skill-packs/<skill-id>/agent-instructions.md`
+4. `resources/skill-packs/<skill-id>/RELEASE_NOTES.md`
+5. optional `resources/skill-packs/<skill-id>/docs/*.md`
+6. focused tests or updates proving scan/import/runtime materialization, `AGENTS.md` instruction injection/removal, version bump/release note coverage, and analytics behavior where practical.
 ```

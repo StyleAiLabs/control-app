@@ -58,6 +58,57 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         }
     }
 
+    public function test_scan_command_requires_agent_instructions_file(): void
+    {
+        $instructionsPath = base_path('resources/skill-packs/appointment-booking/agent-instructions.md');
+        $holdingPath = storage_path('framework/testing/appointment-booking-agent-instructions.md');
+        File::ensureDirectoryExists(dirname($holdingPath));
+        File::move($instructionsPath, $holdingPath);
+
+        try {
+            $this->artisan('sync360:skills:scan', ['--skill' => 'appointment-booking'])
+                ->assertExitCode(1)
+                ->expectsOutputToContain('agent-instructions.md');
+        } finally {
+            if (File::exists($holdingPath)) {
+                File::move($holdingPath, $instructionsPath);
+            }
+        }
+    }
+
+    public function test_scan_command_requires_release_notes_file(): void
+    {
+        $releaseNotesPath = base_path('resources/skill-packs/appointment-booking/RELEASE_NOTES.md');
+        $holdingPath = storage_path('framework/testing/appointment-booking-release-notes.md');
+        File::ensureDirectoryExists(dirname($holdingPath));
+        File::move($releaseNotesPath, $holdingPath);
+
+        try {
+            $this->artisan('sync360:skills:scan', ['--skill' => 'appointment-booking'])
+                ->assertExitCode(1)
+                ->expectsOutputToContain('RELEASE_NOTES.md');
+        } finally {
+            if (File::exists($holdingPath)) {
+                File::move($holdingPath, $releaseNotesPath);
+            }
+        }
+    }
+
+    public function test_scan_command_requires_release_notes_to_include_current_manifest_version(): void
+    {
+        $releaseNotesPath = base_path('resources/skill-packs/appointment-booking/RELEASE_NOTES.md');
+        $originalReleaseNotes = File::get($releaseNotesPath);
+        File::put($releaseNotesPath, str_replace('1.0.3', '1.0.2', $originalReleaseNotes));
+
+        try {
+            $this->artisan('sync360:skills:scan', ['--skill' => 'appointment-booking'])
+                ->assertExitCode(1)
+                ->expectsOutputToContain('current manifest version');
+        } finally {
+            File::put($releaseNotesPath, $originalReleaseNotes);
+        }
+    }
+
     public function test_local_import_includes_non_production_ready_skills(): void
     {
         $manifestPath = base_path('resources/skill-packs/appointment-booking/manifest.json');
@@ -71,7 +122,7 @@ class TenantSkillCatalogWorkflowTest extends TestCase
 
             $this->artisan('sync360:skills:import')
                 ->assertExitCode(0)
-                ->expectsOutputToContain('Imported appointment-booking@1.0.2');
+                ->expectsOutputToContain('Imported appointment-booking@1.0.3');
 
             $this->assertDatabaseHas('skill_catalog_items', [
                 'skill_key' => 'appointment-booking',

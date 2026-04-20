@@ -7,6 +7,38 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-21 — Feature: Skill Packs Require Versioned Release Notes
+
+Date: 2026-04-21
+Status: Implemented
+
+### Overview
+
+Added a required pack-level `RELEASE_NOTES.md` and tightened the custom skill authoring contract so every skill info, instruction, metadata, analytics, privacy, or supporting-doc change increments the manifest version.
+
+### What Changed
+
+- made skill scan/import reject missing, empty, or stale root `RELEASE_NOTES.md` files that do not mention the current manifest version
+- bumped the appointment-booking skill pack to `1.0.3`
+- added appointment-booking release notes describing the runtime agent-instruction change
+- updated custom skill authoring guidance to require version bumps and release note entries for even small skill-info changes
+
+## 2026-04-21 — Feature: Skill Agent Instructions Inject Into Tenant `AGENTS.md`
+
+Date: 2026-04-21
+Status: Implemented
+
+### Overview
+
+Added `agent-instructions.md` as a required root file for catalog-managed custom skills so assigned skills can steer tenant agent behavior in `AGENTS.md`, not only through their materialized `SKILL.md` files.
+
+### What Changed
+
+- made skill scan/import reject missing or empty root `agent-instructions.md`
+- materialized `agent-instructions.md` into `.openclaw/workspace/skills/<skill-id>/`
+- injected enabled skills' `agent-instructions.md` content into generated tenant `AGENTS.md`
+- kept removal automatic by rebuilding `AGENTS.md` from enabled assignments only, so disabled/unassigned skills drop their injected instructions
+
 ## 2026-04-21 — Fix: Calendar Booking Uses Correct `gog` Create Shape
 
 Date: 2026-04-21

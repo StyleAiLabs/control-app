@@ -343,6 +343,16 @@ class TenantRuntimeCustomizationComposer
             if ($description !== '') {
                 $lines[] = sprintf('- Use when: %s', $description);
             }
+
+            $agentInstructions = $this->skillRegistry->agentInstructionsForAssignment($assignment);
+
+            if ($agentInstructions !== null) {
+                $lines[] = '- Agent instructions source: `skills/'.$assignment->skill_key.'/agent-instructions.md`';
+                $lines[] = '';
+                $lines[] = '#### Agent Instructions';
+                $lines[] = '';
+                $lines[] = $agentInstructions;
+            }
         }
 
         return implode(PHP_EOL, $lines);
