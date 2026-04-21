@@ -42,6 +42,15 @@ class TenantSkillCatalogWorkflowTest extends TestCase
             ->expectsOutputToContain('hello-world');
     }
 
+    public function test_inbox_triage_skill_includes_lead_reference_follow_up_guidance(): void
+    {
+        $skill = File::get(base_path('resources/skill-packs/inbox-triage/SKILL.md'));
+
+        $this->assertStringContainsString('Lead ref: <gmail_message_id>', $skill);
+        $this->assertStringContainsString('use `gog gmail get <Lead ref>` before asking for email details', $skill);
+        $this->assertStringContainsString('Do not fall back to guessed Gmail searches when the notification already contains a `Lead ref`', $skill);
+    }
+
     public function test_scan_command_surfaces_invalid_manifest_instead_of_silently_skipping(): void
     {
         $invalidSkillPath = base_path('resources/skill-packs/invalid-scan-skill');

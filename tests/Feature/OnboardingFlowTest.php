@@ -1632,6 +1632,9 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('Do not run `gog auth ...`', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('Do not say you are fundamentally unable to check emails or calendars', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('Do not ask the owner which Google account to use unless a tool explicitly reports multiple configured accounts or a missing default account.', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
+        $this->assertStringContainsString('includes `Lead ref: <gmail_message_id>`', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
+        $this->assertStringContainsString('use `gog gmail get <gmail_message_id>` to reopen the exact email', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
+        $this->assertStringContainsString('Do not guess with Gmail searches from company labels or notification summaries when an exact `Lead ref` is present', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('The `gog` CLI is preconfigured in this workspace.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Treat owner@example.com as the default Google account', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('gog gmail --help', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));

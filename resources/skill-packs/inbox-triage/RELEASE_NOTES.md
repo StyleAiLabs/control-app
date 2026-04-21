@@ -1,5 +1,11 @@
 # Inbox Triage — Release Notes
 
+## 1.5.3
+
+- Added `Lead ref: <gmail_message_id>` to the required high-value Telegram notification format, with optional thread reference.
+- Added follow-up guidance telling the agent to read the replied notification, extract `Lead ref`, and use `gog gmail get <Lead ref>` instead of guessed Gmail searches.
+- Added explicit fallback guidance to ask the owner to reply to the original notification again when no lead reference is available.
+
 ## 1.5.2
 
 - Converted the loose Drive logging bullet into a required Google Drive triage-log workflow with folder/file naming, idempotency, privacy, command-shape, and validation guidance.

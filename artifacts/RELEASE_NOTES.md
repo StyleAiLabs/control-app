@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-22 — Fix: Lead Reference For Inbox Triage Follow-Ups
+
+Date: 2026-04-22
+Status: Implemented
+
+### Overview
+
+Fixed the practical Telegram follow-up path for Inbox Triage by adding a visible Gmail lead reference to high-value notifications and teaching owner follow-up flows to reuse that exact reference.
+
+### What Changed
+
+- bumped `inbox-triage` to `1.5.3`
+- updated the skill so high-value Telegram notifications must include `Lead ref: <gmail_message_id>` and optional thread reference
+- updated owner follow-up guidance so replies like `Get from email` and `Generate a quote` reopen the original Gmail message with `gog gmail get <Lead ref>`
+- added fallback guidance to ask the owner to reply to the original lead notification again when no lead reference is available
+- added regression coverage for the generated heartbeat guidance and aligned inbox-triage test fixtures to the new skill version
+
 ## 2026-04-22 — Fix: Inbox Triage Skill Workflow Contract
 
 Date: 2026-04-22

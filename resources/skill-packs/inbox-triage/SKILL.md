@@ -37,6 +37,8 @@ Complete these steps in order for every delivered Gmail inquiry:
    - Otherwise use the Gmail message id.
    - Reuse this id for Telegram idempotency reasoning, Google Drive log naming, and analytics `conversion_id`.
 3. If `lead_quality` is `high`, send exactly one Telegram notification using the Telegram Notifications section.
+   - The notification must include `Lead ref: <gmail_message_id>`.
+   - Include `Thread ref: <gmail_thread_id>` when a thread id is available.
 4. Create or verify the Google Drive triage log using the Google Drive Triage Log section.
 5. Emit analytics only when the lead meets the Analytics Contract.
 6. Final response must summarize:
@@ -66,9 +68,17 @@ From: <company name or contact>
 Domain: <email domain>
 Category: <inquiry category>
 Subject: <first 80 chars of subject line>
+Lead ref: <gmail_message_id>
+Thread ref: <gmail_thread_id or omit when unavailable>
 
 Suggested action: <next step>
 ```
+
+**Follow-up rule:**
+- Treat `Lead ref` as the canonical handle for future owner follow-up requests.
+- If the owner replies to this Telegram notification with requests such as `Get from email`, `Generate a quote`, `Draft reply`, or `Book site visit`, read the replied notification, extract `Lead ref`, and use `gog gmail get <Lead ref>` before asking for email details.
+- Do not fall back to guessed Gmail searches when the notification already contains a `Lead ref`.
+- If the owner did not reply to the original notification or the replied message does not contain `Lead ref`, ask them to reply to the original lead notification again or paste the lead reference.
 
 **If the Telegram send fails:** Log the failure to the Google Drive triage log and continue — do not retry in a loop or block the triage workflow.
 
