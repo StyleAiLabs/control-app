@@ -18,6 +18,7 @@ use App\Models\TenantSkillAssignment;
 use App\Models\User;
 use App\Services\ControlAppDeploymentService;
 use App\Services\SkillCatalogService;
+use App\Services\SystemHealthService;
 use App\Services\TenantAgentCustomizationService;
 use App\Services\TenantAgentSyncService;
 use App\Services\TenantDeletionService;
@@ -70,6 +71,7 @@ class AdminController extends Controller
         private readonly SkillCatalogService $skillCatalog,
         private readonly TenantSkillAssignmentService $tenantSkillAssignments,
         private readonly TenantSkillAnalyticsReportService $skillAnalytics,
+        private readonly SystemHealthService $systemHealth,
     ) {}
 
     public function index(): View
@@ -89,7 +91,13 @@ class AdminController extends Controller
                 'failed' => Tenant::query()->where('provisioning_status', 'failed')->count(),
             ],
             'controlAppDeployStatus' => $this->controlAppDeployment->status(),
+            'systemHealth' => $this->systemHealth->adminSummary(),
         ]);
+    }
+
+    public function systemHealthStatus(): JsonResponse
+    {
+        return response()->json($this->systemHealth->adminSummary());
     }
 
     public function users(): View

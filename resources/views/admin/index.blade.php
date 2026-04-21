@@ -52,6 +52,89 @@
         </div>
     </section>
 
+    <section class="panel" style="margin-top: 20px;" data-system-health data-status-url="{{ route('admin.system-health.status') }}">
+        <div class="topbar" style="margin-bottom: 18px;">
+            <div>
+                <span class="eyebrow">System Health</span>
+                <h2 style="font-size: 1.4rem;">Scheduler And Queue</h2>
+                <p>App-level heartbeats prove the scheduler is ticking and a queue worker is handling background jobs.</p>
+            </div>
+            <div>
+                <span
+                    data-health-field="overall_status"
+                    class="badge badge--technical {{ $systemHealth['overall_badge_class'] ?? 'pending' }}"
+                >{{ $systemHealth['overall_status'] ?? 'unknown' }}</span>
+            </div>
+        </div>
+
+        <div class="meta">
+            <div class="meta-item" data-health-component="scheduler">
+                <small class="type-label">Scheduler</small>
+                <strong>
+                    <span class="badge badge--technical {{ $systemHealth['components']['scheduler']['badge_class'] ?? 'pending' }}" data-health-field="status">{{ $systemHealth['components']['scheduler']['status'] ?? 'unknown' }}</span>
+                </strong>
+                <span class="hint" data-health-field="last_seen_at">Last seen: {{ $systemHealth['components']['scheduler']['last_seen_at'] ?? '—' }}</span>
+            </div>
+            <div class="meta-item" data-health-component="queue_worker">
+                <small class="type-label">Queue Worker</small>
+                <strong>
+                    <span class="badge badge--technical {{ $systemHealth['components']['queue_worker']['badge_class'] ?? 'pending' }}" data-health-field="status">{{ $systemHealth['components']['queue_worker']['status'] ?? 'unknown' }}</span>
+                </strong>
+                <span class="hint" data-health-field="last_seen_at">Last seen: {{ $systemHealth['components']['queue_worker']['last_seen_at'] ?? '—' }}</span>
+            </div>
+            <div class="meta-item" data-health-queue>
+                <small class="type-label">Queue Backlog</small>
+                <strong>
+                    <span class="badge badge--technical {{ $systemHealth['queue']['badge_class'] ?? 'pending' }}" data-health-field="status">{{ $systemHealth['queue']['status'] ?? 'unknown' }}</span>
+                </strong>
+                <span class="hint" data-health-field="message">{{ $systemHealth['queue']['message'] ?? '—' }}</span>
+            </div>
+            <div class="meta-item" data-health-queue>
+                <small class="type-label">Pending Jobs</small>
+                <strong class="type-value type-value--technical" data-health-field="pending_count">{{ $systemHealth['queue']['pending_count'] ?? '—' }}</strong>
+            </div>
+            <div class="meta-item" data-health-queue>
+                <small class="type-label">Reserved Jobs</small>
+                <strong class="type-value type-value--technical" data-health-field="reserved_count">{{ $systemHealth['queue']['reserved_count'] ?? '—' }}</strong>
+            </div>
+            <div class="meta-item" data-health-queue>
+                <small class="type-label">Failed Jobs</small>
+                <strong class="type-value type-value--technical" data-health-field="failed_count">{{ $systemHealth['queue']['failed_count'] ?? '—' }}</strong>
+            </div>
+        </div>
+
+        <div
+            data-health-notes
+            class="note"
+            style="margin-top: 16px;{{ empty($systemHealth['notes']) ? ' display: none;' : '' }}"
+        >{{ implode(' ', $systemHealth['notes'] ?? []) }}</div>
+
+        <div class="table-wrap" style="margin-top: 16px;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Scheduled Command</th>
+                        <th>Status</th>
+                        <th>Last Success</th>
+                        <th>Last Failure</th>
+                        <th>Message</th>
+                    </tr>
+                </thead>
+                <tbody data-health-scheduled>
+                    @foreach (($systemHealth['scheduled_commands'] ?? []) as $command)
+                        <tr data-health-scheduled-key="{{ $command['key'] }}">
+                            <td>{{ $command['label'] }}</td>
+                            <td><span class="badge badge--technical {{ $command['badge_class'] }}">{{ $command['status'] }}</span></td>
+                            <td class="type-tech type-tech--wrap">{{ $command['last_success_at'] ?? '—' }}</td>
+                            <td class="type-tech type-tech--wrap">{{ $command['last_failed_at'] ?? '—' }}</td>
+                            <td class="hint">{{ $command['message'] ?? $command['last_error'] ?? '—' }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </section>
+
     <section class="panel" style="margin-top: 20px;" data-control-app-deploy data-status-url="{{ route('admin.deploy.control-app.status') }}">
         <div class="topbar" style="margin-bottom: 18px;">
             <div>
@@ -127,6 +210,112 @@
             <pre data-deploy-field="log_tail" class="type-tech type-tech--wrap" style="margin: 0; color: #374151;">{{ $controlAppDeployStatus['log_tail'] ?? '' }}</pre>
         </div>
     </section>
+
+    <script>
+        (() => {
+            const panel = document.querySelector('[data-system-health]');
+            if (!panel) return;
+
+            const statusUrl = panel.getAttribute('data-status-url');
+            if (!statusUrl) return;
+
+            const textOrDash = (value) => value === null || value === undefined || value === '' ? '—' : value;
+            const setBadge = (element, status, badgeClass) => {
+                if (!element) return;
+
+                element.textContent = status ?? 'unknown';
+                element.className = `badge badge--technical ${badgeClass ?? 'pending'}`;
+            };
+            const setText = (selector, value, root = panel) => {
+                const element = root.querySelector(selector);
+                if (element) element.textContent = textOrDash(value);
+            };
+
+            const updateComponent = (key, payload) => {
+                const root = panel.querySelector(`[data-health-component="${key}"]`);
+                if (!root || !payload) return;
+
+                setBadge(root.querySelector('[data-health-field="status"]'), payload.status, payload.badge_class);
+                setText('[data-health-field="last_seen_at"]', `Last seen: ${textOrDash(payload.last_seen_at)}`, root);
+            };
+
+            const updateQueue = (payload) => {
+                if (!payload) return;
+
+                const statusNode = panel.querySelector('[data-health-queue] [data-health-field="status"]');
+                setBadge(statusNode, payload.status, payload.badge_class);
+                panel.querySelectorAll('[data-health-queue]').forEach((root) => {
+                    ['message', 'pending_count', 'reserved_count', 'failed_count'].forEach((field) => {
+                        setText(`[data-health-field="${field}"]`, payload[field], root);
+                    });
+                });
+            };
+
+            const renderScheduled = (commands) => {
+                const body = panel.querySelector('[data-health-scheduled]');
+                if (!body) return;
+
+                body.innerHTML = '';
+                (commands ?? []).forEach((command) => {
+                    const row = document.createElement('tr');
+                    const name = document.createElement('td');
+                    const status = document.createElement('td');
+                    const lastSuccess = document.createElement('td');
+                    const lastFailure = document.createElement('td');
+                    const message = document.createElement('td');
+                    const badge = document.createElement('span');
+
+                    row.setAttribute('data-health-scheduled-key', command.key ?? '');
+                    name.textContent = command.label ?? 'Scheduled command';
+                    badge.textContent = command.status ?? 'unknown';
+                    badge.className = `badge badge--technical ${command.badge_class ?? 'pending'}`;
+                    status.appendChild(badge);
+                    lastSuccess.textContent = textOrDash(command.last_success_at);
+                    lastSuccess.className = 'type-tech type-tech--wrap';
+                    lastFailure.textContent = textOrDash(command.last_failed_at);
+                    lastFailure.className = 'type-tech type-tech--wrap';
+                    message.textContent = textOrDash(command.message ?? command.last_error);
+                    message.className = 'hint';
+
+                    row.append(name, status, lastSuccess, lastFailure, message);
+                    body.appendChild(row);
+                });
+            };
+
+            const updatePanel = (payload) => {
+                setBadge(panel.querySelector('[data-health-field="overall_status"]'), payload.overall_status, payload.overall_badge_class);
+                updateComponent('scheduler', payload.components?.scheduler);
+                updateComponent('queue_worker', payload.components?.queue_worker);
+                updateQueue(payload.queue);
+                renderScheduled(payload.scheduled_commands);
+
+                const notes = panel.querySelector('[data-health-notes]');
+                if (notes) {
+                    const message = (payload.notes ?? []).join(' ');
+                    notes.textContent = message;
+                    notes.style.display = message ? '' : 'none';
+                }
+            };
+
+            const poll = async () => {
+                try {
+                    const response = await fetch(statusUrl, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                        },
+                        credentials: 'same-origin',
+                    });
+
+                    if (response.ok) updatePanel(await response.json());
+                } catch (error) {
+                    // Leave the last known health state visible.
+                }
+            };
+
+            window.setInterval(poll, 30000);
+        })();
+    </script>
 
     <script>
         (() => {

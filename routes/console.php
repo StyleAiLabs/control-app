@@ -6,6 +6,7 @@ use App\Enums\TrialStatus;
 use App\Models\Tenant;
 use App\Models\Server;
 use App\Services\LiteLlmTenantKeyService;
+use App\Services\SystemHealthService;
 use App\Services\TenantAgentSyncService;
 use App\Services\TenantSkillAnalyticsRuntimeService;
 use App\Services\TenantSkillAnalyticsSyncService;
@@ -24,6 +25,34 @@ use Illuminate\Support\Facades\Schedule;
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+$trackScheduledCommand = static function ($event, string $key, string $label) {
+    return $event
+        ->before(function () use ($key, $label): void {
+            app(SystemHealthService::class)->recordScheduledStart($key, $label);
+        })
+        ->onSuccess(function () use ($key, $label): void {
+            app(SystemHealthService::class)->recordScheduledSuccess($key, $label);
+        })
+        ->onFailure(function () use ($key, $label): void {
+            app(SystemHealthService::class)->recordScheduledFailure(
+                $key,
+                $label,
+                'Scheduled command failed. Check Laravel logs for command output.',
+            );
+        });
+};
+
+Artisan::command('sync360:system-health-heartbeat', function () {
+    /** @var SystemHealthService $systemHealth */
+    $systemHealth = app(SystemHealthService::class);
+    $systemHealth->recordSchedulerHeartbeat();
+    $systemHealth->dispatchQueueWorkerHeartbeat();
+
+    $this->components->info('System health heartbeat recorded.');
+})->purpose('Record scheduler heartbeat and dispatch queue-worker heartbeat probe');
+
+Schedule::command('sync360:system-health-heartbeat')->everyMinute();
 
 Artisan::command('sync360:bootstrap-client-vps {serverSelector? : Server id or name to prepare}', function (?string $serverSelector = null) {
     if (config('sync360.infrastructure.driver') !== 'ssh') {
@@ -152,7 +181,11 @@ Artisan::command('tenants:health-check', function () {
     ));
 })->purpose('Check live tenant workspaces and refresh their health status');
 
-Schedule::command('tenants:health-check')->everyFiveMinutes();
+$trackScheduledCommand(
+    Schedule::command('tenants:health-check')->everyFiveMinutes(),
+    'scheduled:tenants:health-check',
+    'Tenant Health Check',
+);
 
 Artisan::command('sync360:check-trial-expiry', function () {
     /** @var LiteLlmTenantKeyService $litellm */
@@ -250,13 +283,21 @@ Artisan::command('sync360:check-trial-expiry', function () {
     ));
 })->purpose('Check trial expiry conditions and send lifecycle email notifications');
 
-Schedule::command('sync360:check-trial-expiry')->everyThirtyMinutes();
+$trackScheduledCommand(
+    Schedule::command('sync360:check-trial-expiry')->everyThirtyMinutes(),
+    'scheduled:sync360:check-trial-expiry',
+    'Trial Expiry Check',
+);
 
 // Run every 10 minutes as a safety net for any SyncReplyFromWorkspace jobs
 // that failed all retries or were never dispatched.
 // The command class lives in app/Console/Commands/SyncConversationReplies.php
 // and is registered via withCommands() in bootstrap/app.php.
-Schedule::command('sync360:sync-replies')->everyTenMinutes();
+$trackScheduledCommand(
+    Schedule::command('sync360:sync-replies')->everyTenMinutes(),
+    'scheduled:sync360:sync-replies',
+    'Conversation Sync',
+);
 
 Artisan::command('sync360:sync-skill-conversions {tenantSelector? : Tenant id, tenant_id, or slug. Omit to sync every tenant runtime with analytics events}', function (?string $tenantSelector = null) {
     $tenant = null;
@@ -295,7 +336,11 @@ Artisan::command('sync360:sync-skill-conversions {tenantSelector? : Tenant id, t
     ));
 })->purpose('Sync tenant runtime skill conversion analytics into the control plane');
 
-Schedule::command('sync360:sync-skill-conversions')->everyFiveMinutes();
+$trackScheduledCommand(
+    Schedule::command('sync360:sync-skill-conversions')->everyFiveMinutes(),
+    'scheduled:sync360:sync-skill-conversions',
+    'Skill Analytics Sync',
+);
 
 Artisan::command('sync360:poll-inbox-triage {tenantSelector? : Tenant id, tenant_id, or slug. Omit to poll every eligible inbox-triage tenant}', function (?string $tenantSelector = null) {
     /** @var TenantInboxTriagePollingService $polling */
@@ -342,7 +387,11 @@ Artisan::command('sync360:poll-inbox-triage {tenantSelector? : Tenant id, tenant
     $this->components->info(sprintf('Queued inbox triage polling for %d eligible tenants.', $tenants->count()));
 })->purpose('Poll Gmail inboxes and trigger assigned inbox-triage skills for business-plausible messages');
 
-Schedule::command('sync360:poll-inbox-triage')->everyFiveMinutes();
+$trackScheduledCommand(
+    Schedule::command('sync360:poll-inbox-triage')->everyFiveMinutes(),
+    'scheduled:sync360:poll-inbox-triage',
+    'Inbox Triage Polling',
+);
 
 Artisan::command('sync360:init-skill-analytics {tenantSelector? : Tenant id, tenant_id, or slug. Omit to initialize every tenant runtime with analytics-enabled skills}', function (?string $tenantSelector = null) {
     $tenant = null;

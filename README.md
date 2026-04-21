@@ -184,11 +184,14 @@ For `gog`, the control plane now injects:
 
 Scheduled commands are part of the live system. Production must run the `scheduler` service from `docker-compose.prod.yml` so these jobs execute automatically:
 
+- `sync360:system-health-heartbeat`
 - `tenants:health-check`
 - `sync360:check-trial-expiry`
 - `sync360:sync-replies`
 - `sync360:sync-skill-conversions`
 - `sync360:poll-inbox-triage`
+
+The Admin Overview includes a System Health panel backed by durable app-level heartbeats. It shows whether the scheduler has ticked recently, whether a queue worker handled the lightweight heartbeat job, database queue backlog/failed-job counts when the database queue driver is active, and freshness for the critical scheduled commands above.
 
 ### Resync existing live tenants after prompt changes
 

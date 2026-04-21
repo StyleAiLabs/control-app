@@ -70,6 +70,7 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/skills/{skill}/versions/{version}/archive', [AdminController::class, 'archiveSkillCatalogVersion'])->name('skills.versions.archive');
         Route::post('/skills/{skill}/versions/{version}/rollout', [AdminController::class, 'rolloutSkillCatalogVersion'])->name('skills.versions.rollout');
         Route::get('/skills/{skill}/versions/{version}/rollout-progress', [AdminController::class, 'skillRolloutProgress'])->name('skills.versions.rollout-progress');
+        Route::get('/system-health/status', [AdminController::class, 'systemHealthStatus'])->name('system-health.status');
         Route::get('/tenants/{tenant}', [AdminController::class, 'showTenant'])->name('tenants.show');
         Route::delete('/tenants/{tenant}', [AdminController::class, 'destroyTenant'])->name('tenants.destroy');
         Route::get('/jobs', [AdminController::class, 'jobs'])->name('jobs');

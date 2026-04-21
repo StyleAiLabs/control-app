@@ -1,6 +1,6 @@
 # Sync360 Design System
 
-Last verified: `2026-04-20`
+Last verified: `2026-04-21`
 
 This document is the canonical design-system reference for the Sync360 Control App. It describes the current code-backed UI system used by the Blade surfaces in this repo.
 
@@ -51,6 +51,8 @@ Avoid:
 Admin/control-plane UI may use precise operational labels, but it should still explain what an action does in plain language.
 
 Success banners on admin rollout/apply flows should describe the exact transition, for example: publish changed the catalog only, rollout changed tenant assignments, apply queued tenant runtime work.
+
+The Admin Overview System Health panel uses the existing `.panel`, `.meta`, `.meta-item`, `.badge`, `.badge--technical`, `.note`, and table patterns. Scheduler, queue worker, queue backlog, and scheduled-command health should remain compact operational status, with timestamps and errors in technical text rather than custom color systems or process-level decorative UI.
 
 ## 4. UI Surface Split
 

@@ -7,6 +7,24 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-21 — Feature: Admin System Health Panel
+
+Date: 2026-04-21
+Status: Implemented
+
+### Overview
+
+Added portable scheduler and queue-worker visibility to the Admin Overview so operators can tell whether scheduler-backed work such as Inbox Triage polling and skill analytics sync is actually moving.
+
+### What Changed
+
+- added durable `system_health_signals` for scheduler, queue worker, and critical scheduled-command health
+- added `sync360:system-health-heartbeat`, scheduled every minute, to record scheduler activity and dispatch a lightweight queue-worker heartbeat job
+- instrumented critical scheduled commands with start/success/failure health hooks
+- added database queue backlog metrics for pending, reserved, failed, and oldest pending jobs when the active queue driver is `database`
+- added `GET /admin/system-health/status` and a polling System Health panel on Admin Overview
+- documented the admin UI pattern in the Blade design-system source of truth
+
 ## 2026-04-21 — Feature: Inbox Triage Polling Trigger
 
 Date: 2026-04-21

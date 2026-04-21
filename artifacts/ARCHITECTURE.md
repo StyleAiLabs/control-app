@@ -179,6 +179,17 @@ Key concerns:
 - error message
 - start and completion timestamps
 
+### `SystemHealthSignal`
+
+Stores durable app-level operational heartbeat and scheduled-command state.
+
+Key concerns:
+
+- scheduler and queue worker heartbeats
+- critical scheduled command start/success/failure timestamps
+- latest failure message for scheduled work
+- JSON metadata for lightweight runtime context
+
 ### `BusinessProfile`
 
 Stores structured customer business context gathered during onboarding.
@@ -907,6 +918,7 @@ Admin routes under `local.only` and `admin`:
 - `GET /admin/deploy/control-app/status`
 - `POST /admin/deploy/control-app`
 - `POST /admin/jobs/{tenant}/retry`
+- `GET /admin/system-health/status`
 - `POST /admin/tenants/{tenant}/health-check`
 - `POST /admin/tenants/{tenant}/resync-agent`
 - `POST /admin/tenants/{tenant}/runtime/bootstrap`
@@ -928,6 +940,7 @@ Defined in `routes/console.php`.
 
 Implemented recurring commands:
 
+- `sync360:system-health-heartbeat` — every minute
 - `tenants:health-check` — every five minutes
 - `sync360:check-trial-expiry` — every thirty minutes
 - `sync360:sync-replies` — every ten minutes
@@ -941,6 +954,20 @@ Also present:
 - `sync360:resync-live-tenants` — regenerate and push workspace instructions to existing live tenants after prompt/profile sync changes
 
 ## 9. Operational controls
+
+### System health
+
+The Admin Overview includes a System Health panel backed by `SystemHealthService` and `system_health_signals`.
+
+Current v1 behavior:
+
+- `sync360:system-health-heartbeat` records `scheduler` every minute
+- that heartbeat dispatches `RecordQueueWorkerHeartbeat`, and the `queue_worker` signal updates only when a queue worker handles the job
+- scheduler hooks around critical scheduled commands record start, success, and failure state
+- `GET /admin/system-health/status` returns the same summary payload used by the Admin Overview poller
+- database queue metrics include pending, reserved, failed, and oldest pending age when the active queue driver is `database`
+
+This is intentionally app-level health. It does not inspect Docker container/process state.
 
 ### Tenant health and status
 
