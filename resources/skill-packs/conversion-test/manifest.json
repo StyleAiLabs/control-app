@@ -4,7 +4,7 @@
     "label": "Conversion Test (by Sync360)",
     "description": "A minimal test skill that emits a single conversion event to verify the Sync360 analytics pipeline.",
     "category": "testing",
-    "production_ready": false,
+    "production_ready": true,
     "openclaw_skill_ids": [
         "conversion-test"
     ],
