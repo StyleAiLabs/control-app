@@ -1,16 +1,12 @@
 {
     "skill_id": "inbox-triage",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "label": "Inbox Triage (by Sync360)",
     "description": "Monitors email inbox for high-value leads, categorizes inquiries, and routes qualified opportunities.",
     "category": "operations",
     "production_ready": true,
-    "openclaw_skill_ids": [
-        "inbox-triage"
-    ],
-    "default_agent_skill_ids": [
-        "inbox-triage"
-    ],
+    "openclaw_skill_ids": [],
+    "default_agent_skill_ids": [],
     "applicable_industries": [],
     "google_workspace_integrations": [
         "gmail",

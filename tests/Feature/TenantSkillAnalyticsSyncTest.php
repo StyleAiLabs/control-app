@@ -96,7 +96,7 @@ class TenantSkillAnalyticsSyncTest extends TestCase
             'tenant_id' => $tenant->id,
             'event_id' => 'hello-event-001',
             'skill_key' => 'hello-world',
-            'skill_version' => '1.0.4',
+            'skill_version' => '1.0.5',
             'conversion_type' => 'hello_world_completed',
             'conversion_id' => 'hello-ref-001',
             'customer_label' => 'Jane Doe',
@@ -258,7 +258,7 @@ class TenantSkillAnalyticsSyncTest extends TestCase
         $statement->execute([
             'event_id' => 'broken-event-001',
             'skill_key' => 'hello-world',
-            'skill_version' => '1.0.4',
+            'skill_version' => '1.0.5',
             'event_type' => 'conversion_succeeded',
             'conversion_type' => 'hello_world_completed',
             'conversion_id' => 'broken-ref',

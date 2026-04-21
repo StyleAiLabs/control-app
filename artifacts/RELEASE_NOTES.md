@@ -7,6 +7,22 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-21 — Fix: Markdown Custom Skills Avoid OpenClaw Built-In Loader
+
+Date: 2026-04-21
+Status: Implemented
+
+### Overview
+
+Fixed markdown-only Sync360 custom skills so assigning them does not make OpenClaw try to read missing bundled skill files from `/app/skills/<skill-id>/SKILL.md`.
+
+### What Changed
+
+- changed default catalog normalization so raw OpenClaw skill IDs are opt-in instead of defaulting to the Sync360 skill key
+- removed raw OpenClaw skill registration from the hello-world, conversion-test, and inbox-triage packs
+- updated agent instructions so the workflow is self-contained and does not ask the agent to read `/app/skills/...`
+- updated custom skill authoring guidance to reserve `openclaw_skill_ids` and `default_agent_skill_ids` for real bundled OpenClaw skills only
+
 ## 2026-04-21 — Fix: Skill Analytics Runtime DB Initialization
 
 Date: 2026-04-21

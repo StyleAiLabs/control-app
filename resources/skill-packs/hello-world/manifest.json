@@ -1,16 +1,12 @@
 {
     "skill_id": "hello-world",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "label": "Hello World (by Sync360)",
     "description": "A simple hello world skill for testing purposes.",
     "category": "testing",
     "production_ready": false,
-    "openclaw_skill_ids": [
-        "hello-world"
-    ],
-    "default_agent_skill_ids": [
-        "hello-world"
-    ],
+    "openclaw_skill_ids": [],
+    "default_agent_skill_ids": [],
     "applicable_industries": [],
     "analytics": {
         "enabled": true,

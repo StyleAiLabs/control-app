@@ -134,14 +134,14 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
 
         $this->assertSame('gpt-4.1', data_get($config, 'agents.defaults.model'));
         $this->assertSame('keep-me', data_get($config, 'gateway.auth.token'));
-        $this->assertTrue(data_get($config, 'skills.entries.hello-world.enabled'));
+        $this->assertNull(data_get($config, 'skills.entries.hello-world.enabled'));
         $this->assertTrue(data_get($config, 'skills.entries.custom-default-skill.enabled'));
         $this->assertEqualsCanonicalizing(
-            ['existing-skill', 'hello-world', 'custom-default-skill', 'gog'],
+            ['existing-skill', 'custom-default-skill', 'gog'],
             data_get($config, 'agents.defaults.skills')
         );
         $this->assertEqualsCanonicalizing(
-            ['tenant-existing-skill', 'hello-world', 'custom-default-skill', 'gog'],
+            ['tenant-existing-skill', 'custom-default-skill', 'gog'],
             data_get($config, 'agents.list.0.skills')
         );
         $this->assertNotSame('', $composed->contentHash);

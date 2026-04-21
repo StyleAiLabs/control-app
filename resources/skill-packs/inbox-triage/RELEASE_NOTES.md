@@ -1,5 +1,9 @@
 # Inbox Triage — Release Notes
 
+## 1.2.1
+
+- Removed raw OpenClaw skill registration for this markdown-only custom skill so OpenClaw does not try to load `/app/skills/inbox-triage/SKILL.md`.
+
 ## 1.2.0
 
 - Added helper response validation to SKILL.md — the agent must check for `"ok": true` and an `event_id` in the helper output before claiming conversion success, and must surface command errors to the user.

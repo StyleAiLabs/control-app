@@ -23,8 +23,8 @@ Required `manifest.json` fields:
 - `description`: concise business-purpose summary.
 - `category`: catalog grouping.
 - `production_ready`: boolean.
-- `openclaw_skill_ids`: list of raw OpenClaw skill IDs to enable.
-- `default_agent_skill_ids`: list of default agent skills to attach when assigned.
+- `openclaw_skill_ids`: list of raw OpenClaw skill IDs to enable only when the pack wraps a real bundled OpenClaw skill under `/app/skills`; use `[]` for Sync360 markdown-only workspace skills.
+- `default_agent_skill_ids`: list of default agent skills to attach only for real bundled OpenClaw skills; use `[]` for Sync360 markdown-only workspace skills.
 - `applicable_industries`: list, empty when not industry-specific.
 - `analytics`: required for conversion-tracked skills.
 

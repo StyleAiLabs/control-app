@@ -12,7 +12,7 @@ This skill adds a controlled hello world workflow, conversion analytics, and sim
 
 ## What To Do
 
-1. Read `skills/hello-world/SKILL.md`.
+1. Do not try to read `/app/skills/hello-world/SKILL.md`; this is a Sync360 workspace skill, not a bundled OpenClaw `/app/skills` skill.
 2. Respond with a friendly hello world greeting.
 3. Echo back what the user said in a simple way.
 4. Run the Sync360 analytics helper only after the greeting has been sent.

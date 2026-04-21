@@ -99,7 +99,7 @@ class TenantSkillCatalogWorkflowTest extends TestCase
     {
         $releaseNotesPath = base_path('resources/skill-packs/hello-world/RELEASE_NOTES.md');
         $originalReleaseNotes = File::get($releaseNotesPath);
-        File::put($releaseNotesPath, str_replace('1.0.4', '1.0.2', $originalReleaseNotes));
+        File::put($releaseNotesPath, str_replace('1.0.5', '1.0.2', $originalReleaseNotes));
 
         try {
             $this->artisan('sync360:skills:scan', ['--skill' => 'hello-world'])
@@ -123,7 +123,7 @@ class TenantSkillCatalogWorkflowTest extends TestCase
 
             $this->artisan('sync360:skills:import')
                 ->assertExitCode(0)
-                ->expectsOutputToContain('Imported hello-world@1.0.4');
+                ->expectsOutputToContain('Imported hello-world@1.0.5');
 
             $this->assertDatabaseHas('skill_catalog_items', [
                 'skill_key' => 'hello-world',
@@ -166,7 +166,7 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.skills.index'))
             ->assertOk()
-            ->assertSee('1.0.4')
+            ->assertSee('1.0.5')
             ->assertSee('assignable');
 
         app(\App\Services\SkillCatalogService::class)->archiveVersion($version->fresh());

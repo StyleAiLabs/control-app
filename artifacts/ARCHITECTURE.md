@@ -272,13 +272,14 @@ Runtime contract:
 
 1. analytics-enabled skills declare an `analytics` block in `resources/skill-packs/<skill>/manifest.json`
 2. catalog scan/import validates that contract and rejects analytics-enabled skills that are missing required fields
-3. `TenantRuntimeCustomizationComposer` always deploys a shared helper plus runtime registry into the tenant workspace; the helper shell and Node implementations are sourced from `resources/runtime-helpers/sync360/` templates so the PHP composer does not embed large script nowdocs:
+3. markdown-only Sync360 skill packs use injected workspace guidance and leave `openclaw_skill_ids` / `default_agent_skill_ids` empty unless they intentionally wrap a real bundled OpenClaw skill under `/app/skills`
+4. `TenantRuntimeCustomizationComposer` always deploys a shared helper plus runtime registry into the tenant workspace; the helper shell and Node implementations are sourced from `resources/runtime-helpers/sync360/` templates so the PHP composer does not embed large script nowdocs:
    - `.sync360/bin/log-skill-conversion`
    - `.sync360/bin/log-skill-conversion.mjs`
    - `.sync360/skill-analytics-registry.json`
-4. skills emit analytics through the workspace exec tool by shelling the helper instead of writing files or SQL directly
-5. `TenantSkillAnalyticsRuntimeService` pre-initializes analytics-enabled tenant runtimes during go-live/customization apply, and operators can repair already-live tenants with `sync360:init-skill-analytics`
-6. the helper writes one row per successful conversion into `.openclaw/data/analytics/skill-events.sqlite`, supports `--init-only` schema creation, emits JSON status for both initialization and logging, and enables SQLite WAL mode during initialization
+5. skills emit analytics through the workspace exec tool by shelling the helper instead of writing files or SQL directly
+6. `TenantSkillAnalyticsRuntimeService` pre-initializes analytics-enabled tenant runtimes during go-live/customization apply, and operators can repair already-live tenants with `sync360:init-skill-analytics`
+7. the helper writes one row per successful conversion into `.openclaw/data/analytics/skill-events.sqlite`, supports `--init-only` schema creation, emits JSON status for both initialization and logging, and enables SQLite WAL mode during initialization
 
 Control-plane sync contract:
 

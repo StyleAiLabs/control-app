@@ -1,4 +1,8 @@
 # Conversion Test — Release Notes
+## 1.1.2
+
+- Removed raw OpenClaw skill registration for this markdown-only custom skill so OpenClaw does not try to load `/app/skills/conversion-test/SKILL.md`.
+
 ## 1.1.1
 
 - production ready : true
