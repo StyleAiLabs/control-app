@@ -1,8 +1,8 @@
 # Inbox Triage — Release Notes
 
-## 1.1.1
+## 1.2.0
 
-- label changed
+- Added helper response validation to SKILL.md — the agent must check for `"ok": true` and an `event_id` in the helper output before claiming conversion success, and must surface command errors to the user.
 
 ## 1.1.0
 

@@ -37,6 +37,11 @@ Use the workspace exec tool to run:
 sh .sync360/bin/log-skill-conversion --skill inbox-triage --conversion-id <lead-id> --payload-json '<json>'
 ```
 
+### Response validation
+- Inspect the helper's JSON output after running the command.
+- Treat the conversion as successful **only** when the output contains `"ok": true` and an `event_id`.
+- If the helper fails or returns non-JSON output, report the exact command error/output to the user instead of claiming the conversion succeeded.
+
 ### Required payload fields
 Include all of these in the JSON payload:
 - `event_id`: stable unique identifier for this triage event

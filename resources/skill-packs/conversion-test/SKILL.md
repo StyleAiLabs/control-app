@@ -14,9 +14,7 @@ When an operator or developer asks you to "run a conversion test" or "test the a
 - Ask the user for a short test label (e.g., their name or "test-1"). If they don't provide one, use "manual-test".
 - Confirm you are about to emit a test conversion event.
 - Emit the conversion using the helper below.
-- Read the helper JSON output.
-- Report the event_id and conversion_id back to the user only after the helper returns JSON with `"ok": true`.
-- If the helper fails or does not return JSON with `"ok": true`, report the exact command error/output and do not say the test completed.
+- Report the event_id and conversion_id back to the user so they can verify it on the dashboard.
 
 ## Analytics Contract
 
@@ -31,18 +29,10 @@ Use the workspace exec tool to run:
 sh .sync360/bin/log-skill-conversion --skill conversion-test --conversion-id <test-label> --payload-json '<json>'
 ```
 
-The helper must return JSON similar to:
-```json
-{
-  "ok": true,
-  "mode": "log",
-  "event_id": "test-<timestamp>",
-  "conversion_id": "<test-label>",
-  "skill_key": "conversion-test",
-  "db_path": "/path/to/skill-events.sqlite",
-  "inserted": true
-}
-```
+### Response validation
+- Inspect the helper's JSON output after running the command.
+- Treat the conversion as successful **only** when the output contains `"ok": true` and an `event_id`.
+- If the helper fails or returns non-JSON output, report the exact command error/output to the user instead of claiming the conversion succeeded.
 
 ### Required payload fields
 Include all of these in the JSON payload:
@@ -66,4 +56,3 @@ Include all of these in the JSON payload:
 
 ### Privacy note
 - This skill is for testing only. No real customer data should be used.
-- Never reply with "results shortly" or any other completion message unless the helper has already succeeded and you can include the returned `event_id`.

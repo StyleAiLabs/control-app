@@ -14,7 +14,5 @@ You have a **Conversion Test** skill installed. When a user asks to "run a conve
 ## What to do
 1. Read and follow `skills/conversion-test/SKILL.md` for the full workflow.
 2. Ask the user for a test label, then emit the conversion using the helper.
-3. Inspect the helper JSON output and treat success as confirmed only when it contains `"ok": true` and an `event_id`.
-4. Report the event_id back so the user can verify on the dashboard.
-5. If the helper fails or returns non-JSON output, report the exact error/output instead of saying the test ran.
-6. Do not fall back to your default behavior — always use this skill for conversion tests.
+3. Report the event_id back so the user can verify on the dashboard.
+4. Do not fall back to your default behavior — always use this skill for conversion tests.
