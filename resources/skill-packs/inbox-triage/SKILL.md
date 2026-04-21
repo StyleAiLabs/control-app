@@ -13,15 +13,47 @@ metadata:
 
 When a customer inquiry arrives in your Gmail inbox, use this skill to monitor and categorize the message, assess lead quality, flag high-value opportunities, and suggest the next action (Quote Generation, Calendar Booking, or human follow-up).
 
+## Google Workspace Connection (Required Before Monitoring)
+
+This skill uses GOG (Google Workspace OAuth), which is pre-configured on the OpenClaw server. Before monitoring begins:
+
+1. **Connect via GOG** — Use GOG to connect to the tenant's Google Workspace account.
+2. **Verify the connection** — Confirm the GOG connection is active before starting. If it fails, stop and report the error to the operator — do not attempt to monitor without a confirmed connection.
+3. **Maintain the connection** — If the GOG connection drops during a monitoring session, reconnect before continuing. Never silently skip emails due to a lost connection.
+
 ## Behavior
-- Monitor your Gmail inbox 24/7 for incoming customer messages.
+- Monitor your Gmail inbox 24/7 for incoming customer messages using the active Google Workspace OAuth connection.
 - Analyze inquiry content, sender details, and context to assess customer quality and intent.
 - Categorize each inquiry (sales inquiry, support request, quote request, appointment inquiry, etc.).
 - Flag only messages that meet your threshold for "high-value lead" (genuine buying intent, matching your ICP).
 - Do not flag spam, form submissions, or low-intent messages.
+- **When a high-value lead is detected, immediately send a Telegram notification to the connected channel** — see Telegram Notifications below.
 - Create a searchable triage log in Google Drive for your records.
 - Suggest next steps based on inquiry type (e.g., "This looks like a quote request—use Quote Generation skill").
 - Offer human review when lead quality is ambiguous or when the inquiry needs clarification before proceeding.
+
+## Telegram Notifications
+
+The Telegram channel is pre-configured on the OpenClaw server. Send a notification immediately after classifying a lead as high-value.
+
+**When to notify:**
+- Only when `lead_quality` is `high`.
+- Do not notify for medium, low, or ambiguous leads.
+- Send exactly one notification per lead — do not re-notify on re-evaluation.
+
+**Message format:**
+```
+🔔 High-Value Lead Detected
+
+From: <company name or contact>
+Domain: <email domain>
+Category: <inquiry category>
+Subject: <first 80 chars of subject line>
+
+Suggested action: <next step>
+```
+
+**If the Telegram send fails:** Log the failure to the Google Drive triage log and continue — do not retry in a loop or block the triage workflow.
 
 ## Analytics Contract
 

@@ -1,8 +1,20 @@
 # Inbox Triage — Release Notes
 
-## 1.2.1
+## 1.5.0
 
-- Removed raw OpenClaw skill registration for this markdown-only custom skill so OpenClaw does not try to load `/app/skills/inbox-triage/SKILL.md`.
+- Added Telegram notification step — agent sends a formatted alert to the pre-configured Telegram channel immediately when a lead is classified as high-value.
+- Notification is one-per-lead only; medium/low/ambiguous leads are not notified.
+- Telegram send failures are logged to the Google Drive triage log and do not block the triage workflow.
+
+## 1.4.0
+
+- Added Google Workspace Connection section to `SKILL.md` — agent must connect via GOG (pre-configured on the OpenClaw server) and verify the connection before monitoring begins.
+- Made 24/7 monitoring contingent on an active GOG connection; agent must reconnect on drop rather than silently skipping emails.
+
+## 1.3.0
+
+- Replaced verbose `agent-instructions.md` with compact one-line index entry to prevent `agent.md` bloat when many skills are installed.
+- Added `runtime_type: sync360_workspace` to manifest.
 
 ## 1.2.0
 

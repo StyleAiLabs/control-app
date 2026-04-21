@@ -102,13 +102,23 @@ Required `SKILL.md` content:
   - the exact helper invocation pattern
 
 Required `agent-instructions.md` content:
-- This file tells the OpenClaw agent to use the custom skill instead of its default behavior.
-- Without this file, the agent will handle requests using built-in capabilities and skip the custom workflow and analytics.
-- Must include a `Why this skill exists` section explaining what the custom skill adds over default behavior (workflow control, analytics, privacy rules).
-- Must include a `When to activate` section listing specific trigger conditions (user requests, upstream skill suggestions, etc.).
-- Must include a `What to do` section with numbered steps: read SKILL.md, follow the workflow, run the analytics helper, do not fall back to default behavior.
-- Must explicitly state: "Do not fall back to your default [capability] behavior."
-- Must reference the SKILL.md path: `skills/<skill-id>/SKILL.md`.
+- This file provides the compact index entry Sync360 injects into the agent's `agent.md` when the skill is assigned to a tenant.
+- It must NOT contain full workflow instructions — those live in `SKILL.md` and are read on demand.
+- Keeping this file short is critical: `agent.md` is loaded into context at every session start. If it grows too large across many installed skills, the agent will truncate it and skills listed near the bottom will silently stop firing.
+- Must contain exactly ONE index entry in this format:
+
+```
+- <skill-id>: <one-line trigger description> → read `skills/<skill-id>/SKILL.md` and follow it exactly. Do not use your default <capability> behavior.
+```
+
+Example:
+```
+- quote-generation: customer asks for a quote or pricing estimate → read `skills/quote-generation/SKILL.md` and follow it exactly. Do not use your default document generation behavior.
+```
+
+- The trigger description must be specific enough to fire on real user requests without false positives.
+- The pointer to `skills/<skill-id>/SKILL.md` is the workspace path materialized by Sync360 — do not use `/app/skills/`.
+- The "Do not use your default" clause is required to override OpenClaw's built-in behavior.
 
 Required `RELEASE_NOTES.md` content:
 - A short heading for the skill release notes.
