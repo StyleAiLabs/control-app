@@ -45,7 +45,7 @@ class SshDockerComposeRunner implements DockerComposeRunner
      * @param  array<string, mixed>|null  $json
      * @return array{status:int, body:string}
      */
-    public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array
+    public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15, array $headers = []): array
     {
         $parts = [
             'tmp_file=$(mktemp)',
@@ -59,6 +59,18 @@ class SshDockerComposeRunner implements DockerComposeRunner
             '-H',
             $this->shellQuote('Accept: application/json'),
         ];
+
+        foreach ($headers as $name => $value) {
+            $normalizedName = trim((string) $name);
+            $normalizedValue = trim((string) $value);
+
+            if ($normalizedName === '' || $normalizedValue === '') {
+                continue;
+            }
+
+            $curlParts[] = '-H';
+            $curlParts[] = $this->shellQuote($normalizedName.': '.$normalizedValue);
+        }
 
         if ($json !== null) {
             $payload = json_encode($json, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

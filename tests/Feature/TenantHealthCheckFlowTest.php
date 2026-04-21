@@ -25,7 +25,7 @@ class TenantHealthCheckFlowTest extends TestCase
         {
             public function syncRuntime(Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
             public function syncWorkspaceFiles(Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void {}
-            public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array
+            public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15, array $headers = []): array
             {
                 $response = Http::timeout($timeoutSeconds)->acceptJson()->send($method, $url, $json !== null ? ['json' => $json] : []);
 
@@ -69,7 +69,7 @@ class TenantHealthCheckFlowTest extends TestCase
         {
             public function syncRuntime(Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
             public function syncWorkspaceFiles(Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void {}
-            public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array
+            public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15, array $headers = []): array
             {
                 $response = Http::timeout($timeoutSeconds)->acceptJson()->send($method, $url, $json !== null ? ['json' => $json] : []);
 

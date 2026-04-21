@@ -18,7 +18,11 @@ class TenantGatewayService
      * @param  array<string, mixed>|null  $json
      * @return array{status:int, body:string}
      */
-    public function request(Tenant $tenant, string $method, string $path, ?array $json = null, int $timeoutSeconds = 15): array
+    /**
+     * @param  array<string, string>  $headers
+     * @return array{status:int, body:string}
+     */
+    public function request(Tenant $tenant, string $method, string $path, ?array $json = null, int $timeoutSeconds = 15, array $headers = []): array
     {
         $tenant->loadMissing('server');
 
@@ -28,6 +32,6 @@ class TenantGatewayService
 
         $url = rtrim($this->runtime->gatewayBaseUrl($tenant), '/').'/'.ltrim($path, '/');
 
-        return $this->dockerCompose->httpRequest($tenant->server, $method, $url, $json, $timeoutSeconds);
+        return $this->dockerCompose->httpRequest($tenant->server, $method, $url, $json, $timeoutSeconds, $headers);
     }
 }

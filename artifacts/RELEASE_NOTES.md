@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-21 — Fix: Inbox Triage Private Gateway Delivery
+
+Date: 2026-04-21
+Status: Implemented
+
+### Overview
+
+Fixed Inbox Triage delivery after live debugging showed Gmail polling detected the high-value email but failed to wake the tenant agent because Sync360 was posting to a non-existent private `/chat` route.
+
+### What Changed
+
+- changed `TenantWorkspaceMessenger` to send neutral inbox events through OpenClaw's private `/hooks/agent` ingress with `deliver=false`
+- added private hook authorization headers to local and SSH gateway HTTP requests
+- updated tenant config composition to enable OpenClaw `hooks` using the existing private gateway token
+- ensured go-live workspace writes create parent directories for nested helper files such as `.sync360/bin/log-skill-conversion` without broadening go-live beyond workspace files
+- added regression coverage for hook delivery payloads and generated hook config
+
 ## 2026-04-21 — Feature: Admin System Health Panel
 
 Date: 2026-04-21

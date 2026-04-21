@@ -63,7 +63,9 @@ class TenantAgentSyncService
             $this->syncSavedChannelIfReady($tenant);
 
             foreach ($artifacts as $filename => $contents) {
-                $this->files->put($workspacePath.DIRECTORY_SEPARATOR.$filename, $contents);
+                $artifactPath = $workspacePath.DIRECTORY_SEPARATOR.$filename;
+                $this->files->ensureDirectoryExists(dirname($artifactPath));
+                $this->files->put($artifactPath, $contents);
             }
 
             /* Skip SSH-based remote sync in local dev — files are already on disk. */

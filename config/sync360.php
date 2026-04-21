@@ -119,7 +119,7 @@ return [
         'public_readiness_poll_interval_ms' => (int) env('SYNC360_WORKSPACE_PUBLIC_READY_POLL_INTERVAL_MS', 1500),
     ],
     'workspace_gateway' => [
-        'chat_path' => env('SYNC360_WORKSPACE_CHAT_PATH', '/chat'),
+        'agent_hook_path' => env('SYNC360_WORKSPACE_AGENT_HOOK_PATH', '/hooks/agent'),
         'timeout_seconds' => (int) env('SYNC360_WORKSPACE_CHAT_TIMEOUT_SECONDS', 15),
     ],
     'litellm' => [

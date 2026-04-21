@@ -132,7 +132,7 @@ class RuntimeCapabilityCommandsTest extends TestCase
 
             public function syncRuntime(Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
             public function syncWorkspaceFiles(Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void {}
-            public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array { return ['status' => 200, 'body' => '']; }
+            public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15, array $headers = []): array { return ['status' => 200, 'body' => '']; }
             public function putFile(Server $server, string $remotePath, string $contents, bool $sudo = false): void {}
             public function removeFile(Server $server, string $remotePath, bool $sudo = false): void {}
             public function removeDirectory(Server $server, string $remotePath, bool $sudo = false): void {}
@@ -238,7 +238,7 @@ class RuntimeCapabilityCommandsTest extends TestCase
 
             public function syncRuntime(Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
             public function syncWorkspaceFiles(Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void {}
-            public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array { return ['status' => 200, 'body' => '']; }
+            public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15, array $headers = []): array { return ['status' => 200, 'body' => '']; }
             public function putFile(Server $server, string $remotePath, string $contents, bool $sudo = false): void
             {
                 $this->putFiles[] = ['path' => $remotePath, 'contents' => $contents];

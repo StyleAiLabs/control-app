@@ -19,7 +19,10 @@ interface DockerComposeRunner
      * @param  array<string, mixed>|null  $json
      * @return array{status:int, body:string}
      */
-    public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array;
+    /**
+     * @param  array<string, string>  $headers
+     */
+    public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15, array $headers = []): array;
 
     public function putFile(Server $server, string $remotePath, string $contents, bool $sudo = false): void;
 

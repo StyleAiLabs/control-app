@@ -94,7 +94,6 @@ class ProfileFlowTest extends TestCase
             'pricing_notes' => 'Pricing depends on the job scope.',
         ])
             ->assertRedirect('/profile');
-
         $tenant->refresh();
         $profile->refresh();
 
@@ -158,7 +157,7 @@ class ProfileFlowTest extends TestCase
                 $this->syncCalls[] = compact('localWorkspacePath', 'remoteWorkspacePath');
             }
 
-            public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array
+            public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15, array $headers = []): array
             {
                 $response = Http::timeout($timeoutSeconds)->acceptJson()->send($method, $url, $json !== null ? ['json' => $json] : []);
 

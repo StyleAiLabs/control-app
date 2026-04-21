@@ -48,7 +48,7 @@ class TenantSkillRuntimeLayoutTest extends TestCase
         {
             public function syncRuntime(\App\Models\Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
             public function syncWorkspaceFiles(\App\Models\Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void {}
-            public function httpRequest(\App\Models\Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array { return ['status' => 200, 'body' => '']; }
+            public function httpRequest(\App\Models\Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15, array $headers = []): array { return ['status' => 200, 'body' => '']; }
             public function putFile(\App\Models\Server $server, string $remotePath, string $contents, bool $sudo = false): void {}
             public function removeFile(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
             public function removeDirectory(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}

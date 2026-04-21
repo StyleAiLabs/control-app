@@ -31,9 +31,9 @@ class LocalDockerComposeRunner implements DockerComposeRunner
      * @param  array<string, mixed>|null  $json
      * @return array{status:int, body:string}
      */
-    public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array
+    public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15, array $headers = []): array
     {
-        $request = Http::timeout($timeoutSeconds)->acceptJson();
+        $request = Http::timeout($timeoutSeconds)->acceptJson()->withHeaders($headers);
 
         if ($json !== null) {
             $request = $request->asJson();
