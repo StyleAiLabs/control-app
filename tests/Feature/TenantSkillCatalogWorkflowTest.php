@@ -12,6 +12,7 @@ use App\Models\ProvisioningJob;
 use App\Models\Tenant;
 use App\Models\TenantAgentCustomization;
 use App\Models\User;
+use App\Services\TenantSkillRegistryService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -129,6 +130,110 @@ class TenantSkillCatalogWorkflowTest extends TestCase
                 'skill_key' => 'hello-world',
                 'is_assignable' => false,
             ]);
+        } finally {
+            File::put($manifestPath, json_encode($originalManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+        }
+    }
+
+    public function test_imported_workspace_skill_manifest_declares_sync360_runtime_type(): void
+    {
+        $this->artisan('sync360:skills:import', ['--skill' => 'hello-world'])
+            ->assertExitCode(0)
+            ->expectsOutputToContain('Imported hello-world@1.0.5');
+
+        $manifest = \App\Models\SkillCatalogVersion::query()
+            ->where('skill_key', 'hello-world')
+            ->firstOrFail()
+            ->manifest_json;
+
+        $this->assertIsArray($manifest);
+        $this->assertSame('sync360_workspace', $manifest['runtime_type'] ?? null);
+        $this->assertSame(['hello-world'], $manifest['openclaw_skill_ids'] ?? null);
+        $this->assertSame(['hello-world'], $manifest['default_agent_skill_ids'] ?? null);
+    }
+
+    public function test_scan_rejects_missing_or_invalid_runtime_type(): void
+    {
+        $manifestPath = base_path('resources/skill-packs/hello-world/manifest.json');
+        $originalManifest = json_decode(File::get($manifestPath), true);
+        $modifiedManifest = $originalManifest;
+        unset($modifiedManifest['runtime_type']);
+
+        File::put($manifestPath, json_encode($modifiedManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+
+        try {
+            $this->artisan('sync360:skills:scan', ['--skill' => 'hello-world'])
+                ->assertExitCode(1)
+                ->expectsOutputToContain('runtime_type');
+        } finally {
+            File::put($manifestPath, json_encode($originalManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+        }
+
+        $modifiedManifest = $originalManifest;
+        $modifiedManifest['runtime_type'] = 'unsupported_runtime';
+        File::put($manifestPath, json_encode($modifiedManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+
+        try {
+            $this->artisan('sync360:skills:scan', ['--skill' => 'hello-world'])
+                ->assertExitCode(1)
+                ->expectsOutputToContain('runtime_type');
+        } finally {
+            File::put($manifestPath, json_encode($originalManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+        }
+    }
+
+    public function test_scan_allows_workspace_skill_that_registers_its_workspace_skill_id(): void
+    {
+        $manifestPath = base_path('resources/skill-packs/hello-world/manifest.json');
+        $originalManifest = json_decode(File::get($manifestPath), true);
+        $modifiedManifest = $originalManifest;
+        $modifiedManifest['runtime_type'] = TenantSkillRegistryService::RUNTIME_TYPE_SYNC360_WORKSPACE;
+        $modifiedManifest['openclaw_skill_ids'] = ['hello-world'];
+        $modifiedManifest['default_agent_skill_ids'] = ['hello-world'];
+        File::put($manifestPath, json_encode($modifiedManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+
+        try {
+            $this->artisan('sync360:skills:scan', ['--skill' => 'hello-world'])
+                ->assertExitCode(0)
+                ->expectsOutputToContain('hello-world');
+        } finally {
+            File::put($manifestPath, json_encode($originalManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+        }
+    }
+
+    public function test_scan_rejects_workspace_skill_that_registers_a_different_skill_id(): void
+    {
+        $manifestPath = base_path('resources/skill-packs/hello-world/manifest.json');
+        $originalManifest = json_decode(File::get($manifestPath), true);
+        $modifiedManifest = $originalManifest;
+        $modifiedManifest['runtime_type'] = TenantSkillRegistryService::RUNTIME_TYPE_SYNC360_WORKSPACE;
+        $modifiedManifest['openclaw_skill_ids'] = ['not-hello-world'];
+        $modifiedManifest['default_agent_skill_ids'] = ['not-hello-world'];
+        File::put($manifestPath, json_encode($modifiedManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+
+        try {
+            $this->artisan('sync360:skills:scan', ['--skill' => 'hello-world'])
+                ->assertExitCode(1)
+                ->expectsOutputToContain('workspace skill_id');
+        } finally {
+            File::put($manifestPath, json_encode($originalManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+        }
+    }
+
+    public function test_scan_allows_openclaw_native_skill_with_native_ids(): void
+    {
+        $manifestPath = base_path('resources/skill-packs/hello-world/manifest.json');
+        $originalManifest = json_decode(File::get($manifestPath), true);
+        $modifiedManifest = $originalManifest;
+        $modifiedManifest['runtime_type'] = TenantSkillRegistryService::RUNTIME_TYPE_OPENCLAW_NATIVE;
+        $modifiedManifest['openclaw_skill_ids'] = ['hello-world'];
+        $modifiedManifest['default_agent_skill_ids'] = ['hello-world'];
+        File::put($manifestPath, json_encode($modifiedManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+
+        try {
+            $this->artisan('sync360:skills:scan', ['--skill' => 'hello-world'])
+                ->assertExitCode(0)
+                ->expectsOutputToContain('hello-world');
         } finally {
             File::put($manifestPath, json_encode($originalManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
         }

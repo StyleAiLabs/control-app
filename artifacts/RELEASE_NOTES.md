@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-21 — Sync360 Custom Skill Runtime Adapter
+
+Date: 2026-04-21
+Status: Implemented
+
+### Overview
+
+Made Sync360 the explicit source of truth for custom skill catalog and materialization while aligning runtime activation with OpenClaw's documented workspace skill loader.
+
+### What Changed
+
+- added explicit `runtime_type` manifest validation for `sync360_workspace`, `openclaw_native`, and `runtime_capability`
+- kept hello-world, conversion-test, and inbox-triage as `sync360_workspace` skills with matching OpenClaw workspace skill IDs
+- included runtime type and OpenClaw skill IDs in generated tenant `AGENTS.md` assigned-skill guidance
+- added `sync360:inspect-tenant-skills <tenant>` to report assigned skills, materialized workspace files, analytics registry state, SQLite DB state, OpenClaw config allowlists, runtime-visible skills when available, and mismatch warnings
+- updated authoring and architecture docs so Sync360 custom skills are loaded from `.openclaw/workspace/skills/<skill-id>/`, while `/app/skills` remains a bundled/managed skill location
+
 ## 2026-04-21 — Fix: Markdown Custom Skills Avoid OpenClaw Built-In Loader
 
 Date: 2026-04-21

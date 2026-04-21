@@ -24,6 +24,7 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
     {
         $tenant = $this->seedTenant();
         $this->artisan('sync360:skills:import')->assertExitCode(0);
+        $helloWorldVersion = SkillCatalogVersion::query()->where('skill_key', 'hello-world')->firstOrFail();
 
         BusinessProfile::query()->create([
             'tenant_id' => $tenant->id,
@@ -93,7 +94,7 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
 
         TenantSkillAssignment::query()->create([
             'tenant_id' => $tenant->id,
-            'skill_catalog_version_id' => SkillCatalogVersion::query()->where('skill_key', 'hello-world')->value('id'),
+            'skill_catalog_version_id' => $helloWorldVersion->id,
             'skill_key' => 'hello-world',
             'assigned_by' => $tenant->user_id,
             'assigned_at' => now(),
@@ -116,6 +117,8 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
         $this->assertStringContainsString('Assigned Skill Guidance', $composed->workspaceFiles['AGENTS.md']);
         $this->assertStringContainsString('Hello World (by Sync360)', $composed->workspaceFiles['AGENTS.md']);
         $this->assertStringContainsString('hello-world', $composed->workspaceFiles['AGENTS.md']);
+        $this->assertStringContainsString('Runtime type: `sync360_workspace`', $composed->workspaceFiles['AGENTS.md']);
+        $this->assertStringContainsString('OpenClaw skill IDs: `hello-world`', $composed->workspaceFiles['AGENTS.md']);
         $this->assertStringContainsString('skills/hello-world/agent-instructions.md', $composed->workspaceFiles['AGENTS.md']);
         $this->assertStringContainsString('Do not fall back to your default greeting behavior.', $composed->workspaceFiles['AGENTS.md']);
         $this->assertArrayHasKey('skills/hello-world/agent-instructions.md', $composed->skillFiles);
@@ -134,14 +137,14 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
 
         $this->assertSame('gpt-4.1', data_get($config, 'agents.defaults.model'));
         $this->assertSame('keep-me', data_get($config, 'gateway.auth.token'));
-        $this->assertNull(data_get($config, 'skills.entries.hello-world.enabled'));
+        $this->assertTrue(data_get($config, 'skills.entries.hello-world.enabled'));
         $this->assertTrue(data_get($config, 'skills.entries.custom-default-skill.enabled'));
         $this->assertEqualsCanonicalizing(
-            ['existing-skill', 'custom-default-skill', 'gog'],
+            ['existing-skill', 'hello-world', 'custom-default-skill', 'gog'],
             data_get($config, 'agents.defaults.skills')
         );
         $this->assertEqualsCanonicalizing(
-            ['tenant-existing-skill', 'custom-default-skill', 'gog'],
+            ['tenant-existing-skill', 'hello-world', 'custom-default-skill', 'gog'],
             data_get($config, 'agents.list.0.skills')
         );
         $this->assertNotSame('', $composed->contentHash);

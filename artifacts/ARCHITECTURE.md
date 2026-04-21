@@ -94,9 +94,11 @@ Important boundaries:
 Sync360 currently has two different installation models for tenant runtime skills:
 
 - Catalog-managed skill packs:
-  - use this when the skill is effectively a repo-authored OpenClaw skill folder (`manifest.json`, `SKILL.md`, supporting files) and does not require extra host or container dependencies
+  - use this when the skill is a repo-authored Sync360 workspace skill (`manifest.json`, `SKILL.md`, supporting files) and does not require extra host or container dependencies
   - the skill should live under `resources/skill-packs/<skill-id>/`, be scanned/imported into the Sync360 catalog, published, assigned, and rolled out through the existing tenant apply pipeline
+  - `manifest.json.runtime_type` must be explicit; Sync360-materialized workspace skills use `sync360_workspace`, bundled or managed OpenClaw skills use `openclaw_native`, and host/container dependency wrappers use `runtime_capability`
   - the pack root owns `manifest.json`, `SKILL.md`, `agent-instructions.md`, and `RELEASE_NOTES.md`; richer supporting docs should live under `docs/`, not under a nested `skills/<skill-id>/` folder, because Sync360 already materializes the whole pack into `.openclaw/workspace/skills/<skill-id>/`
+  - `sync360_workspace` skills are first-class OpenClaw workspace skills loaded from `.openclaw/workspace/skills/<skill-id>/`; Sync360 should materialize them, allowlist them in tenant `openclaw.json`, and restart the runtime after materialized skill or allowlist changes
   - `agent-instructions.md` is required and cannot be empty; enabled assignments inject its content into generated tenant `AGENTS.md`, and disabling/unassigning the skill removes that injected guidance on the next compose/apply
   - `RELEASE_NOTES.md` is required, cannot be empty, and must include the current manifest version; any skill behavior, metadata, instruction, analytics, privacy, or supporting-doc change must increment `manifest.json.version` and add a concise release note so operators can identify what to roll out
   - imported catalog items are not assignable until an operator publishes a version; `is_assignable` is resynced from active non-archived published versions when importing, publishing, archiving, and via the assignability repair migration
@@ -108,7 +110,8 @@ Sync360 currently has two different installation models for tenant runtime skill
 
 Rule of thumb:
 
-- plain OpenClaw skill folder only -> catalog-managed skill pack
+- repo-authored markdown workflow only -> `sync360_workspace` catalog-managed skill pack
+- bundled or managed OpenClaw skill outside Sync360 workspace materialization -> `openclaw_native`
 - skill plus external CLI/runtime dependency -> host-managed runtime capability
 
 ### Public and private surfaces
@@ -272,7 +275,7 @@ Runtime contract:
 
 1. analytics-enabled skills declare an `analytics` block in `resources/skill-packs/<skill>/manifest.json`
 2. catalog scan/import validates that contract and rejects analytics-enabled skills that are missing required fields
-3. markdown-only Sync360 skill packs use injected workspace guidance and leave `openclaw_skill_ids` / `default_agent_skill_ids` empty unless they intentionally wrap a real bundled OpenClaw skill under `/app/skills`
+3. Sync360 workspace skill packs use `runtime_type: sync360_workspace`, materialized `.openclaw/workspace/skills/<skill-id>/SKILL.md`, generated guidance, and matching `openclaw_skill_ids` / `default_agent_skill_ids`; catalog scan rejects contradictory manifests
 4. `TenantRuntimeCustomizationComposer` always deploys a shared helper plus runtime registry into the tenant workspace; the helper shell and Node implementations are sourced from `resources/runtime-helpers/sync360/` templates so the PHP composer does not embed large script nowdocs:
    - `.sync360/bin/log-skill-conversion`
    - `.sync360/bin/log-skill-conversion.mjs`
@@ -290,6 +293,11 @@ Control-plane sync contract:
 5. per-tenant cursor state is stored in `tenant_skill_analytics_sync_states`
 6. the scheduler runs analytics sync every 30 minutes
 7. analytics-enabled tenants with no runtime SQLite database produce a sync warning so missing initialization is visible instead of silently looking like zero conversions
+
+Runtime diagnostics:
+
+- `php artisan sync360:inspect-tenant-skills <tenant>` reports assigned Sync360 skills, materialized workspace skill files, analytics registry entries, SQLite DB state, configured OpenClaw skill IDs, runtime-visible OpenClaw skills when the container is available, and mismatch warnings
+- the inspector warns when a `sync360_workspace` skill is missing workspace files, missing from agent allowlists, disabled in `skills.entries`, absent from runtime `openclaw skills list` after a successful runtime check, or when an analytics-enabled tenant has no runtime SQLite DB
 
 Metric rules in v1:
 

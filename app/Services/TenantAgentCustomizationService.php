@@ -165,10 +165,12 @@ class TenantAgentCustomizationService
                     $freshTenant = $tenant->fresh(['businessProfile', 'businessProfileFiles', 'googleCredential', 'agentCustomization', 'skillAssignments.catalogVersion']);
                     $composed = $composer->compose($freshTenant, $freshTenant->agentCustomization);
 
-                    if ($composed->contentHash !== $beforeHash) {
+                    $runtimeChanged = $composed->contentHash !== $beforeHash;
+
+                    if ($runtimeChanged) {
                         $this->materializeWorkspaceFiles($tenant, $composed);
                         $configChanged = $this->writeLocalConfig($tenant, $composed->openClawConfig);
-                        $this->syncRemoteArtifacts($tenant, $composed->openClawConfig, $configChanged);
+                        $this->syncRemoteArtifacts($tenant, $composed->openClawConfig, $runtimeChanged || $configChanged);
                     }
 
                     $this->skillAnalyticsRuntime->initializeTenant($freshTenant);
@@ -336,7 +338,7 @@ class TenantAgentCustomizationService
         return $existing !== $contents;
     }
 
-    private function syncRemoteArtifacts(Tenant $tenant, string $configContents, bool $configChanged): void
+    private function syncRemoteArtifacts(Tenant $tenant, string $configContents, bool $shouldRestart): void
     {
         if (app()->environment('local')) {
             return;
@@ -360,7 +362,7 @@ class TenantAgentCustomizationService
             $configContents,
         );
 
-        if (! $configChanged) {
+        if (! $shouldRestart) {
             return;
         }
 

@@ -92,6 +92,7 @@ return [
             'label' => 'Hello World (by Sync360)',
             'version' => '1.0.4',
             'description' => 'A simple hello world skill for testing purposes.',
+            'runtime_type' => 'sync360_workspace',
             'workspace_files' => [
                 'HELLO_WORLD.md',
                 'skills/hello-world',

@@ -10,6 +10,22 @@ use RuntimeException;
 
 class TenantSkillRegistryService
 {
+    public const RUNTIME_TYPE_SYNC360_WORKSPACE = 'sync360_workspace';
+    public const RUNTIME_TYPE_OPENCLAW_NATIVE = 'openclaw_native';
+    public const RUNTIME_TYPE_RUNTIME_CAPABILITY = 'runtime_capability';
+
+    /**
+     * @return list<string>
+     */
+    public static function supportedRuntimeTypes(): array
+    {
+        return [
+            self::RUNTIME_TYPE_SYNC360_WORKSPACE,
+            self::RUNTIME_TYPE_OPENCLAW_NATIVE,
+            self::RUNTIME_TYPE_RUNTIME_CAPABILITY,
+        ];
+    }
+
     public function __construct(
         private readonly Filesystem $files,
     ) {
@@ -90,6 +106,7 @@ class TenantSkillRegistryService
             }
 
             $normalized = $this->normalizedSkillDefinition($manifest, $directory);
+            $runtimeValidationError = $this->runtimeValidationError($manifest);
             $analyticsValidationError = $this->analyticsValidationError($manifest);
 
             if ($requestedSkillKey !== null && ! in_array($requestedSkillKey, [$directoryName, $normalized['id']], true)) {
@@ -105,6 +122,18 @@ class TenantSkillRegistryService
                     'manifest_path' => $manifestPath,
                     'manifest_valid' => false,
                     'error' => sprintf('Skill pack [%s] source files are invalid: %s', $normalized['id'], $sourceFileValidationError),
+                ];
+
+                continue;
+            }
+
+            if ($runtimeValidationError !== null) {
+                $entries[] = [
+                    'skill_key' => $normalized['id'],
+                    'directory' => $directory,
+                    'manifest_path' => $manifestPath,
+                    'manifest_valid' => false,
+                    'error' => sprintf('Skill manifest [%s] runtime contract is invalid: %s', $manifestPath, $runtimeValidationError),
                 ];
 
                 continue;
@@ -229,7 +258,9 @@ class TenantSkillRegistryService
                 continue;
             }
 
-            foreach ((array) data_get($this->skillDefinitionForAssignment($assignment), 'openclaw_skill_ids', []) as $skillId) {
+            $skill = $this->skillDefinitionForAssignment($assignment);
+
+            foreach ((array) data_get($skill, 'openclaw_skill_ids', []) as $skillId) {
                 if (is_string($skillId) && trim($skillId) !== '' && ! in_array(trim($skillId), $skillIds, true)) {
                     $skillIds[] = trim($skillId);
                 }
@@ -270,7 +301,9 @@ class TenantSkillRegistryService
                 continue;
             }
 
-            foreach ((array) data_get($this->skillDefinitionForAssignment($assignment), 'default_agent_skill_ids', []) as $skillId) {
+            $skill = $this->skillDefinitionForAssignment($assignment);
+
+            foreach ((array) data_get($skill, 'default_agent_skill_ids', []) as $skillId) {
                 if (is_string($skillId) && trim($skillId) !== '' && ! in_array(trim($skillId), $skillIds, true)) {
                     $skillIds[] = trim($skillId);
                 }
@@ -320,6 +353,7 @@ class TenantSkillRegistryService
     private function normalizedSkillDefinition(array $manifest, string $directory): array
     {
         $skillId = trim((string) $manifest['skill_id']);
+        $runtimeType = $this->normalizedRuntimeType($manifest['runtime_type'] ?? null);
 
         return [
             'id' => $skillId,
@@ -327,6 +361,7 @@ class TenantSkillRegistryService
             'version' => is_string($manifest['version'] ?? null) ? trim((string) $manifest['version']) : '0.0.0',
             'description' => is_string($manifest['description'] ?? null) ? trim((string) $manifest['description']) : '',
             'category' => is_string($manifest['category'] ?? null) ? trim((string) $manifest['category']) : null,
+            'runtime_type' => $runtimeType,
             'applicable_industries' => $this->normalizedStringList($manifest['applicable_industries'] ?? []),
             'openclaw_skill_ids' => $this->normalizedStringList($manifest['openclaw_skill_ids'] ?? []),
             'default_agent_skill_ids' => $this->normalizedStringList($manifest['default_agent_skill_ids'] ?? []),
@@ -334,6 +369,47 @@ class TenantSkillRegistryService
             'manifest_json' => $manifest,
             'source_root' => $directory,
         ];
+    }
+
+    private function normalizedRuntimeType(mixed $value): string
+    {
+        return is_string($value) && trim($value) !== ''
+            ? trim($value)
+            : self::RUNTIME_TYPE_SYNC360_WORKSPACE;
+    }
+
+    /**
+     * @param  array<string, mixed>  $manifest
+     */
+    private function runtimeValidationError(array $manifest): ?string
+    {
+        if (! array_key_exists('runtime_type', $manifest)) {
+            return 'runtime_type is required and must be one of sync360_workspace, openclaw_native, runtime_capability.';
+        }
+
+        $runtimeType = $this->normalizedRuntimeType($manifest['runtime_type'] ?? null);
+
+        if (! in_array($runtimeType, self::supportedRuntimeTypes(), true)) {
+            return sprintf('runtime_type [%s] is not supported.', $runtimeType);
+        }
+
+        $openClawSkillIds = $this->normalizedStringList($manifest['openclaw_skill_ids'] ?? []);
+        $defaultAgentSkillIds = $this->normalizedStringList($manifest['default_agent_skill_ids'] ?? []);
+        $skillId = is_string($manifest['skill_id'] ?? null) ? trim((string) $manifest['skill_id']) : '';
+
+        if ($runtimeType === self::RUNTIME_TYPE_SYNC360_WORKSPACE && $openClawSkillIds !== [$skillId]) {
+            return 'sync360_workspace skills must declare openclaw_skill_ids containing only their workspace skill_id.';
+        }
+
+        if ($runtimeType === self::RUNTIME_TYPE_SYNC360_WORKSPACE && $defaultAgentSkillIds !== [$skillId]) {
+            return 'sync360_workspace skills must declare default_agent_skill_ids containing only their workspace skill_id.';
+        }
+
+        if ($runtimeType === self::RUNTIME_TYPE_OPENCLAW_NATIVE && $openClawSkillIds === []) {
+            return 'openclaw_native skills must declare at least one openclaw_skill_id.';
+        }
+
+        return null;
     }
 
     /**

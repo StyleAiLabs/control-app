@@ -22,9 +22,10 @@ Required `manifest.json` fields:
 - `label`: human-readable skill name.
 - `description`: concise business-purpose summary.
 - `category`: catalog grouping.
+- `runtime_type`: one of `sync360_workspace`, `openclaw_native`, or `runtime_capability`. Use `sync360_workspace` for repo-authored markdown skills that are materialized into `.openclaw/workspace/skills/<skill-id>/`.
 - `production_ready`: boolean.
-- `openclaw_skill_ids`: list of raw OpenClaw skill IDs to enable only when the pack wraps a real bundled OpenClaw skill under `/app/skills`; use `[]` for Sync360 markdown-only workspace skills.
-- `default_agent_skill_ids`: list of default agent skills to attach only for real bundled OpenClaw skills; use `[]` for Sync360 markdown-only workspace skills.
+- `openclaw_skill_ids`: list of OpenClaw skill IDs to enable. For `sync360_workspace`, this must contain only the skill's own workspace skill id.
+- `default_agent_skill_ids`: list of default agent skills to attach. For `sync360_workspace`, this must contain only the skill's own workspace skill id.
 - `applicable_industries`: list, empty when not industry-specific.
 - `analytics`: required for conversion-tracked skills.
 
@@ -44,6 +45,9 @@ Analytics manifest contract:
 - Optional `analytics.roi_defaults.value_amount` and `analytics.roi_defaults.currency` only when there is a defensible default value. If no value is known, omit these so dashboards do not show misleading zero-value metrics.
 
 Analytics event rules:
+- `sync360_workspace` skills are real OpenClaw workspace skills loaded from `.openclaw/workspace/skills/<skill-id>/`; they should be allowlisted in `openclaw.json` and should not ask the agent to read `/app/skills/<skill-id>/SKILL.md`.
+- Use `openclaw_native` only when the skill truly exists outside Sync360's workspace materialization path, such as a bundled or managed OpenClaw skill.
+- Use `runtime_capability` only for Sync360-managed host/container dependencies such as external binaries, mounted auth/config, and real OpenClaw-native skills provided by that runtime dependency.
 - Emit analytics only after an authoritative successful business outcome.
 - Do not emit on intent, partial data collection, tentative next steps, or pending human follow-up.
 - Emit exactly once per business outcome.

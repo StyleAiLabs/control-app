@@ -99,6 +99,7 @@ class TenantSkillAssignmentService
                     'version' => $assignment->catalogVersion?->version,
                     'skill_catalog_version_id' => $assignment->skill_catalog_version_id,
                     'label' => $skill['label'] ?? $assignment->skill_key,
+                    'runtime_type' => $skill['runtime_type'] ?? TenantSkillRegistryService::RUNTIME_TYPE_SYNC360_WORKSPACE,
                     'openclaw_skill_ids' => $skill['openclaw_skill_ids'] ?? [],
                     'default_agent_skill_ids' => $skill['default_agent_skill_ids'] ?? [],
                 ];

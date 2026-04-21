@@ -325,6 +325,7 @@ class TenantRuntimeCustomizationComposer
             $lines[] = '';
             $lines[] = sprintf('### %s', (string) ($skill['label'] ?? $assignment->skill_key));
             $lines[] = sprintf('- Skill key: `%s`', $assignment->skill_key);
+            $lines[] = sprintf('- Runtime type: `%s`', (string) ($skill['runtime_type'] ?? TenantSkillRegistryService::RUNTIME_TYPE_SYNC360_WORKSPACE));
 
             $skillIds = array_values(array_unique(array_map(
                 static fn (string $skillId): string => trim($skillId),

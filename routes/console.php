@@ -9,6 +9,7 @@ use App\Services\LiteLlmTenantKeyService;
 use App\Services\TenantAgentSyncService;
 use App\Services\TenantSkillAnalyticsRuntimeService;
 use App\Services\TenantSkillAnalyticsSyncService;
+use App\Services\TenantSkillRuntimeInspectorService;
 use App\Services\TenantRuntimeCapabilityService;
 use App\Services\TenantProfileSyncService;
 use App\Services\TenantGoogleWorkspaceSmokeTestService;
@@ -326,6 +327,107 @@ Artisan::command('sync360:init-skill-analytics {tenantSelector? : Tenant id, ten
         $result['tenants'],
     ));
 })->purpose('Initialize tenant runtime SQLite storage for skill analytics');
+
+Artisan::command('sync360:inspect-tenant-skills {tenantSelector : Tenant id, tenant_id, or slug}', function (string $tenantSelector) {
+    $selector = trim($tenantSelector);
+    $tenant = Tenant::query()
+        ->with(['server', 'skillAssignments.catalogVersion'])
+        ->where(function ($query) use ($selector): void {
+            if (ctype_digit($selector)) {
+                $query->where('id', (int) $selector);
+            }
+
+            $query->orWhere('tenant_id', $selector)
+                ->orWhere('slug', $selector);
+        })
+        ->first();
+
+    if (! $tenant) {
+        throw new \RuntimeException(sprintf('No tenant matched [%s].', $selector));
+    }
+
+    /** @var TenantSkillRuntimeInspectorService $inspector */
+    $inspector = app(TenantSkillRuntimeInspectorService::class);
+    $report = $inspector->inspect($tenant);
+
+    $this->components->info(sprintf('Tenant skill runtime inspection for [%s]', $tenant->slug));
+    $this->line(sprintf('Driver: %s', data_get($report, 'tenant.driver')));
+
+    $this->newLine();
+    $this->line('Assigned Sync360 skills');
+    foreach ((array) ($report['assigned_skills'] ?? []) as $skill) {
+        $this->line(sprintf(
+            '- %s (%s) v%s [%s]',
+            $skill['skill_key'] ?? 'unknown',
+            $skill['label'] ?? 'unknown',
+            $skill['version'] ?? '0.0.0',
+            $skill['runtime_type'] ?? 'unknown',
+        ));
+    }
+
+    if (($report['assigned_skills'] ?? []) === []) {
+        $this->line('- none');
+    }
+
+    $this->newLine();
+    $this->line('Materialized workspace skill files');
+    foreach ((array) ($report['materialized_workspace_skill_files'] ?? []) as $skill) {
+        $files = is_array($skill['files'] ?? null) ? $skill['files'] : [];
+        $this->line(sprintf(
+            '- %s: SKILL.md=%s agent-instructions.md=%s RELEASE_NOTES.md=%s',
+            $skill['skill_key'] ?? 'unknown',
+            ($files['SKILL.md'] ?? false) ? 'present' : 'missing',
+            ($files['agent-instructions.md'] ?? false) ? 'present' : 'missing',
+            ($files['RELEASE_NOTES.md'] ?? false) ? 'present' : 'missing',
+        ));
+    }
+
+    if (($report['materialized_workspace_skill_files'] ?? []) === []) {
+        $this->line('- none');
+    }
+
+    $this->newLine();
+    $this->line('Analytics registry entries');
+    $registrySkills = (array) data_get($report, 'analytics_registry.skills', []);
+    $this->line(sprintf('- path: %s', data_get($report, 'analytics_registry.path')));
+    $this->line(sprintf('- exists: %s', data_get($report, 'analytics_registry.exists') ? 'yes' : 'no'));
+    $this->line(sprintf('- skills: %s', $registrySkills !== [] ? implode(', ', $registrySkills) : 'none'));
+
+    $this->newLine();
+    $this->line('SQLite DB state');
+    $this->line(sprintf('- path: %s', data_get($report, 'sqlite_db.path')));
+    $this->line(sprintf('- exists: %s', data_get($report, 'sqlite_db.exists') ? 'yes' : 'no'));
+
+    $this->newLine();
+    $this->line('OpenClaw config skill IDs');
+    $configSkillIds = (array) ($report['openclaw_config_skill_ids'] ?? []);
+    $this->line(sprintf('- %s', $configSkillIds !== [] ? implode(', ', $configSkillIds) : 'none'));
+
+    $this->newLine();
+    $this->line('Runtime OpenClaw skills visible');
+    $runtimeVisibility = (array) ($report['runtime_skill_visibility'] ?? []);
+    $runtimeSkills = (array) ($runtimeVisibility['skills'] ?? []);
+    $this->line(sprintf('- checked: %s', ($runtimeVisibility['checked'] ?? false) ? 'yes' : 'no'));
+    $this->line(sprintf('- skills: %s', $runtimeSkills !== [] ? implode(', ', $runtimeSkills) : 'none'));
+
+    if (is_string($runtimeVisibility['error'] ?? null) && trim((string) $runtimeVisibility['error']) !== '') {
+        $this->line(sprintf('- note: %s', $runtimeVisibility['error']));
+    }
+
+    $this->newLine();
+    $this->line('Mismatch warnings');
+    $warnings = (array) ($report['warnings'] ?? []);
+
+    if ($warnings === []) {
+        $this->line('- none');
+
+        return;
+    }
+
+    foreach ($warnings as $warning) {
+        $this->warn(sprintf('- %s', $warning));
+    }
+})->purpose('Inspect assigned Sync360 skills against materialized tenant runtime state');
 
 Artisan::command('sync360:resync-live-tenants {tenantSelector? : Tenant id, tenant_id, or slug. Omit to resync every live tenant}', function (?string $tenantSelector = null) {
     $tenants = Tenant::query()

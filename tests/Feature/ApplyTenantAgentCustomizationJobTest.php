@@ -101,7 +101,10 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         $this->assertSame(ProvisioningJobStatus::Completed, $provisioningJob->status);
         $this->assertCount(1, $runner->workspaceSyncs);
         $this->assertNotEmpty($runner->putFiles);
-        $this->assertNotEmpty($runner->commands);
+        $this->assertTrue(collect($runner->commands)->contains(
+            fn (string $command): bool => str_contains($command, 'docker compose')
+                && str_contains($command, 'restart')
+        ));
 
         $applyLog = TenantAgentCustomizationApply::query()->latest('id')->first();
 
