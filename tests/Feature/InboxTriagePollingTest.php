@@ -88,7 +88,8 @@ class InboxTriagePollingTest extends TestCase
                     && $from === TenantInboxTriagePollingService::FROM
                     && str_contains($message, 'business-plausible Gmail message')
                     && str_contains($message, 'This trigger has not classified the email as high-value.')
-                    && str_contains($message, 'Read skills/inbox-triage/SKILL.md')
+                    && str_contains($message, 'Read the workspace skill file at ./skills/inbox-triage/SKILL.md')
+                    && str_contains($message, 'Do not look under /app/skills')
                     && str_contains($message, '"possible_form_submission"')
                     && ! str_contains($message, 'send the Telegram notification');
             })
