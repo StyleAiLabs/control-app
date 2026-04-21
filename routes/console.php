@@ -292,7 +292,7 @@ Artisan::command('sync360:sync-skill-conversions {tenantSelector? : Tenant id, t
     ));
 })->purpose('Sync tenant runtime skill conversion analytics into the control plane');
 
-Schedule::command('sync360:sync-skill-conversions')->everyThirtyMinutes();
+Schedule::command('sync360:sync-skill-conversions')->everyFiveMinutes();
 
 Artisan::command('sync360:init-skill-analytics {tenantSelector? : Tenant id, tenant_id, or slug. Omit to initialize every tenant runtime with analytics-enabled skills}', function (?string $tenantSelector = null) {
     $tenant = null;

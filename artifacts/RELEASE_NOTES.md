@@ -1713,6 +1713,21 @@ Operational notes:
 ## 2026-04-11 - Production Deployment Packaging
 
 Date: 2026-04-11
+## 2026-04-21 - Faster Skill Conversion Sync Cadence
+
+Date: 2026-04-21
+Branch: `codex/control-app-prod-deploy`
+
+Summary:
+- Reduced the automatic skill conversion analytics sync cadence from every 30 minutes to every 5 minutes.
+
+Notable changes:
+- Updated [routes/console.php](/Users/gayanhewage/Projects/openclaw-saas/routes/console.php) so `sync360:sync-skill-conversions` now runs every five minutes.
+- This shortens the delay between tenant runtime SQLite writes and control-plane dashboard visibility.
+
+Verification:
+- `php -l routes/console.php` passed
+
 Branch: `codex/control-app-prod-deploy`
 Commit: `1de117e`
 

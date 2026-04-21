@@ -174,6 +174,7 @@ If those files conflict with the codebase, trust:
 - `workspace_url` is the customer-facing Sync360 URL, not a public OpenClaw URL.
 - Private gateway calls should go through `TenantGatewayService` and the runner’s `httpRequest()` contract, not through the public tenant hostname.
 - Production needs the scheduler path running. The scheduled commands in `routes/console.php` are part of the live product.
+- Skill conversion analytics sync is scheduled every five minutes, not every thirty minutes, so dashboard visibility depends on the control-plane scheduler staying healthy at that cadence.
 - Historical docs include implementation plans and rollout notes that are no longer safe to treat as current truth.
 - Customer-facing language should not expose backend platform names. The current tenant heartbeat sync includes identity guardrails for that reason.
 - The admin-panel runtime buttons are wrappers around the existing artisan commands, not a second implementation. If those commands change, the panel behavior should stay aligned with them rather than forking capability logic into the controller.

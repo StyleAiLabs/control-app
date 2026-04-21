@@ -996,6 +996,7 @@ Notable current additions:
 - DNS automation is external to this repo.
 - Historical release notes and plans still contain webhook-first Telegram narratives and more complete WhatsApp claims than the current implementation.
 - Production assumptions should be verified against the deployed environment rather than inferred from repo docs alone.
+- Skill analytics import is a scheduled control-plane pull from tenant runtime SQLite databases. The current cadence is every five minutes via `sync360:sync-skill-conversions`, not a push-based realtime stream.
 - Host-managed runtime capability commands are intentionally unsupported in `local` mode.
 - `goLive()` must continue to sync workspace markdown only and must not be extended to deliver host binaries or full runtime config.
 - Tenant skill management is now split between DB-backed catalog/assignment state and runtime diagnostics. The tenant `Skills` tab remains the assignment surface, while a separate read-only `Runtime Available Skills` panel shells into the tenant runtime with `openclaw skills list --eligible` for operator diagnostics only.
