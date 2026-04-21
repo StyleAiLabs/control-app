@@ -1,0 +1,36 @@
+{
+    "skill_id": "inbox-triage",
+    "version": "1.1.1",
+    "label": "Inbox Triage",
+    "description": "Monitors email inbox for high-value leads, categorizes inquiries, and routes qualified opportunities.",
+    "category": "operations",
+    "production_ready": true,
+    "openclaw_skill_ids": [
+        "inbox-triage"
+    ],
+    "default_agent_skill_ids": [
+        "inbox-triage"
+    ],
+    "applicable_industries": [],
+    "google_workspace_integrations": [
+        "gmail",
+        "google-drive"
+    ],
+    "analytics": {
+        "enabled": true,
+        "conversion_type": "lead_qualified",
+        "success_event_type": "conversion_succeeded",
+        "required_success_fields": [
+            "event_id",
+            "occurred_at",
+            "customer_label",
+            "outcome.lead_quality",
+            "outcome.inquiry_category",
+            "outcome.suggested_action"
+        ],
+        "roi_defaults": {
+            "human_effort_minutes": 5,
+            "agent_effort_minutes": 1
+        }
+    }
+}

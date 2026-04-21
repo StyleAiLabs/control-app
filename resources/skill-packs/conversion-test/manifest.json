@@ -1,0 +1,30 @@
+{
+    "skill_id": "conversion-test",
+    "version": "1.0.0",
+    "label": "Conversion Test (by Sync360)",
+    "description": "A minimal test skill that emits a single conversion event to verify the Sync360 analytics pipeline.",
+    "category": "testing",
+    "production_ready": false,
+    "openclaw_skill_ids": [
+        "conversion-test"
+    ],
+    "default_agent_skill_ids": [
+        "conversion-test"
+    ],
+    "applicable_industries": [],
+    "analytics": {
+        "enabled": true,
+        "conversion_type": "test_completed",
+        "success_event_type": "conversion_succeeded",
+        "required_success_fields": [
+            "event_id",
+            "occurred_at",
+            "customer_label",
+            "outcome.test_result"
+        ],
+        "roi_defaults": {
+            "human_effort_minutes": 1,
+            "agent_effort_minutes": 1
+        }
+    }
+}
