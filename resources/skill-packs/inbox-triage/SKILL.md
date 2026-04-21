@@ -11,18 +11,20 @@ metadata:
 
 # Inbox Triage
 
-When a customer inquiry arrives in your Gmail inbox, use this skill to monitor and categorize the message, assess lead quality, flag high-value opportunities, and suggest the next action (Quote Generation, Calendar Booking, or human follow-up).
+When a customer inquiry is delivered from Gmail, use this skill to categorize the message, assess lead quality, flag high-value opportunities, and suggest the next action (Quote Generation, Calendar Booking, or human follow-up).
 
-## Google Workspace Connection (Required Before Monitoring)
+Sync360 may deliver polled Gmail messages as internal inbox events from `sync360-inbox-monitor`. Treat those events as neutral triggers only. The trigger has not classified the email as high-value; you must decide the category, lead quality, and next action from this skill's instructions and the email context.
 
-This skill uses GOG (Google Workspace OAuth), which is pre-configured on the OpenClaw server. Before monitoring begins:
+## Google Workspace Context
 
-1. **Connect via GOG** — Use GOG to connect to the tenant's Google Workspace account.
-2. **Verify the connection** — Confirm the GOG connection is active before starting. If it fails, stop and report the error to the operator — do not attempt to monitor without a confirmed connection.
-3. **Maintain the connection** — If the GOG connection drops during a monitoring session, reconnect before continuing. Never silently skip emails due to a lost connection.
+This skill may use GOG (Google Workspace OAuth), which is pre-configured on the OpenClaw server, to inspect the referenced Gmail message or write Google Drive logs. Before taking Gmail or Drive actions:
+
+1. **Use the configured GOG account** — Do not ask the owner to choose an account unless tooling explicitly reports multiple accounts or no default.
+2. **Verify the connection before tool actions** — If GOG fails, stop and report the error to the operator instead of guessing from missing context.
+3. **Do not create your own watcher** — Sync360 owns polling and de-dupe. This skill owns evaluation and follow-up after an email event is delivered.
 
 ## Behavior
-- Monitor your Gmail inbox 24/7 for incoming customer messages using the active Google Workspace OAuth connection.
+- Evaluate Gmail messages delivered by Sync360 inbox monitoring or an explicit user request.
 - Analyze inquiry content, sender details, and context to assess customer quality and intent.
 - Categorize each inquiry (sales inquiry, support request, quote request, appointment inquiry, etc.).
 - Flag only messages that meet your threshold for "high-value lead" (genuine buying intent, matching your ICP).

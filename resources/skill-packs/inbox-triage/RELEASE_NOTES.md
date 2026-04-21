@@ -1,5 +1,11 @@
 # Inbox Triage — Release Notes
 
+## 1.5.1
+
+- Added Sync360 inbox monitor trigger guidance so neutral `sync360-inbox-monitor` Gmail events are routed through this skill.
+- Clarified that Sync360 polling does not classify emails as high-value; the skill remains responsible for category, lead quality, notification, logging, and analytics decisions.
+- Reworded Gmail guidance so the skill evaluates delivered events and does not try to create its own watcher.
+
 ## 1.5.0
 
 - Added Telegram notification step — agent sends a formatted alert to the pre-configured Telegram channel immediately when a lead is classified as high-value.

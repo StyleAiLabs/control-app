@@ -1,1 +1,1 @@
-- inbox-triage: a new customer email arrives and needs to be assessed, categorized, or routed, or you are monitoring the inbox for leads → read `skills/inbox-triage/SKILL.md` and follow it exactly. Do not use your default email handling behavior.
+- inbox-triage: a new customer email arrives and needs to be assessed, categorized, or routed, you are monitoring the inbox for leads, or you receive an internal Gmail inbox event from `sync360-inbox-monitor` → read `skills/inbox-triage/SKILL.md` and follow it exactly. Do not use your default email handling behavior.

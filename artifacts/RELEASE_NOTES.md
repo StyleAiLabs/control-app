@@ -7,6 +7,25 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-21 — Feature: Inbox Triage Polling Trigger
+
+Date: 2026-04-21
+Status: Implemented
+
+### Overview
+
+Implemented Sync360's proactive Gmail polling trigger for the `inbox-triage` skill while preserving the agreed boundary that the skill, not Sync360, decides final lead quality and actions.
+
+### What Changed
+
+- added per-tenant inbox monitor state and processed-message metadata tables for enabled/status/backoff/error tracking, de-dupe, delivery attempts, skip reasons, and operational timestamps
+- added `sync360:poll-inbox-triage`, scheduled every five minutes, plus queued per-tenant `ProcessTenantInboxTriage` jobs for live/ready tenants with verified Google Workspace and an enabled `inbox-triage` assignment
+- added tenant Gmail polling through the tenant container's configured `gog` runtime, using `gmail search` and `gmail get` without changing `goLive()` or full runtime sync behavior
+- added mechanical business-importance filtering that skips obvious promotions/social/spam/trash, no-reply/system traffic, newsletters, delivery failures, and auto-generated/list mail before invoking the agent
+- routed only business-plausible Gmail events to the tenant agent through `TenantWorkspaceMessenger` on the private gateway with the neutral `sync360-inbox-monitor` contract
+- kept Telegram destination as optional context only; Sync360 does not send Telegram notifications, classify high-value leads, or reinterpret agent outcomes
+- bumped `inbox-triage` to `1.5.1` and updated its instructions so `sync360-inbox-monitor` events route through `skills/inbox-triage/SKILL.md`
+
 ## 2026-04-21 — Fix: Remote Skill Analytics Sync Transport
 
 Date: 2026-04-21

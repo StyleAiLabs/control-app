@@ -292,7 +292,7 @@ Control-plane sync contract:
 3. synced runtime rows older than 7 days are pruned from the tenant runtime DB
 4. central rows are stored in `tenant_skill_conversion_events`
 5. per-tenant cursor state is stored in `tenant_skill_analytics_sync_states`
-6. the scheduler runs analytics sync every 30 minutes
+6. the scheduler runs analytics sync every five minutes
 7. analytics-enabled tenants with no runtime SQLite database produce a sync warning so missing initialization is visible instead of silently looking like zero conversions
 
 Runtime diagnostics:
@@ -309,6 +309,25 @@ Metric rules in v1:
 - tenant users reach their analytics through the sidebar `Skill Outcomes` link, which anchors into `/dashboard#skill-outcomes`; admins reach cross-tenant rollups through the sidebar `Skill Analytics` link at `/admin/analytics/skills`
 - estimated value is shown only when a manifest default or event override supplies it
 - `session_id` can support measured agent elapsed time later, but that remains a v2 improvement
+
+Important boundary for autonomous skills:
+
+- assigning a `sync360_workspace` skill only materializes its files, allowlists its OpenClaw skill IDs, and injects its guidance into generated workspace instructions
+- by itself it does not create a background scheduler, Gmail watcher, webhook subscription, Pub/Sub topic, or proactive Telegram action
+- `inbox-triage` is the special case that now has an explicit Sync360-owned Gmail polling trigger path
+- OpenClaw native `hooks.gmail` / Gmail Pub/Sub remains a future optimization; it is not the implemented trigger path
+
+Inbox Triage polling trigger:
+
+1. `sync360:poll-inbox-triage` runs every five minutes from `routes/console.php`.
+2. The command selects live/ready tenants with a verified `TenantGoogleCredential`, runtime/server placement, and an enabled `inbox-triage` assignment, excluding disabled or backoff monitor states.
+3. The command queues `ProcessTenantInboxTriage` once per eligible tenant; a selector argument can poll one tenant directly for operator debugging.
+4. `TenantInboxGmailRuntimeService` runs `gog --json gmail search 'in:inbox newer_than:2d' --max 20` and `gog gmail get <messageId>` inside the tenant container, using the tenant's configured Google Workspace auth.
+5. `TenantInboxMessageFilter` performs mechanical noise suppression only: promotional/social/spam/trash labels, no-reply/system senders, system/security/password/reset/newsletter/delivery subjects, and list/auto-generated headers can be skipped without invoking the agent. Ambiguous or form-like business messages are sent through with neutral `mechanical_hints`.
+6. `tenant_inbox_monitor_states` stores per-tenant enabled/status/backoff/error/check timestamps. `tenant_inbox_monitor_messages` stores de-dupe and operational metadata only: Gmail ids, sender domain, subject preview/hash, status, attempts, timestamps, and last error. It must not store full bodies, raw headers, attachments, full prompts, or agent responses.
+7. Business-plausible messages are sent through `TenantWorkspaceMessenger::send()` on the private gateway with channel `gmail_inbox_monitor` and sender `sync360-inbox-monitor`.
+8. The trigger message is neutral: it says the message is business-plausible, explicitly says Sync360 has not classified it as high-value, includes optional `telegram_default_chat_id` context, and tells the agent to route the event to `skills/inbox-triage/SKILL.md`.
+9. Sync360 does not send Telegram notifications, does not classify lead quality, and does not reinterpret the agent response. The `inbox-triage` skill remains responsible for category, lead quality, Telegram notification, Google Drive logging, and analytics.
 
 `LiteLlmTenantKeyService::ensureTenantKey()` is now intentionally provisioning-only. It returns the existing DB-backed key for already-keyed tenants, but if the tenant has no stored LiteLLM key it will only generate one while `provisioning_status=provisioning`. This prevents future onboarding, Google sync, initial Google sync, go-live/resync, or runtime-capability callers from silently minting a key just by reusing the convenience method.
 
@@ -912,6 +931,8 @@ Implemented recurring commands:
 - `tenants:health-check` — every five minutes
 - `sync360:check-trial-expiry` — every thirty minutes
 - `sync360:sync-replies` — every ten minutes
+- `sync360:sync-skill-conversions` — every five minutes
+- `sync360:poll-inbox-triage` — every five minutes
 
 Also present:
 
@@ -999,6 +1020,7 @@ Notable current additions:
 - Skill analytics import is a scheduled control-plane pull from tenant runtime SQLite databases. The current cadence is every five minutes via `sync360:sync-skill-conversions`, not a push-based realtime stream.
 - In remote/SSH mode, analytics import reads the tenant DB from inside the running tenant container with `docker exec` plus Node SQLite. It no longer requires the client VPS host to have a `sqlite3` binary installed.
 - Analytics sync is failure-isolated per tenant: one broken tenant transport should be logged into that tenant's sync-state record and must not prevent other tenants from importing successfully in the same scheduler run.
+- Inbox Triage proactive monitoring is implemented as a Sync360-owned polling trigger, not OpenClaw `hooks.gmail` / Gmail Pub/Sub. Missing Telegram destination context does not block event delivery; the skill receives `telegram_default_chat_id: null` and decides the next action.
 - Host-managed runtime capability commands are intentionally unsupported in `local` mode.
 - `goLive()` must continue to sync workspace markdown only and must not be extended to deliver host binaries or full runtime config.
 - Tenant skill management is now split between DB-backed catalog/assignment state and runtime diagnostics. The tenant `Skills` tab remains the assignment surface, while a separate read-only `Runtime Available Skills` panel shells into the tenant runtime with `openclaw skills list --eligible` for operator diagnostics only.

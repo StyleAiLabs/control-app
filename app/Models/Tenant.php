@@ -145,6 +145,16 @@ class Tenant extends Model
         return $this->hasOne(TenantSkillAnalyticsSyncState::class);
     }
 
+    public function inboxMonitorState(): HasOne
+    {
+        return $this->hasOne(TenantInboxMonitorState::class);
+    }
+
+    public function inboxMonitorMessages(): HasMany
+    {
+        return $this->hasMany(TenantInboxMonitorMessage::class);
+    }
+
     public function workspaceHost(): string
     {
         $this->loadMissing('server');

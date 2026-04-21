@@ -108,6 +108,8 @@ Each tenant gets:
 - tenant `gog` auth files are generated in the file-keyring format expected by the live CLI; the encrypted keyring token file is not plain JSON, uses RFC3394-compatible AES key wrap, and should not be patched manually
 - its own customer-facing workspace URL
 
+Catalog-managed workspace skills are instructions plus runtime files, not background jobs by themselves. Inbox Triage now has an explicit Sync360-owned trigger layer: `sync360:poll-inbox-triage` polls eligible tenants' Gmail through the tenant container's configured `gog`, de-dupes and suppresses obvious mechanical noise, and sends only business-plausible Gmail events to the assigned skill through the private gateway. Sync360 does not classify high-value leads or send Telegram directly; the `inbox-triage` skill decides category, lead quality, notifications, Drive logging, and analytics.
+
 The public tenant hostname is the Sync360 login/dashboard entrypoint. The OpenClaw gateway stays private and is reached by the control plane through loopback plus the infrastructure runner.
 
 ## Local Setup
@@ -185,6 +187,8 @@ Scheduled commands are part of the live system. Production must run the `schedul
 - `tenants:health-check`
 - `sync360:check-trial-expiry`
 - `sync360:sync-replies`
+- `sync360:sync-skill-conversions`
+- `sync360:poll-inbox-triage`
 
 ### Resync existing live tenants after prompt changes
 
@@ -332,6 +336,7 @@ This repo does not treat the following as complete product areas yet:
 - email verification
 - full secret-management hardening
 - automated DNS management
+- OpenClaw native Gmail watcher/PubSub for Inbox Triage; current proactive monitoring uses Sync360 scheduler-backed polling
 - multi-region scheduling and placement
 - comprehensive production observability
 

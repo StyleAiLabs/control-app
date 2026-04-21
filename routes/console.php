@@ -10,10 +10,12 @@ use App\Services\TenantAgentSyncService;
 use App\Services\TenantSkillAnalyticsRuntimeService;
 use App\Services\TenantSkillAnalyticsSyncService;
 use App\Services\TenantSkillRuntimeInspectorService;
+use App\Services\TenantInboxTriagePollingService;
 use App\Services\TenantRuntimeCapabilityService;
 use App\Services\TenantProfileSyncService;
 use App\Services\TenantGoogleWorkspaceSmokeTestService;
 use App\Services\TrialNotificationEmailService;
+use App\Jobs\ProcessTenantInboxTriage;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
@@ -294,6 +296,53 @@ Artisan::command('sync360:sync-skill-conversions {tenantSelector? : Tenant id, t
 })->purpose('Sync tenant runtime skill conversion analytics into the control plane');
 
 Schedule::command('sync360:sync-skill-conversions')->everyFiveMinutes();
+
+Artisan::command('sync360:poll-inbox-triage {tenantSelector? : Tenant id, tenant_id, or slug. Omit to poll every eligible inbox-triage tenant}', function (?string $tenantSelector = null) {
+    /** @var TenantInboxTriagePollingService $polling */
+    $polling = app(TenantInboxTriagePollingService::class);
+
+    if (is_string($tenantSelector) && trim($tenantSelector) !== '') {
+        $selector = trim($tenantSelector);
+        $tenant = Tenant::query()
+            ->with(['server', 'googleCredential', 'inboxMonitorState', 'skillAssignments.catalogVersion'])
+            ->where(function ($query) use ($selector): void {
+                if (ctype_digit($selector)) {
+                    $query->where('id', (int) $selector);
+                }
+
+                $query->orWhere('tenant_id', $selector)
+                    ->orWhere('slug', $selector);
+            })
+            ->first();
+
+        if (! $tenant) {
+            throw new \RuntimeException(sprintf('No tenant matched [%s].', $selector));
+        }
+
+        $result = $polling->pollTenant($tenant);
+
+        $this->components->info(sprintf(
+            'Inbox triage poll finished for %s. Processed %d. Delivered %d. Skipped %d. Failed %d.',
+            $tenant->slug,
+            $result['processed'],
+            $result['delivered'],
+            $result['skipped'],
+            $result['failed'],
+        ));
+
+        return;
+    }
+
+    $tenants = $polling->eligibleTenants();
+
+    foreach ($tenants as $tenant) {
+        ProcessTenantInboxTriage::dispatch($tenant->id);
+    }
+
+    $this->components->info(sprintf('Queued inbox triage polling for %d eligible tenants.', $tenants->count()));
+})->purpose('Poll Gmail inboxes and trigger assigned inbox-triage skills for business-plausible messages');
+
+Schedule::command('sync360:poll-inbox-triage')->everyFiveMinutes();
 
 Artisan::command('sync360:init-skill-analytics {tenantSelector? : Tenant id, tenant_id, or slug. Omit to initialize every tenant runtime with analytics-enabled skills}', function (?string $tenantSelector = null) {
     $tenant = null;
