@@ -338,7 +338,8 @@ Inbox Triage polling trigger:
 6. `tenant_inbox_monitor_states` stores per-tenant enabled/status/backoff/error/check timestamps. `tenant_inbox_monitor_messages` stores de-dupe and operational metadata only: Gmail ids, sender domain, subject preview/hash, status, attempts, timestamps, and last error. It must not store full bodies, raw headers, attachments, full prompts, or agent responses.
 7. Business-plausible messages are sent through `TenantWorkspaceMessenger::send()` on the private gateway with channel `gmail_inbox_monitor` and sender `sync360-inbox-monitor`. The messenger posts to OpenClaw's private `/hooks/agent` route with `deliver=false`, `wakeMode=now`, a deterministic idempotency key, and an authorization token from `hooks.token`; tenant config composition must enable `hooks` with a stable token that is distinct from the gateway auth token.
 8. The trigger message is neutral: it says the message is business-plausible, explicitly says Sync360 has not classified it as high-value, includes optional `telegram_default_chat_id` context, and tells the agent to route the event to the workspace skill file at `./skills/inbox-triage/SKILL.md`, not `/app/skills`.
-9. Sync360 does not send Telegram notifications, does not classify lead quality, and does not reinterpret the agent response. The `inbox-triage` skill remains responsible for category, lead quality, Telegram notification, Google Drive logging, and analytics. Its skill contract should specify each required side effect with idempotency, command/tool guidance, validation, and failure handling so the agent does not silently skip operational logs. High-value Telegram notifications now include a visible `Lead ref: <gmail_message_id>` so owner follow-up replies can reopen the exact Gmail message rather than reconstructing it from summary text.
+9. Gmail search summaries can identify an existing thread handle instead of a fresh Gmail message id, so duplicate suppression must happen after `gog gmail get` returns the actual Gmail message id. Otherwise a new email in an already-known thread can be skipped as a duplicate before the skill ever sees it.
+10. Sync360 does not send Telegram notifications, does not classify lead quality, and does not reinterpret the agent response. The `inbox-triage` skill remains responsible for category, lead quality, Telegram notification, Google Drive logging, and analytics. Its skill contract should specify each required side effect with idempotency, command/tool guidance, validation, and failure handling so the agent does not silently skip operational logs. High-value Telegram notifications now include a visible `Lead ref: <gmail_message_id>` so owner follow-up replies can reopen the exact Gmail message rather than reconstructing it from summary text.
 
 `LiteLlmTenantKeyService::ensureTenantKey()` is now intentionally provisioning-only. It returns the existing DB-backed key for already-keyed tenants, but if the tenant has no stored LiteLLM key it will only generate one while `provisioning_status=provisioning`. This prevents future onboarding, Google sync, initial Google sync, go-live/resync, or runtime-capability callers from silently minting a key just by reusing the convenience method.
 
@@ -463,8 +464,8 @@ Runtime reload rule:
 
 1. validates tenant, profile, and generated files
 2. replays saved Telegram channel config if the runtime config exists but the channel has not been applied yet
-3. writes `IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`, `TOOLS.md`, `PROFILE.md`, and `HEARTBEAT.md` into `.openclaw/workspace/`
-4. syncs only workspace markdown files with `syncWorkspaceFiles()`
+3. writes `IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`, `TOOLS.md`, `PROFILE.md`, and `HEARTBEAT.md` into `.openclaw/workspace/`, plus materialized workspace skill files under `.openclaw/workspace/skills/<skill-id>/...`
+4. syncs only workspace files with `syncWorkspaceFiles()`
 5. restarts the tenant runtime if needed
 6. updates onboarding and sync timestamps
 
@@ -951,7 +952,7 @@ Also present:
 
 - `sync360:bootstrap-client-vps` — bootstrap helper for a client VPS
 - `sync360:sync-runtime-capabilities` — install/verify host-managed runtime capabilities and resync compose/config for ready tenants
-- `sync360:resync-live-tenants` — regenerate and push workspace instructions to existing live tenants after prompt/profile sync changes
+- `sync360:resync-live-tenants` — regenerate and push workspace files, including materialized workspace skill files, to existing live tenants after prompt/profile sync changes
 
 ## 9. Operational controls
 
@@ -1049,7 +1050,7 @@ Notable current additions:
 - Analytics sync is failure-isolated per tenant: one broken tenant transport should be logged into that tenant's sync-state record and must not prevent other tenants from importing successfully in the same scheduler run.
 - Inbox Triage proactive monitoring is implemented as a Sync360-owned polling trigger, not OpenClaw `hooks.gmail` / Gmail Pub/Sub. It still uses OpenClaw's generic private `/hooks/agent` HTTP ingress to wake the tenant agent; missing Telegram destination context does not block event delivery, and the skill receives `telegram_default_chat_id: null` before deciding the next action.
 - Host-managed runtime capability commands are intentionally unsupported in `local` mode.
-- `goLive()` must continue to sync workspace markdown only and must not be extended to deliver host binaries or full runtime config.
+- `goLive()` must continue to sync workspace files only and must not be extended to deliver host binaries or full runtime config.
 - Tenant skill management is now split between DB-backed catalog/assignment state and runtime diagnostics. The tenant `Skills` tab remains the assignment surface, while a separate read-only `Runtime Available Skills` panel shells into the tenant runtime with `openclaw skills list --eligible` for operator diagnostics only.
 - Tenant skill assignment controls runtime eligibility, not physical installation. Already-installed skill folders may remain on the tenant runtime after unassign, but Sync360 must remove the skill from agent allowlists and write `skills.entries.<skill>.enabled = false` so OpenClaw stops treating it as eligible. Any tenant-level helper instructions about assigned skills must be generated from the current enabled assignments and disappear again when a skill is unassigned.
 - Tenant skill guidance is generated into `.openclaw/workspace/AGENTS.md`, not persisted as a manual prompt override. The `Assigned Skill Guidance` section is composed from the currently enabled tenant skill assignments, appears when one or more skills are assigned, disappears when none are assigned, and is exposed in the admin `Agent Runtime` preview as a generated read-only file so operators can inspect the effective guidance.

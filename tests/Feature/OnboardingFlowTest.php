@@ -11,8 +11,11 @@ use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
 use App\Models\ProvisioningJob;
 use App\Models\Server;
+use App\Models\SkillCatalogItem;
+use App\Models\SkillCatalogVersion;
 use App\Models\Tenant;
 use App\Models\TenantGoogleCredential;
+use App\Models\TenantSkillAssignment;
 use App\Models\User;
 use App\Services\TenantAgentSyncService;
 use App\Services\TenantGoogleWorkspaceSmokeTestService;
@@ -1563,6 +1566,43 @@ class OnboardingFlowTest extends TestCase
             'connected_at' => now(),
         ]);
 
+        $skillItem = SkillCatalogItem::query()->create([
+            'skill_key' => 'inbox-triage',
+            'label' => 'Inbox Triage (by Sync360)',
+            'description' => 'Inbox Triage',
+            'category' => 'operations',
+            'is_assignable' => true,
+            'is_orphaned' => false,
+        ]);
+        $skillVersion = SkillCatalogVersion::query()->create([
+            'skill_catalog_item_id' => $skillItem->id,
+            'skill_key' => 'inbox-triage',
+            'version' => '1.5.3',
+            'manifest_json' => [
+                'skill_id' => 'inbox-triage',
+                'version' => '1.5.3',
+                'label' => 'Inbox Triage (by Sync360)',
+                'description' => 'Inbox Triage',
+                'runtime_type' => 'sync360_workspace',
+                'openclaw_skill_ids' => ['inbox-triage'],
+                'default_agent_skill_ids' => ['inbox-triage'],
+            ],
+            'is_active_published' => true,
+            'is_archived' => false,
+            'is_available' => true,
+            'discovered_at' => now(),
+            'last_imported_at' => now(),
+        ]);
+        TenantSkillAssignment::query()->create([
+            'tenant_id' => $tenant->id,
+            'skill_catalog_version_id' => $skillVersion->id,
+            'skill_key' => 'inbox-triage',
+            'assigned_by' => $user->id,
+            'assigned_at' => now(),
+            'is_enabled' => true,
+            'last_apply_status' => 'completed',
+        ]);
+
         $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
         File::ensureDirectoryExists($localRuntimePath.'/.openclaw/workspace');
         File::ensureDirectoryExists($localRuntimePath.'/config');
@@ -1635,6 +1675,8 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('includes `Lead ref: <gmail_message_id>`', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('use `gog gmail get <gmail_message_id>` to reopen the exact email', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('Do not guess with Gmail searches from company labels or notification summaries when an exact `Lead ref` is present', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
+        $this->assertStringContainsString('Lead ref: <gmail_message_id>', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
+        $this->assertStringContainsString('reply to the original lead notification again', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('The `gog` CLI is preconfigured in this workspace.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Treat owner@example.com as the default Google account', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('gog gmail --help', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));

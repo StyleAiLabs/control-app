@@ -108,7 +108,7 @@ Each tenant gets:
 - tenant `gog` auth files are generated in the file-keyring format expected by the live CLI; the encrypted keyring token file is not plain JSON, uses RFC3394-compatible AES key wrap, and should not be patched manually
 - its own customer-facing workspace URL
 
-Catalog-managed workspace skills are instructions plus runtime files, not background jobs by themselves. Inbox Triage now has an explicit Sync360-owned trigger layer: `sync360:poll-inbox-triage` polls eligible tenants' Gmail through the tenant container's configured `gog`, de-dupes and suppresses obvious mechanical noise, and sends only business-plausible Gmail events to the assigned skill through OpenClaw's private `/hooks/agent` gateway ingress with a tenant hook token distinct from the gateway auth token. The neutral trigger routes the agent to the workspace skill file at `./skills/inbox-triage/SKILL.md`, not `/app/skills`. Sync360 does not classify high-value leads or send Telegram directly; the `inbox-triage` skill decides category, lead quality, notifications, Drive logging, and analytics, with required side effects spelled out as validated workflow steps. High-value Telegram notifications now include a visible `Lead ref` so later operator replies can reopen the exact Gmail message instead of relying on fuzzy search.
+Catalog-managed workspace skills are instructions plus runtime files, not background jobs by themselves. Inbox Triage now has an explicit Sync360-owned trigger layer: `sync360:poll-inbox-triage` polls eligible tenants' Gmail through the tenant container's configured `gog`, suppresses obvious mechanical noise, and sends only business-plausible Gmail events to the assigned skill through OpenClaw's private `/hooks/agent` gateway ingress with a tenant hook token distinct from the gateway auth token. Duplicate suppression must happen on the actual Gmail message id returned by `gog gmail get`, not the raw Gmail search summary id, so new emails in an already-known thread still reach the skill. The neutral trigger routes the agent to the workspace skill file at `./skills/inbox-triage/SKILL.md`, not `/app/skills`. Sync360 does not classify high-value leads or send Telegram directly; the `inbox-triage` skill decides category, lead quality, notifications, Drive logging, and analytics, with required side effects spelled out as validated workflow steps. High-value Telegram notifications now include a visible `Lead ref` so later operator replies can reopen the exact Gmail message instead of relying on fuzzy search.
 
 The public tenant hostname is the Sync360 login/dashboard entrypoint. The OpenClaw gateway stays private and is reached by the control plane through loopback plus the infrastructure runner.
 
@@ -202,7 +202,7 @@ php artisan sync360:resync-live-tenants
 php artisan sync360:resync-live-tenants <tenant-id-or-slug>
 ```
 
-This path regenerates and pushes workspace files only. It does not full-sync the tenant runtime.
+This path regenerates and pushes workspace files only, including materialized workspace skill files under `.openclaw/workspace/skills/`. It does not full-sync the tenant runtime.
 
 ### Repair host-managed runtime capabilities on existing tenants
 
@@ -226,7 +226,7 @@ What it does:
 - reruns capability verification and Google smoke tests where applicable
 - after a successful Google verification, clears the known stale Gmail/account failure memory files from `.openclaw/workspace/memory/` so old reconnect/account-selection narratives do not keep steering the assistant
 
-`goLive()` still remains workspace-files-only. It must not be used to deliver host binaries or perform a full runtime resync.
+`goLive()` still remains workspace-files-only. It may rewrite top-level workspace markdown plus materialized workspace skill files inside `.openclaw/workspace/`, but it must not be used to deliver host binaries or perform a full runtime resync.
 
 ### Admin-panel runtime operations
 

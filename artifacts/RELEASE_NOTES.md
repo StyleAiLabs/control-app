@@ -7,6 +7,22 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-22 — Fix: Inbox Triage Same-Thread Polling And Workspace Skill Resync
+
+Date: 2026-04-22
+Status: Implemented
+
+### Overview
+
+Fixed two live inbox-triage issues: new emails in an already-known Gmail thread could be skipped as duplicates before the skill saw them, and workspace-only resyncs could update `HEARTBEAT.md` without refreshing the materialized workspace skill files.
+
+### What Changed
+
+- changed inbox-triage polling to de-dupe on the actual Gmail message id returned by `gog gmail get`, not the raw Gmail search summary id
+- added regression coverage for a new business email arriving in an existing thread and still reaching the assigned skill
+- updated `goLive()` / workspace-only resync to write materialized workspace skill files under `.openclaw/workspace/skills/<skill-id>/...`, not just the top-level markdown files
+- added regression coverage proving go-live workspace sync now refreshes the live `inbox-triage` skill file alongside `HEARTBEAT.md`
+
 ## 2026-04-22 — Fix: Lead Reference For Inbox Triage Follow-Ups
 
 Date: 2026-04-22

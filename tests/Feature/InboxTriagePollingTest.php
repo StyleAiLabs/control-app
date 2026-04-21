@@ -174,7 +174,20 @@ class InboxTriagePollingTest extends TestCase
             'subject' => 'Quote needed',
             'labels' => ['INBOX'],
         ]]);
-        $gmail->shouldNotReceive('getMessage');
+        $gmail->shouldReceive('getMessage')->once()->with(
+            Mockery::on(fn (Tenant $value): bool => $value->is($tenant)),
+            'msg-duplicate',
+        )->andReturn([
+            'raw' => "id\tmsg-duplicate\nthread_id\tthread-duplicate\nlabel_ids\tINBOX\nfrom\tJane Buyer <jane@example.com>\nsubject\tQuote needed\n\nPlease quote this project.",
+            'metadata' => [
+                'id' => 'msg-duplicate',
+                'thread_id' => 'thread-duplicate',
+                'label_ids' => 'INBOX',
+                'from' => 'Jane Buyer <jane@example.com>',
+                'subject' => 'Quote needed',
+            ],
+            'body' => 'Please quote this project.',
+        ]);
         $messenger->shouldNotReceive('send');
 
         $this->instance(TenantInboxGmailRuntimeService::class, $gmail);
@@ -183,6 +196,65 @@ class InboxTriagePollingTest extends TestCase
         $result = app(TenantInboxTriagePollingService::class)->pollTenant($tenant);
 
         $this->assertSame(['processed' => 1, 'delivered' => 0, 'skipped' => 1, 'failed' => 0], $result);
+    }
+
+    public function test_new_message_in_existing_thread_is_not_skipped_as_a_duplicate(): void
+    {
+        $tenant = $this->seedInboxTenant('thread-follow-up-shop');
+        TenantInboxMonitorMessage::query()->create([
+            'tenant_id' => $tenant->id,
+            'gmail_message_id' => 'msg-original',
+            'gmail_thread_id' => 'thread-quote',
+            'status' => TenantInboxMonitorMessage::STATUS_SENT_TO_AGENT,
+            'detected_at' => now()->subMinutes(10),
+            'delivered_to_agent_at' => now()->subMinutes(10),
+        ]);
+
+        $gmail = Mockery::mock(TenantInboxGmailRuntimeService::class);
+        $messenger = Mockery::mock(TenantWorkspaceMessenger::class);
+
+        $gmail->shouldReceive('searchRecentInbox')->once()->andReturn([[
+            'id' => 'thread-quote',
+            'thread_id' => 'thread-quote',
+            'from' => 'Major Hartley <james.hartley@wespac.co.nz>',
+            'subject' => 'Quote Please',
+            'labels' => ['INBOX'],
+            'messageCount' => 2,
+        ]]);
+        $gmail->shouldReceive('getMessage')->once()->with(
+            Mockery::on(fn (Tenant $value): bool => $value->is($tenant)),
+            'thread-quote',
+        )->andReturn([
+            'raw' => "id\tmsg-follow-up\nthread_id\tthread-quote\nlabel_ids\tINBOX\nfrom\tMajor Hartley <james.hartley@wespac.co.nz>\nsubject\tQuote Please\ndate\tTue, 21 Apr 2026 23:32:00 +0000\n\nWe need a cleaning and maintenance quote for three newly completed sites.",
+            'metadata' => [
+                'id' => 'msg-follow-up',
+                'thread_id' => 'thread-quote',
+                'label_ids' => 'INBOX',
+                'from' => 'Major Hartley <james.hartley@wespac.co.nz>',
+                'subject' => 'Quote Please',
+                'date' => 'Tue, 21 Apr 2026 23:32:00 +0000',
+            ],
+            'body' => 'We need a cleaning and maintenance quote for three newly completed sites.',
+        ]);
+        $messenger->shouldReceive('send')->once()->withArgs(function (Tenant $value, string $channel, string $from, string $message): bool {
+            return $value->slug === 'thread-follow-up-shop'
+                && $channel === TenantInboxTriagePollingService::CHANNEL
+                && $from === TenantInboxTriagePollingService::FROM
+                && str_contains($message, '"gmail_message_id": "msg-follow-up"');
+        })->andReturn('routed');
+
+        $this->instance(TenantInboxGmailRuntimeService::class, $gmail);
+        $this->instance(TenantWorkspaceMessenger::class, $messenger);
+
+        $result = app(TenantInboxTriagePollingService::class)->pollTenant($tenant);
+
+        $this->assertSame(['processed' => 1, 'delivered' => 1, 'skipped' => 0, 'failed' => 0], $result);
+        $this->assertDatabaseHas('tenant_inbox_monitor_messages', [
+            'tenant_id' => $tenant->id,
+            'gmail_message_id' => 'msg-follow-up',
+            'gmail_thread_id' => 'thread-quote',
+            'status' => TenantInboxMonitorMessage::STATUS_SENT_TO_AGENT,
+        ]);
     }
 
     public function test_gateway_failures_increment_attempts_and_stop_after_cap(): void
@@ -243,7 +315,20 @@ class InboxTriagePollingTest extends TestCase
             'subject' => 'Quote needed',
             'labels' => ['INBOX'],
         ]]);
-        $gmail->shouldNotReceive('getMessage');
+        $gmail->shouldReceive('getMessage')->once()->with(
+            Mockery::on(fn (Tenant $value): bool => $value->id === $tenant->id),
+            'msg-retry',
+        )->andReturn([
+            'raw' => "id\tmsg-retry\nthread_id\tthread-retry\nlabel_ids\tINBOX\nfrom\tJane Buyer <jane@example.com>\nsubject\tQuote needed\n\nPlease quote this project.",
+            'metadata' => [
+                'id' => 'msg-retry',
+                'thread_id' => 'thread-retry',
+                'label_ids' => 'INBOX',
+                'from' => 'Jane Buyer <jane@example.com>',
+                'subject' => 'Quote needed',
+            ],
+            'body' => 'Please quote this project.',
+        ]);
         $messenger->shouldNotReceive('send');
 
         $this->instance(TenantInboxGmailRuntimeService::class, $gmail);

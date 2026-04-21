@@ -125,17 +125,18 @@ class TenantInboxTriagePollingService
      */
     private function processSummary(Tenant $tenant, array $summary): string
     {
-        $summaryId = $this->messageIdFromSummary($summary);
+        $summaryMessageId = $this->messageIdFromSummary($summary);
+        $summaryLookupId = trim((string) ($summary['id'] ?? $summaryMessageId ?? ''));
         $record = null;
 
-        if ($summaryId !== null && $this->shouldSkipExisting($tenant, $summaryId)) {
+        if ($summaryMessageId !== null && $this->shouldSkipExisting($tenant, $summaryMessageId)) {
             return 'skipped';
         }
 
         try {
-            $detail = $this->gmail->getMessage($tenant, $summaryId ?? (string) ($summary['id'] ?? ''));
+            $detail = $this->gmail->getMessage($tenant, $summaryLookupId);
             $metadata = $detail['metadata'];
-            $messageId = trim((string) ($metadata['id'] ?? $summaryId ?? ''));
+            $messageId = trim((string) ($metadata['id'] ?? $summaryMessageId ?? ''));
 
             if ($messageId === '') {
                 return 'skipped';
@@ -186,10 +187,10 @@ class TenantInboxTriagePollingService
                     'status' => TenantInboxMonitorMessage::STATUS_FAILED,
                     'last_error' => $exception->getMessage(),
                 ])->save();
-            } elseif ($summaryId !== null) {
+            } elseif ($summaryMessageId !== null || $summaryLookupId !== '') {
                 $failedRecord = TenantInboxMonitorMessage::query()->firstOrNew([
                     'tenant_id' => $tenant->id,
-                    'gmail_message_id' => $summaryId,
+                    'gmail_message_id' => $summaryMessageId ?? $summaryLookupId,
                 ]);
 
                 $failedRecord->forceFill([
@@ -204,7 +205,7 @@ class TenantInboxTriagePollingService
             Log::warning('sync360:poll-inbox-triage failed for message.', [
                 'tenant_id' => $tenant->tenant_id,
                 'tenant_slug' => $tenant->slug,
-                'gmail_message_id' => $summaryId,
+                'gmail_message_id' => $summaryMessageId ?? $summaryLookupId ?: null,
                 'error' => $exception->getMessage(),
             ]);
 
@@ -306,7 +307,7 @@ class TenantInboxTriagePollingService
 
     private function messageIdFromSummary(array $summary): ?string
     {
-        $id = trim((string) ($summary['id'] ?? $summary['message_id'] ?? $summary['messageId'] ?? ''));
+        $id = trim((string) ($summary['message_id'] ?? $summary['messageId'] ?? ''));
 
         return $id !== '' ? $id : null;
     }

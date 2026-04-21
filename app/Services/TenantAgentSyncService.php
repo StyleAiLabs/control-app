@@ -631,9 +631,11 @@ class TenantAgentSyncService
      */
     private function artifactContents(Tenant $tenant, BusinessProfile $profile, BusinessProfileFiles $profileFiles): array
     {
-        return $this->runtimeCustomizationComposer->compose(
+        $composed = $this->runtimeCustomizationComposer->compose(
             $tenant->fresh(['businessProfile', 'businessProfileFiles', 'googleCredential', 'agentCustomization'])
-        )->workspaceFiles;
+        );
+
+        return array_merge($composed->workspaceFiles, $composed->skillFiles);
     }
 
     /**
