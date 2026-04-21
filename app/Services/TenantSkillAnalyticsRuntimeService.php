@@ -120,8 +120,7 @@ class TenantSkillAnalyticsRuntimeService
             throw new RuntimeException('Tenant server is missing.');
         }
 
-        $containerWorkspacePath = rtrim((string) config('sync360.openclaw.container_home', '/home/node/.openclaw'), '/')
-            .'/'.'.openclaw/workspace';
+        $containerWorkspacePath = $this->runtime->containerWorkspacePath();
         $innerCommand = sprintf(
             'cd %s && sh .sync360/bin/log-skill-conversion --init-only',
             escapeshellarg($containerWorkspacePath),

@@ -10,6 +10,8 @@ use App\Models\SkillCatalogVersion;
 use App\Models\Tenant;
 use App\Models\TenantAgentCustomization;
 use App\Models\TenantSkillAssignment;
+use App\Services\TenantSkillAnalyticsRuntimeService;
+use App\Services\TenantSkillAnalyticsRuntimeStorageService;
 use App\Models\User;
 use App\Services\TenantRuntimeCustomizationComposer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -290,6 +292,135 @@ class TenantSkillAnalyticsSyncTest extends TestCase
         $this->assertSame(0, $remaining);
     }
 
+    public function test_remote_sync_imports_rows_without_host_sqlite3_and_prunes_with_runtime_storage_service(): void
+    {
+        [$tenant, $owner] = $this->seedTenant('analytics-remote', 'Analytics Remote');
+        config()->set('sync360.infrastructure.driver', 'ssh');
+
+        $this->artisan('sync360:skills:import')->assertExitCode(0);
+        $this->assignHelloWorldSkill($tenant, $owner);
+
+        $this->mock(TenantSkillAnalyticsRuntimeService::class, function ($mock): void {
+            $mock->shouldReceive('tenantHasAnalyticsSkills')->andReturn(true);
+            $mock->shouldReceive('runtimeDatabaseExists')->andReturn(true);
+        });
+
+        $this->mock(TenantSkillAnalyticsRuntimeStorageService::class, function ($mock): void {
+            $mock->shouldReceive('rowsForTenant')
+                ->once()
+                ->andReturn([
+                    [
+                        'id' => 7,
+                        'event_id' => 'remote-event-001',
+                        'skill_key' => 'hello-world',
+                        'skill_version' => '1.0.5',
+                        'event_type' => 'conversion_succeeded',
+                        'conversion_type' => 'hello_world_completed',
+                        'conversion_id' => 'remote-ref-001',
+                        'occurred_at' => '2026-04-21T05:10:00+00:00',
+                        'session_id' => 'remote-session-001',
+                        'customer_label' => 'Remote Jane',
+                        'contact_masked' => 'r***@example.com',
+                        'estimated_value_amount' => null,
+                        'currency' => null,
+                        'effort_override_json' => null,
+                        'outcome_json' => json_encode(['greeting' => 'Hello remotely'], JSON_UNESCAPED_SLASHES),
+                        'created_at' => '2026-04-21T05:10:00+00:00',
+                    ],
+                ]);
+            $mock->shouldReceive('pruneRows')
+                ->once()
+                ->withArgs(fn (Tenant $tenant, int $lastRuntimeRowId, string $cutoff): bool => $tenant->slug === 'analytics-remote' && $lastRuntimeRowId === 7 && $cutoff !== '')
+                ->andReturn(1);
+        });
+
+        $this->artisan('sync360:sync-skill-conversions', ['tenantSelector' => $tenant->slug])
+            ->assertExitCode(0)
+            ->expectsOutputToContain('Imported 1');
+
+        $this->assertDatabaseHas('tenant_skill_conversion_events', [
+            'tenant_id' => $tenant->id,
+            'event_id' => 'remote-event-001',
+            'conversion_id' => 'remote-ref-001',
+            'skill_key' => 'hello-world',
+        ]);
+        $this->assertDatabaseHas('tenant_skill_analytics_sync_states', [
+            'tenant_id' => $tenant->id,
+            'last_runtime_row_id' => 7,
+            'last_error_message' => null,
+        ]);
+    }
+
+    public function test_sync_continues_after_one_remote_tenant_fails_and_records_failure_state(): void
+    {
+        [$tenantOne, $ownerOne] = $this->seedTenant('analytics-good', 'Analytics Good');
+        [$tenantTwo, $ownerTwo] = $this->seedTenant('analytics-bad', 'Analytics Bad');
+        config()->set('sync360.infrastructure.driver', 'ssh');
+
+        $this->artisan('sync360:skills:import')->assertExitCode(0);
+        $this->assignHelloWorldSkill($tenantOne, $ownerOne);
+        $this->assignHelloWorldSkill($tenantTwo, $ownerTwo);
+
+        $this->mock(TenantSkillAnalyticsRuntimeService::class, function ($mock): void {
+            $mock->shouldReceive('tenantHasAnalyticsSkills')->andReturn(false);
+        });
+
+        $this->mock(TenantSkillAnalyticsRuntimeStorageService::class, function ($mock) use ($tenantOne, $tenantTwo): void {
+            $mock->shouldReceive('rowsForTenant')
+                ->once()
+                ->withArgs(fn (Tenant $tenant, int $afterRowId): bool => $tenant->is($tenantOne) && $afterRowId === 0)
+                ->andReturn([
+                    [
+                        'id' => 1,
+                        'event_id' => 'good-event-001',
+                        'skill_key' => 'hello-world',
+                        'skill_version' => '1.0.5',
+                        'event_type' => 'conversion_succeeded',
+                        'conversion_type' => 'hello_world_completed',
+                        'conversion_id' => 'good-ref-001',
+                        'occurred_at' => '2026-04-21T05:20:00+00:00',
+                        'session_id' => null,
+                        'customer_label' => 'Good Tenant',
+                        'contact_masked' => null,
+                        'estimated_value_amount' => null,
+                        'currency' => null,
+                        'effort_override_json' => null,
+                        'outcome_json' => json_encode(['greeting' => 'ok'], JSON_UNESCAPED_SLASHES),
+                        'created_at' => '2026-04-21T05:20:00+00:00',
+                    ],
+                ]);
+            $mock->shouldReceive('rowsForTenant')
+                ->once()
+                ->withArgs(fn (Tenant $tenant, int $afterRowId): bool => $tenant->is($tenantTwo) && $afterRowId === 0)
+                ->andThrow(new \RuntimeException('docker exec node sqlite failed'));
+            $mock->shouldReceive('pruneRows')
+                ->once()
+                ->withArgs(fn (Tenant $tenant, int $lastRuntimeRowId, string $cutoff): bool => $tenant->is($tenantOne) && $lastRuntimeRowId === 1 && $cutoff !== '')
+                ->andReturn(0);
+        });
+
+        Log::spy();
+
+        $this->artisan('sync360:sync-skill-conversions')
+            ->assertExitCode(0)
+            ->expectsOutputToContain('Imported 1');
+
+        $this->assertDatabaseHas('tenant_skill_conversion_events', [
+            'tenant_id' => $tenantOne->id,
+            'event_id' => 'good-event-001',
+        ]);
+        $this->assertDatabaseHas('tenant_skill_analytics_sync_states', [
+            'tenant_id' => $tenantTwo->id,
+            'last_error_message' => 'docker exec node sqlite failed',
+        ]);
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context): bool => $message === 'sync360:sync-skill-conversions failed for tenant.'
+                && ($context['tenant_slug'] ?? null) === $tenantTwo->slug
+                && ($context['error'] ?? null) === 'docker exec node sqlite failed')
+            ->once();
+    }
+
     /**
      * @return array{0: Tenant, 1: User}
      */
@@ -392,7 +523,7 @@ class TenantSkillAnalyticsSyncTest extends TestCase
 
         $workspaceRoot = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace';
 
-        foreach ($composed->workspaceFiles as $path => $contents) {
+        foreach (array_merge($composed->workspaceFiles, $composed->skillFiles) as $path => $contents) {
             File::ensureDirectoryExists(dirname($workspaceRoot.'/'.$path));
             File::put($workspaceRoot.'/'.$path, $contents);
         }

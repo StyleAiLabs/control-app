@@ -14,6 +14,8 @@ class TenantSkillAnalyticsSyncState extends Model
         'tenant_id',
         'last_runtime_row_id',
         'last_synced_at',
+        'last_failed_at',
+        'last_error_message',
     ];
 
     protected function casts(): array
@@ -21,6 +23,7 @@ class TenantSkillAnalyticsSyncState extends Model
         return [
             'last_runtime_row_id' => 'integer',
             'last_synced_at' => 'datetime',
+            'last_failed_at' => 'datetime',
         ];
     }
 

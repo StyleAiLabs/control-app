@@ -191,6 +191,18 @@ class TenantRuntimeService
             .DIRECTORY_SEPARATOR.'.openclaw'.DIRECTORY_SEPARATOR.'data'.DIRECTORY_SEPARATOR.'analytics'.DIRECTORY_SEPARATOR.'skill-events.sqlite';
     }
 
+    public function containerWorkspacePath(): string
+    {
+        return rtrim((string) config('sync360.openclaw.container_home', '/home/node/.openclaw'), '/')
+            .DIRECTORY_SEPARATOR.'.openclaw'.DIRECTORY_SEPARATOR.'workspace';
+    }
+
+    public function containerSkillAnalyticsDbPath(): string
+    {
+        return rtrim((string) config('sync360.openclaw.container_home', '/home/node/.openclaw'), '/')
+            .DIRECTORY_SEPARATOR.'.openclaw'.DIRECTORY_SEPARATOR.'data'.DIRECTORY_SEPARATOR.'analytics'.DIRECTORY_SEPARATOR.'skill-events.sqlite';
+    }
+
     public function caddySitePath(Tenant $tenant): string
     {
         $server = $tenant->server;

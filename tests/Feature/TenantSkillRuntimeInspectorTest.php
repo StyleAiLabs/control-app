@@ -9,12 +9,14 @@ use App\Models\BusinessProfileFiles;
 use App\Models\SkillCatalogVersion;
 use App\Models\Tenant;
 use App\Models\TenantAgentCustomization;
+use App\Models\TenantSkillAnalyticsSyncState;
 use App\Models\TenantSkillAssignment;
 use App\Models\User;
 use App\Services\TenantRuntimeCustomizationComposer;
 use App\Services\TenantSkillRuntimeInspectorService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
+use PDO;
 use Tests\TestCase;
 
 class TenantSkillRuntimeInspectorTest extends TestCase
@@ -64,6 +66,7 @@ class TenantSkillRuntimeInspectorTest extends TestCase
             ->expectsOutputToContain('Materialized workspace skill files')
             ->expectsOutputToContain('Analytics registry entries')
             ->expectsOutputToContain('SQLite DB state')
+            ->expectsOutputToContain('Analytics sync state')
             ->expectsOutputToContain('OpenClaw config skill IDs')
             ->expectsOutputToContain('Runtime OpenClaw skills visible')
             ->expectsOutputToContain('Mismatch warnings');
@@ -108,6 +111,116 @@ class TenantSkillRuntimeInspectorTest extends TestCase
 
         $this->assertContains('hello-world is missing from OpenClaw agent skill allowlists.', $report['warnings']);
         $this->assertContains('hello-world is disabled in openclaw.json skills.entries.', $report['warnings']);
+    }
+
+    public function test_inspect_tenant_skills_reports_sqlite_row_count_and_sync_state_details(): void
+    {
+        [$tenant, $owner] = $this->seedTenant();
+
+        $this->artisan('sync360:skills:import')->assertExitCode(0);
+        $version = SkillCatalogVersion::query()->where('skill_key', 'hello-world')->firstOrFail();
+
+        TenantSkillAssignment::query()->create([
+            'tenant_id' => $tenant->id,
+            'skill_catalog_version_id' => $version->id,
+            'skill_key' => 'hello-world',
+            'assigned_by' => $owner->id,
+            'assigned_at' => now(),
+            'is_enabled' => true,
+        ]);
+
+        $this->materializeTenantRuntime($tenant);
+
+        $dbPath = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/data/analytics/skill-events.sqlite';
+        File::ensureDirectoryExists(dirname($dbPath));
+
+        $pdo = new PDO('sqlite:'.$dbPath);
+        $pdo->exec('PRAGMA journal_mode=WAL;');
+        $pdo->exec(
+            'CREATE TABLE IF NOT EXISTS skill_conversion_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT NOT NULL UNIQUE,
+                skill_key TEXT NOT NULL,
+                skill_version TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                conversion_type TEXT NOT NULL,
+                conversion_id TEXT NOT NULL,
+                occurred_at TEXT NOT NULL,
+                session_id TEXT NULL,
+                customer_label TEXT NOT NULL,
+                contact_masked TEXT NULL,
+                estimated_value_amount REAL NULL,
+                currency TEXT NULL,
+                effort_override_json TEXT NULL,
+                outcome_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )'
+        );
+        $statement = $pdo->prepare('
+            INSERT INTO skill_conversion_events (
+                event_id, skill_key, skill_version, event_type, conversion_type, conversion_id, occurred_at,
+                session_id, customer_label, contact_masked, estimated_value_amount, currency, effort_override_json,
+                outcome_json, created_at
+            ) VALUES (
+                :event_id, :skill_key, :skill_version, :event_type, :conversion_type, :conversion_id, :occurred_at,
+                :session_id, :customer_label, :contact_masked, :estimated_value_amount, :currency, :effort_override_json,
+                :outcome_json, :created_at
+            )
+        ');
+        $statement->execute([
+            'event_id' => 'inspect-event-001',
+            'skill_key' => 'hello-world',
+            'skill_version' => '1.0.5',
+            'event_type' => 'conversion_succeeded',
+            'conversion_type' => 'hello_world_completed',
+            'conversion_id' => 'inspect-ref-001',
+            'occurred_at' => '2026-04-21T05:30:00+00:00',
+            'session_id' => null,
+            'customer_label' => 'Inspector One',
+            'contact_masked' => null,
+            'estimated_value_amount' => null,
+            'currency' => null,
+            'effort_override_json' => null,
+            'outcome_json' => json_encode(['greeting' => 'hi'], JSON_UNESCAPED_SLASHES),
+            'created_at' => '2026-04-21T05:30:00+00:00',
+        ]);
+        $statement->execute([
+            'event_id' => 'inspect-event-002',
+            'skill_key' => 'hello-world',
+            'skill_version' => '1.0.5',
+            'event_type' => 'conversion_succeeded',
+            'conversion_type' => 'hello_world_completed',
+            'conversion_id' => 'inspect-ref-002',
+            'occurred_at' => '2026-04-21T05:31:00+00:00',
+            'session_id' => null,
+            'customer_label' => 'Inspector Two',
+            'contact_masked' => null,
+            'estimated_value_amount' => null,
+            'currency' => null,
+            'effort_override_json' => null,
+            'outcome_json' => json_encode(['greeting' => 'again'], JSON_UNESCAPED_SLASHES),
+            'created_at' => '2026-04-21T05:31:00+00:00',
+        ]);
+
+        TenantSkillAnalyticsSyncState::query()->create([
+            'tenant_id' => $tenant->id,
+            'last_runtime_row_id' => 2,
+            'last_synced_at' => '2026-04-21 17:35:00',
+            'last_failed_at' => '2026-04-21 17:34:00',
+            'last_error_message' => 'previous sync failed',
+        ]);
+
+        $report = app(TenantSkillRuntimeInspectorService::class)->inspect($tenant->fresh([
+            'server',
+            'skillAssignments.catalogVersion',
+            'skillAnalyticsSyncState',
+        ]));
+
+        $this->assertTrue(data_get($report, 'sqlite_db.exists'));
+        $this->assertSame(2, data_get($report, 'sqlite_db.row_count'));
+        $this->assertSame(2, data_get($report, 'sync_state.last_runtime_row_id'));
+        $this->assertSame('previous sync failed', data_get($report, 'sync_state.last_error_message'));
+        $this->assertSame('2026-04-21T17:35:00+00:00', data_get($report, 'sync_state.last_synced_at'));
     }
 
     /**

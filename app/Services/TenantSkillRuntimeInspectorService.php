@@ -15,6 +15,7 @@ class TenantSkillRuntimeInspectorService
         private readonly Filesystem $files,
         private readonly TenantRuntimeService $runtime,
         private readonly TenantSkillRegistryService $skillRegistry,
+        private readonly TenantSkillAnalyticsRuntimeStorageService $runtimeStorage,
     ) {
     }
 
@@ -23,7 +24,7 @@ class TenantSkillRuntimeInspectorService
      */
     public function inspect(Tenant $tenant): array
     {
-        $tenant->loadMissing(['server', 'skillAssignments.catalogVersion']);
+        $tenant->loadMissing(['server', 'skillAssignments.catalogVersion', 'skillAnalyticsSyncState']);
 
         $assignments = $tenant->skillAssignments
             ->filter(fn (TenantSkillAssignment $assignment): bool => $assignment->is_enabled)
@@ -100,10 +101,21 @@ class TenantSkillRuntimeInspectorService
 
         $analyticsDbPath = $this->analyticsDbPath($tenant);
         $analyticsDbExists = $this->pathExists($tenant, $analyticsDbPath, 'file');
+        $analyticsDbRowCount = null;
+
+        if ($analyticsDbExists) {
+            try {
+                $analyticsDbRowCount = $this->runtimeStorage->rowCountForTenant($tenant);
+            } catch (RuntimeException $exception) {
+                $warnings[] = sprintf('Unable to read runtime SQLite row count: %s', $exception->getMessage());
+            }
+        }
 
         if ($this->hasAnalyticsSkill($assigned) && ! $analyticsDbExists) {
             $warnings[] = sprintf('Analytics-enabled tenant has no runtime SQLite DB at %s.', $analyticsDbPath);
         }
+
+        $syncState = $tenant->skillAnalyticsSyncState;
 
         return [
             'tenant' => [
@@ -122,6 +134,13 @@ class TenantSkillRuntimeInspectorService
             'sqlite_db' => [
                 'path' => $analyticsDbPath,
                 'exists' => $analyticsDbExists,
+                'row_count' => $analyticsDbRowCount,
+            ],
+            'sync_state' => [
+                'last_runtime_row_id' => $syncState?->last_runtime_row_id,
+                'last_synced_at' => $syncState?->last_synced_at?->toIso8601String(),
+                'last_failed_at' => $syncState?->last_failed_at?->toIso8601String(),
+                'last_error_message' => $syncState?->last_error_message,
             ],
             'openclaw_config_skill_ids' => $configuredSkillIds,
             'runtime_skill_visibility' => $runtimeVisibility,

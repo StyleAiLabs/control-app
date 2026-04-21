@@ -6,12 +6,9 @@ use App\Models\SkillCatalogVersion;
 use App\Models\Tenant;
 use App\Models\TenantSkillAnalyticsSyncState;
 use App\Models\TenantSkillConversionEvent;
-use App\Models\Server;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
-use PDO;
 use RuntimeException;
-use Symfony\Component\Process\Process;
 use Throwable;
 
 class TenantSkillAnalyticsSyncService
@@ -19,11 +16,12 @@ class TenantSkillAnalyticsSyncService
     public function __construct(
         private readonly TenantRuntimeService $runtime,
         private readonly TenantSkillAnalyticsRuntimeService $skillAnalyticsRuntime,
+        private readonly TenantSkillAnalyticsRuntimeStorageService $runtimeStorage,
     ) {
     }
 
     /**
-     * @return array{imported:int, skipped:int, pruned:int, tenants:int, missing_runtime_dbs:int}
+     * @return array{imported:int, skipped:int, pruned:int, tenants:int, missing_runtime_dbs:int, failed_tenants:int}
      */
     public function sync(?Tenant $selectedTenant = null): array
     {
@@ -41,6 +39,7 @@ class TenantSkillAnalyticsSyncService
             'pruned' => 0,
             'tenants' => $tenants->count(),
             'missing_runtime_dbs' => 0,
+            'failed_tenants' => 0,
         ];
 
         foreach ($tenants as $tenant) {
@@ -49,13 +48,14 @@ class TenantSkillAnalyticsSyncService
             $totals['skipped'] += $result['skipped'];
             $totals['pruned'] += $result['pruned'];
             $totals['missing_runtime_dbs'] += $result['missing_runtime_db'] ? 1 : 0;
+            $totals['failed_tenants'] += $result['failed'] ? 1 : 0;
         }
 
         return $totals;
     }
 
     /**
-     * @return array{imported:int, skipped:int, pruned:int, missing_runtime_db:bool}
+     * @return array{imported:int, skipped:int, pruned:int, missing_runtime_db:bool, failed:bool}
      */
     public function syncTenant(Tenant $tenant): array
     {
@@ -80,53 +80,75 @@ class TenantSkillAnalyticsSyncService
             ]);
         }
 
-        $rows = $this->runtimeRowsForTenant($tenant, (int) $state->last_runtime_row_id);
-        $imported = 0;
-        $skipped = 0;
-        $lastProcessedRowId = (int) $state->last_runtime_row_id;
+        try {
+            $rows = $this->runtimeRowsForTenant($tenant, (int) $state->last_runtime_row_id);
+            $imported = 0;
+            $skipped = 0;
+            $lastProcessedRowId = (int) $state->last_runtime_row_id;
 
-        foreach ($rows as $row) {
-            $rowId = (int) ($row['id'] ?? 0);
+            foreach ($rows as $row) {
+                $rowId = (int) ($row['id'] ?? 0);
 
-            try {
-                $payload = $this->normalizedEventPayload($row);
+                try {
+                    $payload = $this->normalizedEventPayload($row);
 
-                TenantSkillConversionEvent::query()->updateOrCreate(
-                    [
-                        'tenant_id' => $tenant->id,
-                        'event_id' => $payload['event_id'],
-                    ],
-                    array_merge($payload, ['tenant_id' => $tenant->id]),
-                );
+                    TenantSkillConversionEvent::query()->updateOrCreate(
+                        [
+                            'tenant_id' => $tenant->id,
+                            'event_id' => $payload['event_id'],
+                        ],
+                        array_merge($payload, ['tenant_id' => $tenant->id]),
+                    );
 
-                $imported++;
-            } catch (Throwable $exception) {
-                $skipped++;
-                Log::warning('sync360:sync-skill-conversions skipped malformed runtime row.', [
-                    'tenant_id' => $tenant->tenant_id,
-                    'runtime_row_id' => $rowId,
-                    'error' => $exception->getMessage(),
-                ]);
+                    $imported++;
+                } catch (Throwable $exception) {
+                    $skipped++;
+                    Log::warning('sync360:sync-skill-conversions skipped malformed runtime row.', [
+                        'tenant_id' => $tenant->tenant_id,
+                        'runtime_row_id' => $rowId,
+                        'error' => $exception->getMessage(),
+                    ]);
+                }
+
+                $lastProcessedRowId = max($lastProcessedRowId, $rowId);
             }
 
-            $lastProcessedRowId = max($lastProcessedRowId, $rowId);
-        }
+            $pruned = $this->pruneSyncedRuntimeRows($tenant, $lastProcessedRowId);
 
-        if ($lastProcessedRowId !== (int) $state->last_runtime_row_id || $rows === []) {
             $state->forceFill([
                 'last_runtime_row_id' => $lastProcessedRowId,
                 'last_synced_at' => now(),
+                'last_failed_at' => null,
+                'last_error_message' => null,
             ])->save();
+
+            return [
+                'imported' => $imported,
+                'skipped' => $skipped,
+                'pruned' => $pruned,
+                'missing_runtime_db' => $missingRuntimeDb,
+                'failed' => false,
+            ];
+        } catch (Throwable $exception) {
+            $state->forceFill([
+                'last_failed_at' => now(),
+                'last_error_message' => $exception->getMessage(),
+            ])->save();
+
+            Log::warning('sync360:sync-skill-conversions failed for tenant.', [
+                'tenant_id' => $tenant->tenant_id,
+                'tenant_slug' => $tenant->slug,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return [
+                'imported' => 0,
+                'skipped' => 0,
+                'pruned' => 0,
+                'missing_runtime_db' => $missingRuntimeDb,
+                'failed' => true,
+            ];
         }
-
-        $pruned = $this->pruneSyncedRuntimeRows($tenant, $lastProcessedRowId);
-
-        return [
-            'imported' => $imported,
-            'skipped' => $skipped,
-            'pruned' => $pruned,
-            'missing_runtime_db' => $missingRuntimeDb,
-        ];
     }
 
     /**
@@ -226,58 +248,7 @@ class TenantSkillAnalyticsSyncService
      */
     private function runtimeRowsForTenant(Tenant $tenant, int $afterRowId): array
     {
-        return $this->usesLocalRuntimeDriver()
-            ? $this->localRuntimeRowsForTenant($tenant, $afterRowId)
-            : $this->remoteRuntimeRowsForTenant($tenant, $afterRowId);
-    }
-
-    /**
-     * @return list<array<string, mixed>>
-     */
-    private function localRuntimeRowsForTenant(Tenant $tenant, int $afterRowId): array
-    {
-        $path = $this->runtime->localSkillAnalyticsDbPath($tenant);
-
-        if (! is_file($path)) {
-            return [];
-        }
-
-        $pdo = new PDO('sqlite:'.$path);
-        $statement = $pdo->prepare('
-            SELECT id, event_id, skill_key, skill_version, event_type, conversion_type, conversion_id, occurred_at,
-                   session_id, customer_label, contact_masked, estimated_value_amount, currency, effort_override_json,
-                   outcome_json, created_at
-            FROM skill_conversion_events
-            WHERE id > :after_row_id
-            ORDER BY id ASC
-        ');
-        $statement->execute(['after_row_id' => $afterRowId]);
-
-        /** @var list<array<string, mixed>> $rows */
-        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
-
-        return $rows;
-    }
-
-    /**
-     * @return list<array<string, mixed>>
-     */
-    private function remoteRuntimeRowsForTenant(Tenant $tenant, int $afterRowId): array
-    {
-        if (! $tenant->server) {
-            return [];
-        }
-
-        $dbPath = $this->runtime->remoteSkillAnalyticsDbPath($tenant);
-        $query = sprintf(
-            "if [ ! -f %1\$s ]; then printf '[]'; else sqlite3 -json %1\$s %2\$s; fi",
-            $this->shellQuote($dbPath),
-            $this->shellQuote('SELECT id, event_id, skill_key, skill_version, event_type, conversion_type, conversion_id, occurred_at, session_id, customer_label, contact_masked, estimated_value_amount, currency, effort_override_json, outcome_json, created_at FROM skill_conversion_events WHERE id > '.max(0, $afterRowId).' ORDER BY id ASC')
-        );
-        $output = $this->runRemoteShell($tenant->server, $query);
-        $rows = json_decode($output, true);
-
-        return is_array($rows) ? array_values(array_filter($rows, 'is_array')) : [];
+        return $this->runtimeStorage->rowsForTenant($tenant, $afterRowId);
     }
 
     private function pruneSyncedRuntimeRows(Tenant $tenant, int $lastRuntimeRowId): int
@@ -288,107 +259,11 @@ class TenantSkillAnalyticsSyncService
 
         $cutoff = now()->subDays(7)->toIso8601String();
 
-        return $this->usesLocalRuntimeDriver()
-            ? $this->pruneLocalRuntimeRows($tenant, $lastRuntimeRowId, $cutoff)
-            : $this->pruneRemoteRuntimeRows($tenant, $lastRuntimeRowId, $cutoff);
+        return $this->runtimeStorage->pruneRows($tenant, $lastRuntimeRowId, $cutoff);
     }
 
     private function usesLocalRuntimeDriver(): bool
     {
         return config('sync360.infrastructure.driver', 'local') === 'local';
-    }
-
-    private function pruneLocalRuntimeRows(Tenant $tenant, int $lastRuntimeRowId, string $cutoff): int
-    {
-        $path = $this->runtime->localSkillAnalyticsDbPath($tenant);
-
-        if (! is_file($path)) {
-            return 0;
-        }
-
-        $pdo = new PDO('sqlite:'.$path);
-        $statement = $pdo->prepare('DELETE FROM skill_conversion_events WHERE id <= :last_runtime_row_id AND created_at < :cutoff');
-        $statement->execute([
-            'last_runtime_row_id' => $lastRuntimeRowId,
-            'cutoff' => $cutoff,
-        ]);
-
-        return $statement->rowCount();
-    }
-
-    private function pruneRemoteRuntimeRows(Tenant $tenant, int $lastRuntimeRowId, string $cutoff): int
-    {
-        if (! $tenant->server) {
-            return 0;
-        }
-
-        $dbPath = $this->runtime->remoteSkillAnalyticsDbPath($tenant);
-        $command = sprintf(
-            "if [ ! -f %1\$s ]; then printf '0'; else sqlite3 %1\$s %2\$s; fi",
-            $this->shellQuote($dbPath),
-            $this->shellQuote(sprintf(
-                "DELETE FROM skill_conversion_events WHERE id <= %d AND created_at < '%s'; SELECT changes();",
-                $lastRuntimeRowId,
-                str_replace("'", "''", $cutoff)
-            ))
-        );
-
-        return (int) trim($this->runRemoteShell($tenant->server, $command));
-    }
-
-    private function runRemoteShell(Server $server, string $command): string
-    {
-        $process = new Process($this->sshCommandParts($server, $command));
-        $process->run();
-
-        if (! $process->isSuccessful()) {
-            throw new RuntimeException(trim($process->getErrorOutput()) ?: 'Remote analytics sync command failed.');
-        }
-
-        return trim($process->getOutput());
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function sshCommandParts(Server $server, string $command): array
-    {
-        $parts = [];
-        $authMode = (string) ($server->ssh_auth_mode ?? 'key');
-
-        if ($authMode === 'password') {
-            $sshpassBin = (string) config('sync360.infrastructure.sshpass_bin', 'sshpass');
-            $password = (string) env((string) $server->ssh_password_env_key, '');
-
-            if ($password !== '') {
-                $parts[] = $sshpassBin;
-                $parts[] = '-p';
-                $parts[] = $password;
-            }
-        }
-
-        $sshBin = (string) config('sync360.infrastructure.ssh_bin', 'ssh');
-        $parts[] = $sshBin;
-        $parts[] = '-p';
-        $parts[] = (string) ($server->ssh_port ?: 22);
-
-        if ($authMode === 'key' && filled($server->ssh_private_key_path)) {
-            $parts[] = '-i';
-            $parts[] = (string) $server->ssh_private_key_path;
-        }
-
-        $parts[] = '-o';
-        $parts[] = 'StrictHostKeyChecking=no';
-        $parts[] = '-o';
-        $parts[] = 'UserKnownHostsFile=/dev/null';
-        $parts[] = sprintf('%s@%s', $server->ssh_user, $server->ssh_host ?: $server->host);
-        $parts[] = sprintf('sh -lc %s', $this->shellQuote($command));
-
-        return $parts;
-    }
-
-    private function shellQuote(string $value): string
-    {
-        return "'".str_replace("'", "'\"'\"'", $value)."'";
     }
 }

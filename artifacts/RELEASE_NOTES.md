@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-21 — Fix: Remote Skill Analytics Sync Transport
+
+Date: 2026-04-21
+Status: Implemented
+
+### Overview
+
+Fixed remote skill analytics import without changing the per-tenant runtime SQLite design. The control plane now reads tenant analytics from inside the live tenant container instead of requiring `sqlite3` to be installed on the client VPS host.
+
+### What Changed
+
+- added a dedicated runtime-storage service for tenant skill analytics reads, row counts, and prune operations
+- replaced remote host `sqlite3` usage with `docker exec ... node --input-type=module` against the tenant container's mounted analytics DB
+- made `sync360:sync-skill-conversions` resilient per tenant so one remote transport failure no longer aborts the whole sync run
+- persisted per-tenant sync failure state with last failure time and message
+- extended `sync360:inspect-tenant-skills` to report runtime SQLite row count, last imported runtime row id, last synced time, and last sync failure details
+
 ## 2026-04-21 — Fix: Skill Rollout And Apply Visibility
 
 Date: 2026-04-21

@@ -283,11 +283,12 @@ Artisan::command('sync360:sync-skill-conversions {tenantSelector? : Tenant id, t
     $result = $analytics->sync($tenant);
 
     $this->components->info(sprintf(
-        'Skill conversion sync finished. Imported %d. Skipped %d. Pruned %d. Tenants %d. Missing runtime DBs %d.',
+        'Skill conversion sync finished. Imported %d. Skipped %d. Pruned %d. Tenants %d. Failed tenants %d. Missing runtime DBs %d.',
         $result['imported'],
         $result['skipped'],
         $result['pruned'],
         $result['tenants'],
+        $result['failed_tenants'],
         $result['missing_runtime_dbs'],
     ));
 })->purpose('Sync tenant runtime skill conversion analytics into the control plane');
@@ -397,6 +398,14 @@ Artisan::command('sync360:inspect-tenant-skills {tenantSelector : Tenant id, ten
     $this->line('SQLite DB state');
     $this->line(sprintf('- path: %s', data_get($report, 'sqlite_db.path')));
     $this->line(sprintf('- exists: %s', data_get($report, 'sqlite_db.exists') ? 'yes' : 'no'));
+    $this->line(sprintf('- row count: %s', data_get($report, 'sqlite_db.row_count') !== null ? (string) data_get($report, 'sqlite_db.row_count') : 'unknown'));
+
+    $this->newLine();
+    $this->line('Analytics sync state');
+    $this->line(sprintf('- last imported runtime row id: %s', data_get($report, 'sync_state.last_runtime_row_id') !== null ? (string) data_get($report, 'sync_state.last_runtime_row_id') : 'none'));
+    $this->line(sprintf('- last synced at: %s', data_get($report, 'sync_state.last_synced_at') ?: 'never'));
+    $this->line(sprintf('- last failed at: %s', data_get($report, 'sync_state.last_failed_at') ?: 'none'));
+    $this->line(sprintf('- last error: %s', data_get($report, 'sync_state.last_error_message') ?: 'none'));
 
     $this->newLine();
     $this->line('OpenClaw config skill IDs');
