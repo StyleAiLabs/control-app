@@ -56,9 +56,13 @@ class TenantSkillAssignmentService
                 TenantSkillAssignment::query()->updateOrCreate(
                     ['tenant_id' => $tenant->id, 'skill_key' => $skillKey],
                     [
-                        'skill_catalog_version_id' => $assignment?->skill_catalog_version_id ?: $publishedVersion->id,
+                        'skill_catalog_version_id' => $assignment?->is_enabled
+                            ? ($assignment->skill_catalog_version_id ?: $publishedVersion->id)
+                            : $publishedVersion->id,
                         'assigned_by' => $actor->id,
-                        'assigned_at' => $assignment?->assigned_at ?: now(),
+                        'assigned_at' => $assignment?->is_enabled
+                            ? ($assignment->assigned_at ?: now())
+                            : now(),
                         'is_enabled' => true,
                     ],
                 );

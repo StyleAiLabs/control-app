@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-21 — Fix: Skill Rollout And Apply Visibility
+
+Date: 2026-04-21
+Status: Implemented
+
+### Overview
+
+Clarified the admin skill-version workflow so publish, rollout, and runtime apply are shown as separate state transitions, while keeping tenant skill assignments version-pinned until an explicit rollout.
+
+### What Changed
+
+- tenant skills now show assigned version and latest published version separately, plus `Update available` / `Up to date`
+- skill detail now shows `Tenants On This Version`, `Outdated Tenants`, rollout candidate lists, and guarded `Roll Out To Selected Tenants` / `Roll Out To All Outdated Tenants` actions
+- rollout now supports a guarded `scope=all_outdated` path that upgrades only outdated enabled assignments and queues one runtime apply job per affected tenant
+- save/apply success banners now describe the exact state transition instead of implying publish or draft save changed tenant runtime state
+- admin skill and tenant screens now poll lightweight JSON endpoints to show rollout/apply progress while jobs are queued or running
+
 ## 2026-04-21 — Sync360 Custom Skill Runtime Adapter
 
 Date: 2026-04-21

@@ -201,6 +201,8 @@ class AdminController extends Controller
             'skillRegistry' => array_values($this->skillRegistry->all()),
             'skillCatalog' => $skillCatalog,
             'tenantSkillsStatus' => $this->tenantSkillsStatus($tenant, $skillCatalog, $tenantSkillsAvailable),
+            'tenantSkillRows' => $tenantSkillsAvailable ? $this->tenantSkillRows($tenant, $skillCatalog) : [],
+            'tenantSkillProgress' => $runtimeCustomizationAvailable ? $this->tenantSkillProgressPayload($tenant) : null,
             'runtimeSkillInspection' => $this->runtimeSkillInspectionFor($request, $tenant),
             'canApplyAgentCustomization' => Gate::allows('admin.tenants.agent-customization.apply'),
             'currentCustomizationPreview' => $currentCustomizationPreview,
@@ -427,6 +429,22 @@ class AdminController extends Controller
             ]));
     }
 
+    public function tenantSkillsProgress(Tenant $tenant): JsonResponse
+    {
+        if (! $this->runtimeCustomizationTablesAvailable()) {
+            return response()->json([
+                'message' => 'Tenant runtime customization is unavailable until the required tenant customization migrations are applied locally.',
+            ], 409);
+        }
+
+        $tenant->loadMissing([
+            'skillAssignments.catalogVersion.item',
+            'agentCustomization',
+        ]);
+
+        return response()->json($this->tenantSkillProgressPayload($tenant));
+    }
+
     public function updateAgentCustomization(Request $request, Tenant $tenant): RedirectResponse
     {
         if (! $this->runtimeCustomizationTablesAvailable()) {
@@ -436,7 +454,12 @@ class AdminController extends Controller
         $payload = $this->validatedCustomizationPayload($request, $tenant);
         $this->tenantCustomizations->saveDraft($tenant->fresh(['businessProfileFiles', 'agentCustomization']), $request->user(), $payload);
 
-        return $this->redirectToTenantShow($request, $tenant, $this->customizationTabFallback($request), 'Tenant customization draft saved.');
+        $fallbackTab = $this->customizationTabFallback($request);
+        $message = $fallbackTab === 'skills'
+            ? 'Saved tenant skill draft. Runtime has not changed yet.'
+            : 'Saved tenant runtime draft. Runtime has not changed yet.';
+
+        return $this->redirectToTenantShow($request, $tenant, $fallbackTab, $message);
     }
 
     public function previewAgentCustomization(Request $request, Tenant $tenant): JsonResponse
@@ -494,7 +517,12 @@ class AdminController extends Controller
             TenantAgentCustomizationApply::ACTION_APPLY,
         )->afterCommit();
 
-        return $this->redirectToTenantShow($request, $tenant, $this->customizationTabFallback($request), 'Tenant customization apply queued.');
+        $fallbackTab = $this->customizationTabFallback($request);
+        $message = $fallbackTab === 'skills'
+            ? sprintf('Queued runtime apply for %s using assigned skill versions.', $tenant->slug)
+            : sprintf('Queued runtime apply for %s.', $tenant->slug);
+
+        return $this->redirectToTenantShow($request, $tenant, $fallbackTab, $message);
     }
 
     public function revertAgentCustomization(Request $request, Tenant $tenant): RedirectResponse
@@ -638,11 +666,12 @@ class AdminController extends Controller
             ->with('status', implode(' ', $messages));
     }
 
-    public function showSkillCatalog(SkillCatalogItem $skill): View
+    public function showSkillCatalog(Request $request, SkillCatalogItem $skill): View
     {
         $this->ensureSkillCatalogEnabled();
 
         $skill->load(['versions' => fn ($query) => $query->latest('id')]);
+        $rolloutSummaries = $this->skillRolloutSummaries($skill);
 
         return view('admin.skills.show', [
             'skill' => $skill,
@@ -653,23 +682,27 @@ class AdminController extends Controller
                 ->groupBy('skill_catalog_version_id')
                 ->pluck('aggregate', 'skill_catalog_version_id')
                 ->all(),
+            'rolloutSummaries' => $rolloutSummaries,
+            'rolloutProgress' => $this->skillRolloutProgressFromSession($request, $skill),
         ]);
     }
 
     public function publishSkillCatalogVersion(SkillCatalogItem $skill, SkillCatalogVersion $version): RedirectResponse
     {
         $this->ensureSkillCatalogEnabled();
+        $this->ensureSkillVersionBelongsToSkill($skill, $version);
 
         $this->skillCatalog->publishVersion($version);
 
         return redirect()
             ->route('admin.skills.show', $skill)
-            ->with('status', sprintf('Published %s version %s.', $skill->label, $version->version));
+            ->with('status', sprintf('Published %s v%s. No tenant assignments changed.', $skill->label, $version->version));
     }
 
     public function archiveSkillCatalogVersion(SkillCatalogItem $skill, SkillCatalogVersion $version): RedirectResponse
     {
         $this->ensureSkillCatalogEnabled();
+        $this->ensureSkillVersionBelongsToSkill($skill, $version);
 
         $this->skillCatalog->archiveVersion($version);
 
@@ -681,20 +714,55 @@ class AdminController extends Controller
     public function rolloutSkillCatalogVersion(Request $request, SkillCatalogItem $skill, SkillCatalogVersion $version): RedirectResponse
     {
         $this->ensureSkillCatalogRolloutEnabled();
+        $this->ensureSkillVersionBelongsToSkill($skill, $version);
 
         Gate::authorize('admin.tenants.agent-customization.apply');
 
-        $validated = $request->validate([
-            'tenant_ids' => ['required', 'array'],
+        if (! $version->is_active_published || $version->is_archived) {
+            return redirect()
+                ->route('admin.skills.show', $skill)
+                ->with('status', sprintf('Only published versions of %s can be rolled out.', $skill->label));
+        }
+
+        $scope = is_string($request->input('scope')) ? trim((string) $request->input('scope')) : 'selected';
+
+        $validator = Validator::make($request->all(), [
+            'scope' => ['nullable', 'string', 'in:selected,all_outdated'],
+            'tenant_ids' => ['nullable', 'array'],
             'tenant_ids.*' => ['integer', 'exists:tenants,id'],
         ]);
+        $validator->after(function ($validator) use ($scope, $request): void {
+            $selectedIds = array_values(array_filter(
+                array_map('intval', (array) $request->input('tenant_ids', [])),
+                static fn (int $tenantId): bool => $tenantId > 0,
+            ));
 
-        $tenantIds = array_values(array_unique(array_map('intval', $validated['tenant_ids'])));
+            if ($scope !== 'all_outdated' && $selectedIds === []) {
+                $validator->errors()->add('tenant_ids', 'Select at least one tenant to roll out this version.');
+            }
+        });
+        $validator->validate();
+
+        $selectedTenantIds = $scope === 'all_outdated'
+            ? null
+            : array_values(array_unique(array_map('intval', (array) $request->input('tenant_ids', []))));
+        $tenantIds = $this->outdatedTenantIdsForVersion($skill, $version, $selectedTenantIds);
+
+        if ($tenantIds === []) {
+            $message = $scope === 'all_outdated'
+                ? sprintf('No outdated tenants were eligible for %s v%s.', $skill->label, $version->version)
+                : sprintf('No selected tenants were eligible for rollout of %s v%s.', $skill->label, $version->version);
+
+            return redirect()
+                ->route('admin.skills.show', $skill)
+                ->with('status', $message);
+        }
 
         $assignments = TenantSkillAssignment::query()
             ->where('skill_key', $skill->skill_key)
             ->whereIn('tenant_id', $tenantIds)
             ->where('is_enabled', true)
+            ->with('catalogVersion')
             ->get()
             ->keyBy('tenant_id');
 
@@ -702,6 +770,12 @@ class AdminController extends Controller
             $assignment = $assignments->get($tenantId);
 
             if (! $assignment) {
+                continue;
+            }
+
+            $assignedVersion = $assignment->catalogVersion?->version;
+
+            if (! is_string($assignedVersion) || version_compare($assignedVersion, $version->version, '>=')) {
                 continue;
             }
 
@@ -730,7 +804,28 @@ class AdminController extends Controller
 
         return redirect()
             ->route('admin.skills.show', $skill)
-            ->with('status', sprintf('Queued rollout of %s version %s.', $skill->label, $version->version));
+            ->with('status', sprintf(
+                'Queued rollout of %s v%s to %d outdated tenant%s. Runtime apply jobs started automatically.',
+                $skill->label,
+                $version->version,
+                count($tenantIds),
+                count($tenantIds) === 1 ? '' : 's',
+            ))
+            ->with('skillRolloutProgress', [
+                'skill_key' => $skill->skill_key,
+                'version_id' => $version->id,
+                'tenant_ids' => $tenantIds,
+            ]);
+    }
+
+    public function skillRolloutProgress(Request $request, SkillCatalogItem $skill, SkillCatalogVersion $version): JsonResponse
+    {
+        $this->ensureSkillCatalogRolloutEnabled();
+        $this->ensureSkillVersionBelongsToSkill($skill, $version);
+
+        $tenantIds = $this->normalizeTenantIds($request->query('tenant_ids'));
+
+        return response()->json($this->skillRolloutProgressPayload($skill, $version, $tenantIds));
     }
 
     public function destroyTenant(Tenant $tenant): RedirectResponse
@@ -1203,13 +1298,19 @@ class AdminController extends Controller
         );
     }
 
+    private function ensureSkillVersionBelongsToSkill(SkillCatalogItem $skill, SkillCatalogVersion $version): void
+    {
+        abort_unless($version->skill_catalog_item_id === $skill->id, 404);
+    }
+
     /**
      * @param  \Illuminate\Support\Collection<int, \App\Models\SkillCatalogItem>  $skillCatalog
      * @return array{
      *     label:string,
      *     class:string,
      *     summary_label:?string,
-     *     summary_class:?string
+     *     summary_class:?string,
+     *     updates_available_count:int
      * }
      */
     private function tenantSkillsStatus(Tenant $tenant, $skillCatalog, bool $tenantSkillsAvailable): array
@@ -1220,8 +1321,11 @@ class AdminController extends Controller
                 'class' => 'failed',
                 'summary_label' => null,
                 'summary_class' => null,
+                'updates_available_count' => 0,
             ];
         }
+
+        $catalogBySkillKey = $skillCatalog->keyBy('skill_key');
 
         $enabledAssignments = $tenant->skillAssignments
             ->where('is_enabled', true)
@@ -1268,6 +1372,14 @@ class AdminController extends Controller
         $hasAssignmentFailure = $enabledAssignments->contains(
             fn (TenantSkillAssignment $assignment): bool => $assignment->last_apply_status === 'failed'
         );
+        $updatesAvailableCount = $enabledAssignments->filter(function (TenantSkillAssignment $assignment) use ($catalogBySkillKey): bool {
+            $assignedVersion = $assignment->catalogVersion?->version;
+            $latestPublishedVersion = $catalogBySkillKey->get($assignment->skill_key)?->activePublishedVersion?->version;
+
+            return is_string($assignedVersion)
+                && is_string($latestPublishedVersion)
+                && version_compare($assignedVersion, $latestPublishedVersion, '<');
+        })->count();
         $catalogCount = $skillCatalog->count();
         $assignmentCount = count($assignedSkillKeys);
         $defaultSkillCount = count($defaultSkillIds);
@@ -1278,6 +1390,9 @@ class AdminController extends Controller
             $class = 'failed';
         } elseif ($hasPendingChanges) {
             $label = 'changes pending';
+            $class = 'pending';
+        } elseif ($updatesAvailableCount > 0) {
+            $label = 'updates available';
             $class = 'pending';
         } elseif (! $hasAnySkillState && $catalogCount === 0) {
             $label = 'catalog empty';
@@ -1305,7 +1420,304 @@ class AdminController extends Controller
             'class' => $class,
             'summary_label' => $summaryLabel,
             'summary_class' => $class === 'failed' ? 'failed' : 'pending',
+            'updates_available_count' => $updatesAvailableCount,
         ];
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, \App\Models\SkillCatalogItem>  $skillCatalog
+     * @return array<int, array<string, mixed>>
+     */
+    private function tenantSkillRows(Tenant $tenant, $skillCatalog): array
+    {
+        $catalogBySkillKey = $skillCatalog->keyBy('skill_key');
+
+        return $tenant->skillAssignments
+            ->where('is_enabled', true)
+            ->sortBy('skill_key')
+            ->map(function (TenantSkillAssignment $assignment) use ($catalogBySkillKey): array {
+                $catalogItem = $catalogBySkillKey->get($assignment->skill_key);
+                $assignedVersion = $assignment->catalogVersion?->version;
+                $latestPublishedVersion = $catalogItem?->activePublishedVersion?->version;
+                $updateAvailable = is_string($assignedVersion)
+                    && is_string($latestPublishedVersion)
+                    && version_compare($assignedVersion, $latestPublishedVersion, '<');
+
+                return [
+                    'skill_key' => $assignment->skill_key,
+                    'label' => $catalogItem?->label ?? $assignment->catalogVersion?->item?->label ?? $assignment->skill_key,
+                    'assigned_version' => $assignedVersion,
+                    'latest_published_version' => $latestPublishedVersion,
+                    'update_state' => $updateAvailable ? 'update_available' : 'up_to_date',
+                    'update_label' => $updateAvailable ? 'Update available' : 'Up to date',
+                    'update_class' => $updateAvailable ? 'pending' : 'ready',
+                    'last_apply_status' => $assignment->last_apply_status,
+                    'last_apply_error' => $assignment->last_apply_error,
+                    'last_applied_at' => $assignment->last_applied_at?->toDateTimeString(),
+                    'detail_url' => route('admin.skills.show', $assignment->skill_key),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array{
+     *     tenant_id:int,
+     *     should_poll:bool,
+     *     job:?array<string, mixed>
+     * }
+     */
+    private function tenantSkillProgressPayload(Tenant $tenant): array
+    {
+        $job = $this->latestTenantApplyJob($tenant);
+
+        return [
+            'tenant_id' => $tenant->id,
+            'should_poll' => in_array($job?->status?->value, [
+                ProvisioningJobStatus::Queued->value,
+                ProvisioningJobStatus::Running->value,
+            ], true),
+            'job' => $job ? [
+                'id' => $job->id,
+                'status' => $job->status->value,
+                'action' => (string) data_get($job->payload_json, 'action', TenantAgentCustomizationApply::ACTION_APPLY),
+                'source' => (string) data_get($job->payload_json, 'source', 'tenant_apply'),
+                'started_at' => $job->started_at?->toDateTimeString(),
+                'completed_at' => $job->completed_at?->toDateTimeString(),
+                'error_message' => $job->error_message,
+            ] : null,
+        ];
+    }
+
+    private function latestTenantApplyJob(Tenant $tenant): ?ProvisioningJob
+    {
+        return ProvisioningJob::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('job_type', ApplyTenantAgentCustomization::JOB_TYPE)
+            ->latest('id')
+            ->first();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function skillRolloutSummaries(SkillCatalogItem $skill): array
+    {
+        $assignments = $this->enabledSkillAssignmentsForCatalogItem($skill);
+        $summaries = [];
+
+        foreach ($skill->versions as $version) {
+            $eligibleTenants = [];
+
+            foreach ($assignments as $assignment) {
+                $assignedVersion = $assignment->catalogVersion?->version;
+
+                if (! is_string($assignedVersion) || ! version_compare($assignedVersion, $version->version, '<')) {
+                    continue;
+                }
+
+                $eligibleTenants[] = [
+                    'tenant_id' => $assignment->tenant_id,
+                    'business_name' => $assignment->tenant?->business_name ?? 'Unknown tenant',
+                    'slug' => $assignment->tenant?->slug ?? 'unknown',
+                    'current_version' => $assignedVersion,
+                    'target_version' => $version->version,
+                    'last_apply_status' => $assignment->last_apply_status,
+                    'last_apply_error' => $assignment->last_apply_error,
+                    'last_applied_at' => $assignment->last_applied_at?->toDateTimeString(),
+                    'tenant_url' => $assignment->tenant ? route('admin.tenants.show', ['tenant' => $assignment->tenant, 'tab' => 'skills']) : null,
+                ];
+            }
+
+            usort($eligibleTenants, static fn (array $left, array $right): int => strcmp(
+                strtolower((string) ($left['business_name'] ?? '')),
+                strtolower((string) ($right['business_name'] ?? '')),
+            ));
+
+            $summaries[$version->id] = [
+                'version_id' => $version->id,
+                'version' => $version->version,
+                'can_rollout' => $version->is_active_published && ! $version->is_archived,
+                'tenants_on_version_count' => $assignments->where('skill_catalog_version_id', $version->id)->count(),
+                'outdated_count' => count($eligibleTenants),
+                'eligible_tenants' => $eligibleTenants,
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, TenantSkillAssignment>
+     */
+    private function enabledSkillAssignmentsForCatalogItem(SkillCatalogItem $skill, ?array $tenantIds = null)
+    {
+        $query = TenantSkillAssignment::query()
+            ->where('skill_key', $skill->skill_key)
+            ->where('is_enabled', true)
+            ->with(['tenant', 'catalogVersion']);
+
+        if (is_array($tenantIds)) {
+            if ($tenantIds === []) {
+                return collect();
+            }
+
+            $query->whereIn('tenant_id', $tenantIds);
+        }
+
+        return $query->get();
+    }
+
+    /**
+     * @param  null|list<int>  $selectedTenantIds
+     * @return list<int>
+     */
+    private function outdatedTenantIdsForVersion(SkillCatalogItem $skill, SkillCatalogVersion $version, ?array $selectedTenantIds = null): array
+    {
+        return $this->enabledSkillAssignmentsForCatalogItem($skill, $selectedTenantIds)
+            ->filter(fn (TenantSkillAssignment $assignment): bool => is_string($assignment->catalogVersion?->version)
+                && version_compare($assignment->catalogVersion->version, $version->version, '<'))
+            ->pluck('tenant_id')
+            ->map(fn (mixed $tenantId): int => (int) $tenantId)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function skillRolloutProgressFromSession(Request $request, SkillCatalogItem $skill): ?array
+    {
+        $progress = $request->session()->get('skillRolloutProgress');
+
+        if (! is_array($progress) || ($progress['skill_key'] ?? null) !== $skill->skill_key) {
+            return null;
+        }
+
+        $versionId = (int) ($progress['version_id'] ?? 0);
+        $version = $skill->versions->firstWhere('id', $versionId);
+
+        if (! $version instanceof SkillCatalogVersion) {
+            return null;
+        }
+
+        return $this->skillRolloutProgressPayload(
+            $skill,
+            $version,
+            $this->normalizeTenantIds($progress['tenant_ids'] ?? []),
+        );
+    }
+
+    /**
+     * @param  list<int>  $tenantIds
+     * @return array{
+     *     version_id:int,
+     *     version:string,
+     *     total:int,
+     *     should_poll:bool,
+     *     counts:array<string, int>,
+     *     tenants:array<int, array<string, mixed>>
+     * }
+     */
+    private function skillRolloutProgressPayload(SkillCatalogItem $skill, SkillCatalogVersion $version, array $tenantIds): array
+    {
+        $normalizedTenantIds = $this->normalizeTenantIds($tenantIds);
+        $tenants = Tenant::query()
+            ->whereIn('id', $normalizedTenantIds)
+            ->orderBy('business_name')
+            ->get()
+            ->keyBy('id');
+        $jobsByTenantId = $this->latestRolloutJobsByTenant($skill, $version, $normalizedTenantIds);
+        $counts = [
+            ProvisioningJobStatus::Queued->value => 0,
+            ProvisioningJobStatus::Running->value => 0,
+            ProvisioningJobStatus::Completed->value => 0,
+            ProvisioningJobStatus::Failed->value => 0,
+        ];
+        $rows = [];
+
+        foreach ($normalizedTenantIds as $tenantId) {
+            $tenant = $tenants->get($tenantId);
+            $job = $jobsByTenantId[$tenantId] ?? null;
+            $status = $job?->status?->value ?? ProvisioningJobStatus::Queued->value;
+            $counts[$status] = ($counts[$status] ?? 0) + 1;
+
+            $rows[] = [
+                'tenant_id' => $tenantId,
+                'business_name' => $tenant?->business_name ?? 'Unknown tenant',
+                'slug' => $tenant?->slug ?? 'unknown',
+                'status' => $status,
+                'error_message' => $job?->error_message,
+                'started_at' => $job?->started_at?->toDateTimeString(),
+                'completed_at' => $job?->completed_at?->toDateTimeString(),
+                'tenant_url' => $tenant ? route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'skills']) : null,
+            ];
+        }
+
+        return [
+            'version_id' => $version->id,
+            'version' => $version->version,
+            'total' => count($normalizedTenantIds),
+            'should_poll' => ($counts[ProvisioningJobStatus::Queued->value] + $counts[ProvisioningJobStatus::Running->value]) > 0,
+            'counts' => $counts,
+            'tenants' => $rows,
+        ];
+    }
+
+    /**
+     * @param  list<int>  $tenantIds
+     * @return array<int, ProvisioningJob>
+     */
+    private function latestRolloutJobsByTenant(SkillCatalogItem $skill, SkillCatalogVersion $version, array $tenantIds): array
+    {
+        if ($tenantIds === []) {
+            return [];
+        }
+
+        $jobs = ProvisioningJob::query()
+            ->whereIn('tenant_id', $tenantIds)
+            ->where('job_type', ApplyTenantAgentCustomization::JOB_TYPE)
+            ->latest('id')
+            ->get();
+        $matches = [];
+
+        foreach ($jobs as $job) {
+            if (isset($matches[$job->tenant_id])) {
+                continue;
+            }
+
+            $payload = is_array($job->payload_json) ? $job->payload_json : [];
+
+            if (($payload['source'] ?? null) !== 'skill_rollout') {
+                continue;
+            }
+
+            if (($payload['skill_key'] ?? null) !== $skill->skill_key) {
+                continue;
+            }
+
+            if ((int) ($payload['skill_catalog_version_id'] ?? 0) !== $version->id) {
+                continue;
+            }
+
+            $matches[$job->tenant_id] = $job;
+        }
+
+        return $matches;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function normalizeTenantIds(mixed $value): array
+    {
+        $tenantIds = is_array($value) ? $value : (is_string($value) ? explode(',', $value) : []);
+
+        return collect($tenantIds)
+            ->map(fn (mixed $tenantId): int => (int) $tenantId)
+            ->filter(fn (int $tenantId): bool => $tenantId > 0)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function latestGoogleWorkspaceSyncJob(Tenant $tenant, ?array $statuses = null): ?ProvisioningJob

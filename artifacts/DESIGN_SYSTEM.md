@@ -50,6 +50,8 @@ Avoid:
 
 Admin/control-plane UI may use precise operational labels, but it should still explain what an action does in plain language.
 
+Success banners on admin rollout/apply flows should describe the exact transition, for example: publish changed the catalog only, rollout changed tenant assignments, apply queued tenant runtime work.
+
 ## 4. UI Surface Split
 
 ### Customer UI
@@ -83,6 +85,8 @@ Admin skill forms should use concrete placeholder examples that match the curren
 
 The Skill Catalog status badge must describe publish-gated availability: imported skills without an active published version show `unavailable`, not `assignable`, even if the repo scan/import succeeded.
 
+For skill-version UX, tenant admin cards must distinguish `assigned version` from `latest published` instead of using one badge to imply both. Skill Catalog rollout screens should describe `publish`, `roll out`, and `apply` as separate transitions.
+
 ### Shared Rules
 
 - Use `DM Sans` by default.
@@ -92,6 +96,7 @@ The Skill Catalog status badge must describe publish-gated availability: importe
 - Use panels/cards to group a single decision area or data set.
 - When an analytics metric is undefined, omit the card/row instead of showing a misleading zero value.
 - For estimated operational metrics such as time saved or ROI, label them explicitly as estimated in headings or supporting copy.
+- For background rollout/apply work, prefer compact polling progress panels with `queued`, `running`, `completed`, and `failed` badges plus a short explanatory line over noisy log-style output.
 
 ## 5. Design Tokens
 

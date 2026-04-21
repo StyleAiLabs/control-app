@@ -19,12 +19,17 @@
             <div>
                 <span class="eyebrow">Tenant Skills</span>
                 <h2 class="type-section-title">Tenant Skills</h2>
-                <p class="type-body">Assign published Sync360 skills to this tenant, save the draft, then apply when you want the runtime updated.</p>
+                <p class="type-body">Assign published Sync360 skills to this tenant, save the draft when you want Sync360 state updated, then apply when you want the tenant runtime to use the currently assigned versions.</p>
             </div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
                 @if (! empty($tenantSkillsStatus['summary_label']) && ($tenantSkillsStatus['summary_label'] ?? null) !== ($tenantSkillsStatus['label'] ?? null))
                     <span class="badge badge--technical {{ $tenantSkillsStatus['summary_class'] ?? 'pending' }}">
                         {{ $tenantSkillsStatus['summary_label'] }}
+                    </span>
+                @endif
+                @if (($tenantSkillsStatus['updates_available_count'] ?? 0) > 0)
+                    <span class="badge badge--technical pending">
+                        {{ $tenantSkillsStatus['updates_available_count'] }} update{{ ($tenantSkillsStatus['updates_available_count'] ?? 0) === 1 ? '' : 's' }} available
                     </span>
                 @endif
             </div>
@@ -39,16 +44,53 @@
                 </div>
                 <div style="padding:14px; border:1px solid var(--stroke); border-radius:14px; background:white;">
                     <strong>2. Save the draft</strong>
-                    <div class="hint" style="margin-top: 6px;">Save Draft updates Sync360 state only. Nothing changes inside the tenant runtime yet.</div>
+                    <div class="hint" style="margin-top: 6px;">Save Draft updates assignment and mapping state in Sync360 only. It does not change tenant runtime files or upgrade assigned versions.</div>
                 </div>
                 <div style="padding:14px; border:1px solid var(--stroke); border-radius:14px; background:white;">
                     <strong>3. Apply when ready</strong>
-                    <div class="hint" style="margin-top: 6px;">Apply pushes the current draft into the tenant workspace and runtime config.</div>
+                    <div class="hint" style="margin-top: 6px;">Apply syncs the current tenant draft into the runtime using the versions already assigned to this tenant.</div>
                 </div>
                 <div style="padding:14px; border:1px solid var(--stroke); border-radius:14px; background:white;">
-                    <strong>Advanced agent mapping</strong>
-                    <div class="hint" style="margin-top: 6px;">Use default skill IDs only when you need to explicitly expose additional skill IDs to the default agent.</div>
+                    <strong>Version upgrades</strong>
+                    <div class="hint" style="margin-top: 6px;">Publish creates a catalog version. Roll out from Skill Catalog when you want existing tenants moved to that newer version.</div>
                 </div>
+            </div>
+        </section>
+
+        <section style="margin-bottom:18px;">
+            <h3 class="type-section-title" style="margin-top:0; font-size:1.12rem;">Assigned Skill Versions</h3>
+            <div class="hint" style="margin-top:6px;">These are the versions this tenant is currently pinned to. New catalog releases do not replace them until a rollout updates the assignment.</div>
+            <div style="display:grid; gap:10px; margin-top:14px;">
+                @forelse ($tenantSkillRows as $tenantSkillRow)
+                    <div style="padding:14px 16px; border:1px solid var(--stroke); border-radius:16px; background:#fff;">
+                        <div style="display:flex; justify-content:space-between; gap:12px; align-items:start; flex-wrap:wrap;">
+                            <div style="min-width:0;">
+                                <strong style="display:block; font-size:1rem; line-height:1.3;">{{ $tenantSkillRow['label'] }}</strong>
+                                <div class="hint" style="margin-top:3px; font-size:0.82rem;">{{ $tenantSkillRow['skill_key'] }}</div>
+                            </div>
+                            <a href="{{ $tenantSkillRow['detail_url'] }}" class="button button--secondary" style="padding:10px 14px;">Manage Rollout</a>
+                        </div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+                            <span class="badge badge--technical ready">assigned {{ $tenantSkillRow['assigned_version'] ?? 'unknown' }}</span>
+                            <span class="badge badge--technical {{ $tenantSkillRow['latest_published_version'] ? 'ready' : 'pending' }}">
+                                {{ $tenantSkillRow['latest_published_version'] ? 'latest '.$tenantSkillRow['latest_published_version'] : 'not published' }}
+                            </span>
+                            <span class="badge badge--technical {{ $tenantSkillRow['update_class'] }}">{{ $tenantSkillRow['update_label'] }}</span>
+                            @if ($tenantSkillRow['last_apply_status'])
+                                <span class="badge badge--technical {{ $tenantSkillRow['last_apply_status'] === 'failed' ? 'failed' : ($tenantSkillRow['last_apply_status'] === 'applied' ? 'ready' : 'pending') }}">
+                                    last apply {{ $tenantSkillRow['last_apply_status'] }}
+                                </span>
+                            @endif
+                        </div>
+                        @if ($tenantSkillRow['last_apply_error'])
+                            <div class="hint" style="margin-top:8px; color:#b45309;">{{ $tenantSkillRow['last_apply_error'] }}</div>
+                        @elseif ($tenantSkillRow['last_applied_at'])
+                            <div class="hint" style="margin-top:8px;">Last applied {{ $tenantSkillRow['last_applied_at'] }}</div>
+                        @endif
+                    </div>
+                @empty
+                    <div class="hint">No skill versions are currently assigned to this tenant.</div>
+                @endforelse
             </div>
         </section>
 
@@ -92,8 +134,17 @@
                                             </span>
                                         </div>
                                         <div style="margin-top:8px; font-size:0.94rem; line-height:1.45;">{{ $skillPack->description }}</div>
+                                        @php
+                                            $assignedSkillRow = collect($tenantSkillRows)->firstWhere('skill_key', $skillPack->skill_key);
+                                        @endphp
+                                        @if ($assignedSkillRow)
+                                            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+                                                <span class="badge badge--technical ready" style="font-size:0.76rem;">assigned {{ $assignedSkillRow['assigned_version'] ?? 'unknown' }}</span>
+                                                <span class="badge badge--technical {{ $assignedSkillRow['update_class'] }}" style="font-size:0.76rem;">{{ $assignedSkillRow['update_label'] }}</span>
+                                            </div>
+                                        @endif
                                         @if ($publishedVersion)
-                                            <div class="hint" style="margin-top:8px; font-size:0.84rem;">Saving this draft will mark {{ $skillPack->label }} for tenant rollout.</div>
+                                            <div class="hint" style="margin-top:8px; font-size:0.84rem;">Save Draft changes assignment only. To upgrade tenants already assigned to {{ $skillPack->label }}, use Skill Catalog rollout.</div>
                                         @else
                                             <div class="hint" style="margin-top:8px; font-size:0.84rem;">Publish this skill in Skill Catalog before assigning it to tenants.</div>
                                         @endif
@@ -138,7 +189,7 @@
 
         <section style="margin-top:18px;">
             <h3 class="type-section-title" style="margin-top:0; font-size:1.12rem;">Deployment</h3>
-            <div class="hint" style="margin-bottom:12px;">Save Draft updates Sync360 only. Apply pushes the current skill draft into the tenant runtime.</div>
+            <div class="hint" style="margin-bottom:12px;">Save Draft updates assignment state in Sync360. Apply pushes the current tenant draft into runtime using the versions already assigned above.</div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
                 <form method="POST" action="{{ route('admin.tenants.agent-customization.apply', $tenant) }}" class="inline">
                     @csrf
@@ -152,6 +203,48 @@
                     <input type="hidden" name="customization_scope" value="skills">
                     <button type="submit" class="button button--secondary" {{ $canApplyAgentCustomization && $agentCustomization?->last_applied_input_snapshot_json ? '' : 'disabled' }}>Revert</button>
                 </form>
+            </div>
+        </section>
+
+        <section style="margin-top:18px;">
+            <div style="display:flex; justify-content:space-between; gap:12px; align-items:start; flex-wrap:wrap;">
+                <div>
+                    <h3 class="type-section-title" style="margin-top:0; font-size:1.12rem;">Runtime Apply Progress</h3>
+                    <div class="hint" style="margin-top:6px;">Apply runs as a background job. We refresh this panel automatically while the tenant runtime job is queued or running.</div>
+                </div>
+            </div>
+
+            <div
+                style="margin-top:14px; padding:16px; border:1px solid var(--stroke); border-radius:16px; background:#faf9f8;"
+                data-tenant-skill-progress
+                data-progress-url="{{ route('admin.tenants.skills.progress', $tenant) }}"
+                data-should-poll="{{ ($tenantSkillProgress['should_poll'] ?? false) ? 'true' : 'false' }}"
+            >
+                @if (($tenantSkillProgress['job'] ?? null) !== null)
+                    @php
+                        $progressJob = $tenantSkillProgress['job'];
+                    @endphp
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                        <span class="badge badge--technical {{ $progressJob['status'] }}" data-role="status-badge">{{ $progressJob['status'] }}</span>
+                        <span class="hint type-tech" data-role="status-detail">
+                            {{ ($progressJob['action'] ?? 'apply') === 'revert' ? 'Revert' : 'Apply' }} job #{{ $progressJob['id'] ?? '—' }}
+                        </span>
+                    </div>
+                    <div class="hint" style="margin-top:10px;" data-role="timing">
+                        @if ($progressJob['completed_at'])
+                            Completed {{ $progressJob['completed_at'] }}
+                        @elseif ($progressJob['started_at'])
+                            Started {{ $progressJob['started_at'] }}
+                        @else
+                            Waiting for the worker to start this runtime job.
+                        @endif
+                    </div>
+                    <div class="hint" style="margin-top:10px; color:#b45309; {{ $progressJob['error_message'] ? '' : 'display:none;' }}" data-role="error">
+                        {{ $progressJob['error_message'] ?? '' }}
+                    </div>
+                @else
+                    <div class="hint" data-role="empty-state">No tenant runtime apply job has been queued yet from this screen.</div>
+                @endif
             </div>
         </section>
 
@@ -222,4 +315,136 @@
             </div>
         </section>
     </section>
+
+    <script>
+        (() => {
+            const progressEl = document.querySelector('[data-tenant-skill-progress]');
+
+            if (!progressEl) {
+                return;
+            }
+
+            const progressUrl = progressEl.dataset.progressUrl;
+            let shouldPoll = progressEl.dataset.shouldPoll === 'true';
+            let timeoutId = null;
+
+            const renderProgress = (payload) => {
+                const job = payload?.job ?? null;
+                const emptyState = progressEl.querySelector('[data-role="empty-state"]');
+                let badge = progressEl.querySelector('[data-role="status-badge"]');
+                let detail = progressEl.querySelector('[data-role="status-detail"]');
+                let timing = progressEl.querySelector('[data-role="timing"]');
+                let error = progressEl.querySelector('[data-role="error"]');
+
+                if (!job) {
+                    if (badge) badge.remove();
+                    if (detail) detail.remove();
+                    if (timing) timing.remove();
+                    if (error) error.remove();
+
+                    if (!emptyState) {
+                        const node = document.createElement('div');
+                        node.className = 'hint';
+                        node.dataset.role = 'empty-state';
+                        node.textContent = 'No tenant runtime apply job has been queued yet from this screen.';
+                        progressEl.appendChild(node);
+                    }
+
+                    shouldPoll = false;
+                    return;
+                }
+
+                if (emptyState) {
+                    emptyState.remove();
+                }
+
+                if (!badge || !detail) {
+                    const header = document.createElement('div');
+                    header.style.display = 'flex';
+                    header.style.gap = '10px';
+                    header.style.flexWrap = 'wrap';
+                    header.style.alignItems = 'center';
+
+                    badge = document.createElement('span');
+                    badge.dataset.role = 'status-badge';
+                    badge.className = 'badge badge--technical';
+                    header.appendChild(badge);
+
+                    detail = document.createElement('span');
+                    detail.dataset.role = 'status-detail';
+                    detail.className = 'hint type-tech';
+                    header.appendChild(detail);
+
+                    progressEl.prepend(header);
+                }
+
+                badge.className = `badge badge--technical ${job.status}`;
+                badge.textContent = job.status;
+                detail.textContent = `${job.action === 'revert' ? 'Revert' : 'Apply'} job #${job.id ?? '—'}`;
+
+                if (!timing) {
+                    timing = document.createElement('div');
+                    timing.className = 'hint';
+                    timing.style.marginTop = '10px';
+                    timing.dataset.role = 'timing';
+                    progressEl.appendChild(timing);
+                }
+
+                if (job.completed_at) {
+                    timing.textContent = `Completed ${job.completed_at}`;
+                } else if (job.started_at) {
+                    timing.textContent = `Started ${job.started_at}`;
+                } else {
+                    timing.textContent = 'Waiting for the worker to start this runtime job.';
+                }
+
+                if (!error) {
+                    error = document.createElement('div');
+                    error.className = 'hint';
+                    error.style.marginTop = '10px';
+                    error.style.color = '#b45309';
+                    error.dataset.role = 'error';
+                    progressEl.appendChild(error);
+                }
+
+                error.textContent = job.error_message ?? '';
+                error.style.display = job.error_message ? '' : 'none';
+                shouldPoll = Boolean(payload?.should_poll);
+            };
+
+            const poll = async () => {
+                if (!shouldPoll || !progressUrl) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(progressUrl, { headers: { 'Accept': 'application/json' } });
+
+                    if (!response.ok) {
+                        shouldPoll = false;
+                        return;
+                    }
+
+                    renderProgress(await response.json());
+                } catch (error) {
+                    shouldPoll = false;
+                    return;
+                }
+
+                if (shouldPoll) {
+                    timeoutId = window.setTimeout(poll, 3000);
+                }
+            };
+
+            if (shouldPoll) {
+                timeoutId = window.setTimeout(poll, 3000);
+            }
+
+            window.addEventListener('beforeunload', () => {
+                if (timeoutId) {
+                    window.clearTimeout(timeoutId);
+                }
+            });
+        })();
+    </script>
 @endif

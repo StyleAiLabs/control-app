@@ -47,7 +47,8 @@ class AdminTenantCustomizationFlowTest extends TestCase
             'agent_defaults' => [
                 'model' => 'gpt-4.1',
             ],
-        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']));
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']))
+            ->assertSessionHas('status', 'Saved tenant runtime draft. Runtime has not changed yet.');
 
         $this->patch(route('admin.tenants.agent-customization.update', $tenant), [
             'return_tab' => 'skills',
@@ -55,7 +56,8 @@ class AdminTenantCustomizationFlowTest extends TestCase
             'agent_defaults' => [
                 'default_skill_ids' => 'custom-default-skill, follow-up-skill',
             ],
-        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'skills']));
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'skills']))
+            ->assertSessionHas('status', 'Saved tenant skill draft. Runtime has not changed yet.');
 
         $customization = TenantAgentCustomization::query()->firstOrFail();
 
@@ -82,7 +84,8 @@ class AdminTenantCustomizationFlowTest extends TestCase
 
         $this->post(route('admin.tenants.agent-customization.apply', $tenant), [
             'return_tab' => 'skills',
-        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'skills']));
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'skills']))
+            ->assertSessionHas('status', 'Queued runtime apply for customization-shop using assigned skill versions.');
 
         $job = ProvisioningJob::query()->latest('id')->first();
 
@@ -349,6 +352,95 @@ class AdminTenantCustomizationFlowTest extends TestCase
         $this->assertSame('Runtime-only update', data_get($customization->prompt_overrides_json, 'identity.content'));
     }
 
+    public function test_reenabling_disabled_skill_uses_latest_published_version(): void
+    {
+        [$admin, $tenant] = $this->seedAdminAndTenant();
+
+        $oldVersion = SkillCatalogVersion::query()->where('skill_key', 'hello-world')->firstOrFail();
+        $newVersion = $this->createSkillCatalogVersion('hello-world', '1.1.0');
+        app(\App\Services\SkillCatalogService::class)->publishVersion($newVersion);
+
+        TenantSkillAssignment::query()->create([
+            'tenant_id' => $tenant->id,
+            'skill_catalog_version_id' => $oldVersion->id,
+            'skill_key' => 'hello-world',
+            'assigned_by' => $admin->id,
+            'assigned_at' => now()->subDay(),
+            'is_enabled' => false,
+        ]);
+
+        $this->actingAs($admin)
+            ->patch(route('admin.tenants.agent-customization.update', $tenant), [
+                'return_tab' => 'skills',
+                'assigned_skill_keys' => ['hello-world'],
+                'agent_defaults' => [
+                    'default_skill_ids' => '',
+                ],
+            ])
+            ->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'skills']))
+            ->assertSessionHas('status', 'Saved tenant skill draft. Runtime has not changed yet.');
+
+        $assignment = TenantSkillAssignment::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('skill_key', 'hello-world')
+            ->firstOrFail();
+
+        $this->assertTrue((bool) $assignment->is_enabled);
+        $this->assertSame($newVersion->id, $assignment->skill_catalog_version_id);
+    }
+
+    public function test_tenant_skills_tab_shows_assigned_and_latest_versions_when_update_available(): void
+    {
+        [$admin, $tenant] = $this->seedAdminAndTenant();
+
+        $oldVersion = SkillCatalogVersion::query()->where('skill_key', 'hello-world')->firstOrFail();
+        $newVersion = $this->createSkillCatalogVersion('hello-world', '1.1.0');
+        app(\App\Services\SkillCatalogService::class)->publishVersion($newVersion);
+
+        TenantSkillAssignment::query()->create([
+            'tenant_id' => $tenant->id,
+            'skill_catalog_version_id' => $oldVersion->id,
+            'skill_key' => 'hello-world',
+            'assigned_by' => $admin->id,
+            'assigned_at' => now(),
+            'is_enabled' => true,
+            'last_apply_status' => 'applied',
+            'last_applied_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'skills']))
+            ->assertOk()
+            ->assertSee('Assigned Skill Versions')
+            ->assertSee('assigned 1.0.5')
+            ->assertSee('latest 1.1.0')
+            ->assertSee('Update available')
+            ->assertSee('Manage Rollout');
+    }
+
+    public function test_tenant_skills_progress_endpoint_reports_latest_apply_job_status(): void
+    {
+        [$admin, $tenant] = $this->seedAdminAndTenant();
+
+        ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Queued,
+            'payload_json' => [
+                'action' => TenantAgentCustomizationApply::ACTION_APPLY,
+                'source' => 'tenant_apply',
+            ],
+        ]);
+
+        $this->actingAs($admin)
+            ->getJson(route('admin.tenants.skills.progress', $tenant))
+            ->assertOk()
+            ->assertJsonPath('tenant_id', $tenant->id)
+            ->assertJsonPath('should_poll', true)
+            ->assertJsonPath('job.status', ProvisioningJobStatus::Queued->value)
+            ->assertJsonPath('job.action', TenantAgentCustomizationApply::ACTION_APPLY);
+    }
+
     public function test_admin_tenant_page_defaults_to_overview_and_falls_back_for_invalid_tab(): void
     {
         [$admin, $tenant] = $this->seedAdminAndTenant();
@@ -386,8 +478,11 @@ class AdminTenantCustomizationFlowTest extends TestCase
             ->assertOk()
             ->assertSee('Tenant Skills')
             ->assertSee('Assignment Workflow')
+            ->assertSee('Assigned Skill Versions')
             ->assertSee('Available Skills')
             ->assertSee('Advanced Agent Mapping')
+            ->assertSee('Version upgrades')
+            ->assertSee('Runtime Apply Progress')
             ->assertSee('Runtime Available Skills')
             ->assertSee('Refresh Runtime Skills')
             ->assertSee('data-skill-catalog-layout="full-width"', false)
@@ -638,5 +733,26 @@ class AdminTenantCustomizationFlowTest extends TestCase
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
 
         return [$admin, $tenant];
+    }
+
+    private function createSkillCatalogVersion(string $skillKey, string $version): SkillCatalogVersion
+    {
+        $baseVersion = SkillCatalogVersion::query()
+            ->where('skill_key', $skillKey)
+            ->firstOrFail();
+        $manifest = $baseVersion->manifest_json;
+        $manifest['version'] = $version;
+
+        return SkillCatalogVersion::query()->create([
+            'skill_catalog_item_id' => $baseVersion->skill_catalog_item_id,
+            'skill_key' => $skillKey,
+            'version' => $version,
+            'manifest_json' => $manifest,
+            'is_active_published' => false,
+            'is_archived' => false,
+            'is_available' => true,
+            'discovered_at' => now(),
+            'last_imported_at' => now(),
+        ]);
     }
 }

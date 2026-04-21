@@ -343,6 +343,9 @@ class TenantSkillCatalogWorkflowTest extends TestCase
             ->first();
 
         $this->assertNotNull($publishedVersion);
+        app(\App\Services\SkillCatalogService::class)->publishVersion($publishedVersion);
+        $rolloutVersion = $this->createSkillCatalogVersion('hello-world', '1.1.0');
+        app(\App\Services\SkillCatalogService::class)->publishVersion($rolloutVersion);
 
         foreach ([$tenantA, $tenantB] as $tenant) {
             \App\Models\TenantSkillAssignment::query()->create([
@@ -368,7 +371,7 @@ class TenantSkillCatalogWorkflowTest extends TestCase
 
         $this->post(route('admin.skills.versions.rollout', [
             'skill' => 'hello-world',
-            'version' => $publishedVersion->id,
+            'version' => $rolloutVersion->id,
         ]), [
             'tenant_ids' => [$tenantA->id, $tenantB->id],
         ])->assertRedirect(route('admin.skills.show', 'hello-world'));
@@ -381,6 +384,217 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $this->assertCount(2, $jobs);
         $this->assertEqualsCanonicalizing([$tenantA->id, $tenantB->id], $jobs->pluck('tenant_id')->all());
         $this->assertTrue($jobs->every(fn (ProvisioningJob $job): bool => $job->status === ProvisioningJobStatus::Queued));
+    }
+
+    public function test_publishing_new_version_does_not_mutate_existing_tenant_assignments_or_queue_apply_jobs(): void
+    {
+        Queue::fake([ApplyTenantAgentCustomization::class]);
+
+        $admin = User::query()->create([
+            'name' => 'Admin',
+            'email' => 'publish-admin@example.com',
+            'password' => 'secret',
+            'is_admin' => true,
+        ]);
+
+        $tenant = $this->seedTenant('publish-check', 'Publish Check');
+
+        $this->artisan('sync360:skills:import')->assertExitCode(0);
+
+        $publishedVersion = \App\Models\SkillCatalogVersion::query()
+            ->where('skill_key', 'hello-world')
+            ->firstOrFail();
+
+        app(\App\Services\SkillCatalogService::class)->publishVersion($publishedVersion);
+
+        \App\Models\TenantSkillAssignment::query()->create([
+            'tenant_id' => $tenant->id,
+            'skill_catalog_version_id' => $publishedVersion->id,
+            'skill_key' => 'hello-world',
+            'assigned_by' => $admin->id,
+            'assigned_at' => now(),
+            'is_enabled' => true,
+        ]);
+
+        $newVersion = $this->createSkillCatalogVersion('hello-world', '1.1.0');
+
+        $this->actingAs($admin)
+            ->post(route('admin.skills.versions.publish', [
+                'skill' => 'hello-world',
+                'version' => $newVersion->id,
+            ]))
+            ->assertRedirect(route('admin.skills.show', 'hello-world'))
+            ->assertSessionHas('status', 'Published Hello World (by Sync360) v1.1.0. No tenant assignments changed.');
+
+        $assignment = \App\Models\TenantSkillAssignment::query()->firstOrFail();
+
+        $this->assertSame($publishedVersion->id, $assignment->skill_catalog_version_id);
+        $this->assertDatabaseCount('provisioning_jobs', 0);
+        Queue::assertNothingPushed();
+    }
+
+    public function test_rollout_to_all_outdated_tenants_only_upgrades_outdated_enabled_assignments(): void
+    {
+        Queue::fake([ApplyTenantAgentCustomization::class]);
+
+        $admin = User::query()->create([
+            'name' => 'Admin',
+            'email' => 'rollout-all@example.com',
+            'password' => 'secret',
+            'is_admin' => true,
+        ]);
+
+        [$tenantA, $tenantB, $tenantC, $tenantD] = [
+            $this->seedTenant('outdated-a', 'Outdated A'),
+            $this->seedTenant('outdated-b', 'Outdated B'),
+            $this->seedTenant('current-c', 'Current C'),
+            $this->seedTenant('disabled-d', 'Disabled D'),
+        ];
+
+        $this->artisan('sync360:skills:import')->assertExitCode(0);
+
+        $oldVersion = \App\Models\SkillCatalogVersion::query()
+            ->where('skill_key', 'hello-world')
+            ->firstOrFail();
+        app(\App\Services\SkillCatalogService::class)->publishVersion($oldVersion);
+        $newVersion = $this->createSkillCatalogVersion('hello-world', '1.1.0');
+        app(\App\Services\SkillCatalogService::class)->publishVersion($newVersion);
+
+        foreach ([$tenantA, $tenantB] as $tenant) {
+            \App\Models\TenantSkillAssignment::query()->create([
+                'tenant_id' => $tenant->id,
+                'skill_catalog_version_id' => $oldVersion->id,
+                'skill_key' => 'hello-world',
+                'assigned_by' => $admin->id,
+                'assigned_at' => now(),
+                'is_enabled' => true,
+            ]);
+        }
+
+        \App\Models\TenantSkillAssignment::query()->create([
+            'tenant_id' => $tenantC->id,
+            'skill_catalog_version_id' => $newVersion->id,
+            'skill_key' => 'hello-world',
+            'assigned_by' => $admin->id,
+            'assigned_at' => now(),
+            'is_enabled' => true,
+        ]);
+
+        \App\Models\TenantSkillAssignment::query()->create([
+            'tenant_id' => $tenantD->id,
+            'skill_catalog_version_id' => $oldVersion->id,
+            'skill_key' => 'hello-world',
+            'assigned_by' => $admin->id,
+            'assigned_at' => now(),
+            'is_enabled' => false,
+        ]);
+
+        foreach ([$tenantA, $tenantB, $tenantC, $tenantD] as $tenant) {
+            TenantAgentCustomization::query()->create([
+                'tenant_id' => $tenant->id,
+                'prompt_overrides_json' => [],
+                'agent_defaults_json' => [],
+                'draft_version' => 1,
+                'draft_updated_by' => $admin->id,
+                'draft_updated_at' => now(),
+            ]);
+        }
+
+        $this->actingAs($admin)
+            ->post(route('admin.skills.versions.rollout', [
+                'skill' => 'hello-world',
+                'version' => $newVersion->id,
+            ]), [
+                'scope' => 'all_outdated',
+            ])
+            ->assertRedirect(route('admin.skills.show', 'hello-world'))
+            ->assertSessionHas('status', 'Queued rollout of Hello World (by Sync360) v1.1.0 to 2 outdated tenants. Runtime apply jobs started automatically.');
+
+        $this->assertSame($newVersion->id, \App\Models\TenantSkillAssignment::query()->where('tenant_id', $tenantA->id)->value('skill_catalog_version_id'));
+        $this->assertSame($newVersion->id, \App\Models\TenantSkillAssignment::query()->where('tenant_id', $tenantB->id)->value('skill_catalog_version_id'));
+        $this->assertSame($newVersion->id, \App\Models\TenantSkillAssignment::query()->where('tenant_id', $tenantC->id)->value('skill_catalog_version_id'));
+        $this->assertSame($oldVersion->id, \App\Models\TenantSkillAssignment::query()->where('tenant_id', $tenantD->id)->value('skill_catalog_version_id'));
+
+        $jobs = ProvisioningJob::query()
+            ->where('job_type', ApplyTenantAgentCustomization::JOB_TYPE)
+            ->orderBy('tenant_id')
+            ->get();
+
+        $this->assertCount(2, $jobs);
+        $this->assertEqualsCanonicalizing([$tenantA->id, $tenantB->id], $jobs->pluck('tenant_id')->all());
+    }
+
+    public function test_skill_rollout_progress_endpoint_reports_counts_for_targeted_tenants(): void
+    {
+        $admin = User::query()->create([
+            'name' => 'Admin',
+            'email' => 'rollout-progress@example.com',
+            'password' => 'secret',
+            'is_admin' => true,
+        ]);
+
+        [$tenantA, $tenantB] = [
+            $this->seedTenant('progress-a', 'Progress A'),
+            $this->seedTenant('progress-b', 'Progress B'),
+        ];
+
+        $this->artisan('sync360:skills:import')->assertExitCode(0);
+
+        $oldVersion = \App\Models\SkillCatalogVersion::query()
+            ->where('skill_key', 'hello-world')
+            ->firstOrFail();
+        app(\App\Services\SkillCatalogService::class)->publishVersion($oldVersion);
+        $newVersion = $this->createSkillCatalogVersion('hello-world', '1.1.0');
+        app(\App\Services\SkillCatalogService::class)->publishVersion($newVersion);
+
+        foreach ([$tenantA, $tenantB] as $tenant) {
+            \App\Models\TenantSkillAssignment::query()->create([
+                'tenant_id' => $tenant->id,
+                'skill_catalog_version_id' => $oldVersion->id,
+                'skill_key' => 'hello-world',
+                'assigned_by' => $admin->id,
+                'assigned_at' => now(),
+                'is_enabled' => true,
+            ]);
+        }
+
+        ProvisioningJob::query()->create([
+            'tenant_id' => $tenantA->id,
+            'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Queued,
+            'payload_json' => [
+                'action' => 'apply',
+                'source' => 'skill_rollout',
+                'skill_key' => 'hello-world',
+                'skill_catalog_version_id' => $newVersion->id,
+            ],
+        ]);
+        ProvisioningJob::query()->create([
+            'tenant_id' => $tenantB->id,
+            'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Failed,
+            'payload_json' => [
+                'action' => 'apply',
+                'source' => 'skill_rollout',
+                'skill_key' => 'hello-world',
+                'skill_catalog_version_id' => $newVersion->id,
+            ],
+            'error_message' => 'Remote sync failed.',
+        ]);
+
+        $this->actingAs($admin)
+            ->getJson(route('admin.skills.versions.rollout-progress', [
+                'skill' => 'hello-world',
+                'version' => $newVersion->id,
+                'tenant_ids' => implode(',', [$tenantA->id, $tenantB->id]),
+            ]))
+            ->assertOk()
+            ->assertJsonPath('version_id', $newVersion->id)
+            ->assertJsonPath('total', 2)
+            ->assertJsonPath('counts.queued', 1)
+            ->assertJsonPath('counts.failed', 1)
+            ->assertJsonPath('should_poll', true)
+            ->assertJsonPath('tenants.1.error_message', 'Remote sync failed.');
     }
 
     public function test_repo_import_marks_missing_repo_skills_as_orphaned_warnings(): void
@@ -715,5 +929,26 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
 
         return $tenant;
+    }
+
+    private function createSkillCatalogVersion(string $skillKey, string $version): \App\Models\SkillCatalogVersion
+    {
+        $baseVersion = \App\Models\SkillCatalogVersion::query()
+            ->where('skill_key', $skillKey)
+            ->firstOrFail();
+        $manifest = $baseVersion->manifest_json;
+        $manifest['version'] = $version;
+
+        return \App\Models\SkillCatalogVersion::query()->create([
+            'skill_catalog_item_id' => $baseVersion->skill_catalog_item_id,
+            'skill_key' => $skillKey,
+            'version' => $version,
+            'manifest_json' => $manifest,
+            'is_active_published' => false,
+            'is_archived' => false,
+            'is_available' => true,
+            'discovered_at' => now(),
+            'last_imported_at' => now(),
+        ]);
     }
 }

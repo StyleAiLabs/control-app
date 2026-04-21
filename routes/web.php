@@ -69,6 +69,7 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/skills/{skill}/versions/{version}/publish', [AdminController::class, 'publishSkillCatalogVersion'])->name('skills.versions.publish');
         Route::post('/skills/{skill}/versions/{version}/archive', [AdminController::class, 'archiveSkillCatalogVersion'])->name('skills.versions.archive');
         Route::post('/skills/{skill}/versions/{version}/rollout', [AdminController::class, 'rolloutSkillCatalogVersion'])->name('skills.versions.rollout');
+        Route::get('/skills/{skill}/versions/{version}/rollout-progress', [AdminController::class, 'skillRolloutProgress'])->name('skills.versions.rollout-progress');
         Route::get('/tenants/{tenant}', [AdminController::class, 'showTenant'])->name('tenants.show');
         Route::delete('/tenants/{tenant}', [AdminController::class, 'destroyTenant'])->name('tenants.destroy');
         Route::get('/jobs', [AdminController::class, 'jobs'])->name('jobs');
@@ -82,6 +83,7 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/tenants/{tenant}/google/sync', [AdminController::class, 'retryGoogleWorkspaceSync'])->name('tenants.google.sync');
         Route::post('/tenants/{tenant}/google/test', [AdminController::class, 'testGoogleWorkspace'])->name('tenants.google.test');
         Route::post('/tenants/{tenant}/skills/runtime-refresh', [AdminController::class, 'refreshRuntimeAvailableSkills'])->name('tenants.skills.runtime-refresh');
+        Route::get('/tenants/{tenant}/skills/progress', [AdminController::class, 'tenantSkillsProgress'])->name('tenants.skills.progress');
         Route::patch('/tenants/{tenant}/agent-customization', [AdminController::class, 'updateAgentCustomization'])->name('tenants.agent-customization.update');
         Route::post('/tenants/{tenant}/agent-customization/preview', [AdminController::class, 'previewAgentCustomization'])->name('tenants.agent-customization.preview');
         Route::post('/tenants/{tenant}/agent-customization/apply', [AdminController::class, 'applyAgentCustomization'])->name('tenants.agent-customization.apply');
