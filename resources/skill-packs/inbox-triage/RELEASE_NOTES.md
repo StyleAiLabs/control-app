@@ -1,5 +1,11 @@
 # Inbox Triage — Release Notes
 
+## 1.5.2
+
+- Converted the loose Drive logging bullet into a required Google Drive triage-log workflow with folder/file naming, idempotency, privacy, command-shape, and validation guidance.
+- Added an explicit ordered workflow so Telegram, Drive logging, analytics, and final reporting cannot be silently skipped.
+- Clarified stable lead-id reuse across notification, Drive log naming, and analytics conversion ids.
+
 ## 1.5.1
 
 - Added Sync360 inbox monitor trigger guidance so neutral `sync360-inbox-monitor` Gmail events are routed through this skill.

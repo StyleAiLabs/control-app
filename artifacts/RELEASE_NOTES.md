@@ -7,6 +7,22 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-22 — Fix: Inbox Triage Skill Workflow Contract
+
+Date: 2026-04-22
+Status: Implemented
+
+### Overview
+
+Tightened the `inbox-triage` custom skill after live verification showed Telegram and analytics completed but the vague Google Drive logging bullet was skipped.
+
+### What Changed
+
+- bumped `inbox-triage` to `1.5.2`
+- replaced loose behavior bullets with an ordered workflow covering evaluation, stable lead id, Telegram, Google Drive triage logging, analytics, and final reporting
+- added concrete Drive triage-log guidance for folder/file naming, idempotency, minimum fields, privacy boundaries, `gog drive` command shape, validation, and failure handling
+- updated the custom skill authoring prompt so future skills must define required side effects with tool guidance, de-dupe keys, success validation, and failure reporting instead of vague action bullets
+
 ## 2026-04-21 — Fix: Inbox Triage Private Gateway Delivery
 
 Date: 2026-04-21

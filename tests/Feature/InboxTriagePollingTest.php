@@ -329,10 +329,10 @@ class InboxTriagePollingTest extends TestCase
             ],
         );
         $version = SkillCatalogVersion::query()->firstOrCreate(
-            ['skill_catalog_item_id' => $item->id, 'version' => '1.5.1'],
+            ['skill_catalog_item_id' => $item->id, 'version' => '1.5.2'],
             [
                 'skill_key' => 'inbox-triage',
-                'manifest_json' => ['skill_id' => 'inbox-triage', 'version' => '1.5.1'],
+                'manifest_json' => ['skill_id' => 'inbox-triage', 'version' => '1.5.2'],
                 'is_active_published' => true,
                 'is_archived' => false,
                 'is_available' => true,

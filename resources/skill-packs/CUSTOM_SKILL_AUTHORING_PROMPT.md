@@ -93,13 +93,26 @@ Privacy rules:
 Required `SKILL.md` content:
 - YAML frontmatter with `name` and `description`.
 - A short section explaining when to use the skill.
-- A behavior section describing the business workflow and success criteria.
+- A required workflow section describing ordered steps, success criteria, idempotency keys, and final reporting expectations.
+- Concrete instructions for every required side effect such as notification, file creation, CRM update, calendar creation, Drive logging, or analytics emission.
+- For each required side effect, include:
+  - when to perform it
+  - when not to perform it
+  - the stable id/key to use for de-dupe
+  - the tool or command family to use
+  - the minimum payload/content fields
+  - privacy limits
+  - exact success validation
+  - exact failure handling
+- Do not leave required side effects as vague bullets like "log this", "notify the team", or "update records". If the agent must do it, provide enough command/tool guidance and validation rules that it can prove completion.
+- A final response contract requiring the agent to report each required side effect as succeeded, skipped with reason, or failed with exact error/output.
 - An `Analytics Contract` section that says:
   - when success is authoritative
   - which `conversion_id` to use
   - which payload fields are required
   - when not to emit analytics
   - the exact helper invocation pattern
+  - why operational logs or notifications are not by themselves proof of conversion unless the skill's business success criteria are met
 
 Required `agent-instructions.md` content:
 - This file provides the compact index entry Sync360 injects into the agent's `agent.md` when the skill is assigned to a tenant.
@@ -131,6 +144,8 @@ Quality bar:
 - The skill must ask for missing required customer data before claiming success.
 - The skill must offer human follow-up when the business workflow is uncertain.
 - The skill must use clear customer-facing language and avoid backend platform names.
+- The skill must not claim a workflow is complete while a required side effect was skipped silently.
+- The skill must make optional actions explicitly optional; everything else needs validation and failure handling.
 - Supporting docs should be concise and placed under `docs/` only when they materially improve skill behavior.
 
 Verification checklist:
@@ -141,6 +156,8 @@ Verification checklist:
 - Runtime materialization does not create `.openclaw/workspace/skills/<skill-id>/skills/<skill-id>/`.
 - The emitted analytics payload passes helper validation.
 - Duplicate `event_id` does not create duplicate conversion records.
+- Required non-analytics side effects are tested or manually verified from runtime transcripts, including proof that the agent used the intended tool/command and inspected success output.
+- A regression transcript or test covers at least one failure path for each required side effect where practical.
 - Tenant dashboard shows successful conversions and estimated time saved.
 - Admin Skill Analytics shows the skill and tenant rollups.
 

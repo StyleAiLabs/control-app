@@ -11,28 +11,43 @@ metadata:
 
 # Inbox Triage
 
-When a customer inquiry is delivered from Gmail, use this skill to categorize the message, assess lead quality, flag high-value opportunities, and suggest the next action (Quote Generation, Calendar Booking, or human follow-up).
+When a customer inquiry is delivered from Gmail, use this skill to categorize the message, assess lead quality, flag high-value opportunities, notify the connected Telegram channel when appropriate, create a Google Drive triage log, emit analytics when appropriate, and suggest the next action (Quote Generation, Calendar Booking, or human follow-up).
 
 Sync360 may deliver polled Gmail messages as internal inbox events from `sync360-inbox-monitor`. Treat those events as neutral triggers only. The trigger has not classified the email as high-value; you must decide the category, lead quality, and next action from this skill's instructions and the email context.
 
 ## Google Workspace Context
 
-This skill may use GOG (Google Workspace OAuth), which is pre-configured on the OpenClaw server, to inspect the referenced Gmail message or write Google Drive logs. Before taking Gmail or Drive actions:
+This skill uses GOG (Google Workspace OAuth), which is pre-configured on the OpenClaw server, to inspect the referenced Gmail message when needed and to write Google Drive triage logs. Before taking Gmail or Drive actions:
 
 1. **Use the configured GOG account** — Do not ask the owner to choose an account unless tooling explicitly reports multiple accounts or no default.
 2. **Verify the connection before tool actions** — If GOG fails, stop and report the error to the operator instead of guessing from missing context.
 3. **Do not create your own watcher** — Sync360 owns polling and de-dupe. This skill owns evaluation and follow-up after an email event is delivered.
 
-## Behavior
-- Evaluate Gmail messages delivered by Sync360 inbox monitoring or an explicit user request.
-- Analyze inquiry content, sender details, and context to assess customer quality and intent.
-- Categorize each inquiry (sales inquiry, support request, quote request, appointment inquiry, etc.).
-- Flag only messages that meet your threshold for "high-value lead" (genuine buying intent, matching your ICP).
-- Do not flag spam, form submissions, or low-intent messages.
-- **When a high-value lead is detected, immediately send a Telegram notification to the connected channel** — see Telegram Notifications below.
-- Create a searchable triage log in Google Drive for your records.
-- Suggest next steps based on inquiry type (e.g., "This looks like a quote request—use Quote Generation skill").
-- Offer human review when lead quality is ambiguous or when the inquiry needs clarification before proceeding.
+## Required Workflow
+
+Complete these steps in order for every delivered Gmail inquiry:
+
+1. Evaluate the message.
+   - Analyze inquiry content, sender details, company/domain context, urgency, and fit against the tenant's ideal customer profile.
+   - Categorize the inquiry as sales inquiry, support request, quote request, appointment inquiry, spam, low-intent, ambiguous, or another clear category.
+   - Decide `lead_quality` as `high`, `medium`, `low`, or `ambiguous`.
+   - Flag high-value only when there is genuine buying intent and ICP fit. Do not flag spam, newsletters, generic form spam, or low-intent messages.
+2. Build a stable lead id.
+   - Prefer the Sync360 `Job ID` from the trigger when present.
+   - Otherwise use the Gmail message id.
+   - Reuse this id for Telegram idempotency reasoning, Google Drive log naming, and analytics `conversion_id`.
+3. If `lead_quality` is `high`, send exactly one Telegram notification using the Telegram Notifications section.
+4. Create or verify the Google Drive triage log using the Google Drive Triage Log section.
+5. Emit analytics only when the lead meets the Analytics Contract.
+6. Final response must summarize:
+   - category
+   - lead quality
+   - suggested action
+   - Telegram result when attempted
+   - Google Drive log result or exact failure
+   - analytics result or why analytics was not emitted
+
+Do not report the workflow as complete until each required side effect has either succeeded or has an explicit captured failure.
 
 ## Telegram Notifications
 
@@ -57,6 +72,60 @@ Suggested action: <next step>
 
 **If the Telegram send fails:** Log the failure to the Google Drive triage log and continue — do not retry in a loop or block the triage workflow.
 
+## Google Drive Triage Log
+
+Create a searchable Google Drive record for every evaluated business inquiry, including low, medium, ambiguous, and high-quality leads. This is a required operational log, not a conversion signal.
+
+### Log location and naming
+
+- Folder name: `Sync360 Inbox Triage Logs`
+- File name: `sync360-inbox-triage-<lead-id>.md`
+- If the trigger includes a Gmail message id, include it in the file body.
+- If a file with the same `lead-id` already exists, do not create a duplicate. Update or verify the existing file instead.
+
+### Required log fields
+
+Include only the minimum useful business evidence:
+
+- timestamp evaluated
+- lead id
+- Gmail message id and thread id when available
+- sender display name or company
+- sender domain
+- subject
+- category
+- lead quality
+- suggested action
+- short rationale, maximum 5 bullets
+- Telegram result if attempted
+- analytics result if emitted
+
+Do not store full raw email bodies, attachments, credentials, private notes, or unnecessary personal contact details in the Drive log. Mask direct contact details when they are not needed for follow-up.
+
+### Suggested GOG command shape
+
+Use the workspace exec tool and the configured GOG account. Inspect help when needed with `gog drive --help` and `gog drive upload --help`.
+
+Recommended flow:
+
+1. Search for an existing folder:
+   `gog --json drive search "Sync360 Inbox Triage Logs" --max 10`
+2. Create the folder if missing:
+   `gog --json drive mkdir "Sync360 Inbox Triage Logs"`
+3. Search for an existing lead log:
+   `gog --json drive search "sync360-inbox-triage-<lead-id>.md" --max 10`
+4. Write the markdown log to a temporary workspace file.
+5. Upload a new log or replace the existing file:
+   `gog --json drive upload <localPath> --parent <folderId> --name "sync360-inbox-triage-<lead-id>.md"`
+   or
+   `gog --json drive upload <localPath> --replace <fileId> --name "sync360-inbox-triage-<lead-id>.md"`
+
+### Response validation
+
+- Inspect the `gog` JSON output after folder and file operations.
+- Treat the Drive log as successful only when the upload/replace output contains a file id or otherwise confirms the target file.
+- If Drive logging fails, include the exact command error/output in the final response and still continue to Telegram/analytics steps when those are applicable.
+
 ## Analytics Contract
 
 ### When to emit
@@ -64,6 +133,7 @@ Suggested action: <next step>
 - Emit only for leads that meet your minimum quality threshold (not spam/low-intent).
 - Do not emit for incoming email volume or incomplete triage decisions.
 - Emit exactly once per evaluated lead.
+- Do not use Google Drive logging as proof of conversion; Drive logging is operational evidence. Analytics is emitted only when the lead quality/category threshold is met.
 
 ### Required invocation
 Use the workspace exec tool to run:
