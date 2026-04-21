@@ -90,6 +90,8 @@ class InboxTriagePollingTest extends TestCase
                     && str_contains($message, 'This trigger has not classified the email as high-value.')
                     && str_contains($message, 'Read the workspace skill file at ./skills/inbox-triage/SKILL.md')
                     && str_contains($message, 'Do not look under /app/skills')
+                    && str_contains($message, 'Execute the inbox-triage workflow now; do not reply with only an assessment, recommendation, or plan.')
+                    && str_contains($message, 'Do not browse the public web or research the sender unless the operator explicitly asks for that.')
                     && str_contains($message, '"possible_form_submission"')
                     && ! str_contains($message, 'send the Telegram notification');
             })

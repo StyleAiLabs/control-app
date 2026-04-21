@@ -22,6 +22,7 @@ Fixed two live inbox-triage issues: new emails in an already-known Gmail thread 
 - added regression coverage for a new business email arriving in an existing thread and still reaching the assigned skill
 - updated `goLive()` / workspace-only resync to write materialized workspace skill files under `.openclaw/workspace/skills/<skill-id>/...`, not just the top-level markdown files
 - added regression coverage proving go-live workspace sync now refreshes the live `inbox-triage` skill file alongside `HEARTBEAT.md`
+- tightened the inbox trigger prompt so hook-driven inbox-triage runs are framed as internal operating tasks that must execute the required workflow now instead of only returning an assessment or plan
 
 ## 2026-04-22 — Fix: Lead Reference For Inbox Triage Follow-Ups
 
