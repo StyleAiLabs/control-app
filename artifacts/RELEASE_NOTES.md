@@ -20,7 +20,7 @@ Fixed Inbox Triage delivery after live debugging showed Gmail polling detected t
 
 - changed `TenantWorkspaceMessenger` to send neutral inbox events through OpenClaw's private `/hooks/agent` ingress with `deliver=false`
 - added private hook authorization headers to local and SSH gateway HTTP requests
-- updated tenant config composition to enable OpenClaw `hooks` using the existing private gateway token
+- updated tenant config composition to enable OpenClaw `hooks` using a stable token that is distinct from the gateway auth token
 - ensured go-live workspace writes create parent directories for nested helper files such as `.sync360/bin/log-skill-conversion` without broadening go-live beyond workspace files
 - added regression coverage for hook delivery payloads and generated hook config
 

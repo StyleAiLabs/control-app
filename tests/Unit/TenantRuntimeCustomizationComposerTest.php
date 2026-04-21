@@ -138,7 +138,8 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
         $this->assertSame('gpt-4.1', data_get($config, 'agents.defaults.model'));
         $this->assertSame('keep-me', data_get($config, 'gateway.auth.token'));
         $this->assertTrue(data_get($config, 'hooks.enabled'));
-        $this->assertSame('keep-me', data_get($config, 'hooks.token'));
+        $this->assertNotSame('keep-me', data_get($config, 'hooks.token'));
+        $this->assertSame(hash('sha256', 'sync360-hooks|tenant_customization_01|keep-me'), data_get($config, 'hooks.token'));
         $this->assertSame('/hooks', data_get($config, 'hooks.path'));
         $this->assertTrue(data_get($config, 'skills.entries.hello-world.enabled'));
         $this->assertTrue(data_get($config, 'skills.entries.custom-default-skill.enabled'));

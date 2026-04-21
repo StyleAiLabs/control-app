@@ -112,7 +112,7 @@ class TenantRuntimeCustomizationComposer
         $config['agents']['defaults'] = is_array($config['agents']['defaults'] ?? null) ? $config['agents']['defaults'] : [];
         $config['skills'] = is_array($config['skills'] ?? null) ? $config['skills'] : [];
         $config['skills']['entries'] = is_array($config['skills']['entries'] ?? null) ? $config['skills']['entries'] : [];
-        $config = $this->applyPrivateHookIngress($config);
+        $config = $this->applyPrivateHookIngress($tenant, $config);
 
         $agentDefaults = is_array($customization?->agent_defaults_json) ? $customization->agent_defaults_json : [];
         $enabledAssignments = $this->enabledAssignments($tenant);
@@ -175,7 +175,7 @@ class TenantRuntimeCustomizationComposer
      * @param  array<string, mixed>  $config
      * @return array<string, mixed>
      */
-    private function applyPrivateHookIngress(array $config): array
+    private function applyPrivateHookIngress(Tenant $tenant, array $config): array
     {
         $gatewayToken = data_get($config, 'gateway.auth.token');
         $gatewayToken = is_string($gatewayToken) ? trim($gatewayToken) : '';
@@ -186,9 +186,14 @@ class TenantRuntimeCustomizationComposer
 
         $hooks = is_array($config['hooks'] ?? null) ? $config['hooks'] : [];
         $hooks['enabled'] = true;
-        $hooks['token'] = is_string($hooks['token'] ?? null) && trim((string) $hooks['token']) !== ''
+        $configuredHookToken = is_string($hooks['token'] ?? null) ? trim((string) $hooks['token']) : '';
+        $hooks['token'] = $configuredHookToken !== '' && $configuredHookToken !== $gatewayToken
             ? trim((string) $hooks['token'])
-            : $gatewayToken;
+            : hash('sha256', implode('|', [
+                'sync360-hooks',
+                (string) $tenant->tenant_id,
+                $gatewayToken,
+            ]));
         $hooks['path'] = is_string($hooks['path'] ?? null) && trim((string) $hooks['path']) !== ''
             ? trim((string) $hooks['path'])
             : '/hooks';
