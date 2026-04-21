@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\TenantRuntimeCustomizationComposer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use PDO;
 use Symfony\Component\Process\Process;
 use Tests\TestCase;
@@ -59,6 +60,33 @@ class TenantSkillAnalyticsSyncTest extends TestCase
             $payload,
         ], $workspacePath);
         $process->mustRun();
+        $result = json_decode(trim($process->getOutput()), true);
+
+        $this->assertSame([
+            'ok' => true,
+            'mode' => 'log',
+            'event_id' => 'hello-event-001',
+            'conversion_id' => 'hello-ref-001',
+            'skill_key' => 'hello-world',
+            'inserted' => true,
+        ], array_intersect_key($result, array_flip(['ok', 'mode', 'event_id', 'conversion_id', 'skill_key', 'inserted'])));
+        $this->assertStringEndsWith('/.openclaw/data/analytics/skill-events.sqlite', $result['db_path']);
+
+        $duplicate = new Process([
+            'sh',
+            '.sync360/bin/log-skill-conversion',
+            '--skill',
+            'hello-world',
+            '--conversion-id',
+            'hello-ref-001',
+            '--payload-json',
+            $payload,
+        ], $workspacePath);
+        $duplicate->mustRun();
+        $duplicateResult = json_decode(trim($duplicate->getOutput()), true);
+
+        $this->assertTrue($duplicateResult['ok']);
+        $this->assertFalse($duplicateResult['inserted']);
 
         $this->artisan('sync360:sync-skill-conversions', ['tenantSelector' => $tenant->slug])
             ->assertExitCode(0)
@@ -106,6 +134,79 @@ class TenantSkillAnalyticsSyncTest extends TestCase
             ->assertSee('Estimated Skill Impact')
             ->assertSee('hello-ref-001')
             ->assertSee('session-001');
+    }
+
+    public function test_runtime_helper_init_only_creates_empty_sqlite_schema(): void
+    {
+        [$tenant, $owner] = $this->seedTenant('analytics-init', 'Analytics Init');
+
+        $this->artisan('sync360:skills:import')->assertExitCode(0);
+        $this->assignHelloWorldSkill($tenant, $owner);
+        $this->materializeWorkspaceArtifacts($tenant);
+
+        $workspacePath = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace';
+        $dbPath = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/data/analytics/skill-events.sqlite';
+
+        $this->assertFileDoesNotExist($dbPath);
+
+        $process = new Process([
+            'sh',
+            '.sync360/bin/log-skill-conversion',
+            '--init-only',
+        ], $workspacePath);
+        $process->mustRun();
+        $result = json_decode(trim($process->getOutput()), true);
+
+        $this->assertSame([
+            'ok' => true,
+            'mode' => 'init-only',
+            'skill_count' => 1,
+        ], array_intersect_key($result, array_flip(['ok', 'mode', 'skill_count'])));
+        $this->assertSame($dbPath, $result['db_path']);
+        $this->assertFileExists($dbPath);
+
+        $pdo = new PDO('sqlite:'.$dbPath);
+        $this->assertSame(0, (int) $pdo->query('SELECT COUNT(*) FROM skill_conversion_events')->fetchColumn());
+    }
+
+    public function test_init_skill_analytics_command_initializes_local_runtime_database(): void
+    {
+        [$tenant, $owner] = $this->seedTenant('analytics-command', 'Analytics Command');
+
+        $this->artisan('sync360:skills:import')->assertExitCode(0);
+        $this->assignHelloWorldSkill($tenant, $owner);
+        $this->materializeWorkspaceArtifacts($tenant);
+
+        $dbPath = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/data/analytics/skill-events.sqlite';
+
+        $this->assertFileDoesNotExist($dbPath);
+
+        $this->artisan('sync360:init-skill-analytics', ['tenantSelector' => $tenant->slug])
+            ->assertExitCode(0)
+            ->expectsOutputToContain('Skill analytics initialization finished');
+
+        $this->assertFileExists($dbPath);
+    }
+
+    public function test_sync_warns_when_analytics_enabled_tenant_has_no_runtime_database(): void
+    {
+        [$tenant, $owner] = $this->seedTenant('analytics-missing-db', 'Analytics Missing DB');
+
+        $this->artisan('sync360:skills:import')->assertExitCode(0);
+        $this->assignHelloWorldSkill($tenant, $owner);
+        $this->materializeWorkspaceArtifacts($tenant);
+
+        Log::spy();
+
+        $this->artisan('sync360:sync-skill-conversions', ['tenantSelector' => $tenant->slug])
+            ->assertExitCode(0)
+            ->expectsOutputToContain('Missing runtime DBs 1');
+
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(fn (string $message, array $context): bool => $message === 'sync360:sync-skill-conversions found analytics-enabled tenant without a runtime SQLite database.'
+                && ($context['tenant_slug'] ?? null) === $tenant->slug
+                && str_ends_with((string) ($context['runtime_db_path'] ?? ''), '/.openclaw/data/analytics/skill-events.sqlite'));
     }
 
     public function test_sync_skips_malformed_rows_advances_cursor_and_prunes_old_synced_runtime_rows(): void

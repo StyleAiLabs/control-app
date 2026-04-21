@@ -28,6 +28,7 @@ class TenantAgentSyncService
         private readonly TenantGoogleWorkspaceSmokeTestService $googleWorkspaceSmokeTests,
         private readonly TenantRuntimeCapabilityService $runtimeCapabilities,
         private readonly TenantRuntimeCustomizationComposer $runtimeCustomizationComposer,
+        private readonly TenantSkillAnalyticsRuntimeService $skillAnalyticsRuntime,
     ) {
     }
 
@@ -79,6 +80,8 @@ class TenantAgentSyncService
                 $this->dockerCompose->syncWorkspaceFiles($tenant->server, $localWorkspacePath, $remoteWorkspacePath);
                 $this->dockerCompose->up($tenant->server, $composeFile, $projectName);
             }
+
+            $this->skillAnalyticsRuntime->initializeTenant($tenant);
 
             $profileFiles->forceFill([
                 'profile_markdown' => $artifacts['PROFILE.md'],

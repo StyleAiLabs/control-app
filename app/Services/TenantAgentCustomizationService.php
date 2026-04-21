@@ -21,6 +21,7 @@ class TenantAgentCustomizationService
         private readonly DockerComposeRunner $dockerCompose,
         private readonly TenantRuntimeService $runtime,
         private readonly TenantSkillAssignmentService $skillAssignments,
+        private readonly TenantSkillAnalyticsRuntimeService $skillAnalyticsRuntime,
     ) {
     }
 
@@ -137,99 +138,142 @@ class TenantAgentCustomizationService
             throw new RuntimeException('No tenant runtime customization draft exists yet.');
         }
 
-        DB::transaction(function () use ($tenant, $provisioningJob, $composer, $action, $customization): void {
-            $lockedCustomization = TenantAgentCustomization::query()
-                ->whereKey($customization->id)
-                ->lockForUpdate()
-                ->firstOrFail();
-            $freshTenant = $tenant->fresh(['businessProfile', 'businessProfileFiles', 'googleCredential', 'agentCustomization', 'skillAssignments.catalogVersion']);
+        $failure = null;
 
-            $snapshot = $action === TenantAgentCustomizationApply::ACTION_REVERT
-                ? $this->restoreLastAppliedSnapshot($freshTenant, $lockedCustomization)
-                : $this->draftInputSnapshot($freshTenant, $lockedCustomization);
-
-            $provisioningJob->forceFill([
-                'status' => ProvisioningJobStatus::Running,
-                'started_at' => now(),
-                'completed_at' => null,
-                'error_message' => null,
-            ])->save();
-
-            $beforeHash = $lockedCustomization->applied_snapshot_hash;
-
-            try {
+        try {
+            DB::transaction(function () use ($tenant, $provisioningJob, $composer, $action, $customization, &$failure): void {
+                $lockedCustomization = TenantAgentCustomization::query()
+                    ->whereKey($customization->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
                 $freshTenant = $tenant->fresh(['businessProfile', 'businessProfileFiles', 'googleCredential', 'agentCustomization', 'skillAssignments.catalogVersion']);
-                $composed = $composer->compose($freshTenant, $freshTenant->agentCustomization);
 
-                if ($composed->contentHash !== $beforeHash) {
-                    $this->materializeWorkspaceFiles($tenant, $composed);
-                    $configChanged = $this->writeLocalConfig($tenant, $composed->openClawConfig);
-                    $this->syncRemoteArtifacts($tenant, $composed->openClawConfig, $configChanged);
-                }
-
-                $status = $action === TenantAgentCustomizationApply::ACTION_REVERT
-                    ? TenantAgentCustomizationApply::STATUS_REVERTED
-                    : TenantAgentCustomizationApply::STATUS_APPLIED;
-
-                $lockedCustomization->forceFill([
-                    'last_applied_input_snapshot_json' => $snapshot,
-                    'applied_snapshot_hash' => $composed->contentHash,
-                    'last_applied_at' => now(),
-                    'last_apply_status' => 'applied',
-                    'last_apply_error' => null,
-                ])->save();
-
-                $this->skillAssignments->markApplyResult($tenant, 'applied');
-
-                TenantAgentCustomizationApply::query()->create([
-                    'tenant_agent_customization_id' => $lockedCustomization->id,
-                    'tenant_id' => $tenant->id,
-                    'applied_by' => $lockedCustomization->draft_updated_by,
-                    'action' => $action,
-                    'draft_version_applied' => (int) $lockedCustomization->draft_version,
-                    'input_snapshot_json' => $snapshot,
-                    'before_output_hash' => $beforeHash,
-                    'after_output_hash' => $composed->contentHash,
-                    'status' => $status,
-                    'composed_output_json' => $composed->diagnosticPayload(),
-                    'created_at' => now(),
-                ]);
+                $snapshot = $action === TenantAgentCustomizationApply::ACTION_REVERT
+                    ? $this->restoreLastAppliedSnapshot($freshTenant, $lockedCustomization)
+                    : $this->draftInputSnapshot($freshTenant, $lockedCustomization);
 
                 $provisioningJob->forceFill([
-                    'status' => ProvisioningJobStatus::Completed,
-                    'completed_at' => now(),
+                    'status' => ProvisioningJobStatus::Running,
+                    'started_at' => now(),
+                    'completed_at' => null,
                     'error_message' => null,
                 ])->save();
-            } catch (Throwable $exception) {
-                $lockedCustomization->forceFill([
-                    'last_apply_status' => 'failed',
-                    'last_apply_error' => $exception->getMessage(),
-                ])->save();
-                $this->skillAssignments->markApplyResult($tenant, 'failed', $exception->getMessage());
 
-                TenantAgentCustomizationApply::query()->create([
-                    'tenant_agent_customization_id' => $lockedCustomization->id,
-                    'tenant_id' => $tenant->id,
-                    'applied_by' => $lockedCustomization->draft_updated_by,
-                    'action' => $action,
-                    'draft_version_applied' => (int) $lockedCustomization->draft_version,
-                    'input_snapshot_json' => $snapshot ?? $this->draftInputSnapshot($tenant->fresh(['skillAssignments.catalogVersion']), $lockedCustomization),
-                    'before_output_hash' => $beforeHash,
-                    'after_output_hash' => null,
-                    'status' => TenantAgentCustomizationApply::STATUS_FAILED,
-                    'error' => $exception->getMessage(),
-                    'created_at' => now(),
-                ]);
+                $beforeHash = $lockedCustomization->applied_snapshot_hash;
 
-                $provisioningJob->forceFill([
-                    'status' => ProvisioningJobStatus::Failed,
-                    'completed_at' => now(),
-                    'error_message' => $exception->getMessage(),
-                ])->save();
+                try {
+                    $freshTenant = $tenant->fresh(['businessProfile', 'businessProfileFiles', 'googleCredential', 'agentCustomization', 'skillAssignments.catalogVersion']);
+                    $composed = $composer->compose($freshTenant, $freshTenant->agentCustomization);
 
-                throw $exception;
-            }
-        });
+                    if ($composed->contentHash !== $beforeHash) {
+                        $this->materializeWorkspaceFiles($tenant, $composed);
+                        $configChanged = $this->writeLocalConfig($tenant, $composed->openClawConfig);
+                        $this->syncRemoteArtifacts($tenant, $composed->openClawConfig, $configChanged);
+                    }
+
+                    $this->skillAnalyticsRuntime->initializeTenant($freshTenant);
+
+                    $status = $action === TenantAgentCustomizationApply::ACTION_REVERT
+                        ? TenantAgentCustomizationApply::STATUS_REVERTED
+                        : TenantAgentCustomizationApply::STATUS_APPLIED;
+
+                    $lockedCustomization->forceFill([
+                        'last_applied_input_snapshot_json' => $snapshot,
+                        'applied_snapshot_hash' => $composed->contentHash,
+                        'last_applied_at' => now(),
+                        'last_apply_status' => 'applied',
+                        'last_apply_error' => null,
+                    ])->save();
+
+                    $this->skillAssignments->markApplyResult($tenant, 'applied');
+
+                    TenantAgentCustomizationApply::query()->create([
+                        'tenant_agent_customization_id' => $lockedCustomization->id,
+                        'tenant_id' => $tenant->id,
+                        'applied_by' => $lockedCustomization->draft_updated_by,
+                        'action' => $action,
+                        'draft_version_applied' => (int) $lockedCustomization->draft_version,
+                        'input_snapshot_json' => $snapshot,
+                        'before_output_hash' => $beforeHash,
+                        'after_output_hash' => $composed->contentHash,
+                        'status' => $status,
+                        'composed_output_json' => $composed->diagnosticPayload(),
+                        'created_at' => now(),
+                    ]);
+
+                    $provisioningJob->forceFill([
+                        'status' => ProvisioningJobStatus::Completed,
+                        'completed_at' => now(),
+                        'error_message' => null,
+                    ])->save();
+                } catch (Throwable $exception) {
+                    $lockedCustomization->forceFill([
+                        'last_apply_status' => 'failed',
+                        'last_apply_error' => $exception->getMessage(),
+                    ])->save();
+                    $this->skillAssignments->markApplyResult($tenant, 'failed', $exception->getMessage());
+
+                    TenantAgentCustomizationApply::query()->create([
+                        'tenant_agent_customization_id' => $lockedCustomization->id,
+                        'tenant_id' => $tenant->id,
+                        'applied_by' => $lockedCustomization->draft_updated_by,
+                        'action' => $action,
+                        'draft_version_applied' => (int) $lockedCustomization->draft_version,
+                        'input_snapshot_json' => $snapshot ?? $this->draftInputSnapshot($tenant->fresh(['skillAssignments.catalogVersion']), $lockedCustomization),
+                        'before_output_hash' => $beforeHash,
+                        'after_output_hash' => null,
+                        'status' => TenantAgentCustomizationApply::STATUS_FAILED,
+                        'error' => $exception->getMessage(),
+                        'created_at' => now(),
+                    ]);
+
+                    $provisioningJob->forceFill([
+                        'status' => ProvisioningJobStatus::Failed,
+                        'completed_at' => now(),
+                        'error_message' => $exception->getMessage(),
+                    ])->save();
+
+                    $failure = $exception;
+
+                    return;
+                }
+            });
+        } catch (Throwable $exception) {
+            $freshCustomization = $customization->fresh() ?: $customization;
+            $freshTenant = $tenant->fresh(['skillAssignments.catalogVersion']) ?: $tenant;
+
+            $freshCustomization->forceFill([
+                'last_apply_status' => 'failed',
+                'last_apply_error' => $exception->getMessage(),
+            ])->save();
+            $this->skillAssignments->markApplyResult($freshTenant, 'failed', $exception->getMessage());
+
+            $provisioningJob->forceFill([
+                'status' => ProvisioningJobStatus::Failed,
+                'completed_at' => now(),
+                'error_message' => $exception->getMessage(),
+            ])->save();
+
+            TenantAgentCustomizationApply::query()->create([
+                'tenant_agent_customization_id' => $freshCustomization->id,
+                'tenant_id' => $tenant->id,
+                'applied_by' => $freshCustomization->draft_updated_by,
+                'action' => $action,
+                'draft_version_applied' => (int) $freshCustomization->draft_version,
+                'input_snapshot_json' => $this->draftInputSnapshot($freshTenant, $freshCustomization),
+                'before_output_hash' => $freshCustomization->applied_snapshot_hash,
+                'after_output_hash' => null,
+                'status' => TenantAgentCustomizationApply::STATUS_FAILED,
+                'error' => $exception->getMessage(),
+                'created_at' => now(),
+            ]);
+
+            throw $exception;
+        }
+
+        if ($failure instanceof Throwable) {
+            throw $failure;
+        }
     }
 
     /**

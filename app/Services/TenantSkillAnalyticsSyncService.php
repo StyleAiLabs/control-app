@@ -18,11 +18,12 @@ class TenantSkillAnalyticsSyncService
 {
     public function __construct(
         private readonly TenantRuntimeService $runtime,
+        private readonly TenantSkillAnalyticsRuntimeService $skillAnalyticsRuntime,
     ) {
     }
 
     /**
-     * @return array{imported:int, skipped:int, pruned:int, tenants:int}
+     * @return array{imported:int, skipped:int, pruned:int, tenants:int, missing_runtime_dbs:int}
      */
     public function sync(?Tenant $selectedTenant = null): array
     {
@@ -39,6 +40,7 @@ class TenantSkillAnalyticsSyncService
             'skipped' => 0,
             'pruned' => 0,
             'tenants' => $tenants->count(),
+            'missing_runtime_dbs' => 0,
         ];
 
         foreach ($tenants as $tenant) {
@@ -46,13 +48,14 @@ class TenantSkillAnalyticsSyncService
             $totals['imported'] += $result['imported'];
             $totals['skipped'] += $result['skipped'];
             $totals['pruned'] += $result['pruned'];
+            $totals['missing_runtime_dbs'] += $result['missing_runtime_db'] ? 1 : 0;
         }
 
         return $totals;
     }
 
     /**
-     * @return array{imported:int, skipped:int, pruned:int}
+     * @return array{imported:int, skipped:int, pruned:int, missing_runtime_db:bool}
      */
     public function syncTenant(Tenant $tenant): array
     {
@@ -60,6 +63,22 @@ class TenantSkillAnalyticsSyncService
             ['tenant_id' => $tenant->id],
             ['last_runtime_row_id' => 0]
         );
+        $tenant->loadMissing('skillAssignments.catalogVersion');
+        $missingRuntimeDb = false;
+
+        if (
+            $this->skillAnalyticsRuntime->tenantHasAnalyticsSkills($tenant)
+            && ! $this->skillAnalyticsRuntime->runtimeDatabaseExists($tenant)
+        ) {
+            $missingRuntimeDb = true;
+            Log::warning('sync360:sync-skill-conversions found analytics-enabled tenant without a runtime SQLite database.', [
+                'tenant_id' => $tenant->tenant_id,
+                'tenant_slug' => $tenant->slug,
+                'runtime_db_path' => $this->usesLocalRuntimeDriver()
+                    ? $this->runtime->localSkillAnalyticsDbPath($tenant)
+                    : $this->runtime->remoteSkillAnalyticsDbPath($tenant),
+            ]);
+        }
 
         $rows = $this->runtimeRowsForTenant($tenant, (int) $state->last_runtime_row_id);
         $imported = 0;
@@ -106,6 +125,7 @@ class TenantSkillAnalyticsSyncService
             'imported' => $imported,
             'skipped' => $skipped,
             'pruned' => $pruned,
+            'missing_runtime_db' => $missingRuntimeDb,
         ];
     }
 

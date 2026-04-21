@@ -277,7 +277,8 @@ Runtime contract:
    - `.sync360/bin/log-skill-conversion.mjs`
    - `.sync360/skill-analytics-registry.json`
 4. skills emit analytics through the workspace exec tool by shelling the helper instead of writing files or SQL directly
-5. the helper writes one row per successful conversion into `.openclaw/data/analytics/skill-events.sqlite` and enables SQLite WAL mode during initialization
+5. `TenantSkillAnalyticsRuntimeService` pre-initializes analytics-enabled tenant runtimes during go-live/customization apply, and operators can repair already-live tenants with `sync360:init-skill-analytics`
+6. the helper writes one row per successful conversion into `.openclaw/data/analytics/skill-events.sqlite`, supports `--init-only` schema creation, emits JSON status for both initialization and logging, and enables SQLite WAL mode during initialization
 
 Control-plane sync contract:
 
@@ -287,6 +288,7 @@ Control-plane sync contract:
 4. central rows are stored in `tenant_skill_conversion_events`
 5. per-tenant cursor state is stored in `tenant_skill_analytics_sync_states`
 6. the scheduler runs analytics sync every 30 minutes
+7. analytics-enabled tenants with no runtime SQLite database produce a sync warning so missing initialization is visible instead of silently looking like zero conversions
 
 Metric rules in v1:
 

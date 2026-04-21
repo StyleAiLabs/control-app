@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-21 — Fix: Skill Analytics Runtime DB Initialization
+
+Date: 2026-04-21
+Status: Implemented
+
+### Overview
+
+Made tenant skill analytics storage explicit and observable so analytics-enabled skills do not appear to run without a persistent runtime SQLite database.
+
+### What Changed
+
+- added `--init-only` and JSON status output to the Sync360 `log-skill-conversion` runtime helper
+- initialized `.openclaw/data/analytics/skill-events.sqlite` during go-live and tenant customization apply for tenants with enabled analytics skills
+- added `sync360:init-skill-analytics` to repair already-live tenant runtimes
+- warned during `sync360:sync-skill-conversions` when an analytics-enabled tenant has no runtime DB
+- tightened `conversion-test` instructions so agents only report success after the helper returns an `event_id`
+
 ## 2026-04-21 — Bugfix: Skill Assignability Requires Published Version
 
 Date: 2026-04-21

@@ -57,6 +57,8 @@ Required analytics invocation pattern:
 - The skill must use the workspace exec tool.
 - The skill must call the Sync360-owned helper:
   `sh .sync360/bin/log-skill-conversion --skill <skill-id> --conversion-id <conversion-id> --payload-json '<json>'`
+- The skill must inspect the helper JSON output and treat the conversion as successful only when it contains `"ok": true` and an `event_id`.
+- If the helper fails or returns non-JSON output, the skill must report the exact command error/output instead of claiming the conversion succeeded.
 - The skill must not write directly to `.openclaw/data/analytics/skill-events.sqlite`.
 - The skill must not create its own analytics writer.
 

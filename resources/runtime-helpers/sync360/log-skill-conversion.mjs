@@ -39,11 +39,7 @@ function lookupPath(payload, dottedPath) {
 }
 
 const args = parseArgs(process.argv.slice(2));
-const skillKey = requireValue(args.skill, 'skill');
-const conversionId = requireValue(args['conversion-id'], 'conversion-id');
-const payloadJson = requireValue(args['payload-json'], 'payload-json');
-
-const payload = JSON.parse(payloadJson);
+const initOnly = args['init-only'] !== undefined;
 const scriptDir = path.dirname(new URL(import.meta.url).pathname);
 const registryPath = path.resolve(scriptDir, '..', 'skill-analytics-registry.json');
 
@@ -52,18 +48,6 @@ if (!existsSync(registryPath)) {
 }
 
 const registry = JSON.parse(readFileSync(registryPath, 'utf8'));
-const skill = registry?.skills?.[skillKey];
-
-if (!skill) {
-  throw new Error(`Analytics is not enabled for skill [${skillKey}].`);
-}
-
-for (const requiredField of skill.required_success_fields ?? []) {
-  if (lookupPath(payload, requiredField) === undefined) {
-    throw new Error(`Missing required payload field [${requiredField}].`);
-  }
-}
-
 const workspaceRoot = path.resolve(scriptDir, '..', '..');
 const analyticsDir = path.join(workspaceRoot, '..', 'data', 'analytics');
 mkdirSync(analyticsDir, { recursive: true });
@@ -92,6 +76,34 @@ db.exec(`
   );
 `);
 
+if (initOnly) {
+  console.log(JSON.stringify({
+    ok: true,
+    mode: 'init-only',
+    db_path: dbPath,
+    skill_count: Object.keys(registry?.skills ?? {}).length,
+  }));
+  process.exit(0);
+}
+
+const skillKey = requireValue(args.skill, 'skill');
+const conversionId = requireValue(args['conversion-id'], 'conversion-id');
+const payloadJson = requireValue(args['payload-json'], 'payload-json');
+
+const payload = JSON.parse(payloadJson);
+const skill = registry?.skills?.[skillKey];
+
+if (!skill) {
+  throw new Error(`Analytics is not enabled for skill [${skillKey}].`);
+}
+
+for (const requiredField of skill.required_success_fields ?? []) {
+  if (lookupPath(payload, requiredField) === undefined) {
+    throw new Error(`Missing required payload field [${requiredField}].`);
+  }
+}
+
+const eventId = requireValue(payload.event_id, 'payload.event_id');
 const statement = db.prepare(`
   INSERT OR IGNORE INTO skill_conversion_events (
     event_id, skill_key, skill_version, event_type, conversion_type, conversion_id, occurred_at,
@@ -102,8 +114,8 @@ const statement = db.prepare(`
   )
 `);
 
-statement.run(
-  requireValue(payload.event_id, 'payload.event_id'),
+const result = statement.run(
+  eventId,
   skill.skill_key,
   skill.skill_version,
   skill.success_event_type,
@@ -120,4 +132,12 @@ statement.run(
   new Date().toISOString(),
 );
 
-console.log(`Logged conversion event for ${skillKey}.`);
+console.log(JSON.stringify({
+  ok: true,
+  mode: 'log',
+  event_id: eventId,
+  conversion_id: conversionId,
+  skill_key: skillKey,
+  db_path: dbPath,
+  inserted: Number(result?.changes ?? 0) > 0,
+}));

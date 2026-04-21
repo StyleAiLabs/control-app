@@ -7,6 +7,7 @@ use App\Models\Tenant;
 use App\Models\Server;
 use App\Services\LiteLlmTenantKeyService;
 use App\Services\TenantAgentSyncService;
+use App\Services\TenantSkillAnalyticsRuntimeService;
 use App\Services\TenantSkillAnalyticsSyncService;
 use App\Services\TenantRuntimeCapabilityService;
 use App\Services\TenantProfileSyncService;
@@ -281,15 +282,50 @@ Artisan::command('sync360:sync-skill-conversions {tenantSelector? : Tenant id, t
     $result = $analytics->sync($tenant);
 
     $this->components->info(sprintf(
-        'Skill conversion sync finished. Imported %d. Skipped %d. Pruned %d. Tenants %d.',
+        'Skill conversion sync finished. Imported %d. Skipped %d. Pruned %d. Tenants %d. Missing runtime DBs %d.',
         $result['imported'],
         $result['skipped'],
         $result['pruned'],
         $result['tenants'],
+        $result['missing_runtime_dbs'],
     ));
 })->purpose('Sync tenant runtime skill conversion analytics into the control plane');
 
 Schedule::command('sync360:sync-skill-conversions')->everyThirtyMinutes();
+
+Artisan::command('sync360:init-skill-analytics {tenantSelector? : Tenant id, tenant_id, or slug. Omit to initialize every tenant runtime with analytics-enabled skills}', function (?string $tenantSelector = null) {
+    $tenant = null;
+
+    if (is_string($tenantSelector) && trim($tenantSelector) !== '') {
+        $selector = trim($tenantSelector);
+        $tenant = Tenant::query()
+            ->with(['server', 'skillAssignments.catalogVersion'])
+            ->where(function ($query) use ($selector): void {
+                if (ctype_digit($selector)) {
+                    $query->where('id', (int) $selector);
+                }
+
+                $query->orWhere('tenant_id', $selector)
+                    ->orWhere('slug', $selector);
+            })
+            ->first();
+
+        if (! $tenant) {
+            throw new \RuntimeException(sprintf('No tenant matched [%s].', $selector));
+        }
+    }
+
+    /** @var TenantSkillAnalyticsRuntimeService $analyticsRuntime */
+    $analyticsRuntime = app(TenantSkillAnalyticsRuntimeService::class);
+    $result = $analyticsRuntime->initialize($tenant);
+
+    $this->components->info(sprintf(
+        'Skill analytics initialization finished. Initialized %d. Skipped %d. Tenants %d.',
+        $result['initialized'],
+        $result['skipped'],
+        $result['tenants'],
+    ));
+})->purpose('Initialize tenant runtime SQLite storage for skill analytics');
 
 Artisan::command('sync360:resync-live-tenants {tenantSelector? : Tenant id, tenant_id, or slug. Omit to resync every live tenant}', function (?string $tenantSelector = null) {
     $tenants = Tenant::query()

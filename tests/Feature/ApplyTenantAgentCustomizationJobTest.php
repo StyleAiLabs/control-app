@@ -64,6 +64,10 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
 
         $this->instance(DockerComposeRunner::class, $runner);
 
+        $analyticsSentinel = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/data/analytics/keep.txt';
+        File::ensureDirectoryExists(dirname($analyticsSentinel));
+        File::put($analyticsSentinel, 'keep analytics data');
+
         $provisioningJob = ProvisioningJob::query()->create([
             'tenant_id' => $tenant->id,
             'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
@@ -84,9 +88,12 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
 
         $skillPackFile = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skills/hello-world/SKILL.md';
         $identityFile = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/IDENTITY.md';
+        $analyticsDb = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/data/analytics/skill-events.sqlite';
 
         $this->assertFileExists($skillPackFile);
         $this->assertFileExists($identityFile);
+        $this->assertFileExists($analyticsSentinel);
+        $this->assertFileExists($analyticsDb);
         $this->assertStringContainsString('Admin identity notes', File::get($identityFile));
         $this->assertNotNull($customization->applied_snapshot_hash);
         $this->assertNotNull($customization->last_applied_input_snapshot_json);
@@ -246,6 +253,111 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         $this->assertFalse(data_get($config, 'skills.entries.hello-world.enabled'));
         $this->assertSame([], $runner->removedDirectories);
         $this->assertNotEmpty($runner->workspaceSyncs);
+    }
+
+    public function test_remote_apply_initializes_skill_analytics_inside_tenant_container(): void
+    {
+        [$tenant] = $this->seedTenantAndCustomization();
+        config()->set('sync360.infrastructure.driver', 'ssh');
+
+        $runner = new class implements DockerComposeRunner
+        {
+            public array $commands = [];
+
+            public function syncRuntime(\App\Models\Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
+            public function syncWorkspaceFiles(\App\Models\Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void {}
+            public function httpRequest(\App\Models\Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array { return ['status' => 200, 'body' => '']; }
+            public function putFile(\App\Models\Server $server, string $remotePath, string $contents, bool $sudo = false): void {}
+            public function removeFile(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function removeDirectory(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function runCommand(\App\Models\Server $server, string $command, bool $sudo = false): void
+            {
+                $this->commands[] = $command;
+            }
+            public function up(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function down(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function start(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function stop(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function isRunning(\App\Models\Server $server, string $composeFile, string $projectName): bool { return false; }
+            public function isHostPortInUse(\App\Models\Server $server, int $port): bool { return false; }
+            public function waitForHttpReady(\App\Models\Server $server, string $url, int $timeoutSeconds, int $pollIntervalMs): void {}
+        };
+
+        $this->instance(DockerComposeRunner::class, $runner);
+
+        $provisioningJob = ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Queued,
+            'payload_json' => [
+                'action' => TenantAgentCustomizationApply::ACTION_APPLY,
+            ],
+        ]);
+
+        $job = new ApplyTenantAgentCustomization($tenant->id, $provisioningJob->id, TenantAgentCustomizationApply::ACTION_APPLY);
+        $job->handle(
+            app(\App\Services\TenantAgentCustomizationService::class),
+            app(\App\Services\TenantRuntimeCustomizationComposer::class),
+        );
+
+        $this->assertTrue(collect($runner->commands)->contains(
+            fn (string $command): bool => str_contains($command, 'docker exec')
+                && str_contains($command, 'sync360-apply-shop')
+                && str_contains($command, 'log-skill-conversion --init-only')
+        ));
+    }
+
+    public function test_remote_apply_failure_marks_job_failed_when_skill_analytics_initialization_fails(): void
+    {
+        [$tenant, $customization] = $this->seedTenantAndCustomization();
+        config()->set('sync360.infrastructure.driver', 'ssh');
+
+        $runner = new class implements DockerComposeRunner
+        {
+            public function syncRuntime(\App\Models\Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
+            public function syncWorkspaceFiles(\App\Models\Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void {}
+            public function httpRequest(\App\Models\Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15): array { return ['status' => 200, 'body' => '']; }
+            public function putFile(\App\Models\Server $server, string $remotePath, string $contents, bool $sudo = false): void {}
+            public function removeFile(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function removeDirectory(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function runCommand(\App\Models\Server $server, string $command, bool $sudo = false): void
+            {
+                if (str_contains($command, 'log-skill-conversion --init-only')) {
+                    throw new \RuntimeException('analytics init failed');
+                }
+            }
+            public function up(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function down(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function start(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function stop(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function isRunning(\App\Models\Server $server, string $composeFile, string $projectName): bool { return false; }
+            public function isHostPortInUse(\App\Models\Server $server, int $port): bool { return false; }
+            public function waitForHttpReady(\App\Models\Server $server, string $url, int $timeoutSeconds, int $pollIntervalMs): void {}
+        };
+
+        $this->instance(DockerComposeRunner::class, $runner);
+
+        $provisioningJob = ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Queued,
+            'payload_json' => [
+                'action' => TenantAgentCustomizationApply::ACTION_APPLY,
+            ],
+        ]);
+
+        try {
+            $job = new ApplyTenantAgentCustomization($tenant->id, $provisioningJob->id, TenantAgentCustomizationApply::ACTION_APPLY);
+            $job->handle(
+                app(\App\Services\TenantAgentCustomizationService::class),
+                app(\App\Services\TenantRuntimeCustomizationComposer::class),
+            );
+            $this->fail('Expected analytics initialization failure.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('analytics init failed', $exception->getMessage());
+            $this->assertSame(ProvisioningJobStatus::Failed, $provisioningJob->fresh()->status);
+            $this->assertSame('failed', $customization->fresh()->last_apply_status);
+        }
     }
 
     private function seedTenantAndCustomization(): array
