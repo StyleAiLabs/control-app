@@ -1577,10 +1577,10 @@ class OnboardingFlowTest extends TestCase
         $skillVersion = SkillCatalogVersion::query()->create([
             'skill_catalog_item_id' => $skillItem->id,
             'skill_key' => 'inbox-triage',
-            'version' => '1.5.6',
+            'version' => '1.5.7',
             'manifest_json' => [
                 'skill_id' => 'inbox-triage',
-                'version' => '1.5.6',
+                'version' => '1.5.7',
                 'label' => 'Inbox Triage (by Sync360)',
                 'description' => 'Inbox Triage',
                 'runtime_type' => 'sync360_workspace',
@@ -1680,6 +1680,7 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('For internal workflow triggers, do not browse the public web or research companies unless the owner explicitly asks', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('Critical Runtime Contracts', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('Lead ref: <gmail_message_id>', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
+        $this->assertStringContainsString('Telegram gate: send Telegram only when `lead_quality` is `high`', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('not the Sync360 Job ID', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('"event_id":"inbox-triage-<gmail_message_id>"', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('Do not include poll-only or unrelated fields', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));

@@ -1,5 +1,11 @@
 # Inbox Triage — Release Notes
 
+## 1.5.7
+
+- Front-loaded the Telegram eligibility gate so notifications are sent only for `lead_quality: high`, while medium/ambiguous qualified leads continue to Drive logging and analytics without Telegram.
+- Added a practical high-intent signal for commercial quote/request-for-service emails with concrete site scope, timeline, contact details, or operational urgency.
+- Required high-value Telegram sends to use the `High-Value Lead Detected` format instead of a generic inquiry notification.
+
 ## 1.5.6
 
 - Made the Gmail message id the primary lead id for Gmail-triggered events, including Telegram `Lead ref`, Drive log naming, and analytics conversion ids.

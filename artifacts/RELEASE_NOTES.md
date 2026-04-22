@@ -18,7 +18,7 @@ Hardened the Inbox Triage skill and shared custom-skill authoring guidance after
 
 ### What Changed
 
-- bumped `inbox-triage` through `1.5.6`
+- bumped `inbox-triage` through `1.5.7`
 - added a strict Telegram notification tool contract for normal sends and forbade poll-only fields on high-value lead alerts
 - simplified Drive triage logging to a deterministic local markdown file and the minimal `gog drive upload <localPath>` command shape
 - clarified that internal inbox-triggered skill work must not use public web research unless the owner asks
@@ -26,6 +26,7 @@ Hardened the Inbox Triage skill and shared custom-skill authoring guidance after
 - updated custom skill authoring and generated tenant workspace guidance with reusable Telegram and `gog` tool-contract guardrails
 - front-loaded the critical runtime contracts after live replay showed the agent initially read only the top of `SKILL.md`, and forbade workspace patch/file-edit tools as a substitute for external Drive logging
 - made the Gmail message id the primary lead id for Gmail-triggered events, requiring exact `Lead ref: <gmail_message_id>` wording and a helper-valid analytics payload with `event_id` and required outcome fields
+- front-loaded the high-value Telegram gate so medium/ambiguous leads do not notify Telegram, while concrete commercial quote/request-for-service emails with site scope, timeline, contact details, or urgency are treated as high intent unless the tenant profile excludes them
 
 ## 2026-04-22 — Fix: Inbox Triage Same-Thread Polling And Workspace Skill Resync
 

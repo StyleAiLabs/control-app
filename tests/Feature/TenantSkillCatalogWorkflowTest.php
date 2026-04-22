@@ -56,6 +56,10 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $this->assertStringContainsString('`target`: `<telegram_default_chat_id>`', $skill);
         $this->assertStringContainsString('`message`: the formatted notification body above', $skill);
         $this->assertStringContainsString('## Critical Runtime Contracts', $skill);
+        $this->assertStringContainsString('Telegram gate: send Telegram only when `lead_quality` is `high`', $skill);
+        $this->assertStringContainsString('Do not send Telegram for `medium`, `ambiguous`, `low`, spam, or low-intent messages', $skill);
+        $this->assertStringContainsString('High-value signal: a concrete commercial quote/request-for-service email with site count, floor area, timeline, role/contact details, or operational urgency is high intent', $skill);
+        $this->assertStringContainsString('High-value Telegram body: when Telegram is sent, use the `High-Value Lead Detected` format', $skill);
         $this->assertStringContainsString('A Telegram success does not finish the workflow. Continue to Drive logging and analytics', $skill);
         $this->assertStringContainsString('Do not include poll-only or unrelated fields', $skill);
         $this->assertStringContainsString('`poll*`, `limit`, `pageSize`, `duration*`, buttons, interactive payloads, or poll options', $skill);
