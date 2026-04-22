@@ -7,6 +7,24 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-22 — Fix: Reliable Custom Skill Tool Contracts
+
+Date: 2026-04-22
+Status: Implemented
+
+### Overview
+
+Hardened the Inbox Triage skill and shared custom-skill authoring guidance after live runtime verification showed the agent could classify a high-value lead but misuse Telegram and Drive tooling.
+
+### What Changed
+
+- bumped `inbox-triage` to `1.5.4`
+- added a strict Telegram notification tool contract for normal sends and forbade poll-only fields on high-value lead alerts
+- simplified Drive triage logging to a deterministic local markdown file and the minimal `gog drive upload <localPath>` command shape
+- clarified that internal inbox-triggered skill work must not use public web research unless the owner asks
+- strengthened analytics guidance so qualified-lead analytics are attempted independently even when Telegram or Drive logging fails
+- updated custom skill authoring and generated tenant workspace guidance with reusable Telegram and `gog` tool-contract guardrails
+
 ## 2026-04-22 — Fix: Inbox Triage Same-Thread Polling And Workspace Skill Resync
 
 Date: 2026-04-22

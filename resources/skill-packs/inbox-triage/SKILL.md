@@ -15,6 +15,8 @@ When a customer inquiry is delivered from Gmail, use this skill to categorize th
 
 Sync360 may deliver polled Gmail messages as internal inbox events from `sync360-inbox-monitor`. Treat those events as neutral triggers only. The trigger has not classified the email as high-value; you must decide the category, lead quality, and next action from this skill's instructions and the email context.
 
+When handling an internal inbox event, use the email metadata/body and tenant workspace files as the source of truth. Do not use `web_search`, public web browsing, or public website research unless the owner explicitly asks you to research the sender or company.
+
 ## Google Workspace Context
 
 This skill uses GOG (Google Workspace OAuth), which is pre-configured on the OpenClaw server, to inspect the referenced Gmail message when needed and to write Google Drive triage logs. Before taking Gmail or Drive actions:
@@ -40,7 +42,7 @@ Complete these steps in order for every delivered Gmail inquiry:
    - The notification must include `Lead ref: <gmail_message_id>`.
    - Include `Thread ref: <gmail_thread_id>` when a thread id is available.
 4. Create or verify the Google Drive triage log using the Google Drive Triage Log section.
-5. Emit analytics only when the lead meets the Analytics Contract.
+5. Emit analytics independently when the lead meets the Analytics Contract. A Telegram or Google Drive failure must not block analytics.
 6. Final response must summarize:
    - category
    - lead quality
@@ -74,6 +76,18 @@ Thread ref: <gmail_thread_id or omit when unavailable>
 Suggested action: <next step>
 ```
 
+**Tool contract:**
+- Use only the normal runtime `message` tool send path.
+- Required fields:
+  - `action`: `send`
+  - `channel`: `telegram`
+  - `target`: `<telegram_default_chat_id>`
+  - `message`: the formatted notification body above
+- Do not include poll-only or unrelated fields on a normal Telegram send, including `poll*`, `limit`, `pageSize`, `duration*`, buttons, interactive payloads, or poll options.
+- If `telegram_default_chat_id` is missing or null, skip Telegram notification, record `telegram_skipped: missing_default_chat_id`, and continue to Drive logging and analytics when applicable.
+- Treat the Telegram send as successful only when the tool result confirms the message was sent, such as an ok/success status or a Telegram message id.
+- If the tool returns an error, capture the exact error and continue to Drive logging and analytics when applicable.
+
 **Follow-up rule:**
 - Treat `Lead ref` as the canonical handle for future owner follow-up requests.
 - If the owner replies to this Telegram notification with requests such as `Get from email`, `Generate a quote`, `Draft reply`, or `Book site visit`, read the replied notification, extract `Lead ref`, and use `gog gmail get <Lead ref>` before asking for email details.
@@ -88,10 +102,10 @@ Create a searchable Google Drive record for every evaluated business inquiry, in
 
 ### Log location and naming
 
-- Folder name: `Sync360 Inbox Triage Logs`
 - File name: `sync360-inbox-triage-<lead-id>.md`
+- Local path: `.sync360/tmp/sync360-inbox-triage-<lead-id>.md`
 - If the trigger includes a Gmail message id, include it in the file body.
-- If a file with the same `lead-id` already exists, do not create a duplicate. Update or verify the existing file instead.
+- Use the deterministic file name as the idempotency key for reasoning. If `gog drive search "sync360-inbox-triage-<lead-id>.md"` clearly shows an existing log, report that existing log instead of creating a duplicate.
 
 ### Required log fields
 
@@ -112,38 +126,35 @@ Include only the minimum useful business evidence:
 
 Do not store full raw email bodies, attachments, credentials, private notes, or unnecessary personal contact details in the Drive log. Mask direct contact details when they are not needed for follow-up.
 
-### Suggested GOG command shape
+### Required GOG command shape
 
-Use the workspace exec tool and the configured GOG account. Inspect help when needed with `gog drive --help` and `gog drive upload --help`.
+Use the workspace exec tool and the configured GOG account. For this v1 workflow, keep the Drive command shape intentionally small and use only proven commands.
 
 Recommended flow:
 
-1. Search for an existing folder:
-   `gog --json drive search "Sync360 Inbox Triage Logs" --max 10`
-2. Create the folder if missing:
-   `gog --json drive mkdir "Sync360 Inbox Triage Logs"`
-3. Search for an existing lead log:
-   `gog --json drive search "sync360-inbox-triage-<lead-id>.md" --max 10`
-4. Write the markdown log to a temporary workspace file.
-5. Upload a new log or replace the existing file:
-   `gog --json drive upload <localPath> --parent <folderId> --name "sync360-inbox-triage-<lead-id>.md"`
-   or
-   `gog --json drive upload <localPath> --replace <fileId> --name "sync360-inbox-triage-<lead-id>.md"`
+1. Search for an existing lead log:
+   `gog drive search "sync360-inbox-triage-<lead-id>.md" --max 10`
+2. Write the markdown log to `.sync360/tmp/sync360-inbox-triage-<lead-id>.md`.
+3. Upload a new log with exactly:
+   `gog drive upload .sync360/tmp/sync360-inbox-triage-<lead-id>.md`
+4. Do not add unverified Drive flags such as `--share`, `--parent`, `--replace`, `--name`, or `--json` to the upload command.
+5. If `gog drive upload` fails, inspect `gog drive upload --help` once, report the exact supported syntax or error, and do not invent alternative flags.
 
 ### Response validation
 
-- Inspect the `gog` JSON output after folder and file operations.
-- Treat the Drive log as successful only when the upload/replace output contains a file id or otherwise confirms the target file.
+- Inspect the `gog` output after search and upload operations.
+- Treat the Drive log as successful only when the upload output confirms a file was created or returns a file id/link/name for the uploaded log.
 - If Drive logging fails, include the exact command error/output in the final response and still continue to Telegram/analytics steps when those are applicable.
 
 ## Analytics Contract
 
 ### When to emit
 - Emit analytics after a lead has been evaluated, categorized, and routing decision made.
-- Emit only for leads that meet your minimum quality threshold (not spam/low-intent).
+- Emit for every qualified lead where `lead_quality` is `high`, `medium`, or `ambiguous` and the message is not spam or low-intent.
 - Do not emit for incoming email volume or incomplete triage decisions.
 - Emit exactly once per evaluated lead.
 - Do not use Google Drive logging as proof of conversion; Drive logging is operational evidence. Analytics is emitted only when the lead quality/category threshold is met.
+- Attempt analytics even when Telegram or Google Drive logging failed. Required side-effect failures are reported separately and do not change whether the lead qualified for analytics.
 
 ### Required invocation
 Use the workspace exec tool to run:

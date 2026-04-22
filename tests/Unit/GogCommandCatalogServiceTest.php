@@ -67,7 +67,7 @@ class GogCommandCatalogServiceTest extends TestCase
         ], $service->runtimeEnvironmentFor($tenant->fresh('googleCredential')));
     }
 
-    public function test_tool_guidance_includes_calendar_write_command_shape(): void
+    public function test_tool_guidance_includes_calendar_and_custom_skill_command_shapes(): void
     {
         /** @var GogCommandCatalogService $service */
         $service = app(GogCommandCatalogService::class);
@@ -88,6 +88,9 @@ class GogCommandCatalogServiceTest extends TestCase
         $this->assertStringContainsString('--from 2026-04-22T09:00:00+12:00 --to 2026-04-22T09:15:00+12:00', $guidance);
         $this->assertStringContainsString('--reminder popup:0m --no-input', $guidance);
         $this->assertStringContainsString('Do not use unsupported calendar write shapes such as `gog calendar event create`, `--title`, `--start`, `--end`, or `--calendar`', $guidance);
+        $this->assertStringContainsString('When an assigned custom skill gives an exact `gog` command contract, follow that contract exactly and avoid adding extra flags.', $guidance);
+        $this->assertStringContainsString('Drive upload flow: if a skill asks for a plain upload, use the exact shape `gog drive upload <localPath>`', $guidance);
+        $this->assertStringContainsString('do not add unverified flags such as `--share`, `--parent`, `--replace`, `--name`, or `--json`', $guidance);
     }
 
     private function seedTenant(): Tenant

@@ -1577,10 +1577,10 @@ class OnboardingFlowTest extends TestCase
         $skillVersion = SkillCatalogVersion::query()->create([
             'skill_catalog_item_id' => $skillItem->id,
             'skill_key' => 'inbox-triage',
-            'version' => '1.5.3',
+            'version' => '1.5.4',
             'manifest_json' => [
                 'skill_id' => 'inbox-triage',
-                'version' => '1.5.3',
+                'version' => '1.5.4',
                 'label' => 'Inbox Triage (by Sync360)',
                 'description' => 'Inbox Triage',
                 'runtime_type' => 'sync360_workspace',
@@ -1672,19 +1672,26 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('Do not run `gog auth ...`', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('Do not say you are fundamentally unable to check emails or calendars', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('Do not ask the owner which Google account to use unless a tool explicitly reports multiple configured accounts or a missing default account.', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
+        $this->assertStringContainsString('When an assigned custom skill gives an exact tool contract, follow that contract exactly', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
+        $this->assertStringContainsString('For normal Telegram notifications, do not mix poll fields into a send action', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('includes `Lead ref: <gmail_message_id>`', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('use `gog gmail get <gmail_message_id>` to reopen the exact email', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('Do not guess with Gmail searches from company labels or notification summaries when an exact `Lead ref` is present', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
+        $this->assertStringContainsString('For internal workflow triggers, do not browse the public web or research companies unless the owner explicitly asks', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('Lead ref: <gmail_message_id>', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
+        $this->assertStringContainsString('Do not include poll-only or unrelated fields', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
+        $this->assertStringContainsString('gog drive upload .sync360/tmp/sync360-inbox-triage-<lead-id>.md', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('reply to the original lead notification again', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('The `gog` CLI is preconfigured in this workspace.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Treat owner@example.com as the default Google account', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('gog gmail --help', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Recent email retrieval: use the native Gmail search path', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
+        $this->assertStringContainsString('When an assigned custom skill gives an exact `gog` command contract, follow that contract exactly', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Sync360 owns OAuth and account configuration. Do not run `gog auth ...`', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Calendar read flow: use the native calendar events path', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Calendar create/reminder flow: use the native create path', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Do not use unsupported calendar write shapes such as `gog calendar event create`, `--title`, `--start`, `--end`, or `--calendar`', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
+        $this->assertStringContainsString('Drive upload flow: if a skill asks for a plain upload, use the exact shape `gog drive upload <localPath>`', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Do not ask the owner to choose an account unless `gog` explicitly tells you there are multiple configured accounts or no default account.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Explain that as a scope or permission issue, not as a missing `credentials.json` issue.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
     }

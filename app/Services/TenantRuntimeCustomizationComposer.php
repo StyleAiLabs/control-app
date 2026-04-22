@@ -576,9 +576,12 @@ class TenantRuntimeCustomizationComposer
             $rules[] = '- Do not ask the owner which Google account to use unless a tool explicitly reports multiple configured accounts or a missing default account.';
             $rules[] = '- Sync360 owns OAuth and account configuration. Do not run `gog auth ...`, do not ask the owner to replace `credentials.json`, and do not ask them to redo Google API Console setup during a normal request.';
             $rules[] = '- If a Google Workspace tool call fails, explain the specific tool error you observed. Suggest reconnecting only when the error explicitly indicates invalid, expired, or unauthorized credentials. Treat insufficient-permission or missing-scope errors as permission issues, not missing credential-file issues. Do not say you are fundamentally unable to check emails or calendars.';
+            $rules[] = '- When an assigned custom skill gives an exact tool contract, follow that contract exactly before falling back to general tool behavior.';
+            $rules[] = '- For normal Telegram notifications, do not mix poll fields into a send action. Use only the fields the skill asks for, and report the exact tool error if sending fails.';
             $rules[] = '- When the owner replies to a high-value lead notification that includes `Lead ref: <gmail_message_id>`, read the replied message, extract that lead reference, and use `gog gmail get <gmail_message_id>` to reopen the exact email before drafting quotes, replies, bookings, or follow-up actions.';
             $rules[] = '- Do not guess with Gmail searches from company labels or notification summaries when an exact `Lead ref` is present in the replied message.';
             $rules[] = '- If the owner asks to continue from an email but did not reply to the original lead notification or no `Lead ref` is visible, ask them to reply to the original lead notification again or paste the lead reference.';
+            $rules[] = '- For internal workflow triggers, do not browse the public web or research companies unless the owner explicitly asks for external research.';
         } else {
             $rules[] = '- If the owner asks for Google Workspace help before Google Workspace is connected, explain that the workspace connection still needs to be completed in Sync360.';
         }

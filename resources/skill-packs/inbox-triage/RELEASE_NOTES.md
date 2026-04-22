@@ -1,5 +1,11 @@
 # Inbox Triage — Release Notes
 
+## 1.5.4
+
+- Added a strict Telegram send contract so high-value notifications use only the normal `message` send fields and never include poll-only fields.
+- Simplified Google Drive triage logging to the smallest supported `gog drive upload <localPath>` command shape while forbidding unverified Drive flags.
+- Clarified that analytics must be attempted independently for qualified leads and that inbox-triggered workflows must not use public web research unless the owner asks.
+
 ## 1.5.3
 
 - Added `Lead ref: <gmail_message_id>` to the required high-value Telegram notification format, with optional thread reference.

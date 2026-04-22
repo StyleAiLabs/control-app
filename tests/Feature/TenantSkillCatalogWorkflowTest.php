@@ -42,13 +42,36 @@ class TenantSkillCatalogWorkflowTest extends TestCase
             ->expectsOutputToContain('hello-world');
     }
 
-    public function test_inbox_triage_skill_includes_lead_reference_follow_up_guidance(): void
+    public function test_inbox_triage_skill_includes_reliable_tool_contracts(): void
     {
         $skill = File::get(base_path('resources/skill-packs/inbox-triage/SKILL.md'));
 
         $this->assertStringContainsString('Lead ref: <gmail_message_id>', $skill);
         $this->assertStringContainsString('use `gog gmail get <Lead ref>` before asking for email details', $skill);
         $this->assertStringContainsString('Do not fall back to guessed Gmail searches when the notification already contains a `Lead ref`', $skill);
+        $this->assertStringContainsString('`action`: `send`', $skill);
+        $this->assertStringContainsString('`channel`: `telegram`', $skill);
+        $this->assertStringContainsString('`target`: `<telegram_default_chat_id>`', $skill);
+        $this->assertStringContainsString('`message`: the formatted notification body above', $skill);
+        $this->assertStringContainsString('Do not include poll-only or unrelated fields', $skill);
+        $this->assertStringContainsString('`poll*`, `limit`, `pageSize`, `duration*`, buttons, interactive payloads, or poll options', $skill);
+        $this->assertStringContainsString('Do not use `web_search`, public web browsing, or public website research unless the owner explicitly asks', $skill);
+        $this->assertStringContainsString('gog drive upload .sync360/tmp/sync360-inbox-triage-<lead-id>.md', $skill);
+        $this->assertStringContainsString('Do not add unverified Drive flags such as `--share`, `--parent`, `--replace`, `--name`, or `--json`', $skill);
+        $this->assertStringNotContainsString('gog --json drive upload <localPath> --parent <folderId>', $skill);
+        $this->assertStringContainsString('A Telegram or Google Drive failure must not block analytics', $skill);
+    }
+
+    public function test_custom_skill_authoring_prompt_requires_explicit_tool_contracts(): void
+    {
+        $prompt = File::get(base_path('resources/skill-packs/CUSTOM_SKILL_AUTHORING_PROMPT.md'));
+
+        $this->assertStringContainsString('Required tool-contract rules', $prompt);
+        $this->assertStringContainsString('Every required side effect must name the exact tool or command family', $prompt);
+        $this->assertStringContainsString('normal sends must use only `action: "send"`, `channel: "telegram"`, `target: <chat id>`, and `message: <body>`', $prompt);
+        $this->assertStringContainsString('Telegram normal sends must not include poll-only or unrelated fields', $prompt);
+        $this->assertStringContainsString('Do not invent `gog` flags', $prompt);
+        $this->assertStringContainsString('Do not use public web browsing or `web_search` unless the owner explicitly asks', $prompt);
     }
 
     public function test_scan_command_surfaces_invalid_manifest_instead_of_silently_skipping(): void
