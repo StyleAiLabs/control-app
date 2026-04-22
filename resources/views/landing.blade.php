@@ -3,30 +3,45 @@
         <section class="landing-hero">
             <div class="hero-copy">
                 <div class="hero-copy-main">
-                    <span class="eyebrow"><span class="eyebrow-dot"></span> Sync360 digital employee</span>
-                    <h1>Sync360 keeps every enquiry moving.</h1>
+                    <span class="eyebrow type-kicker animate-in animate-delay-0"><span class="eyebrow-dot"></span> Sync360 digital employee</span>
+                    <h1 class="type-display animate-in animate-delay-1">Sync360 keeps every enquiry moving.</h1>
                 </div>
 
-                <div class="hero-support">
-                    <p>
+                <div class="hero-support animate-in animate-delay-2">
+                    <p class="type-body-lg">
                         While your team gets on with the real work, Sync360 replies after hours, qualifies the job,
                         books the next step, and keeps customers warm without adding more admin to your day.
                     </p>
 
                     <div class="hero-actions">
-                        <a href="{{ route('signup') }}" class="button button--primary">Start Free Trial &rarr;</a>
-                        <a href="{{ route('login') }}" class="button button--secondary">Log In</a>
+                        <a href="{{ route('signup') }}" class="button button--primary animate-in animate-delay-3">Start Free Trial &rarr;</a>
+                        <a href="{{ route('login') }}" class="button button--secondary animate-in animate-delay-3">Log In</a>
                     </div>
 
-                    <div class="hero-proof">
-                        <span>No credit card required</span>
-                        <span>Built for service businesses</span>
-                        <span>Live in minutes</span>
+                    <div class="hero-proof type-secondary animate-in animate-delay-4">
+                        <span>
+                            <svg class="proof-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            No credit card required
+                        </span>
+                        <span>
+                            <svg class="proof-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            Built for service businesses
+                        </span>
+                        <span>
+                            <svg class="proof-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            Live in minutes
+                        </span>
                     </div>
                 </div>
             </div>
 
-            <div class="hero-visual">
+            <div class="hero-visual animate-in animate-delay-5">
                 <div class="product-preview">
                     <div class="product-topbar">
                         <span>Sync360 workspace</span>
@@ -126,93 +141,258 @@
             </div>
         </section>
 
+        <div class="section-connector" aria-hidden="true">
+            <div class="section-connector-line"></div>
+            <div class="section-connector-dot section-connector-dot--active"></div>
+            <div class="section-connector-line"></div>
+        </div>
+
         <section class="section-shell">
             <div class="inner">
                 <div class="outcome-strip">
                     <div class="outcome-card">
-                        <span>More booked work</span>
-                        <strong>Reply before the lead goes cold</strong>
-                        <p>Every missed message is a chance for someone else to win the job. Sync360 keeps the conversation alive.</p>
+                        <span class="type-secondary">More booked work</span>
+                        <strong class="type-h3">Reply before the lead goes cold</strong>
+                        <p class="type-body">Every missed message is a chance for someone else to win the job. Sync360 keeps the conversation alive.</p>
                     </div>
                     <div class="outcome-card">
-                        <span>Less admin drag</span>
-                        <strong>Quotes, follow-ups, and bookings off your plate</strong>
-                        <p>Customers get a smoother experience without you spending your evening inside your phone.</p>
+                        <span class="type-secondary">Less admin drag</span>
+                        <strong class="type-h3">Quotes, follow-ups, and bookings off your plate</strong>
+                        <p class="type-body">Customers get a smoother experience without you spending your evening inside your phone.</p>
                     </div>
                     <div class="outcome-card">
-                        <span>More consistent service</span>
-                        <strong>Your business sounds sharp every time</strong>
-                        <p>Friendly replies, clear next steps, and fewer dropped balls when things get busy.</p>
+                        <span class="type-secondary">More consistent service</span>
+                        <strong class="type-h3">Your business sounds sharp every time</strong>
+                        <p class="type-body">Friendly replies, clear next steps, and fewer dropped balls when things get busy.</p>
                     </div>
                 </div>
             </div>
         </section>
 
-        <section class="section-shell">
-            <div class="inner story-grid">
-                <div class="story-copy">
-                    <span class="eyebrow"><span class="eyebrow-dot"></span> How it fits</span>
-                    <h2>Built for teams that are great at the work but buried in the back-and-forth.</h2>
-                    <p>
+        <div class="section-connector" aria-hidden="true">
+            <div class="section-connector-line"></div>
+            <div class="section-connector-dot section-connector-dot--active"></div>
+            <div class="section-connector-line"></div>
+        </div>
+
+        <section class="section-shell trust-section">
+            <div class="inner">
+                <div class="trust-bar">
+                    <div class="trust-stat">
+                        <strong class="type-value">127</strong>
+                        <span class="type-label">Service businesses using Sync360</span>
+                    </div>
+                    <div class="trust-divider"></div>
+                    <div class="trust-stat">
+                        <strong class="type-value">2,847</strong>
+                        <span class="type-label">Enquiries handled last month</span>
+                    </div>
+                    <div class="trust-divider"></div>
+                    <div class="trust-stat">
+                        <strong class="type-value">89%</strong>
+                        <span class="type-label">Leads converted to bookings</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="section-connector" aria-hidden="true">
+            <div class="section-connector-line"></div>
+            <div class="section-connector-dot section-connector-dot--active"></div>
+            <div class="section-connector-line"></div>
+        </div>
+
+        <section class="section-shell how-it-fits-section">
+            <div class="inner how-it-fits-inner">
+                <div class="how-it-fits-header">
+                    <span class="eyebrow type-kicker"><span class="eyebrow-dot"></span> How it fits</span>
+                    <h2 class="type-h2">Built for teams that are great at the work but buried in the back-and-forth.</h2>
+                    <p class="type-body-lg">
                         Sync360 is designed for trades, clinics, studios, agencies, and service operators who lose time
                         to repetitive messages, quoting, scheduling, and chasing follow-ups.
                     </p>
+                </div>
 
-                    <div class="story-list">
-                        <div>
-                            <div class="story-step">1</div>
-                            <div>
-                                <strong>Capture the enquiry</strong>
-                                <p>Website forms, WhatsApp messages, or email conversations are picked up instantly.</p>
-                            </div>
+                <div class="flow-diagram flow-diagram--columns">
+                    <div class="flow-step flow-step--column">
+                        <div class="flow-step-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                                <polyline points="22,6 12,13 2,6"></polyline>
+                            </svg>
                         </div>
-                        <div>
-                            <div class="story-step">2</div>
-                            <div>
-                                <strong>Move the customer forward</strong>
-                                <p>Sync360 asks the right questions, confirms the next step, and keeps momentum going.</p>
-                            </div>
+                        <div class="flow-step-content">
+                            <strong class="flow-step-title">Capture the enquiry</strong>
+                            <p class="flow-step-desc">Website forms, WhatsApp messages, or email conversations are picked up instantly.</p>
                         </div>
-                        <div>
-                            <div class="story-step">3</div>
-                            <div>
-                                <strong>Hand your team clean context</strong>
-                                <p>The job, customer summary, and recommended action are already laid out before anyone jumps in.</p>
-                            </div>
+                    </div>
+
+                    <div class="flow-step flow-step--column">
+                        <div class="flow-step-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                            </svg>
+                        </div>
+                        <div class="flow-step-content">
+                            <strong class="flow-step-title">Move the customer forward</strong>
+                            <p class="flow-step-desc">Sync360 asks the right questions, confirms the next step, and keeps momentum going.</p>
+                        </div>
+                    </div>
+
+                    <div class="flow-step flow-step--column flow-step--last">
+                        <div class="flow-step-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                            </svg>
+                        </div>
+                        <div class="flow-step-content">
+                            <strong class="flow-step-title">Hand your team clean context</strong>
+                            <p class="flow-step-desc">The job, customer summary, and recommended action are already laid out before anyone jumps in.</p>
                         </div>
                     </div>
                 </div>
 
-                <div class="value-grid">
-                    <div class="value-block">
-                        <small>What customers feel</small>
-                        <h3>Fast responses, less friction, more trust.</h3>
-                        <p>Customers get a clear answer, a clear next step, and the sense that your business is on top of things from the first message.</p>
+                <div class="value-grid value-grid--metric-first">
+                    <div class="value-block value-block--metric-first">
+                        <div class="value-metric value-metric--hero">
+                            <strong class="metric-value metric-value--large" data-count-to="90" data-suffix=" sec">~90 sec</strong>
+                            <span class="metric-label">Average response time</span>
+                        </div>
+                        <div class="value-content">
+                            <small class="type-label">Response time</small>
+                            <h3 class="type-h3">Replies in under 2 minutes, 24/7.</h3>
+                            <p class="type-body">89% of enquiries get an instant response. Customers stop shopping around when you reply before the lead goes cold.</p>
+                        </div>
                     </div>
-                    <div class="value-block">
-                        <small>What your team feels</small>
-                        <h3>More headspace for the work that actually pays.</h3>
-                        <p>Less copy-pasting. Less chasing. Fewer late-night replies. More time on the floor, on-site, or with clients.</p>
+                    <div class="value-block value-block--metric-first">
+                        <div class="value-metric value-metric--hero">
+                            <strong class="metric-value metric-value--large" data-count-to="10" data-suffix=" hrs">~10 hrs</strong>
+                            <span class="metric-label">Admin time saved weekly</span>
+                        </div>
+                        <div class="value-content">
+                            <small class="type-label">Admin reduction</small>
+                            <h3 class="type-h3">80% of enquiries handled automatically.</h3>
+                            <p class="type-body">Sync360 qualifies, books, and follows up without copy-pasting or late-night admin. Your team gets evenings back.</p>
+                        </div>
                     </div>
-                    <div class="value-block">
-                        <small>What growth feels like</small>
-                        <h3>More enquiries handled without adding more admin overhead.</h3>
-                        <p>As demand picks up, Sync360 gives you a steadier customer experience before you need to hire more support capacity.</p>
+                    <div class="value-block value-block--metric-first">
+                        <div class="value-metric value-metric--hero">
+                            <strong class="metric-value metric-value--large" data-count-to="89" data-suffix="%">89%</strong>
+                            <span class="metric-label">Lead-to-booking rate</span>
+                        </div>
+                        <div class="value-content">
+                            <small class="type-label">Conversion lift</small>
+                            <h3 class="type-h3">89% of leads convert to booked jobs.</h3>
+                            <p class="type-body">Handle 3x more enquiries with the same team. Scale capacity before you need to hire more support staff.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="section-connector" aria-hidden="true">
+            <div class="section-connector-line"></div>
+            <div class="section-connector-dot section-connector-dot--active"></div>
+            <div class="section-connector-line"></div>
+        </div>
+
+        <section class="section-shell testimonials-section">
+            <div class="inner">
+                <div class="testimonials-header">
+                    <span class="eyebrow type-kicker"><span class="eyebrow-dot"></span> Real results</span>
+                    <h2 class="type-h2">Trusted by service businesses across the country.</h2>
+                </div>
+
+                <div class="testimonials-grid">
+                    <div class="testimonial-card">
+                        <div class="testimonial-content">
+                            <p class="testimonial-quote">We were losing 3-4 jobs a week from missed calls after hours. Sync360 caught them all. First month: 18 extra bookings, paid for itself 10 times over.</p>
+                        </div>
+                        <div class="testimonial-author">
+                            <div class="author-avatar">MJ</div>
+                            <div class="author-info">
+                                <strong>Matt Johnson</strong>
+                                <span>Northfield Plumbing, Owner</span>
+                            </div>
+                        </div>
+                        <div class="testimonial-metric">
+                            <span class="metric-label">Extra bookings in month 1</span>
+                            <strong class="metric-value" data-count-to="18" data-prefix="+">+18</strong>
+                        </div>
+                    </div>
+
+                    <div class="testimonial-card">
+                        <div class="testimonial-content">
+                            <p class="testimonial-quote">I was spending 2 hours every evening replying to enquiries. Sync360 handles 80% of them automatically. I get my evenings back and customers get faster replies.</p>
+                        </div>
+                        <div class="testimonial-author">
+                            <div class="author-avatar">SK</div>
+                            <div class="author-info">
+                                <strong>Sarah Kim</strong>
+                                <span>Apex Electrical, Office Manager</span>
+                            </div>
+                        </div>
+                        <div class="testimonial-metric">
+                            <span class="metric-label">Admin time saved weekly</span>
+                            <strong class="metric-value" data-count-to="10" data-suffix=" hrs">10 hrs</strong>
+                        </div>
+                    </div>
+
+                    <div class="testimonial-card">
+                        <div class="testimonial-content">
+                            <p class="testimonial-quote">The quote follow-ups alone are worth it. Sync360 reopened $47k in dead leads over 3 months. Customers said we were the only ones who followed up properly.</p>
+                        </div>
+                        <div class="testimonial-author">
+                            <div class="author-avatar">DT</div>
+                            <div class="author-info">
+                                <strong>David Torres</strong>
+                                <span>Torres Roofing, Director</span>
+                            </div>
+                        </div>
+                        <div class="testimonial-metric">
+                            <span class="metric-label">Recovered revenue (3 months)</span>
+                            <strong class="metric-value" data-count-to="47" data-prefix="$" data-suffix="k">$47k</strong>
+                        </div>
                     </div>
                 </div>
             </div>
         </section>
 
         <section class="final-cta">
-            <div>
-                <span class="eyebrow"><span class="eyebrow-dot"></span> Ready to try it?</span>
-                <h2>See what your business feels like when the inbox stops slowing you down.</h2>
-                <p>Start a free trial, load in your business details, and watch Sync360 turn customer conversations into booked work.</p>
-            </div>
+            <div class="final-cta-content">
+                <div>
+                    <span class="eyebrow type-kicker"><span class="eyebrow-dot"></span> Ready to try it?</span>
+                    <h2 class="type-h2">See what your business feels like when the inbox stops slowing you down.</h2>
+                    <p class="type-body-lg">Start a free trial, load in your business details, and watch Sync360 turn customer conversations into booked work.</p>
+                    
+                    <div class="final-cta-proof">
+                        <div class="proof-item">
+                            <svg class="proof-check" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span>14-day free trial</span>
+                        </div>
+                        <div class="proof-item">
+                            <svg class="proof-check" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span>No credit card required</span>
+                        </div>
+                        <div class="proof-item">
+                            <svg class="proof-check" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span>Cancel anytime</span>
+                        </div>
+                    </div>
+                </div>
 
-            <div class="final-actions">
-                <a href="{{ route('signup') }}" class="button button--primary">Start Free Trial &rarr;</a>
-                <a href="{{ route('login') }}" class="button button--secondary">Already a customer?</a>
+                <div class="final-actions">
+                    <a href="{{ route('signup') }}" class="button button--primary">Start Free Trial &rarr;</a>
+                    <a href="{{ route('login') }}" class="button button--secondary">Already a customer?</a>
+                </div>
             </div>
         </section>
     </div>

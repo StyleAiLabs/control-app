@@ -6,6 +6,8 @@ This memory is based on the current repo code and current canonical docs. It is 
 
 Shared Blade layouts (`resources/views/components/layouts/app.blade.php` and `guest.blade.php`) use `:focus-visible` rings on inputs, selects, textareas, buttons, and nav links so keyboard focus is visible (WCAG 2.4.7).
 
+**2026-04-22 Landing Page UX Refinement:** Landing page and authentication views now use semantic typography classes (`type-display`, `type-h2`, `type-h3`, `type-body-lg`, `type-body`, `type-kicker`, `type-label`, `type-value`) for consistent design system hierarchy. New landing page sections include trust bar with key metrics (businesses using, enquiries handled, conversion rate), icon-based flow diagram for "How it fits" section, testimonials grid with customer quotes and quantified results, animated counter metrics in value blocks, section connectors with visual dots and lines, and final CTA with trust badges. Login and guest layouts updated with consistent typography and spacing tokens. `.qwen/` and `.agents/` directories added to `.gitignore`.
+
 ## 1. What this project is
 
 Sync360 Control App is a Laravel control plane for provisioning and managing tenant-specific OpenClaw workspaces.

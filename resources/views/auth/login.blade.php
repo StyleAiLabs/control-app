@@ -2,15 +2,15 @@
     <section class="auth-wrap auth-wrap--login">
         <div class="hero-card auth-aside auth-story">
             <div>
-                <span class="eyebrow"><span class="eyebrow-dot"></span> Welcome back</span>
-                <h2>Your workspace kept the conversation moving while you were away.</h2>
-                <p>
+                <span class="eyebrow type-kicker"><span class="eyebrow-dot"></span> Welcome back</span>
+                <h2 class="type-h2">Your workspace kept the conversation moving while you were away.</h2>
+                <p class="type-body-lg">
                     Jump back into the day with customer context, next actions, and a digital employee
                     that has already been handling the busywork in the background.
                 </p>
             </div>
 
-            <div class="auth-proof">
+            <div class="auth-proof type-secondary">
                 <span>Replies tracked</span>
                 <span>Bookings moving</span>
                 <span>Follow-ups queued</span>
@@ -18,16 +18,16 @@
 
             <div class="auth-metric-grid">
                 <div class="auth-metric">
-                    <span>Inbox</span>
-                    <strong>Prioritised before you log in</strong>
+                    <span class="type-label">Inbox</span>
+                    <strong class="type-value">Prioritised before you log in</strong>
                 </div>
                 <div class="auth-metric">
-                    <span>Customers</span>
-                    <strong>Warm replies, even after hours</strong>
+                    <span class="type-label">Customers</span>
+                    <strong class="type-value">Warm replies, even after hours</strong>
                 </div>
                 <div class="auth-metric">
-                    <span>Team</span>
-                    <strong>Cleaner handoff every morning</strong>
+                    <span class="type-label">Team</span>
+                    <strong class="type-value">Cleaner handoff every morning</strong>
                 </div>
             </div>
 
@@ -51,8 +51,8 @@
         <div class="panel auth-card">
             <header>
                 <span class="kicker type-kicker">Secure access</span>
-                <h2 class="type-section-title">Log in to your Sync360 workspace</h2>
-                <p class="hint type-muted">Pick up where you left off and get back to the conversations that matter.</p>
+                <h3 class="type-h3">Log in to your Sync360 workspace</h3>
+                <p class="hint type-secondary">Pick up where you left off and get back to the conversations that matter.</p>
             </header>
 
             <form method="POST" action="{{ route('login.store') }}">

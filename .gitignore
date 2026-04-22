@@ -1,6 +1,8 @@
 *.log
 .DS_Store
 .claude/
+.qwen/
+.agents/
 .env
 .env.backup
 .env.production

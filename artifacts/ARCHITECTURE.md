@@ -2,6 +2,8 @@
 
 This document describes the current as-built architecture of the Sync360 Control App based on the repo code.
 
+**2026-04-22 Landing Page UX Refinement:** Landing page (`resources/views/landing.blade.php`) and authentication views updated with semantic typography classes, section connectors, trust bar with metrics, testimonials grid, flow diagram with icons, animated counter metrics, and trust badges in final CTA. Design system documentation updated in `artifacts/DESIGN_SYSTEM.md` with new landing page patterns and typography usage.
+
 Shared Blade layouts render keyboard-visible focus states via `:focus-visible` outlines on form controls, buttons, and navigation links, drawn using the brand `--accent` token (WCAG 2.4.7 Focus Visible). The authenticated app layout is mobile-responsive: at ≤980px the sidebar collapses to a sticky hamburger top bar; a `.mobile-drawer` (position: absolute, z-index: 99) expands below preserving all navigation elements (alerts bell, nav links, user name, logout) and is toggled by `toggleMobileNav()` with `aria-expanded` management. The sidebar must have `overflow: visible` in the mobile query — otherwise the desktop `overflow-y: auto` clips the drawer.
 
 ## 1. Purpose and product boundary

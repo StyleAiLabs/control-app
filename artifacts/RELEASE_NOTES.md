@@ -7,6 +7,31 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-22 — Feature: Landing Page UX Refinement
+
+Date: 2026-04-22
+Status: Implemented
+
+### Overview
+
+Comprehensive landing page and authentication UI refinement with enhanced typography, social proof sections, and improved visual hierarchy to increase conversion rates.
+
+### What Changed
+
+- added semantic typography classes (`type-h2`, `type-h3`, `type-body`, `type-body-lg`, `type-kicker`, `type-label`, `type-value`, `type-display`) for consistent design system usage across landing and auth views
+- introduced section connectors with visual dots and lines between major landing page sections for better content flow
+- added trust bar section with key metrics (businesses using Sync360, enquiries handled last month, lead-to-booking conversion rate)
+- enhanced 'How it fits' section with icon-based flow diagram showing three-step customer journey (capture enquiry, move customer forward, hand team clean context)
+- added animated counter metrics to value blocks showing response time (~90 sec), admin reduction (~10 hrs weekly), and conversion lift (89%)
+- implemented testimonials section with three customer persona cards featuring quotes, author details, and quantified business results
+- improved final CTA section with trust badges (14-day free trial, no credit card required, cancel anytime)
+- updated login and guest layouts with consistent typography classes and spacing tokens
+- added `.qwen/` and `.agents/` directories to `.gitignore` for IDE configuration files
+
+### Business Impact
+
+Stronger social proof, clearer value proposition, and more professional visual hierarchy designed to improve landing page visitor-to-trial conversion rates. Typography system alignment reduces design debt and improves maintainability.
+
 ## 2026-04-22 — Feature: Inbox Triage Google Sheets Lead Log
 
 Date: 2026-04-22

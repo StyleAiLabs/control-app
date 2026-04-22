@@ -1,6 +1,6 @@
 # Sync360 Design System
 
-Last verified: `2026-04-21`
+Last verified: `2026-04-22`
 
 This document is the canonical design-system reference for the Sync360 Control App. It describes the current code-backed UI system used by the Blade surfaces in this repo.
 
@@ -19,6 +19,8 @@ Known tech debt: most design-system CSS lives inside Blade `<style>` blocks rath
 Use shared classes and tokens from those files before adding view-local inline styles. If a new UI primitive is needed across more than one screen, add it to the relevant shared layout first, then document it here.
 
 Implementation status, 2026-04-19: the shared app and guest layouts now load `DM Sans` plus `JetBrains Mono`, expose the reusable `type-*` typography classes, and define the current spacing scale. Existing Blade views are being migrated toward those classes as they are touched.
+
+**2026-04-22 Landing Page Typography Enhancement:** Landing page and auth views now use the full semantic typography scale for consistent hierarchy: `type-display` (hero/display headings), `type-h2` (major section headings), `type-h3` (outcome card titles), `type-body-lg` (supporting paragraphs in hero/CTA), `type-body` (standard body copy), `type-kicker` (eyebrow/section markers), `type-label` (small labels for metrics), `type-value` (displayed metric values), and `type-value--large` (hero metrics with animated counters). New landing page patterns include section connectors (`.section-connector`, `.section-connector-line`, `.section-connector-dot`), trust bar (`.trust-bar`, `.trust-stat`, `.trust-divider`), flow diagram (`.flow-diagram`, `.flow-step`, `.flow-step-icon`, `.flow-step-content`), testimonials grid (`.testimonials-grid`, `.testimonial-card`, `.testimonial-content`, `.testimonial-author`, `.testimonial-metric`), and value metric cards (`.value-metric`, `.metric-value--large`, `.metric-label`).
 
 ## 2. Design Principles
 
