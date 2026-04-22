@@ -22,8 +22,10 @@ When handling an internal inbox event, use the email metadata/body and tenant wo
 For internal `sync360-inbox-monitor` events, complete all required side effects before reporting final status.
 
 - Telegram high-value notification: use the normal runtime `message` send path with `action: send`, `channel: telegram`, `target: <telegram_default_chat_id>`, and `message: <notification body>`. Do not use Telegram poll fields for a normal send.
+- Lead id for Gmail events: when `gmail_message_id` is present, it is the primary lead id. The Telegram body must include the exact line `Lead ref: <gmail_message_id>` using the Gmail message id, not the Sync360 Job ID, and must not write synonyms such as `Lead Reference`.
 - Google Drive triage log: create `.sync360/tmp/sync360-inbox-triage-<lead-id>.md`, then run exactly `gog drive upload .sync360/tmp/sync360-inbox-triage-<lead-id>.md`. Do not use `apply_patch`, workspace patch tools, or local-only file edits as a substitute for Google Drive logging.
-- Analytics: for every qualified lead where `lead_quality` is `high`, `medium`, or `ambiguous` and the message is not spam or low-intent, run `sh .sync360/bin/log-skill-conversion --skill inbox-triage --conversion-id <lead-id> --payload-json '<json>'`.
+- Analytics: for every qualified lead where `lead_quality` is `high`, `medium`, or `ambiguous` and the message is not spam or low-intent, run `sh .sync360/bin/log-skill-conversion --skill inbox-triage --conversion-id <lead-id> --payload-json '<json>'`. For Gmail events, use the Gmail message id as `<lead-id>` and include required payload fields: `event_id`, `occurred_at`, `customer_label`, `outcome.lead_quality`, `outcome.inquiry_category`, and `outcome.suggested_action`.
+- Minimal analytics payload for Gmail events: `{"event_id":"inbox-triage-<gmail_message_id>","occurred_at":"<ISO-8601 timestamp>","customer_label":"<company or contact>","outcome":{"lead_quality":"high","inquiry_category":"quote-request","suggested_action":"quote-generation"}}`.
 - A Telegram success does not finish the workflow. Continue to Drive logging and analytics. A Telegram or Drive failure must not block analytics.
 
 ## Google Workspace Context
@@ -44,8 +46,8 @@ Complete these steps in order for every delivered Gmail inquiry:
    - Decide `lead_quality` as `high`, `medium`, `low`, or `ambiguous`.
    - Flag high-value only when there is genuine buying intent and ICP fit. Do not flag spam, newsletters, generic form spam, or low-intent messages.
 2. Build a stable lead id.
-   - Prefer the Sync360 `Job ID` from the trigger when present.
-   - Otherwise use the Gmail message id.
+   - For Gmail-triggered events, use `gmail_message_id` as the primary lead id for Telegram `Lead ref`, Google Drive log naming, and analytics `conversion_id`.
+   - Use the Sync360 `Job ID` only for internal traceability or when no Gmail message id exists.
    - Reuse this id for Telegram idempotency reasoning, Google Drive log naming, and analytics `conversion_id`.
 3. If `lead_quality` is `high`, send exactly one Telegram notification using the Telegram Notifications section.
    - The notification must include `Lead ref: <gmail_message_id>`.
@@ -99,6 +101,7 @@ Suggested action: <next step>
 
 **Follow-up rule:**
 - Treat `Lead ref` as the canonical handle for future owner follow-up requests.
+- The line must be written exactly as `Lead ref: <gmail_message_id>`. Do not write `Lead Reference`, `Lead ID`, or the Sync360 Job ID in place of the Gmail message id.
 - If the owner replies to this Telegram notification with requests such as `Get from email`, `Generate a quote`, `Draft reply`, or `Book site visit`, read the replied notification, extract `Lead ref`, and use `gog gmail get <Lead ref>` before asking for email details.
 - Do not fall back to guessed Gmail searches when the notification already contains a `Lead ref`.
 - If the owner did not reply to the original notification or the replied message does not contain `Lead ref`, ask them to reply to the original lead notification again or paste the lead reference.
@@ -171,6 +174,7 @@ Use the workspace exec tool to run:
 ```bash
 sh .sync360/bin/log-skill-conversion --skill inbox-triage --conversion-id <lead-id> --payload-json '<json>'
 ```
+For Gmail-triggered events, `<lead-id>` must be the Gmail message id when available, not the Sync360 Job ID.
 
 ### Response validation
 - Inspect the helper's JSON output after running the command.
@@ -185,6 +189,8 @@ Include all of these in the JSON payload:
 - `outcome.lead_quality`: assessment level (high, medium, low)
 - `outcome.inquiry_category`: type of inquiry (sales, support, quote-request, booking-request, etc.)
 - `outcome.suggested_action`: next step recommended (quote-generation, google-calendar-booking, human-follow-up, etc.)
+
+For Gmail-triggered events, use `event_id` such as `inbox-triage-<gmail_message_id>` so the helper can validate the payload and de-dupe the event.
 
 ### Recommended payload shape
 ```json

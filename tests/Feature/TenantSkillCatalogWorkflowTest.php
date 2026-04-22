@@ -47,6 +47,8 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $skill = File::get(base_path('resources/skill-packs/inbox-triage/SKILL.md'));
 
         $this->assertStringContainsString('Lead ref: <gmail_message_id>', $skill);
+        $this->assertStringContainsString('The Telegram body must include the exact line `Lead ref: <gmail_message_id>` using the Gmail message id, not the Sync360 Job ID', $skill);
+        $this->assertStringContainsString('must not write synonyms such as `Lead Reference`', $skill);
         $this->assertStringContainsString('use `gog gmail get <Lead ref>` before asking for email details', $skill);
         $this->assertStringContainsString('Do not fall back to guessed Gmail searches when the notification already contains a `Lead ref`', $skill);
         $this->assertStringContainsString('`action`: `send`', $skill);
@@ -61,6 +63,8 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $this->assertStringContainsString('gog drive upload .sync360/tmp/sync360-inbox-triage-<lead-id>.md', $skill);
         $this->assertStringContainsString('Do not use `apply_patch`, workspace patch tools, or local-only file edits as a substitute for Google Drive logging', $skill);
         $this->assertStringContainsString('Do not add unverified Drive flags such as `--share`, `--parent`, `--replace`, `--name`, or `--json`', $skill);
+        $this->assertStringContainsString('"event_id":"inbox-triage-<gmail_message_id>"', $skill);
+        $this->assertStringContainsString('For Gmail-triggered events, `<lead-id>` must be the Gmail message id when available, not the Sync360 Job ID', $skill);
         $this->assertStringNotContainsString('gog --json drive upload <localPath> --parent <folderId>', $skill);
         $this->assertStringContainsString('A Telegram or Google Drive failure must not block analytics', $skill);
     }
@@ -71,6 +75,7 @@ class TenantSkillCatalogWorkflowTest extends TestCase
 
         $this->assertStringContainsString('Required tool-contract rules', $prompt);
         $this->assertStringContainsString('Every required side effect must name the exact tool or command family', $prompt);
+        $this->assertStringContainsString('Do not substitute internal job ids for operator-facing references when the provider id is needed for exact follow-up', $prompt);
         $this->assertStringContainsString('normal sends must use only `action: "send"`, `channel: "telegram"`, `target: <chat id>`, and `message: <body>`', $prompt);
         $this->assertStringContainsString('Telegram normal sends must not include poll-only or unrelated fields', $prompt);
         $this->assertStringContainsString('Do not invent `gog` flags', $prompt);

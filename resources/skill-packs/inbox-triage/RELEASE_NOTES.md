@@ -1,5 +1,11 @@
 # Inbox Triage — Release Notes
 
+## 1.5.6
+
+- Made the Gmail message id the primary lead id for Gmail-triggered events, including Telegram `Lead ref`, Drive log naming, and analytics conversion ids.
+- Added a top-level warning not to substitute Sync360 Job IDs or label variants such as `Lead Reference` for the exact `Lead ref: <gmail_message_id>` follow-up contract.
+- Front-loaded the minimum analytics payload shape so runtime agents include `event_id` and the manifest-required outcome fields before invoking the helper.
+
 ## 1.5.5
 
 - Front-loaded the critical Telegram, Drive, and analytics contracts so runtime agents see them even when they initially read only the top of `SKILL.md`.

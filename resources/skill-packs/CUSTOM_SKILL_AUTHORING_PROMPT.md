@@ -53,6 +53,7 @@ Analytics event rules:
 - Emit exactly once per business outcome.
 - Always provide a stable `event_id`.
 - Always provide a stable `conversion_id`. It is scoped within this skill, not globally unique across skills.
+- For external event triggers with a provider id, such as a Gmail message id or calendar event id, use that provider id as the primary business handle unless the skill explicitly defines a safer canonical id. Do not substitute internal job ids for operator-facing references when the provider id is needed for exact follow-up.
 - `skill_key` must equal `manifest.json.skill_id`.
 - `skill_version` must equal the manifest version string exactly.
 - The Sync360 helper resolves `skill_key` and `skill_version` from the deployed registry; the skill instructions should not hardcode event rows or write SQL directly.
