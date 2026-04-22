@@ -7,11 +7,12 @@ metadata:
   integrations:
     - gmail
     - google-drive
+    - google-sheets
 ---
 
 # Inbox Triage
 
-When a customer inquiry is delivered from Gmail, use this skill to categorize the message, assess lead quality, flag high-value opportunities, notify the connected Telegram channel when appropriate, create a Google Drive triage log, emit analytics when appropriate, and suggest the next action (Quote Generation, Calendar Booking, or human follow-up).
+When a customer inquiry is delivered from Gmail, use this skill to categorize the message, assess lead quality, flag high-value opportunities, notify the connected Telegram channel when appropriate, create a Google Drive triage log, write qualified lead details to Google Sheets, emit analytics when appropriate, and suggest the next action (Quote Generation, Calendar Booking, or human follow-up).
 
 Sync360 may deliver polled Gmail messages as internal inbox events from `sync360-inbox-monitor`. Treat those events as neutral triggers only. The trigger has not classified the email as high-value; you must decide the category, lead quality, and next action from this skill's instructions and the email context.
 
@@ -27,13 +28,14 @@ For internal `sync360-inbox-monitor` events, complete all required side effects 
 - High-value Telegram body: when Telegram is sent, use the `High-Value Lead Detected` format from the Telegram Notifications section, including category, suggested action, and references.
 - Lead id for Gmail events: when `gmail_message_id` is present, it is the primary lead id. The Telegram body must include the exact line `Lead ref: <gmail_message_id>` using the Gmail message id, not the Sync360 Job ID, and must not write synonyms such as `Lead Reference`.
 - Google Drive triage log: create `.sync360/tmp/sync360-inbox-triage-<lead-id>.md`, then run exactly `gog drive upload .sync360/tmp/sync360-inbox-triage-<lead-id>.md`. Do not use `apply_patch`, workspace patch tools, or local-only file edits as a substitute for Google Drive logging.
+- Google Sheets qualified lead row: for every qualified lead where `lead_quality` is `high`, `medium`, or `ambiguous` and the message is not spam or low-intent, find or create spreadsheet `Sync360 Inbox Triage Qualified Leads`, tab `Qualified Leads`, verify `<lead-id>` is not already in the lead-id column, then append exactly one row.
 - Analytics: for every qualified lead where `lead_quality` is `high`, `medium`, or `ambiguous` and the message is not spam or low-intent, run `sh .sync360/bin/log-skill-conversion --skill inbox-triage --conversion-id <lead-id> --payload-json '<json>'`. For Gmail events, use the Gmail message id as `<lead-id>` and include required payload fields: `event_id`, `occurred_at`, `customer_label`, `outcome.lead_quality`, `outcome.inquiry_category`, and `outcome.suggested_action`.
 - Minimal analytics payload for Gmail events: `{"event_id":"inbox-triage-<gmail_message_id>","occurred_at":"<ISO-8601 timestamp>","customer_label":"<company or contact>","outcome":{"lead_quality":"high","inquiry_category":"quote-request","suggested_action":"quote-generation"}}`.
-- A Telegram success does not finish the workflow. Continue to Drive logging and analytics. A Telegram or Drive failure must not block analytics.
+- A Telegram success does not finish the workflow. Continue to Drive logging, Sheets logging, and analytics. A Telegram, Drive, or Sheets failure must not block analytics.
 
 ## Google Workspace Context
 
-This skill uses GOG (Google Workspace OAuth), which is pre-configured on the OpenClaw server, to inspect the referenced Gmail message when needed and to write Google Drive triage logs. Before taking Gmail or Drive actions:
+This skill uses GOG (Google Workspace OAuth), which is pre-configured on the OpenClaw server, to inspect the referenced Gmail message when needed, write Google Drive triage logs, and write qualified lead rows to Google Sheets. Before taking Gmail, Drive, or Sheets actions:
 
 1. **Use the configured GOG account** — Do not ask the owner to choose an account unless tooling explicitly reports multiple accounts or no default.
 2. **Verify the connection before tool actions** — If GOG fails, stop and report the error to the operator instead of guessing from missing context.
@@ -57,12 +59,14 @@ Complete these steps in order for every delivered Gmail inquiry:
    - Include `Thread ref: <gmail_thread_id>` when a thread id is available.
 4. Create or verify the Google Drive triage log using the Google Drive Triage Log section.
 5. Emit analytics independently when the lead meets the Analytics Contract. A Telegram or Google Drive failure must not block analytics.
-6. Final response must summarize:
+6. Write or verify a Google Sheets row when the lead meets the Google Sheets Qualified Lead Log threshold. A Google Sheets failure must not change or block the analytics result.
+7. Final response must summarize:
    - category
    - lead quality
    - suggested action
    - Telegram result when attempted
    - Google Drive log result or exact failure
+   - Google Sheets row result or exact failure
    - analytics result or why analytics was not emitted
 
 Do not report the workflow as complete until each required side effect has either succeeded or has an explicit captured failure.
@@ -162,6 +166,64 @@ Recommended flow:
 - Treat the Drive log as successful only when the upload output confirms a file was created or returns a file id/link/name for the uploaded log.
 - If Drive logging fails, include the exact command error/output in the final response and still continue to Telegram/analytics steps when those are applicable.
 
+## Google Sheets Qualified Lead Log
+
+Write one row for every qualified lead. A qualified lead is any non-spam, non-low-intent message where `lead_quality` is `high`, `medium`, or `ambiguous`. This threshold must match the Analytics Contract. Do not write rows for `low`, spam, newsletters, generic form spam, or low-intent messages.
+
+### Sheet location and idempotency
+
+- Spreadsheet name: `Sync360 Inbox Triage Qualified Leads`
+- Tab name: `Qualified Leads`
+- Use `<lead-id>` as the idempotency key.
+- If multiple spreadsheets with the target name are returned, use the first returned spreadsheet and report that multiple matches existed. Do not create another spreadsheet.
+- Before appending, read the existing rows and confirm the lead-id column does not already contain `<lead-id>`. If it does, report `sheets_skipped: duplicate_lead_id` and do not append a duplicate row.
+
+### Required columns
+
+Use exactly these columns, in this order:
+
+`Occurred At | Lead ID | Gmail Message ID | Gmail Thread ID | Customer | Sender Domain | Subject | Lead Quality | Category | Suggested Action | Drive Log Result | Analytics Result`
+
+### Required GOG command shape
+
+Use the workspace exec tool and the configured GOG account. Keep the Sheets command shape small and do not invent extra flags.
+
+Recommended flow:
+
+1. Search for the spreadsheet:
+   `gog drive search "Sync360 Inbox Triage Qualified Leads" --max 10`
+2. If no matching spreadsheet exists, create it:
+   `gog sheets create "Sync360 Inbox Triage Qualified Leads" --sheets "Qualified Leads"`
+3. Read existing rows before appending:
+   `gog sheets get <spreadsheetId> 'Qualified Leads!A:L'`
+4. If the sheet is empty or missing headers, write the header row:
+   `gog sheets update <spreadsheetId> 'Qualified Leads!A1:L1' '<header-pipe-row>'`
+5. Append the qualified lead row:
+   `gog sheets append <spreadsheetId> 'Qualified Leads!A:L' '<pipe-delimited-row>'`
+
+### Row content
+
+- `Occurred At`: ISO-8601 timestamp for evaluation time.
+- `Lead ID`: `<lead-id>`.
+- `Gmail Message ID`: Gmail message id when available.
+- `Gmail Thread ID`: Gmail thread id when available.
+- `Customer`: company or contact label.
+- `Sender Domain`: sender domain only.
+- `Subject`: concise subject, no raw full body.
+- `Lead Quality`: `high`, `medium`, or `ambiguous`.
+- `Category`: inquiry category.
+- `Suggested Action`: next step.
+- `Drive Log Result`: success, existing, skipped, or exact failure summary.
+- `Analytics Result`: success, skipped, pending, or exact failure summary.
+
+Do not store full raw email bodies, attachments, credentials, private notes, or unnecessary personal contact details in the sheet. Mask direct contact details when they are not needed for follow-up.
+
+### Response validation
+
+- Inspect `gog` output after search, create, get, update, and append operations.
+- Treat the Sheets row as successful only when `gog sheets append` confirms the row was appended, or when an existing row with the same lead id is found.
+- If Sheets logging fails, include the exact command error/output in the final response and still continue to analytics when applicable.
+
 ## Analytics Contract
 
 ### When to emit
@@ -170,7 +232,7 @@ Recommended flow:
 - Do not emit for incoming email volume or incomplete triage decisions.
 - Emit exactly once per evaluated lead.
 - Do not use Google Drive logging as proof of conversion; Drive logging is operational evidence. Analytics is emitted only when the lead quality/category threshold is met.
-- Attempt analytics even when Telegram or Google Drive logging failed. Required side-effect failures are reported separately and do not change whether the lead qualified for analytics.
+- Attempt analytics even when Telegram, Google Drive, or Google Sheets logging failed. Required side-effect failures are reported separately and do not change whether the lead qualified for analytics.
 
 ### Required invocation
 Use the workspace exec tool to run:

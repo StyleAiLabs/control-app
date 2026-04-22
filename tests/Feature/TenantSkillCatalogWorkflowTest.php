@@ -60,17 +60,23 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $this->assertStringContainsString('Do not send Telegram for `medium`, `ambiguous`, `low`, spam, or low-intent messages', $skill);
         $this->assertStringContainsString('High-value signal: a concrete commercial quote/request-for-service email with site count, floor area, timeline, role/contact details, or operational urgency is high intent', $skill);
         $this->assertStringContainsString('High-value Telegram body: when Telegram is sent, use the `High-Value Lead Detected` format', $skill);
-        $this->assertStringContainsString('A Telegram success does not finish the workflow. Continue to Drive logging and analytics', $skill);
+        $this->assertStringContainsString('A Telegram success does not finish the workflow. Continue to Drive logging, Sheets logging, and analytics', $skill);
         $this->assertStringContainsString('Do not include poll-only or unrelated fields', $skill);
         $this->assertStringContainsString('`poll*`, `limit`, `pageSize`, `duration*`, buttons, interactive payloads, or poll options', $skill);
         $this->assertStringContainsString('Do not use `web_search`, public web browsing, or public website research unless the owner explicitly asks', $skill);
         $this->assertStringContainsString('gog drive upload .sync360/tmp/sync360-inbox-triage-<lead-id>.md', $skill);
         $this->assertStringContainsString('Do not use `apply_patch`, workspace patch tools, or local-only file edits as a substitute for Google Drive logging', $skill);
         $this->assertStringContainsString('Do not add unverified Drive flags such as `--share`, `--parent`, `--replace`, `--name`, or `--json`', $skill);
+        $this->assertStringContainsString('Google Sheets qualified lead row', $skill);
+        $this->assertStringContainsString('Sync360 Inbox Triage Qualified Leads', $skill);
+        $this->assertStringContainsString('Qualified Leads', $skill);
+        $this->assertStringContainsString('A qualified lead is any non-spam, non-low-intent message where `lead_quality` is `high`, `medium`, or `ambiguous`', $skill);
+        $this->assertStringContainsString('gog sheets append <spreadsheetId> \'Qualified Leads!A:L\' \'<pipe-delimited-row>\'', $skill);
+        $this->assertStringContainsString('A Google Sheets failure must not change or block the analytics result', $skill);
         $this->assertStringContainsString('"event_id":"inbox-triage-<gmail_message_id>"', $skill);
         $this->assertStringContainsString('For Gmail-triggered events, `<lead-id>` must be the Gmail message id when available, not the Sync360 Job ID', $skill);
         $this->assertStringNotContainsString('gog --json drive upload <localPath> --parent <folderId>', $skill);
-        $this->assertStringContainsString('A Telegram or Google Drive failure must not block analytics', $skill);
+        $this->assertStringContainsString('A Telegram, Drive, or Sheets failure must not block analytics', $skill);
     }
 
     public function test_custom_skill_authoring_prompt_requires_explicit_tool_contracts(): void

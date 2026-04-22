@@ -1,6 +1,6 @@
 {
     "skill_id": "inbox-triage",
-    "version": "1.5.7",
+    "version": "1.5.8",
     "label": "Inbox Triage (by Sync360)",
     "description": "Monitors email inbox for high-value leads, categorizes inquiries, and routes qualified opportunities.",
     "category": "operations",
@@ -15,7 +15,8 @@
     "applicable_industries": [],
     "google_workspace_integrations": [
         "gmail",
-        "google-drive"
+        "google-drive",
+        "google-sheets"
     ],
     "analytics": {
         "enabled": true,

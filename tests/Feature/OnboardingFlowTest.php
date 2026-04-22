@@ -1577,10 +1577,10 @@ class OnboardingFlowTest extends TestCase
         $skillVersion = SkillCatalogVersion::query()->create([
             'skill_catalog_item_id' => $skillItem->id,
             'skill_key' => 'inbox-triage',
-            'version' => '1.5.7',
+            'version' => '1.5.8',
             'manifest_json' => [
                 'skill_id' => 'inbox-triage',
-                'version' => '1.5.7',
+                'version' => '1.5.8',
                 'label' => 'Inbox Triage (by Sync360)',
                 'description' => 'Inbox Triage',
                 'runtime_type' => 'sync360_workspace',
@@ -1685,6 +1685,9 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('"event_id":"inbox-triage-<gmail_message_id>"', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('Do not include poll-only or unrelated fields', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('gog drive upload .sync360/tmp/sync360-inbox-triage-<lead-id>.md', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
+        $this->assertStringContainsString('Google Sheets qualified lead row', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
+        $this->assertStringContainsString('Sync360 Inbox Triage Qualified Leads', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
+        $this->assertStringContainsString('gog sheets append <spreadsheetId> \'Qualified Leads!A:L\' \'<pipe-delimited-row>\'', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('Do not use `apply_patch`, workspace patch tools, or local-only file edits as a substitute for Google Drive logging', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('reply to the original lead notification again', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('The `gog` CLI is preconfigured in this workspace.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
