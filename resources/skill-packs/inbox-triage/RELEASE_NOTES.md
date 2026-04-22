@@ -1,5 +1,11 @@
 # Inbox Triage — Release Notes
 
+## 1.5.8
+
+- Added Google Sheets qualified-lead logging to an auto-managed `Sync360 Inbox Triage Qualified Leads` spreadsheet and `Qualified Leads` tab.
+- Defined the exact qualified threshold, idempotency key, row columns, and `gog sheets` command shapes for appending lead rows.
+- Clarified that Sheets logging failures must be reported but must not block analytics or the rest of the inbox-triage workflow.
+
 ## 1.5.7
 
 - Front-loaded the Telegram eligibility gate so notifications are sent only for `lead_quality: high`, while medium/ambiguous qualified leads continue to Drive logging and analytics without Telegram.

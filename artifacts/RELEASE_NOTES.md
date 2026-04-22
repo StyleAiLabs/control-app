@@ -7,6 +7,24 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-22 — Feature: Inbox Triage Google Sheets Lead Log
+
+Date: 2026-04-22
+Status: Implemented
+
+### Overview
+
+Added Google Sheets qualified-lead logging to the Inbox Triage skill so qualified Gmail leads are captured in a tenant-owned spreadsheet in addition to Telegram, Drive logging, and analytics.
+
+### What Changed
+
+- bumped `inbox-triage` to `1.5.8`
+- added `google-sheets` to the skill's Google Workspace integration metadata
+- added an auto-managed `Sync360 Inbox Triage Qualified Leads` spreadsheet with a `Qualified Leads` tab as the required lead-log destination
+- defined the exact qualified threshold, row columns, idempotency key, and `gog sheets` command shapes for appending rows
+- updated the inbox polling trigger prompt to mention Google Sheets lead logging as a required side effect
+- clarified that Sheets logging failures must be reported but must not block analytics
+
 ## 2026-04-22 — Fix: Reliable Custom Skill Tool Contracts
 
 Date: 2026-04-22
