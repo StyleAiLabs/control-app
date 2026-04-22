@@ -1577,10 +1577,10 @@ class OnboardingFlowTest extends TestCase
         $skillVersion = SkillCatalogVersion::query()->create([
             'skill_catalog_item_id' => $skillItem->id,
             'skill_key' => 'inbox-triage',
-            'version' => '1.5.4',
+            'version' => '1.5.5',
             'manifest_json' => [
                 'skill_id' => 'inbox-triage',
-                'version' => '1.5.4',
+                'version' => '1.5.5',
                 'label' => 'Inbox Triage (by Sync360)',
                 'description' => 'Inbox Triage',
                 'runtime_type' => 'sync360_workspace',
@@ -1678,9 +1678,11 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('use `gog gmail get <gmail_message_id>` to reopen the exact email', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('Do not guess with Gmail searches from company labels or notification summaries when an exact `Lead ref` is present', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('For internal workflow triggers, do not browse the public web or research companies unless the owner explicitly asks', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
+        $this->assertStringContainsString('Critical Runtime Contracts', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('Lead ref: <gmail_message_id>', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('Do not include poll-only or unrelated fields', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('gog drive upload .sync360/tmp/sync360-inbox-triage-<lead-id>.md', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
+        $this->assertStringContainsString('Do not use `apply_patch`, workspace patch tools, or local-only file edits as a substitute for Google Drive logging', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('reply to the original lead notification again', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('The `gog` CLI is preconfigured in this workspace.', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));
         $this->assertStringContainsString('Treat owner@example.com as the default Google account', File::get($localRuntimePath.'/.openclaw/workspace/TOOLS.md'));

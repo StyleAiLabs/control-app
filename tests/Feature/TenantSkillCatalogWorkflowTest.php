@@ -53,10 +53,13 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $this->assertStringContainsString('`channel`: `telegram`', $skill);
         $this->assertStringContainsString('`target`: `<telegram_default_chat_id>`', $skill);
         $this->assertStringContainsString('`message`: the formatted notification body above', $skill);
+        $this->assertStringContainsString('## Critical Runtime Contracts', $skill);
+        $this->assertStringContainsString('A Telegram success does not finish the workflow. Continue to Drive logging and analytics', $skill);
         $this->assertStringContainsString('Do not include poll-only or unrelated fields', $skill);
         $this->assertStringContainsString('`poll*`, `limit`, `pageSize`, `duration*`, buttons, interactive payloads, or poll options', $skill);
         $this->assertStringContainsString('Do not use `web_search`, public web browsing, or public website research unless the owner explicitly asks', $skill);
         $this->assertStringContainsString('gog drive upload .sync360/tmp/sync360-inbox-triage-<lead-id>.md', $skill);
+        $this->assertStringContainsString('Do not use `apply_patch`, workspace patch tools, or local-only file edits as a substitute for Google Drive logging', $skill);
         $this->assertStringContainsString('Do not add unverified Drive flags such as `--share`, `--parent`, `--replace`, `--name`, or `--json`', $skill);
         $this->assertStringNotContainsString('gog --json drive upload <localPath> --parent <folderId>', $skill);
         $this->assertStringContainsString('A Telegram or Google Drive failure must not block analytics', $skill);
@@ -71,6 +74,7 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $this->assertStringContainsString('normal sends must use only `action: "send"`, `channel: "telegram"`, `target: <chat id>`, and `message: <body>`', $prompt);
         $this->assertStringContainsString('Telegram normal sends must not include poll-only or unrelated fields', $prompt);
         $this->assertStringContainsString('Do not invent `gog` flags', $prompt);
+        $this->assertStringContainsString('Do not use workspace patch/file-edit tools as a substitute for an external side effect', $prompt);
         $this->assertStringContainsString('Do not use public web browsing or `web_search` unless the owner explicitly asks', $prompt);
     }
 

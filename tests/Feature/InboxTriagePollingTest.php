@@ -89,6 +89,7 @@ class InboxTriagePollingTest extends TestCase
                     && str_contains($message, 'business-plausible Gmail message')
                     && str_contains($message, 'This trigger has not classified the email as high-value.')
                     && str_contains($message, 'Read the workspace skill file at ./skills/inbox-triage/SKILL.md')
+                    && str_contains($message, 'Critical Runtime Contracts for Telegram, Google Drive triage logging, and analytics')
                     && str_contains($message, 'Do not look under /app/skills')
                     && str_contains($message, 'Execute the inbox-triage workflow now; do not reply with only an assessment, recommendation, or plan.')
                     && str_contains($message, 'Do not browse the public web or research the sender unless the operator explicitly asks for that.')
@@ -416,10 +417,10 @@ class InboxTriagePollingTest extends TestCase
             ],
         );
         $version = SkillCatalogVersion::query()->firstOrCreate(
-            ['skill_catalog_item_id' => $item->id, 'version' => '1.5.4'],
+            ['skill_catalog_item_id' => $item->id, 'version' => '1.5.5'],
             [
                 'skill_key' => 'inbox-triage',
-                'manifest_json' => ['skill_id' => 'inbox-triage', 'version' => '1.5.4'],
+                'manifest_json' => ['skill_id' => 'inbox-triage', 'version' => '1.5.5'],
                 'is_active_published' => true,
                 'is_archived' => false,
                 'is_available' => true,

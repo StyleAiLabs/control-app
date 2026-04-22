@@ -97,6 +97,7 @@ Required tool-contract rules:
 - Telegram normal sends must not include poll-only or unrelated fields such as `poll*`, `limit`, `pageSize`, `duration*`, buttons, interactive payloads, or poll options.
 - For `gog` commands, use only command shapes already proven in Sync360 runtime guidance or tell the agent to inspect the exact service help before running the action.
 - Do not invent `gog` flags. If a command fails because of unsupported flags, the skill must capture the exact error, inspect help once, and report the supported syntax or failure instead of retrying with guessed flags.
+- Do not use workspace patch/file-edit tools as a substitute for an external side effect. If a skill promises Google Drive, CRM, calendar, Telegram, or another external action, success requires the corresponding external tool/command to confirm that action.
 - Internal workflow triggers should use tenant workspace files and event payloads as source material. Do not use public web browsing or `web_search` unless the owner explicitly asks for external research or the skill defines a verified research step.
 
 Required `SKILL.md` content:

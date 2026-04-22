@@ -267,6 +267,7 @@ class TenantInboxTriagePollingService
             '',
             'Route this event to the assigned inbox-triage skill.',
             'Read the workspace skill file at ./skills/inbox-triage/SKILL.md and follow that skill\'s instructions exactly.',
+            'Make sure you follow the skill\'s Critical Runtime Contracts for Telegram, Google Drive triage logging, and analytics before reporting final status.',
             'Do not look under /app/skills; Sync360 workspace skills are materialized in the current workspace.',
             'Execute the inbox-triage workflow now; do not reply with only an assessment, recommendation, or plan.',
             'When the skill requires Telegram notification, Google Drive triage logging, or analytics emission, attempt those actions now and then report the exact results.',

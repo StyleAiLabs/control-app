@@ -18,12 +18,13 @@ Hardened the Inbox Triage skill and shared custom-skill authoring guidance after
 
 ### What Changed
 
-- bumped `inbox-triage` to `1.5.4`
+- bumped `inbox-triage` through `1.5.5`
 - added a strict Telegram notification tool contract for normal sends and forbade poll-only fields on high-value lead alerts
 - simplified Drive triage logging to a deterministic local markdown file and the minimal `gog drive upload <localPath>` command shape
 - clarified that internal inbox-triggered skill work must not use public web research unless the owner asks
 - strengthened analytics guidance so qualified-lead analytics are attempted independently even when Telegram or Drive logging fails
 - updated custom skill authoring and generated tenant workspace guidance with reusable Telegram and `gog` tool-contract guardrails
+- front-loaded the critical runtime contracts after live replay showed the agent initially read only the top of `SKILL.md`, and forbade workspace patch/file-edit tools as a substitute for external Drive logging
 
 ## 2026-04-22 — Fix: Inbox Triage Same-Thread Polling And Workspace Skill Resync
 

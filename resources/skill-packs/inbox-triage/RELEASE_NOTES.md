@@ -1,5 +1,11 @@
 # Inbox Triage — Release Notes
 
+## 1.5.5
+
+- Front-loaded the critical Telegram, Drive, and analytics contracts so runtime agents see them even when they initially read only the top of `SKILL.md`.
+- Explicitly forbade using workspace patch/file-edit tools as a substitute for Google Drive triage logging.
+- Clarified that the workflow must continue to Drive and analytics after a successful Telegram notification.
+
 ## 1.5.4
 
 - Added a strict Telegram send contract so high-value notifications use only the normal `message` send fields and never include poll-only fields.

@@ -17,6 +17,15 @@ Sync360 may deliver polled Gmail messages as internal inbox events from `sync360
 
 When handling an internal inbox event, use the email metadata/body and tenant workspace files as the source of truth. Do not use `web_search`, public web browsing, or public website research unless the owner explicitly asks you to research the sender or company.
 
+## Critical Runtime Contracts
+
+For internal `sync360-inbox-monitor` events, complete all required side effects before reporting final status.
+
+- Telegram high-value notification: use the normal runtime `message` send path with `action: send`, `channel: telegram`, `target: <telegram_default_chat_id>`, and `message: <notification body>`. Do not use Telegram poll fields for a normal send.
+- Google Drive triage log: create `.sync360/tmp/sync360-inbox-triage-<lead-id>.md`, then run exactly `gog drive upload .sync360/tmp/sync360-inbox-triage-<lead-id>.md`. Do not use `apply_patch`, workspace patch tools, or local-only file edits as a substitute for Google Drive logging.
+- Analytics: for every qualified lead where `lead_quality` is `high`, `medium`, or `ambiguous` and the message is not spam or low-intent, run `sh .sync360/bin/log-skill-conversion --skill inbox-triage --conversion-id <lead-id> --payload-json '<json>'`.
+- A Telegram success does not finish the workflow. Continue to Drive logging and analytics. A Telegram or Drive failure must not block analytics.
+
 ## Google Workspace Context
 
 This skill uses GOG (Google Workspace OAuth), which is pre-configured on the OpenClaw server, to inspect the referenced Gmail message when needed and to write Google Drive triage logs. Before taking Gmail or Drive actions:
@@ -139,6 +148,7 @@ Recommended flow:
    `gog drive upload .sync360/tmp/sync360-inbox-triage-<lead-id>.md`
 4. Do not add unverified Drive flags such as `--share`, `--parent`, `--replace`, `--name`, or `--json` to the upload command.
 5. If `gog drive upload` fails, inspect `gog drive upload --help` once, report the exact supported syntax or error, and do not invent alternative flags.
+6. Do not use `apply_patch`, workspace patch tools, or local-only file edits as a substitute for Google Drive logging. The log only counts as a Drive log when a `gog drive upload` command succeeds or reports an existing Drive file.
 
 ### Response validation
 
