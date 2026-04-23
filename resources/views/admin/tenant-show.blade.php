@@ -94,48 +94,53 @@
             gap: 10px;
             flex-wrap: wrap;
         }
-        .tenant-admin-status .badge {
-            padding-inline: 13px;
-        }
 
         .tenant-admin-layout {
             display: grid;
-            grid-template-columns: minmax(160px, 200px) minmax(0, 1fr);
+            grid-template-columns: minmax(190px, 220px) minmax(0, 1fr);
             gap: 18px;
             align-items: start;
         }
 
         .tenant-admin-sidebar {
+            border: 1px solid color-mix(in oklch, var(--color-base-content) 10%, transparent);
+            border-radius: 18px;
+            background: color-mix(in oklch, var(--color-base-100) 92%, white);
+            box-shadow: 0 14px 34px color-mix(in oklch, var(--color-base-content) 6%, transparent);
             display: grid;
-            gap: 10px;
+            gap: 6px;
+            padding: 8px;
             position: sticky;
             top: 18px;
         }
 
         .tenant-admin-tab {
             display: block;
-            padding: 12px 14px;
-            border-radius: 14px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            background: rgba(255, 255, 255, 0.03);
+            padding: 11px 12px;
+            border-radius: 12px;
+            border: 1px solid transparent;
+            background: transparent;
             text-decoration: none;
-            color: inherit;
+            color: color-mix(in oklch, var(--color-base-content) 78%, transparent);
             transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
         }
 
+        .tenant-admin-tab:hover,
+        .tenant-admin-tab:focus {
+            border-color: color-mix(in oklch, var(--color-base-content) 12%, transparent);
+            background: color-mix(in oklch, var(--color-base-200) 54%, transparent);
+            outline: none;
+        }
+
         .tenant-admin-tab.active {
-            border-color: rgba(232, 108, 52, 0.4);
-            background: linear-gradient(135deg, rgba(232, 108, 52, 0.14), rgba(255, 255, 255, 0.08));
-            box-shadow: inset 4px 0 0 #e86c34, 0 10px 24px rgba(232, 108, 52, 0.12);
+            border-color: color-mix(in oklch, var(--color-primary) 34%, transparent);
+            background: linear-gradient(135deg, color-mix(in oklch, var(--color-primary) 14%, transparent), color-mix(in oklch, var(--color-base-100) 72%, white));
+            box-shadow: 0 8px 22px color-mix(in oklch, var(--color-primary) 8%, transparent);
             transform: translateX(2px);
         }
 
         .tenant-admin-tab.active .tenant-admin-tab__label {
-            color: #b44b1a;
-        }
-
-        .tenant-admin-tab.active .badge {
-            border-color: rgba(232, 108, 52, 0.28);
+            color: color-mix(in oklch, var(--color-primary) 72%, var(--color-base-content));
         }
 
         .tenant-admin-tab__row {
@@ -163,9 +168,13 @@
             .tenant-admin-sidebar {
                 position: static;
                 grid-auto-flow: column;
-                grid-auto-columns: minmax(160px, 1fr);
+                grid-auto-columns: max-content;
                 overflow-x: auto;
                 padding-bottom: 4px;
+            }
+
+            .tenant-admin-tab {
+                min-width: 148px;
             }
         }
     </style>
@@ -177,20 +186,20 @@
                 <h2>{{ $tenant->business_name }}</h2>
                 <p class="type-body">Use the sidebar to move between tenant summary, workspace details, Google state, tenant skills, agent runtime behavior, and support actions.</p>
             </div>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <a href="{{ route('admin.tenants') }}" class="button button--secondary">Back to Tenants</a>
+            <div class="sync-poc-panel-actions">
+                <x-ui.button :href="route('admin.tenants')" variant="secondary" size="sm" icon="arrow-left">Back to Tenants</x-ui.button>
                 @if ($tenant->workspace_url)
-                    <a href="{{ $tenant->workspace_url }}" class="button button--secondary" target="_blank" rel="noreferrer">Open Customer Workspace URL</a>
+                    <x-ui.button :href="$tenant->workspace_url" variant="secondary" size="sm" icon="external-link" icon-position="after" target="_blank" rel="noreferrer">Open Customer Workspace URL</x-ui.button>
                 @endif
             </div>
         </div>
 
         <div class="tenant-admin-status">
-            <span class="badge badge--technical {{ $tenant->provisioning_status->value }}">Provisioning: {{ $tenant->provisioning_status->value }}</span>
-            <span class="badge badge--technical {{ $tenant->agent_status === 'live' ? 'ready' : ($tenant->agent_status === 'failed' ? 'failed' : 'pending') }}">Agent: {{ $tenant->agent_status ?? 'offline' }}</span>
-            <span class="badge badge--technical {{ $tenant->last_health_check_status === 'healthy' ? 'ready' : ($tenant->last_health_check_status === 'failed' ? 'failed' : 'pending') }}">Health: {{ $tenant->last_health_check_status ?? 'unchecked' }}</span>
-            <span class="badge badge--technical {{ $workspaceState === 'running' ? 'ready' : ($workspaceState === 'stopped' ? 'pending' : 'failed') }}">Workspace: {{ str_replace('_', ' ', $workspaceState) }}</span>
-            <span class="badge badge--technical {{ $googleState['runtime_badge'] }}">Google: {{ $googleState['runtime_label'] }}</span>
+            <x-ui.badge :status="$tenant->provisioning_status->value" technical>Provisioning: {{ $tenant->provisioning_status->value }}</x-ui.badge>
+            <x-ui.badge :status="$tenant->agent_status ?? 'offline'" technical>Agent: {{ $tenant->agent_status ?? 'offline' }}</x-ui.badge>
+            <x-ui.badge :status="$tenant->last_health_check_status ?? 'unchecked'" technical>Health: {{ $tenant->last_health_check_status ?? 'unchecked' }}</x-ui.badge>
+            <x-ui.badge :status="$workspaceState" technical>Workspace: {{ str_replace('_', ' ', $workspaceState) }}</x-ui.badge>
+            <x-ui.badge :status="$googleState['runtime_badge']" technical>Google: {{ $googleState['runtime_label'] }}</x-ui.badge>
         </div>
 
         <div class="tenant-admin-layout">
@@ -204,7 +213,7 @@
                         <div class="tenant-admin-tab__row">
                             <span class="tenant-admin-tab__label">{{ $tab['label'] }}</span>
                             @if ($tab['badge_label'])
-                                <span class="badge {{ $tab['badge_class'] }}">{{ $tab['badge_label'] }}</span>
+                                <x-ui.status-icon :status="$tab['badge_class']" :label="$tab['label'].' status: '.$tab['badge_class']" />
                             @endif
                         </div>
                     </a>

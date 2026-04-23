@@ -7,6 +7,25 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-23 — Feature: DaisyUI Design System PoC
+
+Date: 2026-04-23
+Status: Implemented
+
+### Overview
+
+Added a narrow daisyUI-backed design-system proof of concept behind Sync360 Blade wrappers for the landing page, admin tenant list, and the full admin tenant detail surface.
+
+### What Changed
+
+- added daisyUI with the `dui-` prefix and a custom `sync360` theme in `resources/css/app.css`
+- introduced reusable Sync360 UI wrappers for buttons, badges, panels/cards, tables, empty states, icons, status icons, and marketing sections
+- converted `landing.blade.php`, `admin/tenants.blade.php`, and all admin tenant-detail tabs to use the PoC wrappers while preserving existing routes and controller data shapes
+- made dense tenant tables fit the screen with planned column widths and ellipsis for long secondary values instead of page-level horizontal scrolling
+- standardized tenant-detail status navigation with fixed-width icons, quieter tab hover states, and icon + text action buttons for back/external/operational actions
+- corrected font usage so `DM Sans` remains the primary UI/status font and `JetBrains Mono` is reserved for precise technical values such as IDs, paths, hashes, logs, and raw command output
+- captured desktop and mobile review screenshots under `artifacts/design-system-poc/`
+
 ## 2026-04-22 — Feature: Landing Page UX Refinement
 
 Date: 2026-04-22

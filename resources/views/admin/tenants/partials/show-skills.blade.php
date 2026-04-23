@@ -1,56 +1,48 @@
 @if (! $tenantSkillsAvailable)
-    <section class="panel">
-        <div class="topbar" style="margin-bottom: 16px;">
-            <div>
-                <span class="eyebrow">Tenant Skills</span>
-                <h2 class="type-section-title">Tenant Skills</h2>
-            </div>
-        </div>
+    <x-ui.panel title="Tenant Skills" description="Skill assignment is unavailable in this local database state.">
         <div class="note error">
             Tenant skills are unavailable until the skill catalog and tenant skill migrations are applied locally.
         </div>
         <div class="hint" style="margin-top: 14px;">
             Run the required skill catalog migrations locally, then refresh this page to enable skill assignment drafts, apply, and history.
         </div>
-    </section>
+    </x-ui.panel>
 @else
-    <section class="panel">
-        <div class="topbar" style="margin-bottom: 18px;">
-            <div>
-                <span class="eyebrow">Tenant Skills</span>
-                <h2 class="type-section-title">Tenant Skills</h2>
-                <p class="type-body">Assign published Sync360 skills to this tenant, save the draft when you want Sync360 state updated, then apply when you want the tenant runtime to use the currently assigned versions.</p>
-            </div>
-            <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                @if (! empty($tenantSkillsStatus['summary_label']) && ($tenantSkillsStatus['summary_label'] ?? null) !== ($tenantSkillsStatus['label'] ?? null))
-                    <span class="badge badge--technical {{ $tenantSkillsStatus['summary_class'] ?? 'pending' }}">
-                        {{ $tenantSkillsStatus['summary_label'] }}
-                    </span>
-                @endif
-                @if (($tenantSkillsStatus['updates_available_count'] ?? 0) > 0)
-                    <span class="badge badge--technical pending">
-                        {{ $tenantSkillsStatus['updates_available_count'] }} update{{ ($tenantSkillsStatus['updates_available_count'] ?? 0) === 1 ? '' : 's' }} available
-                    </span>
-                @endif
-            </div>
-        </div>
+    <x-ui.panel title="Tenant Skills" description="Assign published Sync360 skills to this tenant, save the draft, then apply when the runtime should use the assigned versions.">
+        <x-slot:actions>
+            @if (! empty($tenantSkillsStatus['label']))
+                <x-ui.badge :status="$tenantSkillsStatus['class'] ?? 'pending'" technical>
+                    {{ $tenantSkillsStatus['label'] }}
+                </x-ui.badge>
+            @endif
+            @if (! empty($tenantSkillsStatus['summary_label']) && ($tenantSkillsStatus['summary_label'] ?? null) !== ($tenantSkillsStatus['label'] ?? null))
+                <x-ui.badge :status="$tenantSkillsStatus['summary_class'] ?? 'pending'" technical>
+                    {{ $tenantSkillsStatus['summary_label'] }}
+                </x-ui.badge>
+            @endif
+            @if (($tenantSkillsStatus['updates_available_count'] ?? 0) > 0)
+                <x-ui.badge status="pending" technical>
+                    {{ $tenantSkillsStatus['updates_available_count'] }} update{{ ($tenantSkillsStatus['updates_available_count'] ?? 0) === 1 ? '' : 's' }} available
+                </x-ui.badge>
+            @endif
+        </x-slot:actions>
 
-        <section class="panel" style="padding: 18px; background:#faf9f8; border-radius:16px; margin-bottom: 18px; box-shadow:none;">
+        <section class="sync-poc-subpanel" style="margin-bottom: 18px;">
             <span class="eyebrow">Assignment Workflow</span>
-            <div class="grid grid-2" style="margin-top: 14px;">
-                <div style="padding:14px; border:1px solid var(--stroke); border-radius:14px; background:white;">
+            <div class="sync-poc-detail-grid" style="margin-top: 14px;">
+                <div class="sync-poc-field">
                     <strong>1. Choose published skills</strong>
                     <div class="hint" style="margin-top: 6px;">Only skills with a published catalog version can be assigned to a tenant.</div>
                 </div>
-                <div style="padding:14px; border:1px solid var(--stroke); border-radius:14px; background:white;">
+                <div class="sync-poc-field">
                     <strong>2. Save the draft</strong>
                     <div class="hint" style="margin-top: 6px;">Save Draft updates assignment and mapping state in Sync360 only. It does not change tenant runtime files or upgrade assigned versions.</div>
                 </div>
-                <div style="padding:14px; border:1px solid var(--stroke); border-radius:14px; background:white;">
+                <div class="sync-poc-field">
                     <strong>3. Apply when ready</strong>
                     <div class="hint" style="margin-top: 6px;">Apply syncs the current tenant draft into the runtime using the versions already assigned to this tenant.</div>
                 </div>
-                <div style="padding:14px; border:1px solid var(--stroke); border-radius:14px; background:white;">
+                <div class="sync-poc-field">
                     <strong>Version upgrades</strong>
                     <div class="hint" style="margin-top: 6px;">Publish creates a catalog version. Roll out from Skill Catalog when you want existing tenants moved to that newer version.</div>
                 </div>
@@ -62,24 +54,24 @@
             <div class="hint" style="margin-top:6px;">These are the versions this tenant is currently pinned to. New catalog releases do not replace them until a rollout updates the assignment.</div>
             <div style="display:grid; gap:10px; margin-top:14px;">
                 @forelse ($tenantSkillRows as $tenantSkillRow)
-                    <div style="padding:14px 16px; border:1px solid var(--stroke); border-radius:16px; background:#fff;">
+                    <div class="sync-poc-field">
                         <div style="display:flex; justify-content:space-between; gap:12px; align-items:start; flex-wrap:wrap;">
                             <div style="min-width:0;">
                                 <strong style="display:block; font-size:1rem; line-height:1.3;">{{ $tenantSkillRow['label'] }}</strong>
                                 <div class="hint" style="margin-top:3px; font-size:0.82rem;">{{ $tenantSkillRow['skill_key'] }}</div>
                             </div>
-                            <a href="{{ $tenantSkillRow['detail_url'] }}" class="button button--secondary" style="padding:10px 14px;">Manage Rollout</a>
+                            <x-ui.button :href="$tenantSkillRow['detail_url']" variant="secondary" size="sm" icon="external-link" icon-position="after">Manage Rollout</x-ui.button>
                         </div>
                         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-                            <span class="badge badge--technical ready">assigned {{ $tenantSkillRow['assigned_version'] ?? 'unknown' }}</span>
-                            <span class="badge badge--technical {{ $tenantSkillRow['latest_published_version'] ? 'ready' : 'pending' }}">
+                            <x-ui.badge status="ready" technical>assigned {{ $tenantSkillRow['assigned_version'] ?? 'unknown' }}</x-ui.badge>
+                            <x-ui.badge :status="$tenantSkillRow['latest_published_version'] ? 'ready' : 'pending'" technical>
                                 {{ $tenantSkillRow['latest_published_version'] ? 'latest '.$tenantSkillRow['latest_published_version'] : 'not published' }}
-                            </span>
-                            <span class="badge badge--technical {{ $tenantSkillRow['update_class'] }}">{{ $tenantSkillRow['update_label'] }}</span>
+                            </x-ui.badge>
+                            <x-ui.badge :status="$tenantSkillRow['update_class']" technical>{{ $tenantSkillRow['update_label'] }}</x-ui.badge>
                             @if ($tenantSkillRow['last_apply_status'])
-                                <span class="badge badge--technical {{ $tenantSkillRow['last_apply_status'] === 'failed' ? 'failed' : ($tenantSkillRow['last_apply_status'] === 'applied' ? 'ready' : 'pending') }}">
+                                <x-ui.badge :status="$tenantSkillRow['last_apply_status'] === 'failed' ? 'failed' : ($tenantSkillRow['last_apply_status'] === 'applied' ? 'ready' : 'pending')" technical>
                                     last apply {{ $tenantSkillRow['last_apply_status'] }}
-                                </span>
+                                </x-ui.badge>
                             @endif
                         </div>
                         @if ($tenantSkillRow['last_apply_error'])
@@ -113,7 +105,7 @@
                             @php
                                 $publishedVersion = $skillPack->activePublishedVersion;
                             @endphp
-                            <label style="display:block; padding:14px 16px; border:1px solid var(--stroke); border-radius:16px; background:#fff;">
+                            <label class="sync-poc-field" style="display:block;">
                                 <div style="display:grid; grid-template-columns:28px minmax(0, 1fr); gap:14px; align-items:flex-start;">
                                     <input
                                         type="checkbox"
@@ -129,9 +121,9 @@
                                                 <strong style="display:block; font-size:1rem; line-height:1.3;">{{ $skillPack->label }}</strong>
                                                 <div class="hint" style="margin-top:3px; font-size:0.82rem;">{{ $skillPack->skill_key }}</div>
                                             </div>
-                                            <span class="badge badge--technical {{ $publishedVersion ? 'ready' : 'pending' }}" style="font-size:0.76rem;">
+                                            <x-ui.badge :status="$publishedVersion ? 'ready' : 'pending'" technical>
                                                 {{ $publishedVersion ? 'published '.$publishedVersion->version : 'publish required' }}
-                                            </span>
+                                            </x-ui.badge>
                                         </div>
                                         <div style="margin-top:8px; font-size:0.94rem; line-height:1.45;">{{ $skillPack->description }}</div>
                                         @php
@@ -139,8 +131,8 @@
                                         @endphp
                                         @if ($assignedSkillRow)
                                             <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-                                                <span class="badge badge--technical ready" style="font-size:0.76rem;">assigned {{ $assignedSkillRow['assigned_version'] ?? 'unknown' }}</span>
-                                                <span class="badge badge--technical {{ $assignedSkillRow['update_class'] }}" style="font-size:0.76rem;">{{ $assignedSkillRow['update_label'] }}</span>
+                                                <x-ui.badge status="ready" technical>assigned {{ $assignedSkillRow['assigned_version'] ?? 'unknown' }}</x-ui.badge>
+                                                <x-ui.badge :status="$assignedSkillRow['update_class']" technical>{{ $assignedSkillRow['update_label'] }}</x-ui.badge>
                                             </div>
                                         @endif
                                         @if ($publishedVersion)
@@ -161,7 +153,7 @@
                 </section>
 
                 <section style="max-width: 560px;">
-                    <div style="padding:16px; border:1px solid var(--stroke); border-radius:16px; background:#faf9f8;">
+                    <div class="sync-poc-subpanel">
                         <h3 class="type-section-title" style="margin:0; font-size:1.12rem;">Advanced Agent Mapping</h3>
                         <div class="hint" style="margin-top:8px;">
                             This optional field controls which raw skill IDs are written into the default agent skill list in <code>openclaw.json</code>.
@@ -182,26 +174,26 @@
                 </section>
             </div>
 
-            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:18px;">
-                <button type="submit">Save Skill Draft</button>
+            <div class="sync-poc-panel-actions" style="margin-top:18px;">
+                <x-ui.button type="submit" icon="save">Save Skill Draft</x-ui.button>
             </div>
         </form>
 
         <section style="margin-top:18px;">
             <h3 class="type-section-title" style="margin-top:0; font-size:1.12rem;">Deployment</h3>
             <div class="hint" style="margin-bottom:12px;">Save Draft updates assignment state in Sync360. Apply pushes the current tenant draft into runtime using the versions already assigned above.</div>
-            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <div class="sync-poc-panel-actions">
                 <form method="POST" action="{{ route('admin.tenants.agent-customization.apply', $tenant) }}" class="inline">
                     @csrf
                     <input type="hidden" name="return_tab" value="skills">
                     <input type="hidden" name="customization_scope" value="skills">
-                    <button type="submit" {{ $canApplyAgentCustomization ? '' : 'disabled' }}>Apply</button>
+                    <x-ui.button type="submit" icon="play" :disabled="! $canApplyAgentCustomization">Apply</x-ui.button>
                 </form>
                 <form method="POST" action="{{ route('admin.tenants.agent-customization.revert', $tenant) }}" class="inline">
                     @csrf
                     <input type="hidden" name="return_tab" value="skills">
                     <input type="hidden" name="customization_scope" value="skills">
-                    <button type="submit" class="button button--secondary" {{ $canApplyAgentCustomization && $agentCustomization?->last_applied_input_snapshot_json ? '' : 'disabled' }}>Revert</button>
+                    <x-ui.button type="submit" variant="secondary" icon="rotate-ccw" :disabled="! ($canApplyAgentCustomization && $agentCustomization?->last_applied_input_snapshot_json)">Revert</x-ui.button>
                 </form>
             </div>
         </section>
@@ -215,7 +207,8 @@
             </div>
 
             <div
-                style="margin-top:14px; padding:16px; border:1px solid var(--stroke); border-radius:16px; background:#faf9f8;"
+                class="sync-poc-subpanel"
+                style="margin-top:14px;"
                 data-tenant-skill-progress
                 data-progress-url="{{ route('admin.tenants.skills.progress', $tenant) }}"
                 data-should-poll="{{ ($tenantSkillProgress['should_poll'] ?? false) ? 'true' : 'false' }}"
@@ -225,8 +218,8 @@
                         $progressJob = $tenantSkillProgress['job'];
                     @endphp
                     <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-                        <span class="badge badge--technical {{ $progressJob['status'] }}" data-role="status-badge">{{ $progressJob['status'] }}</span>
-                        <span class="hint type-tech" data-role="status-detail">
+                        <x-ui.badge :status="$progressJob['status']" technical data-role="status-badge">{{ $progressJob['status'] }}</x-ui.badge>
+                        <span class="hint" data-role="status-detail">
                             {{ ($progressJob['action'] ?? 'apply') === 'revert' ? 'Revert' : 'Apply' }} job #{{ $progressJob['id'] ?? '—' }}
                         </span>
                     </div>
@@ -257,21 +250,21 @@
                 <form method="POST" action="{{ route('admin.tenants.skills.runtime-refresh', $tenant) }}" class="inline">
                     @csrf
                     <input type="hidden" name="return_tab" value="skills">
-                    <button type="submit" class="button button--secondary">Refresh Runtime Skills</button>
+                    <x-ui.button type="submit" variant="secondary" size="sm" icon="refresh-cw">Refresh Runtime Skills</x-ui.button>
                 </form>
             </div>
 
-            <div style="margin-top:14px; padding:16px; border:1px solid var(--stroke); border-radius:16px; background:#faf9f8;">
+            <div class="sync-poc-subpanel" style="margin-top:14px;">
                 @if ($runtimeSkillInspection)
                     <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-                        <span class="badge badge--technical pending">Workspace state: {{ $runtimeSkillInspection['workspace_state'] }}</span>
-                        <span class="hint type-tech">Last refreshed: {{ $runtimeSkillInspection['refreshed_at'] }}</span>
+                        <x-ui.badge status="pending" technical>Workspace state: {{ $runtimeSkillInspection['workspace_state'] }}</x-ui.badge>
+                        <span class="hint">Last refreshed: {{ $runtimeSkillInspection['refreshed_at'] }}</span>
                     </div>
 
                     @if ($runtimeSkillInspection['skills'] !== [])
                         <div style="display:grid; gap:8px; margin-top:14px;">
                             @foreach ($runtimeSkillInspection['skills'] as $runtimeSkill)
-                                <div class="type-value type-value--technical" style="padding:10px 12px; border:1px solid var(--stroke); border-radius:12px; background:white;">
+                                <div class="sync-poc-field__value sync-poc-field__value--technical sync-poc-field">
                                     {{ $runtimeSkill }}
                                 </div>
                             @endforeach
@@ -283,7 +276,7 @@
                     @if ($runtimeSkillInspection['raw_output'] !== '')
                         <div style="margin-top:16px;">
                             <div class="hint" style="margin-bottom:6px;">Raw command output</div>
-                            <pre class="type-tech type-tech--wrap" style="margin:0; padding:12px; background:white; border:1px solid var(--stroke); border-radius:12px; overflow:auto;">{{ $runtimeSkillInspection['raw_output'] }}</pre>
+                            <pre class="type-tech type-tech--wrap sync-poc-pre" style="margin:0;">{{ $runtimeSkillInspection['raw_output'] }}</pre>
                         </div>
                     @endif
                 @else
@@ -299,9 +292,9 @@
                     @php
                         $entry = $historyEntry['entry'];
                     @endphp
-                    <div style="padding:12px; border:1px solid rgba(255,255,255,0.08); border-radius:12px;">
+                    <div class="sync-poc-field">
                         <strong>{{ $entry->action === 'revert' ? 'Revert applied' : 'Skill update applied' }}</strong>
-                        <span class="badge badge--technical {{ $entry->status === 'reverted' ? 'pending' : 'ready' }}">{{ $entry->status }}</span>
+                        <x-ui.badge :status="$entry->status === 'reverted' ? 'pending' : 'ready'" technical>{{ $entry->status }}</x-ui.badge>
                         <div class="hint" style="margin-top:6px;">{{ $entry->created_at?->toDateTimeString() ?? 'Pending timestamp' }}</div>
                         <div style="display:grid; gap:6px; margin-top:10px;">
                             @foreach ($historyEntry['changes'] as $change)
@@ -314,7 +307,7 @@
                 @endforelse
             </div>
         </section>
-    </section>
+    </x-ui.panel>
 
     <script>
         (() => {
@@ -367,18 +360,18 @@
 
                     badge = document.createElement('span');
                     badge.dataset.role = 'status-badge';
-                    badge.className = 'badge badge--technical';
+                    badge.className = 'badge badge--technical dui-badge dui-badge-sm whitespace-nowrap font-bold uppercase tracking-[0.035em]';
                     header.appendChild(badge);
 
                     detail = document.createElement('span');
                     detail.dataset.role = 'status-detail';
-                    detail.className = 'hint type-tech';
+                    detail.className = 'hint';
                     header.appendChild(detail);
 
                     progressEl.prepend(header);
                 }
 
-                badge.className = `badge badge--technical ${job.status}`;
+                badge.className = `badge badge--technical dui-badge dui-badge-sm whitespace-nowrap font-bold uppercase tracking-[0.035em] ${job.status}`;
                 badge.textContent = job.status;
                 detail.textContent = `${job.action === 'revert' ? 'Revert' : 'Apply'} job #${job.id ?? '—'}`;
 

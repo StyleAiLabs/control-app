@@ -1,54 +1,52 @@
-<div class="grid grid-2">
-    <section class="panel">
-        <div class="topbar" style="margin-bottom: 16px;">
-            <div>
-                <span class="eyebrow">Runtime</span>
-                <h2 class="type-section-title">Server & Workspace</h2>
-            </div>
-        </div>
-        <div class="meta">
-            <div class="meta-item">
-                <small class="type-label">Client VPS</small>
-                <strong class="type-value">{{ $tenant->server?->name ?? 'Unassigned' }}</strong>
-            </div>
-            <div class="meta-item">
-                <small class="type-label">Host</small>
-                <strong class="type-value type-value--technical">{{ $tenant->server?->host ?? '—' }}</strong>
-            </div>
-            <div class="meta-item">
-                <small class="type-label">Runtime Path</small>
-                <strong class="type-value type-value--technical">{{ $tenant->runtime_path ?? 'Pending' }}</strong>
-            </div>
-            <div class="meta-item">
-                <small class="type-label">Last Health Message</small>
-                <strong class="type-value">{{ $tenant->health_check_message ?? 'No health check run yet.' }}</strong>
-            </div>
-        </div>
-    </section>
+<div class="sync-poc-detail-grid sync-poc-detail-grid--wide">
+    <x-ui.panel title="Server & Workspace" description="Runtime placement, host identity, workspace path, and the latest health signal.">
+        <x-slot:actions>
+            <x-ui.badge :status="$workspaceState" technical>{{ str_replace('_', ' ', $workspaceState) }}</x-ui.badge>
+        </x-slot:actions>
 
-    <section class="panel">
-        <div class="topbar" style="margin-bottom: 16px;">
-            <div>
-                <span class="eyebrow">Onboarding</span>
-                <h2 class="type-section-title">Profile & Channel</h2>
+        <div class="sync-poc-detail-grid">
+            <div class="sync-poc-field">
+                <span class="sync-poc-field__label">Client VPS</span>
+                <strong class="sync-poc-field__value">{{ $tenant->server?->name ?? 'Unassigned' }}</strong>
+            </div>
+            <div class="sync-poc-field">
+                <span class="sync-poc-field__label">Host</span>
+                <strong class="sync-poc-field__value sync-poc-field__value--technical">{{ $tenant->server?->host ?? '—' }}</strong>
+            </div>
+            <div class="sync-poc-field">
+                <span class="sync-poc-field__label">Runtime Path</span>
+                <strong class="sync-poc-field__value sync-poc-field__value--technical">{{ $tenant->runtime_path ?? 'Pending' }}</strong>
+            </div>
+            <div class="sync-poc-field">
+                <span class="sync-poc-field__label">Last Health Message</span>
+                <strong class="sync-poc-field__value">{{ $tenant->health_check_message ?? 'No health check run yet.' }}</strong>
             </div>
         </div>
-        <div class="meta">
-            <div class="meta-item">
-                <small class="type-label">Onboarding Status</small>
-                <strong class="type-value type-value--technical">{{ $tenant->onboarding_status ?? 'not_started' }} (step {{ $tenant->onboarding_step ?? 0 }})</strong>
+    </x-ui.panel>
+
+    <x-ui.panel title="Profile & Channel" description="Onboarding progress and the saved customer-facing channel configuration.">
+        <x-slot:actions>
+            <x-ui.badge :status="$tenant->onboarding_status ?? 'pending'" technical>
+                step {{ $tenant->onboarding_step ?? 0 }}
+            </x-ui.badge>
+        </x-slot:actions>
+
+        <div class="sync-poc-detail-grid">
+            <div class="sync-poc-field">
+                <span class="sync-poc-field__label">Onboarding Status</span>
+                <strong class="sync-poc-field__value">{{ $tenant->onboarding_status ?? 'not_started' }}</strong>
             </div>
-            <div class="meta-item">
-                <small class="type-label">Tone</small>
-                <strong class="type-value">{{ $tenant->tone ?? 'Not set' }}</strong>
+            <div class="sync-poc-field">
+                <span class="sync-poc-field__label">Tone</span>
+                <strong class="sync-poc-field__value">{{ $tenant->tone ?? 'Not set' }}</strong>
             </div>
-            <div class="meta-item">
-                <small class="type-label">Capabilities</small>
-                <strong class="type-value">{{ is_array($tenant->capabilities) && $tenant->capabilities !== [] ? implode(', ', $tenant->capabilities) : 'None saved yet' }}</strong>
+            <div class="sync-poc-field">
+                <span class="sync-poc-field__label">Capabilities</span>
+                <strong class="sync-poc-field__value">{{ is_array($tenant->capabilities) && $tenant->capabilities !== [] ? implode(', ', $tenant->capabilities) : 'None saved yet' }}</strong>
             </div>
-            <div class="meta-item">
-                <small class="type-label">Channel</small>
-                <strong class="type-value">{{ $tenant->channel ?? 'Not connected' }}</strong>
+            <div class="sync-poc-field">
+                <span class="sync-poc-field__label">Channel</span>
+                <strong class="sync-poc-field__value">{{ $tenant->channel ?? 'Not connected' }}</strong>
                 @if ($tenant->channel === 'telegram')
                     <div class="hint" style="margin-top: 6px;">Bot token saved: {{ filled($channelConfig['telegram_bot_token'] ?? null) ? 'Yes' : 'No' }}</div>
                 @elseif ($tenant->channel === 'whatsapp')
@@ -56,81 +54,72 @@
                 @endif
             </div>
         </div>
-    </section>
+    </x-ui.panel>
 </div>
 
-<section class="panel">
-    <div class="topbar" style="margin-bottom: 16px;">
-        <div>
-            <span class="eyebrow">Latest Job</span>
-            <h2 class="type-section-title">Provisioning Outcome</h2>
+<x-ui.panel title="Provisioning Outcome" description="Most recent provisioning job and any recorded failure details.">
+    <x-slot:actions>
+        <x-ui.badge :status="$latestJob?->status?->value ?? 'neutral'" technical>
+            {{ $latestJob?->status?->value ?? 'no job' }}
+        </x-ui.badge>
+    </x-slot:actions>
+
+    <div class="sync-poc-detail-grid">
+        <div class="sync-poc-field">
+            <span class="sync-poc-field__label">Job Type</span>
+            <strong class="sync-poc-field__value sync-poc-field__value--technical">{{ $latestJob?->job_type ?? 'No jobs yet' }}</strong>
+        </div>
+        <div class="sync-poc-field">
+            <span class="sync-poc-field__label">Started</span>
+            <strong class="sync-poc-field__value">{{ $latestJob?->started_at?->toDateTimeString() ?? '—' }}</strong>
+        </div>
+        <div class="sync-poc-field">
+            <span class="sync-poc-field__label">Completed</span>
+            <strong class="sync-poc-field__value">{{ $latestJob?->completed_at?->toDateTimeString() ?? '—' }}</strong>
         </div>
     </div>
-    <div class="meta">
-        <div class="meta-item">
-            <small class="type-label">Job Type</small>
-            <strong class="type-value type-value--technical">{{ $latestJob?->job_type ?? 'No jobs yet' }}</strong>
-        </div>
-        <div class="meta-item">
-            <small class="type-label">Status</small>
-            <strong class="type-value type-value--technical">{{ $latestJob?->status?->value ?? '—' }}</strong>
-        </div>
-        <div class="meta-item">
-            <small class="type-label">Started</small>
-            <strong class="type-value type-value--technical">{{ $latestJob?->started_at?->toDateTimeString() ?? '—' }}</strong>
-        </div>
-        <div class="meta-item">
-            <small class="type-label">Completed</small>
-            <strong class="type-value type-value--technical">{{ $latestJob?->completed_at?->toDateTimeString() ?? '—' }}</strong>
-        </div>
-    </div>
+
     <div class="note{{ $latestJob?->error_message ? ' error' : '' }}" style="margin-top: 16px;">
         {{ $latestJob?->error_message ?? 'No recent provisioning error recorded.' }}
     </div>
-</section>
+</x-ui.panel>
 
-<section class="panel">
-    <div class="topbar" style="margin-bottom: 16px;">
-        <div>
-            <span class="eyebrow">Trial</span>
-            <h2 class="type-section-title">Trial & AI Usage</h2>
-        </div>
-        <div>
-            @if ($tenant->isTrialExpired())
-                <span class="badge badge--technical failed">trial expired</span>
-            @else
-                @php $urgency = $tenant->trialUrgency(); @endphp
-                <span class="badge badge--technical {{ $urgency === 'critical' ? 'failed' : ($urgency === 'warning' ? 'pending' : 'ready') }}">
-                    {{ $tenant->trialDaysLeft() }} days left
-                </span>
-            @endif
-        </div>
-    </div>
+<x-ui.panel title="Trial & AI Usage" description="Trial expiry, cached LiteLLM spend, and notification checkpoints.">
+    <x-slot:actions>
+        @if ($tenant->isTrialExpired())
+            <x-ui.badge status="expired" technical>trial expired</x-ui.badge>
+        @else
+            @php $urgency = $tenant->trialUrgency(); @endphp
+            <x-ui.badge :status="$urgency === 'critical' ? 'failed' : ($urgency === 'warning' ? 'pending' : 'ready')" technical>
+                {{ $tenant->trialDaysLeft() }} days left
+            </x-ui.badge>
+        @endif
+    </x-slot:actions>
 
     @if (! $tenant->isTrialExpired())
         @php
             $urgencyColor = match($tenant->trialUrgency()) {
-                'critical' => '#ef4444',
-                'warning'  => '#f59e0b',
-                default    => '#22c55e',
+                'critical' => 'var(--color-error)',
+                'warning'  => 'var(--color-warning)',
+                default    => 'var(--color-success)',
             };
         @endphp
-        <div style="margin-bottom: 14px;">
-            <div style="display:flex; justify-content:space-between; font-size:0.82rem; color:var(--text-muted,#9ca3af); margin-bottom:5px;">
+        <div class="sync-poc-subpanel">
+            <div style="display:flex; justify-content:space-between; gap:12px; font-size:0.82rem; color:color-mix(in oklch, var(--color-base-content) 58%, transparent); margin-bottom:5px;">
                 <span>AI Credit</span>
                 <span>${{ number_format((float)($tenant->litellm_spend ?? 0), 2) }} / ${{ number_format((float)($tenant->litellm_max_budget ?? 5), 2) }} ({{ $tenant->trialBudgetPercent() }}%)</span>
             </div>
-            <div style="background:rgba(255,255,255,0.07);border-radius:5px;height:7px;overflow:hidden;">
-                <div style="background:{{ $urgencyColor }};width:{{ min(100,$tenant->trialBudgetPercent()) }}%;height:100%;border-radius:5px;"></div>
+            <div style="background:color-mix(in oklch, var(--color-base-content) 8%, transparent);border-radius:999px;height:8px;overflow:hidden;">
+                <div style="background:{{ $urgencyColor }};width:{{ min(100,$tenant->trialBudgetPercent()) }}%;height:100%;border-radius:999px;"></div>
             </div>
         </div>
-        <div style="margin-bottom: 14px;">
-            <div style="display:flex; justify-content:space-between; font-size:0.82rem; color:var(--text-muted,#9ca3af); margin-bottom:5px;">
+        <div class="sync-poc-subpanel" style="margin-top: 14px;">
+            <div style="display:flex; justify-content:space-between; gap:12px; font-size:0.82rem; color:color-mix(in oklch, var(--color-base-content) 58%, transparent); margin-bottom:5px;">
                 <span>Time</span>
                 <span>{{ min(14, (int) $tenant->created_at->diffInDays(now())) }} of 14 days elapsed — {{ $tenant->trialDaysLeft() }} remaining</span>
             </div>
-            <div style="background:rgba(255,255,255,0.07);border-radius:5px;height:7px;overflow:hidden;">
-                <div style="background:{{ $urgencyColor }};width:{{ min(100,$tenant->trialTimePercent()) }}%;height:100%;border-radius:5px;"></div>
+            <div style="background:color-mix(in oklch, var(--color-base-content) 8%, transparent);border-radius:999px;height:8px;overflow:hidden;">
+                <div style="background:{{ $urgencyColor }};width:{{ min(100,$tenant->trialTimePercent()) }}%;height:100%;border-radius:999px;"></div>
             </div>
         </div>
     @else
@@ -139,38 +128,38 @@
         </div>
     @endif
 
-        <div class="meta">
-        <div class="meta-item">
-            <small class="type-label">Trial Status</small>
-            <strong class="type-value type-value--technical">{{ $tenant->trial_status->value }}</strong>
+    <div class="sync-poc-detail-grid" style="margin-top: 16px;">
+        <div class="sync-poc-field">
+            <span class="sync-poc-field__label">Trial Status</span>
+            <strong class="sync-poc-field__value">{{ $tenant->trial_status->value }}</strong>
         </div>
-        <div class="meta-item">
-            <small class="type-label">Trial Ends At</small>
-            <strong class="type-value type-value--technical">{{ $tenant->trial_ends_at?->toDateTimeString() ?? 'Not set (backfill pending)' }}</strong>
+        <div class="sync-poc-field">
+            <span class="sync-poc-field__label">Trial Ends At</span>
+            <strong class="sync-poc-field__value">{{ $tenant->trial_ends_at?->toDateTimeString() ?? 'Not set (backfill pending)' }}</strong>
         </div>
-        <div class="meta-item">
-            <small class="type-label">AI Spend (cached)</small>
-            <strong class="type-value type-value--technical">${{ number_format((float)($tenant->litellm_spend ?? 0), 4) }}</strong>
+        <div class="sync-poc-field">
+            <span class="sync-poc-field__label">AI Spend (cached)</span>
+            <strong class="sync-poc-field__value">${{ number_format((float)($tenant->litellm_spend ?? 0), 4) }}</strong>
         </div>
-        <div class="meta-item">
-            <small class="type-label">Spend Cached At</small>
-            <strong class="type-value type-value--technical">{{ $tenant->litellm_spend_cached_at?->toDateTimeString() ?? 'Not yet cached' }}</strong>
+        <div class="sync-poc-field">
+            <span class="sync-poc-field__label">Spend Cached At</span>
+            <strong class="sync-poc-field__value">{{ $tenant->litellm_spend_cached_at?->toDateTimeString() ?? 'Not yet cached' }}</strong>
         </div>
-        <div class="meta-item">
-            <small class="type-label">80% Budget Email</small>
-            <strong class="type-value type-value--technical">{{ $tenant->trial_80pct_notified_at?->toDateTimeString() ?? '—' }}</strong>
+        <div class="sync-poc-field">
+            <span class="sync-poc-field__label">80% Budget Email</span>
+            <strong class="sync-poc-field__value">{{ $tenant->trial_80pct_notified_at?->toDateTimeString() ?? '—' }}</strong>
         </div>
-        <div class="meta-item">
-            <small class="type-label">3-Day Warning Email</small>
-            <strong class="type-value type-value--technical">{{ $tenant->trial_3day_notified_at?->toDateTimeString() ?? '—' }}</strong>
+        <div class="sync-poc-field">
+            <span class="sync-poc-field__label">3-Day Warning Email</span>
+            <strong class="sync-poc-field__value">{{ $tenant->trial_3day_notified_at?->toDateTimeString() ?? '—' }}</strong>
         </div>
-        <div class="meta-item">
-            <small class="type-label">Expiry Email</small>
-            <strong class="type-value type-value--technical">{{ $tenant->trial_expired_notified_at?->toDateTimeString() ?? '—' }}</strong>
+        <div class="sync-poc-field">
+            <span class="sync-poc-field__label">Expiry Email</span>
+            <strong class="sync-poc-field__value">{{ $tenant->trial_expired_notified_at?->toDateTimeString() ?? '—' }}</strong>
         </div>
-        <div class="meta-item">
-            <small class="type-label">LiteLLM Plan</small>
-            <strong class="type-value type-value--technical">{{ $tenant->litellm_plan_name ?? '—' }}</strong>
+        <div class="sync-poc-field">
+            <span class="sync-poc-field__label">LiteLLM Plan</span>
+            <strong class="sync-poc-field__value">{{ $tenant->litellm_plan_name ?? '—' }}</strong>
         </div>
     </div>
-</section>
+</x-ui.panel>

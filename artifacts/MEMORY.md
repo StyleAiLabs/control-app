@@ -1,12 +1,14 @@
 # Sync360 Control App Memory
 
-Last verified: `2026-04-22`
+Last verified: `2026-04-23`
 
 This memory is based on the current repo code and current canonical docs. It is not a guarantee about live production state.
 
 Shared Blade layouts (`resources/views/components/layouts/app.blade.php` and `guest.blade.php`) use `:focus-visible` rings on inputs, selects, textareas, buttons, and nav links so keyboard focus is visible (WCAG 2.4.7).
 
 **2026-04-22 Landing Page UX Refinement:** Landing page and authentication views now use semantic typography classes (`type-display`, `type-h2`, `type-h3`, `type-body-lg`, `type-body`, `type-kicker`, `type-label`, `type-value`) for consistent design system hierarchy. New landing page sections include trust bar with key metrics (businesses using, enquiries handled, conversion rate), icon-based flow diagram for "How it fits" section, testimonials grid with customer quotes and quantified results, animated counter metrics in value blocks, section connectors with visual dots and lines, and final CTA with trust badges. Login and guest layouts updated with consistent typography and spacing tokens. `.qwen/` and `.agents/` directories added to `.gitignore`.
+
+**2026-04-23 DaisyUI Design System PoC:** daisyUI is installed behind Sync360 Blade wrappers using the `dui-` prefix and a custom `sync360` theme. The PoC covers `landing.blade.php`, `admin/tenants.blade.php`, and the full admin tenant-detail tab set for overview, workspace, Google, skills, analytics, agent runtime, and support. UI wrappers live under `resources/views/components/ui/*` and marketing wrappers under `resources/views/components/marketing/*`. Tables should fit the page with planned widths and truncation for long secondary values. Status badges remain in primary `DM Sans`; `JetBrains Mono` is reserved for precise technical values such as IDs, paths, ports, hashes, logs, and raw command output. Review screenshots live under `artifacts/design-system-poc/`.
 
 ## 1. What this project is
 
@@ -55,8 +57,8 @@ If those files conflict with the codebase, trust:
 ## 3. Current system snapshot
 
 - App shape: Laravel monolith with Blade, PostgreSQL, Redis, queues, scheduler-backed commands, and Laravel password-broker auth recovery
-- Design system shape: `artifacts/DESIGN_SYSTEM.md` is the canonical design-system reference for current Blade UI truth; shared app/guest layouts own the active tokens (color, typography, spacing `--space-*`, radius `--radius-*`, elevation `--shadow-*`), typography classes, component patterns, field-level validation CSS (`aria-invalid`, `.field-error`), and `prefers-reduced-motion` guards. App surface is always light; guest surface is always dark atmospheric (not OS-responsive). §10 Responsive, §11 Dark-Mode, §12 Icon/Motion, §13 Form Validation are documented. Mobile nav (≤980px): sidebar collapses to a sticky top bar (brand left, hamburger right); tapping the hamburger reveals a `.mobile-drawer` containing alerts bell, all nav links, user name, and logout — nothing is dropped. Desktop sidebar-footer retains the bell, user info, and logout unchanged. The `.sidebar` must have `overflow: visible` in the mobile query or the absolute-positioned drawer gets clipped.
-- Typography shape: shared app/guest layouts load `DM Sans` as the product voice and `JetBrains Mono` as the technical accent; Blade views should use shared `type-*` classes and reserve mono for IDs, timestamps, ports, runtime strings, logs, and compact technical tokens
+- Design system shape: `artifacts/DESIGN_SYSTEM.md` is the canonical design-system reference for current Blade UI truth; shared app/guest layouts own the active tokens (color, typography, spacing `--space-*`, radius `--radius-*`, elevation `--shadow-*`), typography classes, component patterns, field-level validation CSS (`aria-invalid`, `.field-error`), and `prefers-reduced-motion` guards. `resources/css/app.css` also owns the daisyUI PoC theme, the `dui-` prefix, and shared `sync-poc-*` helpers. App surface is always light; guest surface is always dark atmospheric (not OS-responsive). §10 Responsive, §11 Dark-Mode, §12 Icon/Motion, §13 Form Validation are documented. Mobile nav (≤980px): sidebar collapses to a sticky top bar (brand left, hamburger right); tapping the hamburger reveals a `.mobile-drawer` containing alerts bell, all nav links, user name, and logout — nothing is dropped. Desktop sidebar-footer retains the bell, user info, and logout unchanged. The `.sidebar` must have `overflow: visible` in the mobile query or the absolute-positioned drawer gets clipped.
+- Typography shape: shared app/guest layouts load `DM Sans` as the product voice and `JetBrains Mono` as the technical accent; Blade views should use shared `type-*` classes and reserve mono for IDs, ports, runtime paths, hashes, logs, raw command output, and code-like identifiers. Status badges, money, trial labels, and human-scanned timestamps should usually stay in `DM Sans`.
 - Authenticated dashboard responses are now sent with no-cache headers so workspace status cards do not get stuck on stale browser snapshots
 - Password reset delivery: uses Brevo's HTTP email API when Brevo is enabled; falls back to Laravel's default notification pipeline otherwise
 - Infrastructure modes: `local` and `ssh`

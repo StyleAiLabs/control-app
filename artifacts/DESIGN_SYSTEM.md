@@ -1,6 +1,6 @@
 # Sync360 Design System
 
-Last verified: `2026-04-22`
+Last verified: `2026-04-23`
 
 This document is the canonical design-system reference for the Sync360 Control App. It describes the current code-backed UI system used by the Blade surfaces in this repo.
 
@@ -12,11 +12,11 @@ The design system currently lives in the shared Blade layouts:
 
 - `resources/views/components/layouts/app.blade.php` — the `<style>` block here holds nearly all component CSS for authenticated product and control-plane screens (colors, panels, buttons, badges, meta, notes, forms, nav)
 - `resources/views/components/layouts/guest.blade.php` — the `<style>` block here holds component CSS for landing, auth, and workspace-access screens
-- `resources/css/app.css` — Tailwind entrypoint; currently only declares the `--font-sans` / `--font-mono` theme tokens
+- `resources/css/app.css` — Tailwind entrypoint; defines the daisyUI PoC theme, the `dui-` prefix, Tailwind font tokens, and PoC component helpers such as `sync-poc-card`, `sync-poc-table`, and `sync-poc-status-icon`
 
 Known tech debt: most design-system CSS lives inside Blade `<style>` blocks rather than a real stylesheet. Treat the inline blocks as canonical today, but prefer moving shared primitives into `app.css` (or a dedicated design-system stylesheet) over time.
 
-Use shared classes and tokens from those files before adding view-local inline styles. If a new UI primitive is needed across more than one screen, add it to the relevant shared layout first, then document it here.
+Use shared classes, Blade wrappers, and tokens from those files before adding view-local inline styles. If a new UI primitive is needed across more than one screen, add it to the relevant shared layout or `resources/views/components/ui/*` first, then document it here.
 
 Implementation status, 2026-04-19: the shared app and guest layouts now load `DM Sans` plus `JetBrains Mono`, expose the reusable `type-*` typography classes, and define the current spacing scale. Existing Blade views are being migrated toward those classes as they are touched.
 
@@ -268,14 +268,12 @@ Use `JetBrains Mono` for:
 
 - tenant IDs and slugs when they need precision
 - ports
-- timestamps
 - runtime paths
 - command output and logs
-- raw runtime state strings
-- compact technical status tokens
+- raw command names or code-like identifiers
 - short session IDs or hashes
 
-Do not use mono for ordinary navigation, prose, business names, explanatory copy, or every label in admin screens.
+Do not use mono for ordinary navigation, prose, business names, explanatory copy, status badges, trial labels, money, or every label in admin screens. Human-scanned timestamps should usually remain in DM Sans unless they are part of raw logs or command output.
 
 ### Casing, Tracking, And Line Height
 
@@ -317,11 +315,19 @@ Use:
 
 Buttons should use clear verbs: "Continue Setup", "Open Workspace", "Queue Google Sync", "Delete Tenant Permanently".
 
+Action buttons should use icon + text when the icon clarifies direction or destination:
+
+- Back/previous-screen navigation uses a left arrow before the label.
+- Links that open a customer workspace, external product surface, or new browser context use an external-link icon after the label.
+- Destructive and queueing actions may use text only unless the icon adds real scan value.
+
+Do not use icon-only buttons for primary page actions unless space is severely constrained; icon-only controls require `aria-label` and a visible tooltip.
+
 ### Badges
 
 Use `.badge` for compact human-readable status.
 
-Use `.badge--technical` when the badge contains raw or operational tokens such as:
+Use `.badge--technical` when the badge contains compact operational tokens such as:
 
 - `ready`
 - `failed`
@@ -330,6 +336,10 @@ Use `.badge--technical` when the badge contains raw or operational tokens such a
 - workspace/runtime state strings
 
 Avoid putting long sentences inside badges. Use `.note` for explanatory state.
+
+Badges still use the primary `DM Sans` family. Do not switch status badges to JetBrains Mono just because the value is operational; reserve JetBrains for raw IDs, URLs, hashes, command output, code-like skill IDs, and other values where fixed-width scanning materially helps.
+
+In dense navigation, do not put full status text inside the tab label. Use a fixed-size status icon with an accessible label/title so changing text such as `connected`, `pending`, or `no skills assigned` does not shift the tab layout. Keep text badges for table cells, status rows, and places where the status value itself must be read inline.
 
 #### Badge State Map
 
@@ -350,6 +360,10 @@ Use `.panel` for major content groups. A panel should usually contain one topic:
 
 Guest pages use richer cards such as `.hero-card`, `.auth-card`, and landing preview surfaces. These can be more expressive but should still use shared typography classes.
 
+Avoid repeating a page title as the first panel title. If the page topbar already names the table or primary dataset, the panel can be titleless and use an `aria-label` for assistive technology. Panel titles should add new hierarchy, not echo the page heading.
+
+The daisyUI PoC wraps major admin groups with `<x-ui.panel>` and keeps daisyUI classes behind Sync360 Blade components. Tenant detail pages now use this wrapper across the overview, workspace, Google, skills, analytics, agent runtime, and support tabs. Keep this as the preferred PoC pattern: page-level layout stays custom Sync360; cards/panels/buttons/badges use wrappers.
+
 ### Stat Cards
 
 Use `.stats` with `.stat` for small metric groups. Stat labels should stay short and values should be easy to scan.
@@ -367,7 +381,9 @@ Use:
 <strong class="type-value type-value--technical">https://example.workspace.test</strong>
 ```
 
-Use `type-value` for business/customer values and `type-value--technical` for IDs, URLs, timestamps, ports, paths, and job names.
+Use `type-value` for business/customer values and most readable admin values. Use `type-value--technical` for IDs, URLs, ports, runtime paths, hashes, raw command names, and code-like skill IDs. Do not use the technical font for ordinary status words, money, trial labels, or human-scanned timestamps unless the screen is specifically comparing raw machine output.
+
+For daisyUI-backed admin PoC surfaces, use `.sync-poc-detail-grid` and `.sync-poc-field` for the same label/value job when the data is inside an `<x-ui.panel>`. Preserve `type-label`, `type-value`, and `type-value--technical` where tests or older screens depend on those exact classes.
 
 ### Notes And Alerts
 
@@ -402,6 +418,33 @@ Authenticated app navigation uses the sidebar:
 - admin overview should not duplicate primary sidebar destinations as page-header button rows
 
 Guest navigation uses the brand mark/wordmark and top nav links. Keep guest nav simpler and more brand-led.
+
+Tenant-detail side tabs may include compact status indicators, but those indicators should be icon-based, fixed width, and accessible. Do not use variable-width text badges inside tab labels when they can crowd or push neighboring tabs on tablet/mobile widths.
+
+Tab hover states should be quiet. Hover may use a subtle neutral surface tint and light border, but should not look as strong as the active state. Reserve Sync360 orange emphasis for the active/current tab and primary actions.
+
+Tenant-detail tab content should avoid mixing old raw `.panel`/`.button` markup with PoC wrappers. Use `<x-ui.button>` for form actions and links, `<x-ui.badge>` for status, `<x-ui.table>` for histories/event rows, and `.sync-poc-pre` for markdown previews, hashes, logs, and raw runtime command output.
+
+### Tables
+
+Use tables for dense operational data where comparison across rows matters. The page topbar should carry the dataset name and plain-language scope. Avoid placing a duplicate table title immediately above the table; use the column headers and row content to do the work.
+
+When a table lives inside a titleless panel, add an accessible name to the wrapper, for example `aria-label="Tenant records table"`.
+
+Tables should fit inside the available page width by default. Do not let long URLs, emails, tenant IDs, runtime paths, or health messages create page-level horizontal scrolling. Use fixed table layout, planned column widths, and one-line truncation with an accessible `title`/full-value escape where the full string is secondary to scanability.
+
+Use ellipsis for secondary table details such as:
+
+- workspace URLs
+- email addresses
+- hostnames
+- health messages
+- timestamps or sync metadata
+- long tenant slugs when the row also links to the detail page
+
+Do not truncate primary decision labels such as status badges, destructive action labels, or the only visible business/customer identifier unless the column is genuinely constrained and the full value is available elsewhere.
+
+Avoid adding table-header sorting by default. It can add visual noise to dense operational tables and imply stronger data tooling than the page provides. Add sorting only when it is a clear workflow requirement and the interaction has been designed intentionally.
 
 ### Technical Blocks And Logs
 

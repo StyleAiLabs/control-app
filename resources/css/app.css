@@ -1,4 +1,46 @@
-@import 'tailwindcss';
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+@plugin "daisyui/index.js" {
+    themes: false;
+    prefix: "dui-";
+    logs: false;
+}
+@plugin "daisyui/theme/index.js" {
+    name: "sync360";
+    default: true;
+    prefersdark: false;
+    color-scheme: light;
+
+    --color-base-100: oklch(98% 0.008 63);
+    --color-base-200: oklch(95.5% 0.011 63);
+    --color-base-300: oklch(90.5% 0.014 63);
+    --color-base-content: oklch(20% 0.01 63);
+    --color-primary: oklch(68% 0.19 42);
+    --color-primary-content: oklch(99% 0.01 63);
+    --color-secondary: oklch(34% 0.026 63);
+    --color-secondary-content: oklch(96% 0.012 63);
+    --color-accent: oklch(73% 0.13 78);
+    --color-accent-content: oklch(25% 0.04 63);
+    --color-neutral: oklch(23% 0.01 63);
+    --color-neutral-content: oklch(94% 0.01 63);
+    --color-info: oklch(61% 0.12 245);
+    --color-info-content: oklch(98% 0.01 245);
+    --color-success: oklch(58% 0.14 152);
+    --color-success-content: oklch(98% 0.015 152);
+    --color-warning: oklch(74% 0.15 82);
+    --color-warning-content: oklch(24% 0.05 63);
+    --color-error: oklch(57% 0.18 25);
+    --color-error-content: oklch(98% 0.012 25);
+    --radius-selector: 0.5rem;
+    --radius-field: 0.75rem;
+    --radius-box: 1rem;
+    --size-selector: 0.25rem;
+    --size-field: 0.25rem;
+    --border: 1px;
+    --depth: 0;
+    --noise: 0;
+}
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
@@ -10,4 +52,242 @@
         'Segoe UI Symbol', 'Noto Color Emoji';
     --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
         'Courier New', monospace;
+}
+
+@layer components {
+    .sync-poc-card {
+        border: 1px solid color-mix(in oklch, var(--color-base-content) 10%, transparent);
+        box-shadow: 0 14px 34px color-mix(in oklch, var(--color-base-content) 6%, transparent);
+    }
+
+    .sync-poc-card--subtle {
+        background:
+            linear-gradient(180deg, color-mix(in oklch, var(--color-base-100) 96%, white), var(--color-base-100));
+    }
+
+    .sync-poc-table-wrap {
+        max-width: 100%;
+        overflow-x: hidden;
+        border-radius: 18px;
+    }
+
+    .sync-poc-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    .sync-poc-table--fit {
+        table-layout: fixed;
+    }
+
+    .sync-poc-table th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: color-mix(in oklch, var(--color-base-200) 86%, white);
+        color: color-mix(in oklch, var(--color-base-content) 62%, transparent);
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .sync-poc-table th,
+    .sync-poc-table td {
+        overflow: hidden;
+        padding: 0.9rem 0.72rem;
+        border-bottom: 1px solid color-mix(in oklch, var(--color-base-content) 9%, transparent);
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .sync-poc-table-cell-stack {
+        display: grid;
+        gap: 0.35rem;
+        min-width: 0;
+    }
+
+    .sync-poc-table-cell-stack > * {
+        min-width: 0;
+    }
+
+    .sync-poc-truncate {
+        display: block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .sync-poc-table tbody tr {
+        transition: background 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .sync-poc-table tbody tr:hover {
+        background: color-mix(in oklch, var(--color-primary) 6%, transparent);
+    }
+
+    .sync-poc-table tbody tr:focus {
+        outline: 3px solid color-mix(in oklch, var(--color-primary) 24%, transparent);
+        outline-offset: -3px;
+    }
+
+    .sync-poc-marketing-card {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.095), rgba(255, 255, 255, 0.055));
+        color: var(--ink);
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.16);
+    }
+
+    .sync-poc-marketing-card .dui-card-title {
+        color: white;
+    }
+
+    .sync-poc-cta-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .sync-poc-status-icon {
+        align-items: center;
+        border: 1px solid color-mix(in oklch, currentColor 24%, transparent);
+        border-radius: 999px;
+        display: inline-flex;
+        height: 1.55rem;
+        justify-content: center;
+        width: 1.55rem;
+    }
+
+    .sync-poc-status-icon--success {
+        background: color-mix(in oklch, var(--color-success) 12%, transparent);
+        color: var(--color-success);
+    }
+
+    .sync-poc-status-icon--warning {
+        background: color-mix(in oklch, var(--color-warning) 18%, transparent);
+        color: color-mix(in oklch, var(--color-warning) 78%, black);
+    }
+
+    .sync-poc-status-icon--error {
+        background: color-mix(in oklch, var(--color-error) 12%, transparent);
+        color: var(--color-error);
+    }
+
+    .sync-poc-status-icon--neutral {
+        background: color-mix(in oklch, var(--color-neutral) 9%, transparent);
+        color: color-mix(in oklch, var(--color-neutral) 70%, white);
+    }
+
+    .sync-poc-detail-grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+    }
+
+    .sync-poc-detail-grid--wide {
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+    }
+
+    .sync-poc-field {
+        min-width: 0;
+        border: 1px solid color-mix(in oklch, var(--color-base-content) 9%, transparent);
+        border-radius: 0.85rem;
+        background: color-mix(in oklch, var(--color-base-100) 94%, white);
+        padding: 0.9rem 1rem;
+    }
+
+    .sync-poc-field__label {
+        display: block;
+        color: color-mix(in oklch, var(--color-base-content) 56%, transparent);
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        line-height: 1.25;
+        text-transform: uppercase;
+    }
+
+    .sync-poc-field__value {
+        display: block;
+        margin-top: 0.45rem;
+        min-width: 0;
+        color: var(--color-base-content);
+        font-size: 1rem;
+        font-weight: 800;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+    }
+
+    .sync-poc-field__value--technical {
+        font-family: var(--font-mono);
+        font-size: 0.95rem;
+        letter-spacing: 0;
+    }
+
+    .sync-poc-panel-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+    }
+
+    .sync-poc-subpanel {
+        min-width: 0;
+        border: 1px solid color-mix(in oklch, var(--color-base-content) 9%, transparent);
+        border-radius: 0.95rem;
+        background: color-mix(in oklch, var(--color-base-200) 38%, white);
+        padding: 1rem;
+    }
+
+    .sync-poc-list-stack {
+        display: grid;
+        gap: 0.75rem;
+    }
+
+    .sync-poc-check-row {
+        display: grid;
+        grid-template-columns: 2rem minmax(0, 1fr);
+        gap: 0.85rem;
+        align-items: start;
+        cursor: pointer;
+    }
+
+    .sync-poc-check-row input {
+        margin-top: 0.2rem;
+    }
+
+    .sync-poc-pre {
+        max-width: 100%;
+        overflow: auto;
+        border: 1px solid color-mix(in oklch, var(--color-base-content) 9%, transparent);
+        border-radius: 0.85rem;
+        background: color-mix(in oklch, var(--color-base-content) 4%, var(--color-base-100));
+        padding: 0.85rem;
+    }
+
+    .sync-poc-muted-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.55rem;
+        align-items: center;
+    }
+
+    @media (max-width: 640px) {
+        .sync-poc-cta-row,
+        .sync-poc-cta-row .dui-btn {
+            width: 100%;
+        }
+
+        .sync-poc-table th,
+        .sync-poc-table td {
+            padding: 0.72rem 0.5rem;
+        }
+
+        .sync-poc-panel-actions,
+        .sync-poc-panel-actions .dui-btn {
+            width: 100%;
+        }
+    }
 }

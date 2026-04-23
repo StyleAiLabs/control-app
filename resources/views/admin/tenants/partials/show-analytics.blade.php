@@ -13,10 +13,12 @@
     ];
 @endphp
 
-<section class="panel">
-    <span class="eyebrow">Estimated Skill Impact</span>
-    <h3 style="margin: 10px 0 0;">Last {{ $tenantAnalytics['window_days'] ?? 30 }} Days</h3>
-    <div class="stats" style="margin-top: 18px; margin-bottom: 0;">
+<x-ui.panel title="Estimated Skill Impact" description="Last {{ $tenantAnalytics['window_days'] ?? 30 }} days, based on synced conversion events and Sync360 skill defaults.">
+    <x-slot:actions>
+        <x-ui.badge status="info" technical>analytics</x-ui.badge>
+    </x-slot:actions>
+
+    <div class="stats" style="margin-top: 0; margin-bottom: 0;">
         <div class="stat">
             <div class="hint">Successful Conversions</div>
             <strong>{{ $tenantAnalytics['conversions'] }}</strong>
@@ -40,26 +42,48 @@
             </div>
         @endif
     </div>
-</section>
+</x-ui.panel>
 
-<section class="panel">
-    <span class="eyebrow">Recent Outcomes</span>
+<x-ui.panel title="Recent Outcomes" description="Latest synced conversion events for this tenant.">
     @if (collect($tenantAnalytics['recent_events'])->isEmpty())
-        <div class="hint" style="margin-top: 14px;">No conversion events have been synced for this tenant yet.</div>
+        <x-ui.empty-state title="No conversion events yet" description="No conversion events have been synced for this tenant." />
     @else
-        <div style="margin-top: 18px; display: grid; gap: 14px;">
-            @foreach ($tenantAnalytics['recent_events'] as $event)
-                <div class="meta-item">
-                    <div style="display:flex; justify-content:space-between; gap:12px; align-items:center;">
-                        <div>
-                            <strong>{{ $event->skill_key }}</strong>
-                            <span class="hint"> • {{ $event->conversion_id }}</span>
-                        </div>
-                        <small class="hint">{{ $event->occurred_at?->diffForHumans() }}</small>
-                    </div>
-                    <div class="hint" style="margin-top: 8px;">{{ $event->customer_label }} @if($event->session_id) • {{ $event->session_id }} @endif</div>
-                </div>
-            @endforeach
-        </div>
+        <x-ui.table fit>
+            <colgroup>
+                <col style="width: 28%;">
+                <col style="width: 26%;">
+                <col style="width: 26%;">
+                <col style="width: 20%;">
+            </colgroup>
+            <thead>
+                <tr>
+                    <th>Skill</th>
+                    <th>Conversion</th>
+                    <th>Customer / Session</th>
+                    <th>Occurred</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($tenantAnalytics['recent_events'] as $event)
+                    <tr>
+                        <td>
+                            <span class="sync-poc-truncate" title="{{ $event->skill_key }}">{{ $event->skill_key }}</span>
+                        </td>
+                        <td>
+                            <span class="sync-poc-truncate type-tech" title="{{ $event->conversion_id }}">{{ $event->conversion_id }}</span>
+                        </td>
+                        <td>
+                            <div class="sync-poc-table-cell-stack">
+                                <span class="sync-poc-truncate" title="{{ $event->customer_label }}">{{ $event->customer_label }}</span>
+                                @if ($event->session_id)
+                                    <span class="hint sync-poc-truncate" title="{{ $event->session_id }}">{{ $event->session_id }}</span>
+                                @endif
+                            </div>
+                        </td>
+                        <td>{{ $event->occurred_at?->diffForHumans() }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </x-ui.table>
     @endif
-</section>
+</x-ui.panel>

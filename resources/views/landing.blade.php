@@ -1,47 +1,44 @@
 <x-layouts.guest title="Sync360 — AI Employee For Service Businesses">
     <div class="landing-page full-bleed">
-        <section class="landing-hero">
-            <div class="hero-copy">
-                <div class="hero-copy-main">
-                    <span class="eyebrow type-kicker animate-in animate-delay-0"><span class="eyebrow-dot"></span> Sync360 digital employee</span>
-                    <h1 class="type-display animate-in animate-delay-1">Sync360 keeps every enquiry moving.</h1>
+        <x-marketing.hero
+            kicker="Sync360 digital employee"
+            title="Sync360 keeps every enquiry moving."
+            body="While your team gets on with the real work, Sync360 replies after hours, qualifies the job, books the next step, and keeps customers warm without adding more admin to your day."
+        >
+            <x-slot:actions>
+                <x-marketing.cta-group
+                    class="hero-actions animate-in animate-delay-3"
+                    :primary-href="route('signup')"
+                    primary-label="Start Free Trial &rarr;"
+                    :secondary-href="route('login')"
+                    secondary-label="Log In"
+                />
+            </x-slot:actions>
+
+            <x-slot:proof>
+                <div class="hero-proof type-secondary animate-in animate-delay-4">
+                    <span>
+                        <svg class="proof-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                        No credit card required
+                    </span>
+                    <span>
+                        <svg class="proof-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                        Built for service businesses
+                    </span>
+                    <span>
+                        <svg class="proof-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                        Live in minutes
+                    </span>
                 </div>
+            </x-slot:proof>
 
-                <div class="hero-support animate-in animate-delay-2">
-                    <p class="type-body-lg">
-                        While your team gets on with the real work, Sync360 replies after hours, qualifies the job,
-                        books the next step, and keeps customers warm without adding more admin to your day.
-                    </p>
-
-                    <div class="hero-actions">
-                        <a href="{{ route('signup') }}" class="button button--primary animate-in animate-delay-3">Start Free Trial &rarr;</a>
-                        <a href="{{ route('login') }}" class="button button--secondary animate-in animate-delay-3">Log In</a>
-                    </div>
-
-                    <div class="hero-proof type-secondary animate-in animate-delay-4">
-                        <span>
-                            <svg class="proof-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                            </svg>
-                            No credit card required
-                        </span>
-                        <span>
-                            <svg class="proof-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                            </svg>
-                            Built for service businesses
-                        </span>
-                        <span>
-                            <svg class="proof-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                            </svg>
-                            Live in minutes
-                        </span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="hero-visual animate-in animate-delay-5">
+            <x-slot:visual>
                 <div class="product-preview">
                     <div class="product-topbar">
                         <span>Sync360 workspace</span>
@@ -138,8 +135,8 @@
                         </div>
                     </div>
                 </div>
-            </div>
-        </section>
+            </x-slot:visual>
+        </x-marketing.hero>
 
         <div class="section-connector" aria-hidden="true">
             <div class="section-connector-line"></div>
@@ -150,21 +147,15 @@
         <section class="section-shell">
             <div class="inner">
                 <div class="outcome-strip">
-                    <div class="outcome-card">
-                        <span class="type-secondary">More booked work</span>
-                        <strong class="type-h3">Reply before the lead goes cold</strong>
-                        <p class="type-body">Every missed message is a chance for someone else to win the job. Sync360 keeps the conversation alive.</p>
-                    </div>
-                    <div class="outcome-card">
-                        <span class="type-secondary">Less admin drag</span>
-                        <strong class="type-h3">Quotes, follow-ups, and bookings off your plate</strong>
-                        <p class="type-body">Customers get a smoother experience without you spending your evening inside your phone.</p>
-                    </div>
-                    <div class="outcome-card">
-                        <span class="type-secondary">More consistent service</span>
-                        <strong class="type-h3">Your business sounds sharp every time</strong>
-                        <p class="type-body">Friendly replies, clear next steps, and fewer dropped balls when things get busy.</p>
-                    </div>
+                    <x-marketing.outcome-card eyebrow="More booked work" title="Reply before the lead goes cold">
+                        Every missed message is a chance for someone else to win the job. Sync360 keeps the conversation alive.
+                    </x-marketing.outcome-card>
+                    <x-marketing.outcome-card eyebrow="Less admin drag" title="Quotes, follow-ups, and bookings off your plate">
+                        Customers get a smoother experience without you spending your evening inside your phone.
+                    </x-marketing.outcome-card>
+                    <x-marketing.outcome-card eyebrow="More consistent service" title="Your business sounds sharp every time">
+                        Friendly replies, clear next steps, and fewer dropped balls when things get busy.
+                    </x-marketing.outcome-card>
                 </div>
             </div>
         </section>
@@ -177,22 +168,11 @@
 
         <section class="section-shell trust-section">
             <div class="inner">
-                <div class="trust-bar">
-                    <div class="trust-stat">
-                        <strong class="type-value">127</strong>
-                        <span class="type-label">Service businesses using Sync360</span>
-                    </div>
-                    <div class="trust-divider"></div>
-                    <div class="trust-stat">
-                        <strong class="type-value">2,847</strong>
-                        <span class="type-label">Enquiries handled last month</span>
-                    </div>
-                    <div class="trust-divider"></div>
-                    <div class="trust-stat">
-                        <strong class="type-value">89%</strong>
-                        <span class="type-label">Leads converted to bookings</span>
-                    </div>
-                </div>
+                <x-marketing.stat-bar :stats="[
+                    ['value' => '127', 'label' => 'Service businesses using Sync360'],
+                    ['value' => '2,847', 'label' => 'Enquiries handled last month'],
+                    ['value' => '89%', 'label' => 'Leads converted to bookings'],
+                ]" />
             </div>
         </section>
 
@@ -306,56 +286,39 @@
                 </div>
 
                 <div class="testimonials-grid">
-                    <div class="testimonial-card">
-                        <div class="testimonial-content">
-                            <p class="testimonial-quote">We were losing 3-4 jobs a week from missed calls after hours. Sync360 caught them all. First month: 18 extra bookings, paid for itself 10 times over.</p>
-                        </div>
-                        <div class="testimonial-author">
-                            <div class="author-avatar">MJ</div>
-                            <div class="author-info">
-                                <strong>Matt Johnson</strong>
-                                <span>Northfield Plumbing, Owner</span>
-                            </div>
-                        </div>
-                        <div class="testimonial-metric">
-                            <span class="metric-label">Extra bookings in month 1</span>
-                            <strong class="metric-value" data-count-to="18" data-prefix="+">+18</strong>
-                        </div>
-                    </div>
+                    <x-marketing.testimonial-card
+                        quote="We were losing 3-4 jobs a week from missed calls after hours. Sync360 caught them all. First month: 18 extra bookings, paid for itself 10 times over."
+                        name="Matt Johnson"
+                        role="Northfield Plumbing, Owner"
+                        initials="MJ"
+                        metric-label="Extra bookings in month 1"
+                        metric-value="+18"
+                        count-to="18"
+                        prefix="+"
+                    />
 
-                    <div class="testimonial-card">
-                        <div class="testimonial-content">
-                            <p class="testimonial-quote">I was spending 2 hours every evening replying to enquiries. Sync360 handles 80% of them automatically. I get my evenings back and customers get faster replies.</p>
-                        </div>
-                        <div class="testimonial-author">
-                            <div class="author-avatar">SK</div>
-                            <div class="author-info">
-                                <strong>Sarah Kim</strong>
-                                <span>Apex Electrical, Office Manager</span>
-                            </div>
-                        </div>
-                        <div class="testimonial-metric">
-                            <span class="metric-label">Admin time saved weekly</span>
-                            <strong class="metric-value" data-count-to="10" data-suffix=" hrs">10 hrs</strong>
-                        </div>
-                    </div>
+                    <x-marketing.testimonial-card
+                        quote="I was spending 2 hours every evening replying to enquiries. Sync360 handles 80% of them automatically. I get my evenings back and customers get faster replies."
+                        name="Sarah Kim"
+                        role="Apex Electrical, Office Manager"
+                        initials="SK"
+                        metric-label="Admin time saved weekly"
+                        metric-value="10 hrs"
+                        count-to="10"
+                        suffix=" hrs"
+                    />
 
-                    <div class="testimonial-card">
-                        <div class="testimonial-content">
-                            <p class="testimonial-quote">The quote follow-ups alone are worth it. Sync360 reopened $47k in dead leads over 3 months. Customers said we were the only ones who followed up properly.</p>
-                        </div>
-                        <div class="testimonial-author">
-                            <div class="author-avatar">DT</div>
-                            <div class="author-info">
-                                <strong>David Torres</strong>
-                                <span>Torres Roofing, Director</span>
-                            </div>
-                        </div>
-                        <div class="testimonial-metric">
-                            <span class="metric-label">Recovered revenue (3 months)</span>
-                            <strong class="metric-value" data-count-to="47" data-prefix="$" data-suffix="k">$47k</strong>
-                        </div>
-                    </div>
+                    <x-marketing.testimonial-card
+                        quote="The quote follow-ups alone are worth it. Sync360 reopened $47k in dead leads over 3 months. Customers said we were the only ones who followed up properly."
+                        name="David Torres"
+                        role="Torres Roofing, Director"
+                        initials="DT"
+                        metric-label="Recovered revenue (3 months)"
+                        metric-value="$47k"
+                        count-to="47"
+                        prefix="$"
+                        suffix="k"
+                    />
                 </div>
             </div>
         </section>
@@ -390,8 +353,12 @@
                 </div>
 
                 <div class="final-actions">
-                    <a href="{{ route('signup') }}" class="button button--primary">Start Free Trial &rarr;</a>
-                    <a href="{{ route('login') }}" class="button button--secondary">Already a customer?</a>
+                    <x-marketing.cta-group
+                        :primary-href="route('signup')"
+                        primary-label="Start Free Trial &rarr;"
+                        :secondary-href="route('login')"
+                        secondary-label="Already a customer?"
+                    />
                 </div>
             </div>
         </section>

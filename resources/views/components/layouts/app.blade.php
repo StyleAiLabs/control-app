@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
         :root {
             --bg: #f7f5f3;
@@ -316,9 +317,9 @@
         .badge.ready, .badge.completed, .badge.trial_active { background: #dcfce7; color: #15803d; }
         .badge.failed, .badge.trial_expired { background: var(--danger-bg); color: var(--danger); }
         .badge--technical {
-            font-family: "JetBrains Mono", monospace;
+            font-family: "DM Sans", "Segoe UI", sans-serif;
             font-size: 0.78rem;
-            letter-spacing: var(--type-tech-tracking);
+            letter-spacing: 0.04em;
         }
 
         /* ── Tables ── */

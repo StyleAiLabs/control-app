@@ -7,8 +7,19 @@
         </div>
     </div>
 
-    <section class="panel table-wrap">
-        <table>
+    <x-ui.panel class="admin-tenants-poc" aria-label="Tenant records table">
+        <x-ui.table fit>
+            <colgroup>
+                <col style="width: 9%;">
+                <col style="width: 14%;">
+                <col style="width: 10%;">
+                <col style="width: 10%;">
+                <col style="width: 15%;">
+                <col style="width: 8%;">
+                <col style="width: 8%;">
+                <col style="width: 11%;">
+                <col style="width: 15%;">
+            </colgroup>
             <thead>
                 <tr>
                     <th>Business</th>
@@ -27,84 +38,112 @@
                     @php
                         $workspaceState = $workspaceStates[$tenant->id] ?? 'unknown';
                         $googleState = $googleStates[$tenant->id] ?? null;
+                        $agentStatus = $tenant->agent_status === 'live' ? 'live' : ($tenant->agent_status === 'failed' ? 'failed' : 'pending');
+                        $healthStatus = $tenant->last_health_check_status === 'healthy' ? 'healthy' : ($tenant->last_health_check_status === 'failed' ? 'failed' : 'unchecked');
+                        $workspaceBadgeStatus = $workspaceState === 'running' ? 'running' : ($workspaceState === 'stopped' ? 'stopped' : ($workspaceState === 'unknown' ? 'unchecked' : 'failed'));
                     @endphp
-                    <tr class="clickable-row" data-href="{{ route('admin.tenants.show', $tenant) }}" tabindex="0">
+                    <tr
+                        class="clickable-row"
+                        data-href="{{ route('admin.tenants.show', $tenant) }}"
+                        tabindex="0"
+                    >
                         <td>
-                            <a href="{{ route('admin.tenants.show', $tenant) }}"><strong>{{ $tenant->business_name }}</strong></a><br>
-                            <span class="hint">{{ $tenant->slug }}</span>
-                        </td>
-                        <td>
-                            {{ $tenant->user?->name }}<br>
-                            <span class="hint">{{ $tenant->user?->email }}</span>
-                        </td>
-                        <td>
-                            {{ $tenant->server?->name ?? 'Unassigned' }}<br>
-                            <span class="hint">{{ $tenant->server?->host ?? '—' }}</span>
-                        </td>
-                        <td><span class="badge {{ $tenant->provisioning_status->value }}">{{ $tenant->provisioning_status->value }}</span></td>
-                        <td>
-                            <span class="badge {{ $googleState['connection_badge'] ?? 'pending' }}">
-                                {{ $googleState['connection_label'] ?? 'Pending' }}
-                            </span>
-                            <div style="margin-top: 6px;">
-                                <span class="badge {{ $googleState['runtime_badge'] ?? 'pending' }}">
-                                    {{ $googleState['runtime_label'] ?? 'Pending' }}
-                                </span>
+                            <div class="sync-poc-table-cell-stack">
+                                <a href="{{ route('admin.tenants.show', $tenant) }}" class="sync-poc-truncate" title="{{ $tenant->business_name }}"><strong>{{ $tenant->business_name }}</strong></a>
+                                <span class="hint sync-poc-truncate" title="{{ $tenant->slug }}">{{ $tenant->slug }}</span>
                             </div>
-                            <div class="hint" style="margin-top: 6px;">
+                        </td>
+                        <td>
+                            <div class="sync-poc-table-cell-stack">
+                                <span class="sync-poc-truncate" title="{{ $tenant->user?->name }}">{{ $tenant->user?->name }}</span>
+                                <span class="hint sync-poc-truncate" title="{{ $tenant->user?->email }}">{{ $tenant->user?->email }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="sync-poc-table-cell-stack">
+                                <span class="sync-poc-truncate" title="{{ $tenant->server?->name ?? 'Unassigned' }}">{{ $tenant->server?->name ?? 'Unassigned' }}</span>
+                                <span class="hint sync-poc-truncate" title="{{ $tenant->server?->host ?? '—' }}">{{ $tenant->server?->host ?? '—' }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <x-ui.badge :status="$tenant->provisioning_status->value">
+                                {{ $tenant->provisioning_status->value }}
+                            </x-ui.badge>
+                        </td>
+                        <td>
+                            <x-ui.badge :status="$googleState['connection_badge'] ?? 'pending'">
+                                {{ $googleState['connection_label'] ?? 'Pending' }}
+                            </x-ui.badge>
+                            <div style="margin-top: 6px;">
+                                <x-ui.badge :status="$googleState['runtime_badge'] ?? 'pending'">
+                                    {{ $googleState['runtime_label'] ?? 'Pending' }}
+                                </x-ui.badge>
+                            </div>
+                            <div class="hint sync-poc-truncate" style="margin-top: 6px;" title="{{ $googleState['google_email'] ?? 'No Google account saved' }}">
                                 {{ $googleState['google_email'] ?? 'No Google account saved' }}
                             </div>
                             @if (filled($googleState['last_timestamp_label'] ?? null) && filled($googleState['last_timestamp'] ?? null))
-                                <div class="hint" style="margin-top: 6px;">
+                                <div class="hint sync-poc-truncate" style="margin-top: 6px;" title="{{ $googleState['last_timestamp_label'] }}: {{ $googleState['last_timestamp'] }}">
                                     {{ $googleState['last_timestamp_label'] }}: {{ $googleState['last_timestamp'] }}
                                 </div>
                             @endif
                             @if (filled($googleState['last_error'] ?? null))
-                                <div class="hint" style="margin-top: 6px;">
+                                <div class="hint sync-poc-truncate" style="margin-top: 6px;" title="{{ $googleState['last_error'] }}">
                                     {{ \Illuminate\Support\Str::limit($googleState['last_error'], 140) }}
                                 </div>
                             @endif
                         </td>
-                        <td><span class="badge {{ $tenant->agent_status === 'live' ? 'ready' : ($tenant->agent_status === 'failed' ? 'failed' : 'pending') }}">{{ $tenant->agent_status ?? 'offline' }}</span></td>
+                        <td>
+                            <x-ui.badge :status="$agentStatus">
+                                {{ $tenant->agent_status ?? 'offline' }}
+                            </x-ui.badge>
+                        </td>
                         <td>
                             @if ($tenant->isTrialExpired())
-                                <span class="badge failed">expired</span>
+                                <x-ui.badge status="expired">expired</x-ui.badge>
                             @else
                                 @php
                                     $urgency = $tenant->trialUrgency();
                                     $daysLeft = $tenant->trialDaysLeft();
                                 @endphp
-                                <span class="badge {{ $urgency === 'critical' ? 'failed' : ($urgency === 'warning' ? 'pending' : 'ready') }}">
+                                <x-ui.badge :status="$urgency === 'critical' ? 'failed' : ($urgency === 'warning' ? 'warning' : 'ready')">
                                     {{ $daysLeft }}d left
-                                </span>
+                                </x-ui.badge>
                                 <div class="hint" style="margin-top: 4px;">
                                     ${{ number_format((float)($tenant->litellm_spend ?? 0), 2) }} / ${{ number_format((float)($tenant->litellm_max_budget ?? 5), 2) }}
                                 </div>
                             @endif
                         </td>
                         <td>
-                            <span class="badge {{ $tenant->last_health_check_status === 'healthy' ? 'ready' : ($tenant->last_health_check_status === 'failed' ? 'failed' : 'pending') }}">
+                            <x-ui.badge :status="$healthStatus">
                                 {{ $tenant->last_health_check_status ?? 'unchecked' }}
-                            </span>
-                            <div class="hint" style="margin-top: 6px;">
+                            </x-ui.badge>
+                            <div class="hint sync-poc-truncate" style="margin-top: 6px;" title="{{ $tenant->health_check_message ?? 'No health check run yet.' }}">
                                 {{ $tenant->health_check_message ?? 'No health check run yet.' }}
                             </div>
                         </td>
                         <td>
-                            <span class="badge {{ $workspaceState === 'running' ? 'ready' : ($workspaceState === 'stopped' ? 'pending' : 'failed') }}">{{ str_replace('_', ' ', $workspaceState) }}</span>
-                            <div class="hint" style="margin-top: 6px;">
+                            <x-ui.badge :status="$workspaceBadgeStatus">
+                                {{ str_replace('_', ' ', $workspaceState) }}
+                            </x-ui.badge>
+                            <div class="hint sync-poc-truncate" style="margin-top: 6px;" title="{{ $tenant->workspace_url ?? 'Workspace URL pending' }}">
                                 {{ $tenant->workspace_url ?? 'Workspace URL pending' }}
                             </div>
                         </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="9">No tenants found yet.</td>
+                        <td colspan="9">
+                            <x-ui.empty-state
+                                title="No tenants found yet."
+                                description="Tenant records will appear here after the first customer signs up."
+                            />
+                        </td>
                     </tr>
                 @endforelse
             </tbody>
-        </table>
-    </section>
+        </x-ui.table>
+    </x-ui.panel>
 
     <script>
         (() => {
