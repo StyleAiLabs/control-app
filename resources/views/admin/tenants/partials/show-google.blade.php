@@ -1,25 +1,109 @@
-<x-ui.panel title="Google Workspace Connection" description="Connection state, live sync progress, latest runtime error, and repair actions.">
+@php
+    $recommendedAction = match (true) {
+        ! $googleConnected => [
+            'title' => 'Reconnect customer Google account',
+            'detail' => 'No Google account is saved for this tenant yet. Finish the customer connection flow before tenant-side sync and smoke tests will succeed.',
+            'primary' => null,
+        ],
+        ! $canManageWorkspace => [
+            'title' => 'Repair workspace availability first',
+            'detail' => 'Google runtime actions are blocked until the tenant workspace is provisioned and configured again.',
+            'primary' => null,
+        ],
+        $googleState['can_queue_sync'] => [
+            'title' => 'Queue Google Sync next',
+            'detail' => 'The account is connected. Queue the sync job to seed runtime access and refresh the live Google state.',
+            'primary' => 'sync',
+        ],
+        ($googleState['runtime_badge'] ?? 'pending') !== 'ready' => [
+            'title' => 'Repair runtime capabilities',
+            'detail' => 'The customer connection exists, but live access is still not ready. Repair the runtime contract, then verify again.',
+            'primary' => 'runtime',
+        ],
+        default => [
+            'title' => 'Run a fresh smoke test',
+            'detail' => 'Connection and runtime both look ready. Run the tenant-side verification if you need current evidence before troubleshooting anything else.',
+            'primary' => 'test',
+        ],
+    };
+@endphp
+
+<x-ui.panel title="Google Workspace Connection" description="Current connection state, the best next repair step, and the latest runtime evidence.">
     <x-slot:actions>
-        <x-ui.badge :status="$googleState['connection_badge']" technical>{{ $googleState['connection_label'] }}</x-ui.badge>
-        <x-ui.badge :status="$googleState['runtime_badge']" technical>{{ $googleState['runtime_label'] }}</x-ui.badge>
+        <x-ui.badge :status="$googleState['connection_badge']">{{ $googleState['connection_label'] }}</x-ui.badge>
+        <x-ui.badge :status="$googleState['runtime_badge']">{{ $googleState['runtime_label'] }}</x-ui.badge>
         @if ($googleState['sync_job_status'])
-            <x-ui.badge :status="$googleState['sync_job_badge']" technical>{{ $googleState['sync_job_status'] }}</x-ui.badge>
+            <x-ui.badge :status="$googleState['sync_job_badge']">{{ $googleState['sync_job_status'] }}</x-ui.badge>
         @endif
     </x-slot:actions>
 
+    <div class="sync-poc-detail-grid sync-poc-detail-grid--wide">
+        <section class="sync-poc-subpanel">
+            <span class="eyebrow">Current State</span>
+            <div class="sync-poc-state-list" style="margin-top: 12px;">
+                <div class="sync-poc-state-row">
+                    <x-ui.status-icon :status="$googleState['connection_badge']" :label="'Google connection '.$googleState['connection_label']" />
+                    <div class="sync-poc-state-copy">
+                        <span class="sync-poc-state-label">Connection</span>
+                        <span class="sync-poc-state-value">{{ $googleState['connection_label'] }}</span>
+                    </div>
+                </div>
+                <div class="sync-poc-state-row">
+                    <x-ui.status-icon :status="$googleState['runtime_badge']" :label="'Google runtime '.$googleState['runtime_label']" />
+                    <div class="sync-poc-state-copy">
+                        <span class="sync-poc-state-label">Live Access</span>
+                        <span class="sync-poc-state-value">{{ $googleState['runtime_label'] }}</span>
+                    </div>
+                </div>
+                @if ($googleState['sync_job_status'])
+                    <div class="sync-poc-state-row">
+                        <x-ui.status-icon :status="$googleState['sync_job_badge']" :label="'Google sync job '.$googleState['sync_job_status']" />
+                        <div class="sync-poc-state-copy">
+                            <span class="sync-poc-state-label">Sync Job</span>
+                            <span class="sync-poc-state-value">{{ $googleState['sync_job_status'] }}</span>
+                        </div>
+                    </div>
+                @endif
+            </div>
+
+            <div class="sync-poc-field" style="margin-top: 14px;">
+                <span class="sync-poc-field__label">Google Email</span>
+                <strong class="sync-poc-field__value">{{ $googleState['google_email'] ?? 'No Google account saved' }}</strong>
+            </div>
+        </section>
+
+        <section class="sync-poc-subpanel">
+            <span class="eyebrow">Recommended Next Step</span>
+            <h3 class="type-section-title" style="margin-top: 12px;">{{ $recommendedAction['title'] }}</h3>
+            <p class="type-body" style="margin: 10px 0 0;">{{ $recommendedAction['detail'] }}</p>
+
+            <div class="sync-poc-panel-actions" style="margin-top: 16px;">
+                <form method="POST" action="{{ route('admin.tenants.google.sync', $tenant) }}" class="inline">
+                    @csrf
+                    <input type="hidden" name="return_tab" value="google">
+                    <x-ui.button type="submit" size="sm" icon="refresh-cw" :variant="$recommendedAction['primary'] === 'sync' ? 'primary' : 'secondary'" :disabled="! $googleState['can_queue_sync']">Queue Google Sync</x-ui.button>
+                </form>
+                <form method="POST" action="{{ route('admin.tenants.runtime-capabilities.sync', $tenant) }}" class="inline">
+                    @csrf
+                    <input type="hidden" name="return_tab" value="google">
+                    <x-ui.button type="submit" size="sm" icon="wrench" :variant="$recommendedAction['primary'] === 'runtime' ? 'primary' : 'secondary'" :disabled="! $canManageWorkspace">Sync Runtime Capabilities</x-ui.button>
+                </form>
+                <form method="POST" action="{{ route('admin.tenants.google.test', $tenant) }}" class="inline">
+                    @csrf
+                    <input type="hidden" name="return_tab" value="google">
+                    <x-ui.button type="submit" size="sm" icon="activity" :variant="$recommendedAction['primary'] === 'test' ? 'primary' : 'secondary'" :disabled="! ($canManageWorkspace && $googleConnected)">Test Google Workspace</x-ui.button>
+                </form>
+            </div>
+
+            <div class="hint" style="margin-top: 14px;">
+                Queue Google Sync reuses the initial Google sync job flow. Sync Runtime Capabilities repairs the <code>gog</code> runtime contract. Test Google Workspace runs the tenant-side smoke verification.
+            </div>
+        </section>
+    </div>
+</x-ui.panel>
+
+<x-ui.panel title="Google Sync Evidence" description="Recent timestamps, job evidence, and the latest runtime error captured for this tenant.">
     <div class="sync-poc-detail-grid">
-        <div class="sync-poc-field">
-            <span class="sync-poc-field__label">Google Email</span>
-            <strong class="sync-poc-field__value">{{ $googleState['google_email'] ?? 'No Google account saved' }}</strong>
-        </div>
-        <div class="sync-poc-field">
-            <span class="sync-poc-field__label">Connection Status</span>
-            <strong class="sync-poc-field__value">{{ $googleState['connection_label'] }}</strong>
-        </div>
-        <div class="sync-poc-field">
-            <span class="sync-poc-field__label">Live Access</span>
-            <strong class="sync-poc-field__value">{{ $googleState['runtime_label'] }}</strong>
-        </div>
         <div class="sync-poc-field">
             <span class="sync-poc-field__label">Connected At</span>
             <strong class="sync-poc-field__value">{{ $googleState['connected_at'] ?? '—' }}</strong>
@@ -44,28 +128,6 @@
             <span class="sync-poc-field__label">Sync Job Completed</span>
             <strong class="sync-poc-field__value">{{ $googleState['sync_job_completed_at'] ?? '—' }}</strong>
         </div>
-    </div>
-
-    <div class="sync-poc-panel-actions" style="margin-top: 18px;">
-        <form method="POST" action="{{ route('admin.tenants.google.sync', $tenant) }}" class="inline">
-            @csrf
-            <input type="hidden" name="return_tab" value="google">
-            <x-ui.button type="submit" size="sm" icon="refresh-cw" :disabled="! $googleState['can_queue_sync']">Queue Google Sync</x-ui.button>
-        </form>
-        <form method="POST" action="{{ route('admin.tenants.runtime-capabilities.sync', $tenant) }}" class="inline">
-            @csrf
-            <input type="hidden" name="return_tab" value="google">
-            <x-ui.button type="submit" size="sm" icon="wrench" :disabled="! $canManageWorkspace">Sync Runtime Capabilities</x-ui.button>
-        </form>
-        <form method="POST" action="{{ route('admin.tenants.google.test', $tenant) }}" class="inline">
-            @csrf
-            <input type="hidden" name="return_tab" value="google">
-            <x-ui.button type="submit" size="sm" icon="activity" :disabled="! ($canManageWorkspace && $googleConnected)">Test Google Workspace</x-ui.button>
-        </form>
-    </div>
-
-    <div class="hint" style="margin-top: 14px;">
-        Queue Google Sync reuses the initial Google sync job flow. Sync Runtime Capabilities repairs the <code>gog</code> runtime contract. Test Google Workspace runs the tenant-side smoke verification.
     </div>
 
     @if (filled($googleState['last_error']))

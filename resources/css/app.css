@@ -476,6 +476,69 @@
         gap: 0.6rem;
     }
 
+    .sync-poc-status-strip {
+        display: grid;
+        gap: 0.8rem;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 11.5rem), 1fr));
+    }
+
+    .sync-poc-status-card {
+        min-width: 0;
+        border: 1px solid color-mix(in oklch, var(--color-base-content) 9%, transparent);
+        border-radius: 0.95rem;
+        background: color-mix(in oklch, var(--color-base-100) 95%, white);
+        padding: 0.85rem 0.9rem;
+    }
+
+    .sync-poc-status-card--compact {
+        padding: 0.72rem 0.8rem;
+    }
+
+    .sync-poc-status-card__header {
+        display: grid;
+        gap: 0.55rem;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: start;
+    }
+
+    .sync-poc-status-card__body {
+        display: grid;
+        gap: 0.08rem;
+        min-width: 0;
+    }
+
+    .sync-poc-status-card__label {
+        color: color-mix(in oklch, var(--color-base-content) 54%, transparent);
+        display: block;
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        line-height: 1.15;
+        text-transform: uppercase;
+    }
+
+    .sync-poc-status-card__value {
+        color: var(--color-base-content);
+        display: block;
+        font-size: 0.92rem;
+        font-weight: 800;
+        line-height: 1.26;
+    }
+
+    .sync-poc-status-card__value--technical {
+        font-family: var(--font-mono);
+        font-size: 0.86rem;
+    }
+
+    .sync-poc-status-card__note {
+        color: color-mix(in oklch, var(--color-base-content) 64%, transparent);
+        display: block;
+        font-size: 0.76rem;
+        line-height: 1.24;
+        margin-top: 0.42rem;
+        min-width: 0;
+    }
+
     .sync-poc-subpanel {
         min-width: 0;
         border: 1px solid color-mix(in oklch, var(--color-base-content) 9%, transparent);
@@ -517,6 +580,158 @@
         align-items: center;
     }
 
+    .tenant-admin-shell {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .tenant-admin-status-strip {
+        gap: 0.65rem;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr));
+    }
+
+    .tenant-admin-status-strip .sync-poc-status-card--compact {
+        border-radius: 0.9rem;
+        padding: 0.68rem 0.75rem;
+    }
+
+    .tenant-admin-status-strip .sync-poc-status-card__header {
+        gap: 0.45rem;
+    }
+
+    .tenant-admin-status-strip .sync-poc-status-card__label {
+        font-size: 0.64rem;
+    }
+
+    .tenant-admin-status-strip .sync-poc-status-card__value {
+        font-size: 0.88rem;
+        line-height: 1.2;
+    }
+
+    .tenant-admin-status-strip .sync-poc-status-card__note {
+        font-size: 0.72rem;
+        margin-top: 0.34rem;
+    }
+
+    .tenant-admin-layout {
+        display: grid;
+        grid-template-columns: minmax(190px, 220px) minmax(0, 1fr);
+        gap: 1rem;
+        align-items: start;
+    }
+
+    .tenant-admin-sidebar {
+        border: 1px solid color-mix(in oklch, var(--color-base-content) 10%, transparent);
+        border-radius: 1rem;
+        background: color-mix(in oklch, var(--color-base-100) 93%, white);
+        box-shadow: 0 12px 28px color-mix(in oklch, var(--color-base-content) 5%, transparent);
+        display: grid;
+        gap: 0.35rem;
+        padding: 0.45rem;
+        position: sticky;
+        top: 1rem;
+    }
+
+    .tenant-admin-tab {
+        display: block;
+        padding: 0.74rem 0.8rem;
+        border-radius: 0.8rem;
+        border: 1px solid transparent;
+        background: transparent;
+        color: color-mix(in oklch, var(--color-base-content) 78%, transparent);
+        text-decoration: none;
+        transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+    }
+
+    .tenant-admin-tab:hover,
+    .tenant-admin-tab:focus {
+        border-color: color-mix(in oklch, var(--color-base-content) 10%, transparent);
+        background: color-mix(in oklch, var(--color-base-200) 34%, transparent);
+        outline: none;
+    }
+
+    .tenant-admin-tab.active {
+        border-color: color-mix(in oklch, var(--color-primary) 26%, transparent);
+        background: color-mix(in oklch, var(--color-primary) 6%, var(--color-base-100));
+        box-shadow: 0 4px 14px color-mix(in oklch, var(--color-primary) 4%, transparent);
+    }
+
+    .tenant-admin-tab.active .tenant-admin-tab__label {
+        color: color-mix(in oklch, var(--color-primary) 70%, var(--color-base-content));
+    }
+
+    .tenant-admin-tab__row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.65rem;
+    }
+
+    .tenant-admin-tab__label {
+        font-weight: 700;
+        line-height: 1.3;
+    }
+
+    .tenant-admin-panel-stack {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .tenant-admin-panel-stack .sync-poc-card .dui-card-body {
+        gap: 0.9rem;
+        padding: 1rem 1.05rem;
+    }
+
+    .tenant-admin-support-grid {
+        display: grid;
+        gap: 0.9rem;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+    }
+
+    .tenant-admin-action-cluster {
+        display: grid;
+        gap: 0.85rem;
+    }
+
+    .tenant-admin-action-cluster__intro {
+        display: grid;
+        gap: 0.3rem;
+    }
+
+    .tenant-admin-action-cluster__intro .eyebrow {
+        padding: 0.35rem 0.58rem;
+        font-size: 0.66rem;
+    }
+
+    .tenant-admin-action-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        align-items: center;
+    }
+
+    .tenant-admin-action-row .dui-btn {
+        min-width: 0;
+    }
+
+    .tenant-admin-support-note {
+        margin-top: 0.3rem;
+        max-width: 72ch;
+    }
+
+    .tenant-admin-danger {
+        display: grid;
+        gap: 0.9rem;
+    }
+
+    .tenant-admin-danger .note {
+        margin-bottom: 0;
+    }
+
+    .tenant-admin-danger__actions {
+        justify-content: flex-end;
+    }
+
     @media (max-width: 640px) {
         .sync-poc-cta-row,
         .sync-poc-cta-row .dui-btn {
@@ -531,6 +746,29 @@
         .sync-poc-panel-actions,
         .sync-poc-panel-actions .dui-btn {
             width: 100%;
+        }
+
+        .tenant-admin-action-row,
+        .tenant-admin-action-row .dui-btn {
+            width: 100%;
+        }
+    }
+
+    @media (max-width: 920px) {
+        .tenant-admin-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .tenant-admin-sidebar {
+            position: static;
+            grid-auto-flow: column;
+            grid-auto-columns: max-content;
+            overflow-x: auto;
+            padding-bottom: 0.25rem;
+        }
+
+        .tenant-admin-tab {
+            min-width: 9.25rem;
         }
     }
 }

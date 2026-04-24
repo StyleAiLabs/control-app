@@ -28,6 +28,7 @@ Implementation status, 2026-04-19: the shared app and guest layouts now load `DM
 - Calm control plane. Admin screens can be dense, but hierarchy should remain readable and operational actions should be easy to scan.
 - Scan hierarchy before truncation. In operational tables, keep tenant identity and primary risk signals readable first; collapse or truncate secondary metadata only after the main comparison targets remain recognizable.
 - Compress secondary admin summary UI. Summary strips above dense tables should stay compact and supportive; they are there to orient triage, not compete with the table itself.
+- Make Overview the shared tenant summary. On tabbed admin detail screens, keep shared identifiers, trial posture, and common rollout evidence in Overview; other tabs should focus on unique evidence and actions instead of repeating the same panels.
 - Brand warmth with restraint. Use Sync360 orange, soft surfaces, rounded panels, and direct language without making every element loud.
 - Typography carries hierarchy. Use `DM Sans` for the product voice and reserve `JetBrains Mono` for technical precision.
 - Semantic components over one-off styling. Prefer shared classes such as `panel`, `badge`, `type-label`, and `type-value--technical` over repeated inline font, spacing, and tracking rules.
@@ -103,6 +104,8 @@ For skill-version UX, tenant admin cards must distinguish `assigned version` fro
 - Use explicit but quiet row-open affordances such as a subtle chevron chip when an entire table row is clickable.
 - Use notes for guidance, blockers, and warnings.
 - Use panels/cards to group a single decision area or data set.
+- On tenant-detail screens, prefer a light status strip plus calm tabs over a loud badge rail and repeated panel-level restatements.
+- On action-heavy admin tabs such as Support, group controls into small purpose-led clusters (`Recovery`, `Lifecycle`, etc.) so the operator reads intent before button labels.
 - When an analytics metric is undefined, omit the card/row instead of showing a misleading zero value.
 - For estimated operational metrics such as time saved or ROI, label them explicitly as estimated in headings or supporting copy.
 - For background rollout/apply work, prefer compact polling progress panels with `queued`, `running`, `completed`, and `failed` badges plus a short explanatory line over noisy log-style output.
@@ -485,22 +488,20 @@ Avoid exposing runtime names or raw provisioning mechanics in customer copy unle
 Use this pattern for admin tenant details:
 
 ```html
-<div class="meta-item">
-    <small class="type-label">External Tenant ID</small>
-    <strong class="type-value type-value--technical">tenant_01K...</strong>
+<div class="sync-poc-status-strip">
+    <section class="sync-poc-status-card sync-poc-status-card--compact">
+        <span class="sync-poc-status-card__label">Workspace</span>
+        <span class="sync-poc-status-card__value">Stopped</span>
+    </section>
 </div>
 ```
 
-Use technical badges for operational state:
+Use Overview as the canonical summary and keep other tabs unique:
 
 ```html
-<span class="badge badge--technical ready">Provisioning: ready</span>
-```
-
-Use notes for explanation:
-
-```html
-<div class="note">Queue Google Sync reuses the existing initial Google sync job flow.</div>
+<x-ui.panel title="Provisioning Outcome">
+    <strong class="type-value">completed</strong>
+</x-ui.panel>
 ```
 
 ### Do / Avoid
@@ -510,12 +511,14 @@ Do:
 - use `DM Sans` for most labels and readable UI
 - use `JetBrains Mono` for exact technical values
 - wrap long technical strings
-- use `badge--technical` for compact raw states
+- keep tenant-detail tabs quiet and make state icons do more work than repeated badges
+- cluster destructive or operational buttons by intent instead of presenting one flat button wall
 - add reusable shared classes before repeating inline styles
 
 Avoid:
 
 - using mono for every admin label
+- duplicating the same provisioning or trial panel across multiple tenant-detail tabs
 - making body copy uppercase
 - adding untracked colors or shadows for one screen
 - putting long explanations inside badges

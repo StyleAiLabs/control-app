@@ -27,6 +27,39 @@ Refactored the admin tenants list so operators can identify tenants, runtime pla
 - tightened dense state-row spacing, clamped secondary Google/health notes to one line, and softened repeated trial urgency badges to keep row heights more consistent
 - documented the canonical design-system rule that dense admin tables should prioritize scan hierarchy before truncating secondary metadata
 
+## 2026-04-24 — Improvement: Tenant Detail Overview Ownership Pass
+
+Date: 2026-04-24
+Status: Implemented
+
+### Overview
+
+Refined the admin tenant detail page so Overview owns the shared summary, the page header carries lighter persistent state, and the Google tab is organized around decisions instead of one big metadata dump.
+
+### What Changed
+
+- replaced the tenant-detail top badge rail with a compact status strip that keeps provisioning, agent, health, workspace, Google, and trial state visible without overwhelming the page
+- moved tenant-detail shell and tab styling into `resources/css/app.css` so the calmer tab treatment is part of the shared PoC system instead of page-local inline CSS
+- moved `Trial & AI Usage` into Overview and removed duplicate provisioning/trial panels from the Workspace tab
+- kept Workspace focused on placement, host/runtime identity, customer-facing URL, and profile/channel configuration
+- reworked the Google tab into `Current State`, `Recommended Next Step`, and `Google Sync Evidence` sections
+- corrected tenant-detail typography so human-scanned status words and timestamps stay in `DM Sans`, while technical mono remains for URLs, IDs, ports, and runtime paths
+
+## 2026-04-25 — Improvement: Tenant Detail Visual Polish Pass
+
+Date: 2026-04-25
+Status: Implemented
+
+### Overview
+
+Polished the tenant-detail page spacing and card rhythm so the support/action-heavy tabs feel calmer and more intentional.
+
+### What Changed
+
+- tightened the tenant-detail status strip and softened the sidebar/tab rhythm for a lighter overall header composition
+- added dedicated support action clusters for `Recovery` and `Lifecycle` so operators see the purpose of each control group before reading individual button labels
+- refined panel padding and subpanel spacing so support content feels guided instead of appearing as one flat control wall
+
 ## 2026-04-23 — Feature: DaisyUI Design System PoC
 
 Date: 2026-04-23

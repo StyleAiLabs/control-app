@@ -4,6 +4,27 @@
         $canManageWorkspace = ! in_array($workspaceState, ['not_provisioned', 'missing_config'], true);
         $googleCredential = $tenant->googleCredential;
         $googleConnected = $googleCredential?->isConnected() ?? false;
+        $agentSummaryStatus = match ($tenant->agent_status) {
+            'live' => 'live',
+            'failed' => 'failed',
+            default => 'offline',
+        };
+        $healthSummaryStatus = match ($tenant->last_health_check_status) {
+            'healthy' => 'healthy',
+            'failed' => 'failed',
+            default => 'unchecked',
+        };
+        $workspaceSummaryLabel = ucfirst(str_replace('_', ' ', $workspaceState));
+        $trialSummaryStatus = $tenant->isTrialExpired()
+            ? 'expired'
+            : match ($tenant->trialUrgency()) {
+                'critical' => 'failed',
+                'warning' => 'warning',
+                default => 'ready',
+            };
+        $trialSummaryLabel = $tenant->isTrialExpired()
+            ? 'Expired'
+            : $tenant->trialDaysLeft().' days left';
         $agentCustomization = $tenant->agentCustomization;
         $agentCustomizationAvailable = $agentCustomizationAvailable ?? true;
         $tenantSkillsAvailable = $tenantSkillsAvailable ?? false;
@@ -81,110 +102,47 @@
                 'badge_class' => null,
             ],
         ];
+        $tenantStatusCards = [
+            [
+                'label' => 'Provisioning',
+                'status' => $tenant->provisioning_status->value,
+                'value' => str_replace('_', ' ', $tenant->provisioning_status->value),
+            ],
+            [
+                'label' => 'Agent',
+                'status' => $agentSummaryStatus,
+                'value' => $tenant->agent_status ?? 'offline',
+            ],
+            [
+                'label' => 'Health',
+                'status' => $healthSummaryStatus,
+                'value' => $tenant->last_health_check_status ?? 'unchecked',
+            ],
+            [
+                'label' => 'Workspace',
+                'status' => $workspaceState,
+                'value' => str_replace('_', ' ', $workspaceState),
+            ],
+            [
+                'label' => 'Google',
+                'status' => $googleState['runtime_badge'],
+                'value' => $googleConnected ? ($googleState['runtime_label'] ?? 'Pending') : ($googleState['connection_label'] ?? 'Pending'),
+                'note' => $googleState['google_email'] ?? 'No Google account saved',
+            ],
+            [
+                'label' => 'Trial',
+                'status' => $trialSummaryStatus,
+                'value' => $trialSummaryLabel,
+            ],
+        ];
     @endphp
-
-    <style>
-        .tenant-admin-shell {
-            display: grid;
-            gap: 18px;
-        }
-
-        .tenant-admin-status {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .tenant-admin-layout {
-            display: grid;
-            grid-template-columns: minmax(190px, 220px) minmax(0, 1fr);
-            gap: 18px;
-            align-items: start;
-        }
-
-        .tenant-admin-sidebar {
-            border: 1px solid color-mix(in oklch, var(--color-base-content) 10%, transparent);
-            border-radius: 18px;
-            background: color-mix(in oklch, var(--color-base-100) 92%, white);
-            box-shadow: 0 14px 34px color-mix(in oklch, var(--color-base-content) 6%, transparent);
-            display: grid;
-            gap: 6px;
-            padding: 8px;
-            position: sticky;
-            top: 18px;
-        }
-
-        .tenant-admin-tab {
-            display: block;
-            padding: 11px 12px;
-            border-radius: 12px;
-            border: 1px solid transparent;
-            background: transparent;
-            text-decoration: none;
-            color: color-mix(in oklch, var(--color-base-content) 78%, transparent);
-            transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
-        }
-
-        .tenant-admin-tab:hover,
-        .tenant-admin-tab:focus {
-            border-color: color-mix(in oklch, var(--color-base-content) 12%, transparent);
-            background: color-mix(in oklch, var(--color-base-200) 54%, transparent);
-            outline: none;
-        }
-
-        .tenant-admin-tab.active {
-            border-color: color-mix(in oklch, var(--color-primary) 34%, transparent);
-            background: linear-gradient(135deg, color-mix(in oklch, var(--color-primary) 14%, transparent), color-mix(in oklch, var(--color-base-100) 72%, white));
-            box-shadow: 0 8px 22px color-mix(in oklch, var(--color-primary) 8%, transparent);
-            transform: translateX(2px);
-        }
-
-        .tenant-admin-tab.active .tenant-admin-tab__label {
-            color: color-mix(in oklch, var(--color-primary) 72%, var(--color-base-content));
-        }
-
-        .tenant-admin-tab__row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .tenant-admin-tab__label {
-            font-weight: 700;
-            line-height: 1.3;
-        }
-
-        .tenant-admin-panel-stack {
-            display: grid;
-            gap: 18px;
-        }
-
-        @media (max-width: 920px) {
-            .tenant-admin-layout {
-                grid-template-columns: 1fr;
-            }
-
-            .tenant-admin-sidebar {
-                position: static;
-                grid-auto-flow: column;
-                grid-auto-columns: max-content;
-                overflow-x: auto;
-                padding-bottom: 4px;
-            }
-
-            .tenant-admin-tab {
-                min-width: 148px;
-            }
-        }
-    </style>
 
     <div class="tenant-admin-shell" data-active-tab="{{ $activeTenantTab }}">
         <div class="topbar">
             <div>
                 <span class="eyebrow">Tenant Detail</span>
                 <h2>{{ $tenant->business_name }}</h2>
-                <p class="type-body">Use the sidebar to move between tenant summary, workspace details, Google state, tenant skills, agent runtime behavior, and support actions.</p>
+                <p class="type-body">Overview holds the shared tenant summary. Use the other tabs for workspace placement, Google repair, skills, runtime behavior, and support actions.</p>
             </div>
             <div class="sync-poc-panel-actions">
                 <x-ui.button :href="route('admin.tenants')" variant="secondary" size="sm" icon="arrow-left">Back to Tenants</x-ui.button>
@@ -194,12 +152,21 @@
             </div>
         </div>
 
-        <div class="tenant-admin-status">
-            <x-ui.badge :status="$tenant->provisioning_status->value" technical>Provisioning: {{ $tenant->provisioning_status->value }}</x-ui.badge>
-            <x-ui.badge :status="$tenant->agent_status ?? 'offline'" technical>Agent: {{ $tenant->agent_status ?? 'offline' }}</x-ui.badge>
-            <x-ui.badge :status="$tenant->last_health_check_status ?? 'unchecked'" technical>Health: {{ $tenant->last_health_check_status ?? 'unchecked' }}</x-ui.badge>
-            <x-ui.badge :status="$workspaceState" technical>Workspace: {{ str_replace('_', ' ', $workspaceState) }}</x-ui.badge>
-            <x-ui.badge :status="$googleState['runtime_badge']" technical>Google: {{ $googleState['runtime_label'] }}</x-ui.badge>
+        <div class="sync-poc-status-strip tenant-admin-status-strip" aria-label="Tenant state summary">
+            @foreach ($tenantStatusCards as $card)
+                <section class="sync-poc-status-card sync-poc-status-card--compact">
+                    <div class="sync-poc-status-card__header">
+                        <x-ui.status-icon :status="$card['status']" :label="$card['label'].' '.$card['value']" />
+                        <div class="sync-poc-status-card__body">
+                            <span class="sync-poc-status-card__label">{{ $card['label'] }}</span>
+                            <span class="sync-poc-status-card__value">{{ $card['value'] }}</span>
+                        </div>
+                    </div>
+                    @if (! empty($card['note']))
+                        <span class="sync-poc-status-card__note sync-poc-truncate" title="{{ $card['note'] }}">{{ $card['note'] }}</span>
+                    @endif
+                </section>
+            @endforeach
         </div>
 
         <div class="tenant-admin-layout">
