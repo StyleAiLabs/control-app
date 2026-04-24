@@ -43,7 +43,7 @@
 
         <x-ui.health-rail :items="$healthRail" />
 
-        <section class="customer-dashboard-grid">
+        <section class="customer-dashboard-grid customer-dashboard-grid--top-analytics">
             <x-ui.chart-panel title="Performance Overview" description="Reviewed work and successful outcomes over the last 30 days.">
                 @if ($performanceSeries['has_data'])
                     <div class="customer-dashboard-panel-stack">
@@ -64,7 +64,7 @@
                 @endif
             </x-ui.chart-panel>
 
-            <x-ui.chart-panel title="Trial Runway" description="A compact view of AI credit and time remaining before the trial ends.">
+            <x-ui.chart-panel title="Trial Runway" description="A compact view of AI credit and time remaining before the trial ends." class="customer-dashboard-panel customer-dashboard-panel--runway">
                 <x-ui.runway-meter :summary="$runwaySummary" />
             </x-ui.chart-panel>
         </section>

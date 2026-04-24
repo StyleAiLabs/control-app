@@ -7,6 +7,21 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-25 — Improvement: Dashboard Analytics Row Balance
+
+Date: 2026-04-25
+Status: Implemented
+
+### Overview
+
+Balanced the top customer dashboard analytics row so `Trial Runway` visually matches the height of `Performance Overview`, making the first analytical band feel more deliberate and stable.
+
+### What Changed
+
+- added row-level stretch behavior so the `Trial Runway` panel fills the same vertical band as `Performance Overview`
+- centered the expired-trial recovery card within that taller runway panel so the surface feels intentional instead of leaving dead space
+- documented the design-system rule that paired dashboard analytics panels should stay height-aligned when they belong to the same decision band
+
 ## 2026-04-25 — Improvement: Expired Trial Dashboard Messaging Cleanup
 
 Date: 2026-04-25

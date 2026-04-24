@@ -234,6 +234,7 @@ Remaining documentation mismatch:
 - [`app/Console/Commands/SyncConversationReplies.php`](../app/Console/Commands/SyncConversationReplies.php) — session-log conversation sync
 - [`app/Services/TenantGatewayService.php`](../app/Services/TenantGatewayService.php) and [`app/Services/TenantHealthCheckService.php`](../app/Services/TenantHealthCheckService.php) — private gateway access and readiness checks
 - Customer dashboard expired-trial UX now uses a strict hierarchy: one urgent top banner, compact `Paused` / `Expired` health-rail states, and a reactivation-focused runway panel instead of repeating `trial ended` messaging in every surface.
+- The customer dashboard top analytics row now intentionally keeps `Performance Overview` and `Trial Runway` aligned in height so the analytical band reads as one balanced row instead of one tall chart beside a short recovery card.
 
 ## 8. Current priorities / open work
 

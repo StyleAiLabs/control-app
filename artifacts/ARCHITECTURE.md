@@ -1081,6 +1081,7 @@ Notable current additions:
 - Tenant skill guidance is generated into `.openclaw/workspace/AGENTS.md`, not persisted as a manual prompt override. The `Assigned Skill Guidance` section is composed from the currently enabled tenant skill assignments, appears when one or more skills are assigned, disappears when none are assigned, and is exposed in the admin `Agent Runtime` preview as a generated read-only file so operators can inspect the effective guidance.
 - Tenant runtime skill discovery is diagnostic, not authoritative. Assignment and rollout still come from `SkillCatalogItem`, `SkillCatalogVersion`, `TenantSkillAssignment`, and the existing tenant customization/apply pipeline.
 - Customer dashboard expired-trial rendering is intentionally split by role: the page-level banner owns the critical account message, the health rail carries compact state only, and the runway panel becomes the recovery/action surface. The same `trial ended` sentence should not be repeated across all three layers.
+- Customer dashboard top analytics panels can use row-level stretch behavior when one side is a large chart and the other is a compact analytical companion. In that case, the companion card should fill the row height rather than collapsing to its content height.
 
 ## 12. Code map for contributors
 
