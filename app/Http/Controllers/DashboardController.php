@@ -8,8 +8,12 @@ use App\Enums\TrialStatus;
 use App\Models\ConversationLog;
 use App\Models\Tenant;
 use App\Models\TenantGoogleCredential;
+use App\Models\TenantInboxMonitorMessage;
+use App\Models\TenantSkillConversionEvent;
 use App\Services\LiteLlmTenantKeyService;
 use App\Services\TenantAgentSyncService;
+use App\Services\TenantInboxTriagePollingService;
+use App\Services\TenantOnboardingSkillService;
 use App\Services\TenantSkillAnalyticsReportService;
 use App\Services\TenantRuntimeService;
 use App\Services\TenantWorkspaceReadinessService;
@@ -33,6 +37,7 @@ class DashboardController extends Controller
         private readonly DockerComposeRunner $dockerCompose,
         private readonly TenantRuntimeService $runtime,
         private readonly TenantAgentSyncService $agentSync,
+        private readonly TenantOnboardingSkillService $onboardingSkills,
         private readonly TenantWorkspaceReadinessService $workspaceReadiness,
         private readonly TenantSkillAnalyticsReportService $skillAnalytics,
     ) {}
@@ -44,7 +49,12 @@ class DashboardController extends Controller
         }
 
         $tenant = $request->user()->tenant()
-            ->with(GoogleWorkspaceFeature::tenantRelations(['businessProfile', 'businessProfileFiles']))
+            ->with(GoogleWorkspaceFeature::tenantRelations([
+                'businessProfile',
+                'businessProfileFiles',
+                'inboxMonitorState',
+                'skillAssignments.catalogVersion.item',
+            ]))
             ->firstOrFail();
         $recentConversations = $tenant->conversationLogs()
             ->latest('created_at')
@@ -101,6 +111,8 @@ class DashboardController extends Controller
             'trialData'           => $this->trialData($tenant),
             'workspaceState'      => $workspaceState,
             'impactSummary'       => $this->skillAnalytics->tenantSummary($tenant),
+            'inboxOverview'       => $this->inboxOverview($tenant),
+            'moduleSummary'       => $this->onboardingSkills->customerSummary($tenant),
         ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, private')
             ->header('Pragma', 'no-cache')
             ->header('Expires', 'Fri, 01 Jan 1990 00:00:00 GMT');
@@ -257,16 +269,14 @@ class DashboardController extends Controller
      */
     private function onboardingSummary(Tenant $tenant): array
     {
+        $this->onboardingSkills->ensureCoreAssignments($tenant, $tenant->user_id);
         $profile = $tenant->businessProfile;
         $files = $tenant->businessProfileFiles;
         $services = collect(is_array($profile?->services) ? $profile->services : [])
             ->filter(fn (mixed $value): bool => is_string($value) && trim($value) !== '')
             ->values()
             ->all();
-        $capabilities = collect(is_array($tenant->capabilities) ? $tenant->capabilities : [])
-            ->filter(fn (mixed $value): bool => is_string($value) && trim($value) !== '')
-            ->values()
-            ->all();
+        $enabledModules = $this->onboardingSkills->enabledModules($tenant);
         $channelConfig = is_array($tenant->channel_config) ? $tenant->channel_config : [];
         $googleCredential = GoogleWorkspaceFeature::isAvailable() ? $tenant->googleCredential : null;
         $googleSyncJob = null;
@@ -293,7 +303,7 @@ class DashboardController extends Controller
             ],
             4 => [
                 'label' => $stepLabels[4],
-                'status' => ((int) $tenant->onboarding_step >= 4 && $capabilities !== [] && $files?->generated_at !== null) ? 'complete' : 'incomplete',
+                'status' => ((int) $tenant->onboarding_step >= 4 && $enabledModules !== [] && $files?->generated_at !== null) ? 'complete' : 'incomplete',
             ],
             5 => [
                 'label' => $stepLabels[5],
@@ -342,6 +352,125 @@ class DashboardController extends Controller
             'today' => (clone $baseQuery)->where('created_at', '>=', $todayStart)->count(),
             'week'  => (clone $baseQuery)->where('created_at', '>=', $weekStart)->count(),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function inboxOverview(Tenant $tenant): ?array
+    {
+        $assignment = $tenant->skillAssignments
+            ->first(fn ($item) => $item->skill_key === TenantInboxTriagePollingService::SKILL_KEY && $item->is_enabled);
+
+        if (! $assignment) {
+            return null;
+        }
+
+        $google = $tenant->googleCredential;
+        $monitorState = $tenant->inboxMonitorState;
+        $customerActionRequired = $tenant->agent_status !== 'live'
+            || $tenant->provisioning_status !== TenantProvisioningStatus::Ready
+            || ! $google
+            || $google->status !== TenantGoogleCredential::STATUS_CONNECTED
+            || $google->runtime_sync_status !== TenantGoogleCredential::RUNTIME_SYNC_VERIFIED;
+        $isMonitorStale = $monitorState?->last_checked_at === null || $monitorState->last_checked_at->lt(now()->subMinutes(15));
+        $needsAttention = ! $customerActionRequired && (
+            ($monitorState?->enabled === false)
+            || $monitorState?->status === 'failed'
+            || ($monitorState?->backoff_until && $monitorState->backoff_until->isFuture())
+            || $isMonitorStale
+        );
+
+        $statusLabel = 'Watching your inbox';
+        $statusNote = $monitorState?->last_checked_at
+            ? 'Last checked '.$monitorState->last_checked_at->diffForHumans()
+            : 'Last checked recently';
+        $cta = null;
+
+        if ($customerActionRequired) {
+            $statusLabel = 'Setup incomplete';
+            $statusNote = 'Reconnect Google Workspace to resume inbox monitoring';
+            $cta = [
+                'label' => 'Open setup',
+                'route' => route('onboarding.show'),
+            ];
+        } elseif ($needsAttention) {
+            $statusLabel = 'Needs attention';
+            $statusNote = 'We’re having trouble checking your inbox right now.';
+            $cta = [
+                'label' => 'Open setup',
+                'route' => route('onboarding.show'),
+            ];
+        }
+
+        $secondaryNote = null;
+        if ($statusLabel === 'Watching your inbox' && $this->telegramDefaultChatId($tenant) === null) {
+            $secondaryNote = 'Urgent Telegram alerts are not set up yet.';
+        }
+
+        return [
+            'status_label' => $statusLabel,
+            'status_note' => $statusNote,
+            'secondary_note' => $secondaryNote,
+            'value_line' => $this->inboxValueLine($tenant),
+            'cta' => $cta,
+        ];
+    }
+
+    private function inboxValueLine(Tenant $tenant): string
+    {
+        $from = now()->subDays(7);
+
+        $qualifiedLeadCount = TenantSkillConversionEvent::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('skill_key', TenantInboxTriagePollingService::SKILL_KEY)
+            ->where('occurred_at', '>=', $from)
+            ->count();
+
+        if ($qualifiedLeadCount > 0) {
+            return sprintf(
+                '%d qualified lead%s in the last 7 days',
+                $qualifiedLeadCount,
+                $qualifiedLeadCount === 1 ? '' : 's'
+            );
+        }
+
+        $reviewedCount = TenantInboxMonitorMessage::query()
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('status', [
+                TenantInboxMonitorMessage::STATUS_SENT_TO_AGENT,
+                TenantInboxMonitorMessage::STATUS_SKIPPED,
+            ])
+            ->where('detected_at', '>=', $from)
+            ->count();
+
+        if ($reviewedCount > 0) {
+            return sprintf(
+                '%d recent inbox item%s reviewed',
+                $reviewedCount,
+                $reviewedCount === 1 ? '' : 's'
+            );
+        }
+
+        return 'Your inbox overview will appear here as new enquiries are reviewed.';
+    }
+
+    private function telegramDefaultChatId(Tenant $tenant): ?string
+    {
+        $config = is_array($tenant->channel_config) ? $tenant->channel_config : [];
+        $configured = trim((string) ($config['telegram_default_chat_id'] ?? ''));
+
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        $latest = $tenant->conversationLogs()
+            ->where('channel', 'telegram')
+            ->whereNotNull('from_identifier')
+            ->latest('id')
+            ->value('from_identifier');
+
+        return is_string($latest) && trim($latest) !== '' ? trim($latest) : null;
     }
 
     /**

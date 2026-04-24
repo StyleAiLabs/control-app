@@ -224,13 +224,13 @@ class TenantRuntimeCustomizationComposer
     {
         $googleCredential = $tenant->googleCredential;
         $services = $this->stringList($profile->services);
-        $capabilities = $this->stringList($tenant->capabilities);
         $channelLabel = match ($tenant->channel) {
             'whatsapp' => 'WhatsApp',
             'telegram' => 'Telegram',
             default => 'Customer messaging channel',
         };
         $enabledAssignments = $this->enabledAssignments($tenant);
+        $moduleLines = $this->moduleLines($enabledAssignments);
 
         return array_merge([
             'IDENTITY.md' => $this->normalizeMarkdown($profileFiles->identity_markdown),
@@ -239,8 +239,8 @@ class TenantRuntimeCustomizationComposer
             'BOOTSTRAP.md' => $this->normalizeMarkdown($profileFiles->bootstrap_markdown),
             'AGENTS.md' => $this->normalizeMarkdown($this->buildAgentsMarkdown($enabledAssignments)),
             'TOOLS.md' => $this->normalizeMarkdown($this->buildToolsMarkdown($googleCredential)),
-            'PROFILE.md' => $this->normalizeMarkdown($this->buildProfileMarkdown($tenant, $profile, $services, $capabilities, $channelLabel, $googleCredential)),
-            'HEARTBEAT.md' => $this->normalizeMarkdown($this->buildHeartbeatMarkdown($tenant, $profile, $capabilities, $channelLabel, $googleCredential)),
+            'PROFILE.md' => $this->normalizeMarkdown($this->buildProfileMarkdown($tenant, $profile, $services, $moduleLines, $channelLabel, $googleCredential)),
+            'HEARTBEAT.md' => $this->normalizeMarkdown($this->buildHeartbeatMarkdown($tenant, $profile, $moduleLines, $channelLabel, $googleCredential)),
         ], $this->analyticsHelperFiles($enabledAssignments));
     }
 
@@ -483,23 +483,19 @@ class TenantRuntimeCustomizationComposer
 
     /**
      * @param  array<int, string>  $services
-     * @param  array<int, string>  $capabilities
+     * @param  array<int, string>  $moduleLines
      */
     private function buildProfileMarkdown(
         Tenant $tenant,
         BusinessProfile $profile,
         array $services,
-        array $capabilities,
+        array $moduleLines,
         string $channelLabel,
         ?TenantGoogleCredential $googleCredential,
     ): string {
         $serviceLines = $services === []
             ? ['- No services have been confirmed yet.']
             : array_map(static fn (string $service): string => '- '.$service, $services);
-
-        $capabilityLines = $capabilities === []
-            ? ['- No customer-handling capabilities have been selected yet.']
-            : array_map(static fn (string $capability): string => '- '.$capability, $capabilities);
 
         $lines = [
             '# Business Profile',
@@ -508,13 +504,15 @@ class TenantRuntimeCustomizationComposer
             '- Business Name: '.($profile->business_name ?: $tenant->business_name),
             '- Trading Name: '.($profile->trading_name ?: 'Not provided'),
             '- Industry: '.($profile->industry ?: $tenant->industry),
-            '- Skill Pack: '.($tenant->skill_pack ?: 'Not provided'),
             '- Website: '.($profile->website_url ?: 'Not provided'),
             '- Channel: '.$channelLabel,
             '- Communication Style: '.($tenant->tone ?: $profile->tone_hint ?: 'Not provided'),
             '',
             '## Description',
             $profile->description ?: 'A full business description has not been provided yet.',
+            '',
+            '## Enabled Modules',
+            ...($moduleLines !== [] ? array_map(static fn (string $module): string => '- '.$module, $moduleLines) : ['- No enabled modules have been confirmed yet.']),
             '',
             '## Services',
             ...$serviceLines,
@@ -535,9 +533,6 @@ class TenantRuntimeCustomizationComposer
                 ? array_map(static fn (mixed $hours): string => '- '.(is_string($hours) ? $hours : json_encode($hours)), $profile->business_hours)
                 : ['- Business hours have not been confirmed yet.']),
             '',
-            '## Customer Handling',
-            ...$capabilityLines,
-            '',
             '## Owner Workspace Access',
             ...$this->ownerWorkspaceAccessLines($googleCredential),
             '',
@@ -551,12 +546,12 @@ class TenantRuntimeCustomizationComposer
     }
 
     /**
-     * @param  array<int, string>  $capabilities
+     * @param  array<int, string>  $moduleLines
      */
     private function buildHeartbeatMarkdown(
         Tenant $tenant,
         BusinessProfile $profile,
-        array $capabilities,
+        array $moduleLines,
         string $channelLabel,
         ?TenantGoogleCredential $googleCredential,
     ): string {
@@ -590,16 +585,8 @@ class TenantRuntimeCustomizationComposer
             $rules[] = '- Follow this after-hours policy when the business is unavailable: '.$profile->after_hours_policy;
         }
 
-        if (in_array('after_hours', $capabilities, true)) {
-            $rules[] = '- If the business is closed, explain that the message has been received and set expectations for follow-up.';
-        }
-
-        if (in_array('complaints', $capabilities, true)) {
-            $rules[] = '- For complaints, acknowledge the concern calmly and gather the details needed for follow-up.';
-        }
-
-        if (in_array('appointments', $capabilities, true)) {
-            $rules[] = '- For booking requests, guide the customer toward the next confirmed step instead of promising an appointment slot.';
+        if ($moduleLines !== []) {
+            $rules[] = '- Stay within the purpose of the enabled modules: '.implode('; ', $moduleLines).'.';
         }
 
         return implode(PHP_EOL, [
@@ -612,6 +599,28 @@ class TenantRuntimeCustomizationComposer
             '- Escalate when the customer asks for something outside the confirmed services or when legal, billing, or safety-sensitive information is unclear.',
             '- Capture the customer name, best contact details, and what they need help with whenever human follow-up is required.',
         ]).PHP_EOL;
+    }
+
+    /**
+     * @param  Collection<int, TenantSkillAssignment>|array<int, TenantSkillAssignment>  $assignments
+     * @return array<int, string>
+     */
+    private function moduleLines(Collection|array $assignments): array
+    {
+        $lines = [];
+
+        foreach ($assignments as $assignment) {
+            if (! $assignment instanceof TenantSkillAssignment || ! $assignment->is_enabled) {
+                continue;
+            }
+
+            $item = $assignment->catalogVersion?->item;
+            $label = is_string($item?->label) && trim($item->label) !== '' ? trim($item->label) : $assignment->skill_key;
+            $description = is_string($item?->description) && trim($item->description) !== '' ? trim($item->description) : null;
+            $lines[] = $description ? sprintf('%s: %s', $label, $description) : $label;
+        }
+
+        return array_values(array_unique($lines));
     }
 
     private function buildToolsMarkdown(?TenantGoogleCredential $googleCredential): string

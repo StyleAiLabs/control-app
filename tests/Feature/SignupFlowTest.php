@@ -10,7 +10,10 @@ use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
 use App\Models\ProvisioningJob;
 use App\Models\Server;
+use App\Models\SkillCatalogItem;
+use App\Models\SkillCatalogVersion;
 use App\Models\Tenant;
+use App\Models\TenantSkillAssignment;
 use App\Models\User;
 use App\Services\WorkspaceReadyEmailService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -34,6 +37,7 @@ class SignupFlowTest extends TestCase
     public function test_signup_creates_user_tenant_and_provisioning_job_records(): void
     {
         Queue::fake();
+        $this->seedPublishedCoreSkill();
 
         $response = $this->post('/signup', [
             'business_name' => 'Acme Plumbing',
@@ -42,7 +46,6 @@ class SignupFlowTest extends TestCase
             'password' => 'super-secret',
             'password_confirmation' => 'super-secret',
             'industry' => 'Trades',
-            'skill_pack' => 'Operations Core',
             'phone' => '+64 21 555 0101',
         ]);
 
@@ -65,6 +68,7 @@ class SignupFlowTest extends TestCase
         $this->assertSame('pending', $tenant->onboarding_status);
         $this->assertSame(0, $tenant->onboarding_step);
         $this->assertSame('offline', $tenant->agent_status);
+        $this->assertSame('Core Modules', $tenant->skill_pack);
         $this->assertSame(ProvisioningJobStatus::Queued, $job->status);
         $this->assertSame(1, Server::query()->firstOrFail()->current_clients);
         $this->assertSame('alice@example.com', $job->payload_json[WorkspaceReadyEmailService::PAYLOAD_LOGIN_EMAIL] ?? null);
@@ -82,6 +86,11 @@ class SignupFlowTest extends TestCase
         $this->assertSame('Alice Admin', $profile->owner_name);
         $this->assertSame('alice@example.com', $profile->owner_email);
         $this->assertSame('+64 21 555 0101', $profile->owner_phone);
+        $this->assertDatabaseHas('tenant_skill_assignments', [
+            'tenant_id' => $tenant->id,
+            'skill_key' => 'inbox-triage',
+            'is_enabled' => true,
+        ]);
 
         Queue::assertPushed(ProcessTenantProvisioning::class, function (ProcessTenantProvisioning $queuedJob) use ($tenant, $job): bool {
             return $queuedJob->tenantId === $tenant->id
@@ -104,7 +113,6 @@ class SignupFlowTest extends TestCase
             'password' => 'super-secret',
             'password_confirmation' => 'super-secret',
             'industry' => 'Retail',
-            'skill_pack' => 'Client Support',
         ]);
 
         $response
@@ -128,7 +136,6 @@ class SignupFlowTest extends TestCase
             'password' => 'super-secret',
             'password_confirmation' => 'super-secret',
             'industry' => 'Retail',
-            'skill_pack' => 'Client Support',
         ]);
 
         $response
@@ -140,5 +147,36 @@ class SignupFlowTest extends TestCase
         $this->assertDatabaseCount('provisioning_jobs', 0);
         $this->assertDatabaseCount('business_profiles', 0);
         $this->assertDatabaseCount('business_profile_files', 0);
+    }
+
+    private function seedPublishedCoreSkill(): void
+    {
+        $item = SkillCatalogItem::query()->create([
+            'skill_key' => 'inbox-triage',
+            'label' => 'Inbox Triage (by Sync360)',
+            'description' => 'Inbox triage',
+            'category' => 'operations',
+            'is_assignable' => true,
+            'is_orphaned' => false,
+            'onboarding_role' => 'core',
+        ]);
+
+        SkillCatalogVersion::query()->create([
+            'skill_catalog_item_id' => $item->id,
+            'skill_key' => 'inbox-triage',
+            'version' => '1.5.8',
+            'manifest_json' => [
+                'skill_id' => 'inbox-triage',
+                'version' => '1.5.8',
+                'label' => 'Inbox Triage (by Sync360)',
+                'description' => 'Inbox triage',
+                'onboarding_role' => 'core',
+            ],
+            'is_active_published' => true,
+            'is_archived' => false,
+            'is_available' => true,
+            'discovered_at' => now(),
+            'last_imported_at' => now(),
+        ]);
     }
 }

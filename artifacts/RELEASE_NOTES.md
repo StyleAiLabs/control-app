@@ -7,6 +7,24 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-25 — Improvement: Customer Inbox Overview On Dashboard
+
+Date: 2026-04-25
+Status: Implemented
+
+### Overview
+
+Added a compact customer-facing `Inbox` overview to the dashboard for tenants with the `inbox-triage` custom skill enabled, so customers can see quiet proof of life and value without being shown operational monitor details.
+
+### What Changed
+
+- added a dashboard `Inbox` panel that appears only when `inbox-triage` is assigned and enabled for the tenant
+- derived plain-language customer states from existing tenant readiness, Google verification, and inbox-monitor status: `Watching your inbox`, `Needs attention`, and `Setup incomplete`
+- added a short note line that prefers `Last checked ... ago` for healthy tenants and uses a calm recovery message plus setup CTA when attention is needed
+- added a lightweight value line that prefers recent `inbox-triage` conversion counts and falls back to recent reviewed inbox items when no qualified-lead conversions exist yet
+- kept missing Telegram destination as a soft note (`Urgent Telegram alerts are not set up yet.`) instead of downgrading healthy inbox monitoring into a failure state
+- added focused dashboard feature coverage for visibility gating, healthy/setup-incomplete/needs-attention states, value-line priority, fallback activity, and soft Telegram warning behavior
+
 ## 2026-04-24 — Improvement: Admin Tenants Scan-First Refactor
 
 Date: 2026-04-24
@@ -1967,6 +1985,25 @@ Operational notes:
 - The deploy status endpoint now also checks the current `origin/<branch>` tip and exposes whether production is already up to date, which drives the deploy button label and disabled state in the super-admin UI
 - The host deploy script now verifies that the local checked-out HEAD exactly matches the target remote branch head before it rebuilds containers, preventing false-success deploys when the branch was not actually advanced
 - The SSH trigger now bootstraps deployment from the just-fetched branch content, avoiding the self-update trap where an older checked-out deploy script would keep running outdated logic
+
+## 2026-04-25 - Core And Featured Onboarding Modules
+
+Date: 2026-04-25
+
+Summary:
+- Replaced the customer-facing `skill_pack` + `capabilities[]` onboarding model with catalog-driven onboarding modules.
+
+Notable changes:
+- added `skill_catalog_items.onboarding_role` with `core`, `featured`, and `hidden` roles, defaulting missing manifest roles to `hidden`
+- updated repo manifests so `inbox-triage` is the first released `core` skill and internal/test skills stay hidden from customer onboarding
+- added `TenantOnboardingSkillService` to group onboarding modules, auto-enable core skills, sync featured selections, and expose module summaries for onboarding/dashboard flows
+- changed signup so new tenants no longer choose a skill pack during registration and instead receive the current core modules automatically
+- changed onboarding Step 4 from `Skills`/`Capabilities` to `Modules`, with included core modules, selectable featured modules, and generated files derived from enabled tenant skill assignments
+- removed customer-facing `Skill Pack` language from the dashboard, signup, setup, and workspace-ready surfaces in favor of module-aware summaries
+- added `sync360:ensure-core-onboarding-skills` to backfill missing core skill assignments for existing tenants safely
+
+Verification:
+- `php artisan test tests/Feature/SignupFlowTest.php tests/Feature/OnboardingFlowTest.php tests/Feature/TenantSkillCatalogWorkflowTest.php tests/Feature/DashboardFlowTest.php tests/Feature/ProfileFlowTest.php tests/Unit/TenantRuntimeCustomizationComposerTest.php` passed
 
 ## 2026-04-11 - Production Deployment Packaging
 

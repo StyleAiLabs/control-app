@@ -13,6 +13,7 @@ class TenantProfileSyncService
     public function __construct(
         private readonly BusinessExtractionService $businessExtraction,
         private readonly TenantAgentSyncService $agentSync,
+        private readonly TenantOnboardingSkillService $onboardingSkills,
     ) {
     }
 
@@ -31,17 +32,17 @@ class TenantProfileSyncService
             throw new RuntimeException('Choose the assistant communication style before syncing changes.');
         }
 
-        $capabilities = $this->capabilities($tenant);
+        $this->onboardingSkills->ensureCoreAssignments($tenant, $tenant->user_id);
+        $modules = $this->onboardingSkills->enabledModules($tenant);
 
-        if ($capabilities === []) {
-            throw new RuntimeException('Choose at least one assistant capability before syncing changes.');
+        if ($modules === []) {
+            throw new RuntimeException('Choose at least one enabled module before syncing changes.');
         }
 
         $generated = $this->businessExtraction->generateAgentFiles(
             $profile,
             (string) $tenant->tone,
-            $capabilities,
-            (string) $tenant->skill_pack,
+            $modules,
         );
 
         $files->forceFill([
@@ -68,20 +69,4 @@ class TenantProfileSyncService
         $this->agentSync->goLive($tenant);
     }
 
-    /**
-     * @return array<int, string>
-     */
-    private function capabilities(Tenant $tenant): array
-    {
-        if (! is_array($tenant->capabilities)) {
-            return [];
-        }
-
-        return array_values(array_filter(
-            array_map(
-                static fn (mixed $value): ?string => is_string($value) && trim($value) !== '' ? trim($value) : null,
-                $tenant->capabilities,
-            )
-        ));
-    }
 }

@@ -362,38 +362,57 @@
             </div>
         </div>
 
-        {{-- ═══════════════════ STEP 4 — Capabilities ═══════════════════ --}}
+        {{-- ═══════════════════ STEP 4 — Modules ═══════════════════ --}}
         <div class="wizard-panel panel" data-wizard-step="4" id="wizard-step-4" style="display: none;">
             <span class="eyebrow">Step 4</span>
-            <h3 class="type-section-title" style="margin-top: 16px;">Choose what it should handle</h3>
+            <h3 class="type-section-title" style="margin-top: 16px;">Choose your modules</h3>
             <p style="margin-top: 8px;">
-                Turn on the kinds of customer requests your digital employee should help with first.
+                Core modules are already included. Add any featured modules you want your digital employee to support from day one.
             </p>
 
             <form id="capabilities-form" style="margin-top: 18px;">
                 @csrf
-                @php
-                    $capabilityOptions = [
-                        'faqs' => ['label' => 'Answer common questions', 'description' => 'Handle FAQs about services, business details, and how to get help.'],
-                        'messages' => ['label' => 'Take messages', 'description' => 'Collect contact details and pass through follow-up requests.'],
-                        'complaints' => ['label' => 'Handle complaints', 'description' => 'Acknowledge issues clearly and guide customers toward the next step.'],
-                        'after_hours' => ['label' => 'Reply after hours', 'description' => 'Let customers know what happens when the business is currently unavailable.'],
-                        'appointments' => ['label' => 'Help with bookings', 'description' => 'Support questions about booking and appointment next steps.'],
-                        'pricing' => ['label' => 'Discuss pricing', 'description' => 'Share pricing guidance when the business has enough information to do so.'],
-                    ];
-                @endphp
-                <div style="display: grid; gap: 12px;">
-                    @foreach ($capabilityOptions as $value => $capability)
-                        <label class="meta-item" style="cursor: pointer;">
-                            <span style="display: flex; gap: 12px; align-items: flex-start;">
-                                <input type="checkbox" name="capabilities[]" value="{{ $value }}" style="width: auto; margin-top: 2px;" @checked(in_array($value, $state['capabilities'] ?? [], true))>
-                                <span>
-                                    <strong>{{ $capability['label'] }}</strong>
-                                    <span class="hint" style="display: block; margin-top: 4px;">{{ $capability['description'] }}</span>
-                                </span>
-                            </span>
-                        </label>
-                    @endforeach
+                <div style="display: grid; gap: 18px;">
+                    <div>
+                        <div class="hint" style="margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.08em;">Included Core Modules</div>
+                        <div style="display: grid; gap: 12px;" id="core-modules-list">
+                            @foreach (($state['modules']['core'] ?? []) as $module)
+                                <div class="meta-item">
+                                    <span style="display: flex; gap: 12px; align-items: flex-start;">
+                                        <span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 999px; background: rgba(34, 197, 94, 0.12); color: #15803d; font-size: 0.8rem; margin-top: 2px;">✓</span>
+                                        <span>
+                                            <strong>{{ $module['label'] }}</strong>
+                                            @if (! empty($module['description']))
+                                                <span class="hint" style="display: block; margin-top: 4px;">{{ $module['description'] }}</span>
+                                            @endif
+                                        </span>
+                                    </span>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                    <div>
+                        <div class="hint" style="margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.08em;">Featured Modules</div>
+                        <div style="display: grid; gap: 12px;" id="featured-modules-list">
+                            @forelse (($state['modules']['featured'] ?? []) as $module)
+                                <label class="meta-item" style="cursor: pointer;">
+                                    <span style="display: flex; gap: 12px; align-items: flex-start;">
+                                        <input type="checkbox" name="featured_skill_keys[]" value="{{ $module['skill_key'] }}" style="width: auto; margin-top: 2px;" @checked(in_array($module['skill_key'], $state['modules']['selected_featured_skill_keys'] ?? [], true))>
+                                        <span>
+                                            <strong>{{ $module['label'] }}</strong>
+                                            @if (! empty($module['description']))
+                                                <span class="hint" style="display: block; margin-top: 4px;">{{ $module['description'] }}</span>
+                                            @endif
+                                        </span>
+                                    </span>
+                                </label>
+                            @empty
+                                <div class="meta-item">
+                                    <span class="hint">No extra featured modules are available yet. Your core modules are ready to go.</span>
+                                </div>
+                            @endforelse
+                        </div>
+                    </div>
                 </div>
                 <button type="submit">Save &amp; Prepare Files</button>
                 <div class="wizard-auto-note">We’ll move you straight to the next step after saving.</div>
@@ -404,7 +423,7 @@
                 @if (! empty($state['files']['generated_at']))
                     Your internal setup files were generated on {{ $state['files']['generated_at'] }}.
                 @else
-                    Once you save the capabilities, we'll prepare the internal setup files behind the scenes.
+                    Once you save your modules, we'll prepare the internal setup files behind the scenes.
                 @endif
             </div>
 
@@ -682,7 +701,7 @@
         const onboardingExtractEndpoint = @json(route('onboarding.extract-business'));
         const onboardingBusinessInfoEndpoint = @json(route('onboarding.business-info'));
         const onboardingPersonalityEndpoint = @json(route('onboarding.personality'));
-        const onboardingCapabilitiesEndpoint = @json(route('onboarding.capabilities'));
+        const onboardingCapabilitiesEndpoint = @json(route('onboarding.modules'));
         const onboardingChannelEndpoint = @json(route('onboarding.channel'));
         const onboardingChannelDisconnectEndpoint = @json(route('onboarding.channel.disconnect'));
         const onboardingGoLiveEndpoint = @json(route('onboarding.go-live'));
@@ -1062,9 +1081,9 @@
             }
 
             if (!draftState.capabilities) {
-                const selectedCapabilities = Array.isArray(state.capabilities) ? state.capabilities : [];
-                capabilitiesForm.querySelectorAll('input[name="capabilities[]"]').forEach((input) => {
-                    input.checked = selectedCapabilities.includes(input.value);
+                const selectedModules = Array.isArray(state.modules?.selected_featured_skill_keys) ? state.modules.selected_featured_skill_keys : [];
+                capabilitiesForm.querySelectorAll('input[name="featured_skill_keys[]"]').forEach((input) => {
+                    input.checked = selectedModules.includes(input.value);
                 });
             }
 
@@ -1108,7 +1127,7 @@
             /* update go-live meta */
             filesNote.textContent = state.files?.generated_at
                 ? `Your internal setup files were generated on ${state.files.generated_at}.`
-                : `Once you save the capabilities, we'll prepare the internal setup files behind the scenes.`;
+                : `Once you save your modules, we'll prepare the internal setup files behind the scenes.`;
             goLiveWorkspaceStatus.textContent = state.workspace?.ready ? 'Ready' : 'Setting up…';
             goLiveChannelStatus.textContent = state.channel === 'telegram'
                 ? (state.channel_setup?.status === 'connected' ? 'Telegram' : 'Telegram saved')
@@ -1391,26 +1410,26 @@
         });
 
         /* ══════════════════════════════════════════════════════════════════
-           STEP 4 — CAPABILITIES
+           STEP 4 — MODULES
            ══════════════════════════════════════════════════════════════════ */
         capabilitiesForm.addEventListener('submit', async (event) => {
             event.preventDefault();
             hideMessage(capabilitiesSuccess);
             hideMessage(capabilitiesError);
             const submitButton = capabilitiesForm.querySelector('button[type="submit"]');
-            const releaseBusy = withButtonBusy(submitButton, 'Preparing Skills…', 'preparing_files');
+            const releaseBusy = withButtonBusy(submitButton, 'Preparing Modules…', 'preparing_files');
 
-            const selectedCapabilities = Array.from(capabilitiesForm.querySelectorAll('input[name="capabilities[]"]:checked'))
+            const selectedCapabilities = Array.from(capabilitiesForm.querySelectorAll('input[name="featured_skill_keys[]"]:checked'))
                 .map((input) => input.value);
 
             try {
                 const data = await fetchJson(onboardingCapabilitiesEndpoint, {
-                    capabilities: selectedCapabilities,
+                    featured_skill_keys: selectedCapabilities,
                 });
 
                 markDraft('capabilities', false);
                 applyState(data.state);
-                showMessage(capabilitiesSuccess, data.message || 'Your capabilities are saved.');
+                showMessage(capabilitiesSuccess, data.message || 'Your modules are saved.');
                 advanceAfterSave(5);
             } catch (error) {
                 showMessage(capabilitiesError, error.message);
@@ -1544,7 +1563,7 @@
             input.addEventListener('change', () => markDraft('personality'));
         });
 
-        capabilitiesForm.querySelectorAll('input[name="capabilities[]"]').forEach((input) => {
+        capabilitiesForm.querySelectorAll('input[name="featured_skill_keys[]"]').forEach((input) => {
             input.addEventListener('change', () => markDraft('capabilities'));
         });
 

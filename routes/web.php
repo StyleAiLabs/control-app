@@ -44,6 +44,7 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/onboarding/extract-business', [OnboardingController::class, 'extractBusiness'])->name('onboarding.extract-business');
         Route::post('/onboarding/business-info', [OnboardingController::class, 'saveBusinessInfo'])->name('onboarding.business-info');
         Route::post('/onboarding/personality', [OnboardingController::class, 'savePersonality'])->name('onboarding.personality');
+        Route::post('/onboarding/modules', [OnboardingController::class, 'saveModules'])->name('onboarding.modules');
         Route::post('/onboarding/capabilities', [OnboardingController::class, 'saveCapabilities'])->name('onboarding.capabilities');
         Route::post('/onboarding/channel', [OnboardingController::class, 'saveChannel'])->name('onboarding.channel');
         Route::post('/onboarding/channel/disconnect', [OnboardingController::class, 'disconnectChannel'])->name('onboarding.channel.disconnect');

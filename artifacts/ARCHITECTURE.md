@@ -10,6 +10,8 @@ This document describes the current as-built architecture of the Sync360 Control
 
 **2026-04-25 Tenant detail visual polish pass:** the tenant detail shell now uses tighter status-strip spacing, slightly quieter tab/sidebar rhythm, and support-tab action clustering. The support surface groups commands into `Recovery` and `Lifecycle` clusters inside subpanels so operators see intent before command labels.
 
+**2026-04-25 Customer Inbox overview:** the customer dashboard now includes a compact `Inbox` panel when the tenant has an enabled `inbox-triage` assignment. The panel does not expose monitor internals; it derives a plain-language state from tenant live/readiness posture, Google verification status, inbox-monitor freshness/failure state, and recent `inbox-triage` conversion or reviewed-message activity.
+
 **2026-04-22 Landing Page UX Refinement:** Landing page (`resources/views/landing.blade.php`) and authentication views updated with semantic typography classes, section connectors, trust bar with metrics, testimonials grid, flow diagram with icons, animated counter metrics, and trust badges in final CTA. Design system documentation updated in `artifacts/DESIGN_SYSTEM.md` with new landing page patterns and typography usage.
 
 Shared Blade layouts render keyboard-visible focus states via `:focus-visible` outlines on form controls, buttons, and navigation links, drawn using the brand `--accent` token (WCAG 2.4.7 Focus Visible). The authenticated app layout is mobile-responsive: at ≤980px the sidebar collapses to a sticky hamburger top bar; a `.mobile-drawer` (position: absolute, z-index: 99) expands below preserving all navigation elements (alerts bell, nav links, user name, logout) and is toggled by `toggleMobileNav()` with `aria-expanded` management. The sidebar must have `overflow: visible` in the mobile query — otherwise the desktop `overflow-y: auto` clips the drawer.
@@ -60,6 +62,8 @@ Blade UI design truth lives in [`artifacts/DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md).
 The shared app and guest layouts are the implementation home for the current type contract, spacing scale (`--space-*`), radius scale (`--radius-*`), semantic elevation tokens (`--shadow-panel`, `--shadow-focus`, `--shadow-elevated`), field-level validation CSS (`aria-invalid`, `.field-error`), `prefers-reduced-motion` guards, and reusable UI classes. `resources/css/app.css` owns the daisyUI PoC theme, prefixed daisyUI integration, and shared `sync-poc-*` helpers. View-level Blade files should consume those primitives and wrappers instead of re-declaring font stacks, tracking, status badge behavior, or technical-string wrapping locally. Per-surface responsive breakpoints, dark-mode strategy, motion rules, and form validation patterns are documented in `DESIGN_SYSTEM.md` §10–§13.
 
 Primary authenticated navigation lives in the shared sidebar and mobile drawer; admin overview does not duplicate those sidebar destinations as header action buttons. Dense admin list pages should prefer summary strips plus compact comparison tables over very wide status matrices when identity and triage need to stay readable on laptop-width screens. Tabbed admin detail pages should keep shared rollout/trial/account summary content in Overview and let later tabs focus on unique evidence and actions.
+
+The customer dashboard can show a small skill-specific reassurance panel near the top only when the feature is enabled and valuable to that tenant. The new Inbox panel follows that rule: it stays hidden for tenants without `inbox-triage`, uses one short status, one short note, one light value line, and at most one CTA, and avoids queue/runtime/polling terminology.
 
 ### Infrastructure modes
 
@@ -366,7 +370,7 @@ Implemented steps:
 1. website extraction
 2. business info confirmation
 3. personality/tone
-4. capabilities
+4. modules
 5. channel configuration
 6. Google Workspace
 7. go live
@@ -375,10 +379,19 @@ Services involved:
 
 - `BusinessExtractionService`
 - `TenantAgentSyncService`
+- `TenantOnboardingSkillService`
 - `GoogleWorkspaceOAuthService`
 - `OnboardingStepCatalog` for the shared step-label contract used by the onboarding wizard and dashboard summaries
 
-The onboarding Blade shows explicit wizard progress and a background-setup status card, then polls `/onboarding/state` in the background to refresh progress and readiness. The client preserves unsaved local drafts for website, business details, tone, capabilities, and channel setup so in-progress edits are not wiped by refreshes. Successful saves on the main setup steps auto-advance the wizard to the next step, and onboarding navigation/state polling does not regenerate the tenant LiteLLM key because key creation remains provisioning-only.
+The onboarding Blade shows explicit wizard progress and a background-setup status card, then polls `/onboarding/state` in the background to refresh progress and readiness. The client preserves unsaved local drafts for website, business details, tone, modules, and channel setup so in-progress edits are not wiped by refreshes. Successful saves on the main setup steps auto-advance the wizard to the next step, and onboarding navigation/state polling does not regenerate the tenant LiteLLM key because key creation remains provisioning-only.
+
+Step 4 is now catalog-driven. `SkillCatalogItem::onboarding_role` is denormalized from the active published manifest and supports:
+
+- `core` — auto-enabled for every tenant
+- `featured` — customer-selectable in onboarding
+- `hidden` — valid catalog skill that never appears in customer onboarding
+
+`TenantOnboardingSkillService` is the single source of truth for onboarding modules. It groups the current published catalog into `core` and `featured`, ensures missing core assignments for tenants, syncs featured selections without disabling core skills, and exposes the module payload used by onboarding state and dashboard summaries. For the current MVP, `inbox-triage` is the only released `core` skill.
 
 Wizard async actions share a client-side operation state. While website reading, business save, tone save, file preparation, channel connect/disconnect, or Go Live is in flight, the Blade shows a visible status note, disables wizard next/back/step-bar/action controls, blocks `showWizardStep()` from changing the visible step, and pauses refresh-driven UI application until the request finishes. On success, server state is applied before the wizard advances; on failure, the lock is released and the customer stays on the same step with the existing error message.
 
@@ -906,7 +919,8 @@ Authenticated customer routes:
 - `POST /onboarding/extract-business`
 - `POST /onboarding/business-info`
 - `POST /onboarding/personality`
-- `POST /onboarding/capabilities`
+- `POST /onboarding/modules`
+- `POST /onboarding/capabilities` (legacy compatibility alias)
 - `POST /onboarding/channel`
 - `POST /onboarding/channel/disconnect`
 - `GET /onboarding/google/connect`

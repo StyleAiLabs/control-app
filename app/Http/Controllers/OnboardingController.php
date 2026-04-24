@@ -11,6 +11,7 @@ use App\Models\TenantGoogleCredential;
 use App\Services\BusinessExtractionService;
 use App\Services\GoogleWorkspaceOAuthService;
 use App\Services\TenantAgentSyncService;
+use App\Services\TenantOnboardingSkillService;
 use App\Services\TenantWorkspaceReadinessService;
 use App\Support\GoogleWorkspaceFeature;
 use App\Support\OnboardingStepCatalog;
@@ -26,6 +27,7 @@ class OnboardingController extends Controller
     public function __construct(
         private readonly BusinessExtractionService $businessExtraction,
         private readonly TenantAgentSyncService $agentSync,
+        private readonly TenantOnboardingSkillService $onboardingSkills,
         private readonly GoogleWorkspaceOAuthService $googleOAuth,
         private readonly TenantWorkspaceReadinessService $workspaceReadiness,
     ) {
@@ -205,11 +207,11 @@ class OnboardingController extends Controller
         ]);
     }
 
-    public function saveCapabilities(Request $request): JsonResponse
+    public function saveModules(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'capabilities' => ['required', 'array', 'min:1'],
-            'capabilities.*' => ['required', Rule::in(['faqs', 'messages', 'complaints', 'after_hours', 'appointments', 'pricing'])],
+            'featured_skill_keys' => ['nullable', 'array'],
+            'featured_skill_keys.*' => ['required', 'string', 'max:255'],
         ]);
 
         $tenant = $this->tenantFor($request);
@@ -226,21 +228,17 @@ class OnboardingController extends Controller
         if (! filled($tenant->tone)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Choose the communication style first, then we can save the capabilities.',
+                'message' => 'Choose the communication style first, then we can save your included modules.',
             ], 422);
         }
 
-        $capabilities = array_values(array_unique(array_filter(
-            array_map(
-                static fn (mixed $value): ?string => is_string($value) && trim($value) !== '' ? trim($value) : null,
-                $validated['capabilities']
-            )
-        )));
-
-        $generated = $this->businessExtraction->generateAgentFiles($profile, $tenant->tone, $capabilities, $tenant->skill_pack);
+        $this->onboardingSkills->ensureCoreAssignments($tenant, $request->user()?->id);
+        $this->onboardingSkills->syncFeaturedAssignments($tenant, $validated['featured_skill_keys'] ?? [], $request->user()?->id);
+        $tenant->load('skillAssignments.catalogVersion.item');
+        $modules = $this->onboardingSkills->enabledModules($tenant);
+        $generated = $this->businessExtraction->generateAgentFiles($profile, $tenant->tone, $modules);
 
         $tenant->forceFill([
-            'capabilities' => $capabilities,
             'onboarding_status' => $tenant->onboarding_status === 'complete' ? 'complete' : 'in_progress',
             'onboarding_step' => max((int) $tenant->onboarding_step, 4),
         ])->save();
@@ -255,9 +253,14 @@ class OnboardingController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Your digital employee capabilities are saved and the internal setup files are ready.',
+            'message' => 'Your digital employee modules are saved and the internal setup files are ready.',
             'state' => $this->statePayload($tenant->fresh(GoogleWorkspaceFeature::tenantRelations(['businessProfile', 'businessProfileFiles']))),
         ]);
+    }
+
+    public function saveCapabilities(Request $request): JsonResponse
+    {
+        return $this->saveModules($request);
     }
 
     public function saveChannel(Request $request): JsonResponse
@@ -272,7 +275,7 @@ class OnboardingController extends Controller
         if ((int) $tenant->onboarding_step < 4) {
             return response()->json([
                 'success' => false,
-                'message' => 'Finish choosing the communication style and capabilities first, then connect the customer channel.',
+                'message' => 'Finish choosing the communication style and modules first, then connect the customer channel.',
             ], 422);
         }
 
@@ -380,10 +383,12 @@ class OnboardingController extends Controller
      */
     private function statePayload(Tenant $tenant): array
     {
+        $this->onboardingSkills->ensureCoreAssignments($tenant, $tenant->user_id);
+        $tenant->loadMissing(['skillAssignments.catalogVersion.item']);
         $profile = $tenant->businessProfile;
         $files = $tenant->businessProfileFiles;
         $services = is_array($profile?->services) ? array_values(array_filter($profile->services, fn (mixed $value): bool => is_string($value) && trim($value) !== '')) : [];
-        $capabilities = is_array($tenant->capabilities) ? array_values(array_filter($tenant->capabilities, fn (mixed $value): bool => is_string($value) && trim($value) !== '')) : [];
+        $modules = $this->onboardingSkills->onboardingPayload($tenant);
         $channelConfig = is_array($tenant->channel_config) ? $tenant->channel_config : [];
         $googleCredential = GoogleWorkspaceFeature::isAvailable() ? $tenant->googleCredential : null;
         $googleSyncJob = $this->latestInitialGoogleWorkspaceSyncJob($tenant);
@@ -405,7 +410,7 @@ class OnboardingController extends Controller
             ],
             4 => [
                 'label' => $stepLabels[4],
-                'status' => ((int) $tenant->onboarding_step >= 4 && $capabilities !== [] && $files?->generated_at !== null) ? 'complete' : 'incomplete',
+                'status' => ((int) $tenant->onboarding_step >= 4 && $modules['enabled_skill_keys'] !== [] && $files?->generated_at !== null) ? 'complete' : 'incomplete',
             ],
             5 => [
                 'label' => $stepLabels[5],
@@ -440,7 +445,6 @@ class OnboardingController extends Controller
             'tenant' => [
                 'business_name' => $tenant->business_name,
                 'industry' => $tenant->industry,
-                'skill_pack' => $tenant->skill_pack,
             ],
             'business' => [
                 'business_name' => $profile?->business_name,
@@ -460,7 +464,7 @@ class OnboardingController extends Controller
                 'tone_hint' => $profile?->tone_hint,
             ],
             'tone' => $tenant->tone,
-            'capabilities' => $capabilities,
+            'modules' => $modules,
             'channel' => $tenant->channel === 'telegram' ? 'telegram' : null,
             'channel_setup' => $this->channelSetupPayload($tenant, $channelConfig),
             'google_workspace' => $this->googleWorkspacePayload($tenant, $googleCredential, $workspaceReadiness, $googleSyncJob),

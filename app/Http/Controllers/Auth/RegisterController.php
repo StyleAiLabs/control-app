@@ -13,6 +13,7 @@ use App\Models\ProvisioningJob;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\ServerPlacementService;
+use App\Services\TenantOnboardingSkillService;
 use App\Services\WorkspaceReadyEmailService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,6 +26,7 @@ class RegisterController extends Controller
 {
     public function __construct(
         private readonly ServerPlacementService $serverPlacement,
+        private readonly TenantOnboardingSkillService $onboardingSkills,
         private readonly WorkspaceReadyEmailService $workspaceReadyEmail,
     ) {}
 
@@ -45,7 +47,6 @@ class RegisterController extends Controller
             'email' => ['required', 'string', 'email:rfc', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
             'industry' => ['required', 'string', 'max:100'],
-            'skill_pack' => ['required', 'string', 'max:100'],
             'phone' => ['nullable', 'string', 'max:25'],
         ]);
 
@@ -69,7 +70,7 @@ class RegisterController extends Controller
                     'slug' => $this->generateSlug($validated['business_name']),
                     'business_name' => $validated['business_name'],
                     'industry' => $validated['industry'],
-                    'skill_pack' => $validated['skill_pack'],
+                    'skill_pack' => 'Core Modules',
                     'onboarding_status' => 'pending',
                     'onboarding_step' => 0,
                     'agent_status' => 'offline',
@@ -88,7 +89,7 @@ class RegisterController extends Controller
                         'contact_name' => $validated['contact_name'],
                         'email' => $validated['email'],
                         'industry' => $validated['industry'],
-                        'skill_pack' => $validated['skill_pack'],
+                        'skill_pack' => 'Core Modules',
                     ], $validated['email'], $validated['password']),
                 ]);
 
@@ -108,6 +109,7 @@ class RegisterController extends Controller
                 ]);
 
                 $server->increment('current_clients');
+                $this->onboardingSkills->ensureCoreAssignments($tenant, $user->id);
             });
         } catch (RuntimeException $exception) {
             return back()

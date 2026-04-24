@@ -9,6 +9,8 @@ use App\Jobs\ApplyTenantAgentCustomization;
 use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
 use App\Models\ProvisioningJob;
+use App\Models\SkillCatalogItem;
+use App\Models\SkillCatalogVersion;
 use App\Models\Tenant;
 use App\Models\TenantAgentCustomization;
 use App\Models\User;
@@ -203,6 +205,44 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $this->assertSame(['hello-world'], $manifest['default_agent_skill_ids'] ?? null);
     }
 
+    public function test_import_defaults_missing_onboarding_role_to_hidden(): void
+    {
+        $manifestPath = base_path('resources/skill-packs/hello-world/manifest.json');
+        $originalManifest = json_decode(File::get($manifestPath), true);
+        $modifiedManifest = $originalManifest;
+        unset($modifiedManifest['onboarding_role']);
+        File::put($manifestPath, json_encode($modifiedManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+
+        try {
+            $this->artisan('sync360:skills:import', ['--skill' => 'hello-world'])
+                ->assertExitCode(0);
+
+            $this->assertDatabaseHas('skill_catalog_items', [
+                'skill_key' => 'hello-world',
+                'onboarding_role' => 'hidden',
+            ]);
+        } finally {
+            File::put($manifestPath, json_encode($originalManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+        }
+    }
+
+    public function test_publishing_syncs_catalog_item_onboarding_role_from_manifest(): void
+    {
+        $this->artisan('sync360:skills:import', ['--skill' => 'inbox-triage'])
+            ->assertExitCode(0);
+
+        $version = \App\Models\SkillCatalogVersion::query()
+            ->where('skill_key', 'inbox-triage')
+            ->firstOrFail();
+
+        app(\App\Services\SkillCatalogService::class)->publishVersion($version);
+
+        $this->assertDatabaseHas('skill_catalog_items', [
+            'skill_key' => 'inbox-triage',
+            'onboarding_role' => 'core',
+        ]);
+    }
+
     public function test_scan_rejects_missing_or_invalid_runtime_type(): void
     {
         $manifestPath = base_path('resources/skill-packs/hello-world/manifest.json');
@@ -369,6 +409,97 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $this->assertTrue(Schema::hasTable('skill_catalog_items'));
         $this->assertTrue(Schema::hasTable('skill_catalog_versions'));
         $this->assertFalse(Schema::hasColumn('tenant_agent_customizations', 'assigned_skill_pack_ids'));
+    }
+
+    public function test_core_onboarding_backfill_command_adds_missing_core_assignments_without_touching_existing_non_core_assignments(): void
+    {
+        $tenant = $this->seedTenant('core-backfill', 'Core Backfill');
+        $admin = User::query()->create([
+            'name' => 'Admin',
+            'email' => 'core-backfill-admin@example.com',
+            'password' => 'secret',
+            'is_admin' => true,
+        ]);
+
+        $coreItem = SkillCatalogItem::query()->create([
+            'skill_key' => 'inbox-triage',
+            'label' => 'Inbox Triage (by Sync360)',
+            'description' => 'Inbox triage',
+            'category' => 'operations',
+            'onboarding_role' => 'core',
+            'is_assignable' => true,
+            'is_orphaned' => false,
+        ]);
+        $coreVersion = \App\Models\SkillCatalogVersion::query()->create([
+            'skill_catalog_item_id' => $coreItem->id,
+            'skill_key' => 'inbox-triage',
+            'version' => '1.5.8',
+            'manifest_json' => [
+                'skill_id' => 'inbox-triage',
+                'version' => '1.5.8',
+                'label' => 'Inbox Triage (by Sync360)',
+                'description' => 'Inbox triage',
+                'onboarding_role' => 'core',
+            ],
+            'is_active_published' => true,
+            'is_archived' => false,
+            'is_available' => true,
+            'discovered_at' => now(),
+            'last_imported_at' => now(),
+        ]);
+
+        $featuredItem = SkillCatalogItem::query()->create([
+            'skill_key' => 'featured-skill',
+            'label' => 'Featured Skill',
+            'description' => 'Featured module',
+            'category' => 'operations',
+            'onboarding_role' => 'featured',
+            'is_assignable' => true,
+            'is_orphaned' => false,
+        ]);
+        $featuredVersion = \App\Models\SkillCatalogVersion::query()->create([
+            'skill_catalog_item_id' => $featuredItem->id,
+            'skill_key' => 'featured-skill',
+            'version' => '1.0.0',
+            'manifest_json' => [
+                'skill_id' => 'featured-skill',
+                'version' => '1.0.0',
+                'label' => 'Featured Skill',
+                'description' => 'Featured module',
+                'onboarding_role' => 'featured',
+            ],
+            'is_active_published' => true,
+            'is_archived' => false,
+            'is_available' => true,
+            'discovered_at' => now(),
+            'last_imported_at' => now(),
+        ]);
+
+        \App\Models\TenantSkillAssignment::query()->create([
+            'tenant_id' => $tenant->id,
+            'skill_catalog_version_id' => $featuredVersion->id,
+            'skill_key' => 'featured-skill',
+            'assigned_by' => $admin->id,
+            'assigned_at' => now(),
+            'is_enabled' => true,
+        ]);
+
+        $this->artisan('sync360:ensure-core-onboarding-skills')
+            ->assertExitCode(0)
+            ->expectsOutputToContain('Ensured core onboarding skills for 1 tenant');
+
+        $this->assertDatabaseHas('tenant_skill_assignments', [
+            'tenant_id' => $tenant->id,
+            'skill_catalog_version_id' => $coreVersion->id,
+            'skill_key' => 'inbox-triage',
+            'is_enabled' => true,
+        ]);
+        $this->assertDatabaseHas('tenant_skill_assignments', [
+            'tenant_id' => $tenant->id,
+            'skill_catalog_version_id' => $featuredVersion->id,
+            'skill_key' => 'featured-skill',
+            'is_enabled' => true,
+        ]);
     }
 
     public function test_bulk_rollout_creates_one_provisioning_job_per_selected_tenant(): void

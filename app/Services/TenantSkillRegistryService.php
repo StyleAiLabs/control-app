@@ -108,6 +108,7 @@ class TenantSkillRegistryService
             $normalized = $this->normalizedSkillDefinition($manifest, $directory);
             $runtimeValidationError = $this->runtimeValidationError($manifest);
             $analyticsValidationError = $this->analyticsValidationError($manifest);
+            $onboardingRoleValidationError = $this->onboardingRoleValidationError($manifest);
 
             if ($requestedSkillKey !== null && ! in_array($requestedSkillKey, [$directoryName, $normalized['id']], true)) {
                 continue;
@@ -146,6 +147,18 @@ class TenantSkillRegistryService
                     'manifest_path' => $manifestPath,
                     'manifest_valid' => false,
                     'error' => sprintf('Skill manifest [%s] analytics contract is invalid: %s', $manifestPath, $analyticsValidationError),
+                ];
+
+                continue;
+            }
+
+            if ($onboardingRoleValidationError !== null) {
+                $entries[] = [
+                    'skill_key' => $normalized['id'],
+                    'directory' => $directory,
+                    'manifest_path' => $manifestPath,
+                    'manifest_valid' => false,
+                    'error' => sprintf('Skill manifest [%s] onboarding contract is invalid: %s', $manifestPath, $onboardingRoleValidationError),
                 ];
 
                 continue;
@@ -361,6 +374,7 @@ class TenantSkillRegistryService
             'version' => is_string($manifest['version'] ?? null) ? trim((string) $manifest['version']) : '0.0.0',
             'description' => is_string($manifest['description'] ?? null) ? trim((string) $manifest['description']) : '',
             'category' => is_string($manifest['category'] ?? null) ? trim((string) $manifest['category']) : null,
+            'onboarding_role' => $this->normalizedOnboardingRole($manifest['onboarding_role'] ?? null),
             'runtime_type' => $runtimeType,
             'applicable_industries' => $this->normalizedStringList($manifest['applicable_industries'] ?? []),
             'openclaw_skill_ids' => $this->normalizedStringList($manifest['openclaw_skill_ids'] ?? []),
@@ -376,6 +390,19 @@ class TenantSkillRegistryService
         return is_string($value) && trim($value) !== ''
             ? trim($value)
             : self::RUNTIME_TYPE_SYNC360_WORKSPACE;
+    }
+
+    private function normalizedOnboardingRole(mixed $value): string
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return TenantOnboardingSkillService::ROLE_HIDDEN;
+        }
+
+        $role = trim($value);
+
+        return in_array($role, TenantOnboardingSkillService::roles(), true)
+            ? $role
+            : TenantOnboardingSkillService::ROLE_HIDDEN;
     }
 
     /**
@@ -447,6 +474,24 @@ class TenantSkillRegistryService
 
         if (! is_array($requiredFields) || $this->normalizedStringList($requiredFields) === []) {
             return 'required_success_fields must contain at least one field name.';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $manifest
+     */
+    private function onboardingRoleValidationError(array $manifest): ?string
+    {
+        if (! array_key_exists('onboarding_role', $manifest)) {
+            return null;
+        }
+
+        $role = $manifest['onboarding_role'] ?? null;
+
+        if (! is_string($role) || ! in_array(trim($role), TenantOnboardingSkillService::roles(), true)) {
+            return sprintf('onboarding_role [%s] is not supported.', is_scalar($role) ? (string) $role : gettype($role));
         }
 
         return null;

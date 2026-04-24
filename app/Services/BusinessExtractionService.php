@@ -65,8 +65,8 @@ Business profile:
 Selected tone:
 {{TONE}}
 
-Enabled capabilities:
-{{CAPABILITIES}}
+Enabled modules:
+{{MODULES}}
 
 Rules:
 - Return raw JSON only
@@ -160,17 +160,17 @@ PROMPT;
     }
 
     /**
-     * @param  array<int, string>  $capabilities
+     * @param  array<int, array{skill_key:string,label:string,description:?string,onboarding_role?:string}>  $modules
      * @return array{identity:string,soul:string,user:string,bootstrap:string}
      */
-    public function generateAgentFiles(BusinessProfile $profile, string $tone, array $capabilities, string $skillPack): array
+    public function generateAgentFiles(BusinessProfile $profile, string $tone, array $modules): array
     {
-        $payload = $this->profilePayload($profile, $skillPack);
+        $payload = $this->profilePayload($profile);
         $token = $this->token();
         $baseUrl = rtrim((string) config('services.litellm.base_url', ''), '/');
 
         if ($baseUrl === '' || $token === '') {
-            return $this->fallbackFiles($payload, $tone, $capabilities);
+            return $this->fallbackFiles($payload, $tone, $modules);
         }
 
         try {
@@ -185,11 +185,11 @@ PROMPT;
                     'messages' => [[
                         'role' => 'user',
                         'content' => str_replace(
-                            ['{{PROFILE_JSON}}', '{{TONE}}', '{{CAPABILITIES}}'],
+                            ['{{PROFILE_JSON}}', '{{TONE}}', '{{MODULES}}'],
                             [
                                 json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
                                 $tone,
-                                json_encode(array_values($capabilities), JSON_UNESCAPED_SLASHES),
+                                json_encode(array_values($modules), JSON_UNESCAPED_SLASHES),
                             ],
                             self::FILE_GENERATION_PROMPT,
                         ),
@@ -197,19 +197,19 @@ PROMPT;
                 ]);
 
             if ($response->failed()) {
-                return $this->fallbackFiles($payload, $tone, $capabilities);
+                return $this->fallbackFiles($payload, $tone, $modules);
             }
 
             $content = data_get($response->json(), 'choices.0.message.content');
 
             if (! is_string($content) || trim($content) === '') {
-                return $this->fallbackFiles($payload, $tone, $capabilities);
+                return $this->fallbackFiles($payload, $tone, $modules);
             }
 
             $decoded = json_decode($this->cleanJson($content), true);
 
             if (! is_array($decoded)) {
-                return $this->fallbackFiles($payload, $tone, $capabilities);
+                return $this->fallbackFiles($payload, $tone, $modules);
             }
 
             $identity = $this->nullableString($decoded['identity'] ?? null);
@@ -218,7 +218,7 @@ PROMPT;
             $bootstrap = $this->nullableString($decoded['bootstrap'] ?? null);
 
             if (! $identity || ! $soul || ! $user || ! $bootstrap) {
-                return $this->fallbackFiles($payload, $tone, $capabilities);
+                return $this->fallbackFiles($payload, $tone, $modules);
             }
 
             return [
@@ -228,7 +228,7 @@ PROMPT;
                 'bootstrap' => $bootstrap,
             ];
         } catch (Throwable) {
-            return $this->fallbackFiles($payload, $tone, $capabilities);
+            return $this->fallbackFiles($payload, $tone, $modules);
         }
     }
 
@@ -266,7 +266,7 @@ PROMPT;
     /**
      * @return array<string, mixed>
      */
-    private function profilePayload(BusinessProfile $profile, string $skillPack): array
+    private function profilePayload(BusinessProfile $profile): array
     {
         return [
             'business_name' => $profile->business_name,
@@ -285,16 +285,15 @@ PROMPT;
             'services' => is_array($profile->services) ? array_values($profile->services) : [],
             'target_customers' => $profile->target_customers,
             'pricing_notes' => $profile->pricing_notes,
-            'skill_pack' => $skillPack,
         ];
     }
 
     /**
      * @param  array<string, mixed>  $payload
-     * @param  array<int, string>  $capabilities
+     * @param  array<int, array{skill_key:string,label:string,description:?string,onboarding_role?:string}>  $modules
      * @return array{identity:string,soul:string,user:string,bootstrap:string}
      */
-    private function fallbackFiles(array $payload, string $tone, array $capabilities): array
+    private function fallbackFiles(array $payload, string $tone, array $modules): array
     {
         $businessName = $payload['business_name'] ?: 'This business';
         $tagline = $payload['tagline'] ? trim((string) $payload['tagline']) : null;
@@ -305,7 +304,7 @@ PROMPT;
             $payload['contact_phone'] ? 'Phone: '.$payload['contact_phone'] : null,
         ]));
         $services = is_array($payload['services']) ? array_values(array_filter(array_map(fn (mixed $item): ?string => is_string($item) && trim($item) !== '' ? trim($item) : null, $payload['services']))) : [];
-        $capabilityLines = $this->capabilityDescriptions($capabilities);
+        $moduleLines = $this->moduleDescriptions($modules);
         $style = $this->toneDescription($tone);
         $targetCustomers = $payload['target_customers'] ?: 'Customers looking for fast, clear help.';
         $pricingNotes = $payload['pricing_notes'] ?: 'If pricing is requested and not already confirmed, guide the customer toward direct follow-up.';
@@ -339,12 +338,12 @@ PROMPT;
             '- When unsure, collect details and offer a human follow-up.',
             '',
             '## What I Will Do',
-            ...array_map(fn (string $line): string => '- '.$line, $capabilityLines),
+            ...array_map(fn (string $line): string => '- '.$line, $moduleLines),
             '',
             '## What I Will Not Do',
             '- I will not invent pricing, availability, or business rules.',
             '- I will not discuss internal business information.',
-            '- I will not make commitments outside the selected capabilities.',
+            '- I will not make commitments outside the enabled modules and business details.',
         ]).PHP_EOL;
 
         $user = implode(PHP_EOL, [
@@ -364,11 +363,13 @@ PROMPT;
             '',
             '## Business',
             sprintf('- Name: %s', $businessName),
-            sprintf('- Skill Pack: %s', $payload['skill_pack'] ?: 'Not selected yet'),
             sprintf('- Industry: %s', $industry),
             '',
             '## Description',
             $description,
+            '',
+            '## Enabled Modules',
+            ...array_map(fn (string $line): string => '- '.$line, $moduleLines),
             '',
             '## Services',
             ...($services !== [] ? array_map(fn (string $service): string => '- '.$service, $services) : ['- Services will be confirmed during setup.']),
@@ -389,24 +390,21 @@ PROMPT;
     }
 
     /**
-     * @param  array<int, string>  $capabilities
+     * @param  array<int, array{skill_key:string,label:string,description:?string,onboarding_role?:string}>  $modules
      * @return array<int, string>
      */
-    private function capabilityDescriptions(array $capabilities): array
+    private function moduleDescriptions(array $modules): array
     {
-        $map = [
-            'faqs' => 'Answer common questions about the business and services.',
-            'messages' => 'Take messages and capture contact details for follow-up.',
-            'complaints' => 'Acknowledge complaints and guide them toward the right follow-up path.',
-            'after_hours' => 'Let customers know when the business is unavailable and what happens next.',
-            'appointments' => 'Help with booking-related questions and next steps.',
-            'pricing' => 'Share pricing guidance when the business has provided it.',
-        ];
-
         $lines = [];
 
-        foreach ($capabilities as $capability) {
-            $lines[] = $map[$capability] ?? ucfirst(str_replace('_', ' ', $capability)).'.';
+        foreach ($modules as $module) {
+            $label = is_string($module['label'] ?? null) && trim((string) $module['label']) !== ''
+                ? trim((string) $module['label'])
+                : ucfirst(str_replace('-', ' ', (string) ($module['skill_key'] ?? 'Module')));
+            $description = is_string($module['description'] ?? null) && trim((string) $module['description']) !== ''
+                ? trim((string) $module['description'])
+                : null;
+            $lines[] = $description ? sprintf('%s: %s', $label, $description) : $label;
         }
 
         return $lines !== [] ? $lines : ['Provide general help based on the business information available.'];

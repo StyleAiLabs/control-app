@@ -16,6 +16,7 @@ class SkillCatalogItem extends Model
         'label',
         'description',
         'category',
+        'onboarding_role',
         'is_assignable',
         'is_orphaned',
         'orphaned_warning',

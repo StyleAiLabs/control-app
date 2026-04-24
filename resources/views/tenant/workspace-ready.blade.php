@@ -43,8 +43,8 @@
                     <span class="type-value">{{ $tenant->industry }}</span>
                 </div>
                 <div class="meta-item">
-                    <small class="type-label">Skill Pack</small>
-                    <span class="type-value">{{ $tenant->skill_pack }}</span>
+                    <small class="type-label">Modules</small>
+                    <span class="type-value">Core modules included</span>
                 </div>
                 <div class="meta-item">
                     <small class="type-label">Trial Status</small>

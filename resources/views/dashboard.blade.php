@@ -67,9 +67,12 @@
             @endif
         </div>
         <div class="stat">
-            <div class="hint">Skill Pack</div>
-            <strong style="font-size: 1.05rem;">{{ $tenant->skill_pack }}</strong>
-            <p>What your digital employee is configured to support.</p>
+            <div class="hint">Modules</div>
+            <strong style="font-size: 1.05rem;">
+                {{ $moduleSummary['core_count'] + $moduleSummary['featured_count'] }}
+                enabled
+            </strong>
+            <p>Core modules are included automatically, with any featured modules you selected.</p>
         </div>
         <div class="stat">
             <div class="hint">Industry</div>
@@ -255,8 +258,10 @@
                     <span class="type-value">{{ $businessProfile?->industry ?: $tenant->industry }}</span>
                 </div>
                 <div class="meta-item">
-                    <small class="type-label">Skill Pack</small>
-                    <span class="type-value">{{ $tenant->skill_pack }}</span>
+                    <small class="type-label">Modules</small>
+                    <span class="type-value">
+                        {{ implode(', ', array_merge($moduleSummary['core_labels'], $moduleSummary['featured_labels'])) ?: 'Core modules included' }}
+                    </span>
                 </div>
                 <div class="meta-item">
                     <small class="type-label">Contact Details</small>
@@ -306,8 +311,8 @@
                         <span class="type-value">{{ $tenant->tone ? ucfirst($tenant->tone) : 'Not set yet' }}</span>
                     </div>
                     <div class="meta-item">
-                        <small class="type-label">Skills</small>
-                        <span class="type-value">{{ is_array($tenant->capabilities) && $tenant->capabilities !== [] ? implode(', ', $tenant->capabilities) : 'Not selected yet' }}</span>
+                        <small class="type-label">Enabled Modules</small>
+                        <span class="type-value">{{ implode(', ', array_merge($moduleSummary['core_labels'], $moduleSummary['featured_labels'])) ?: 'Core modules included' }}</span>
                     </div>
                     <div class="meta-item">
                         <small class="type-label">Last synced</small>
@@ -325,6 +330,34 @@
             </div>
         </div>
     </section>
+
+    @if ($inboxOverview)
+        <section class="panel" style="margin-top: 18px;">
+            <span class="eyebrow">Inbox</span>
+            <div style="margin-top: 18px; display: grid; gap: 14px;">
+                <div>
+                    <small class="type-label" style="margin-bottom: 8px;">Current status</small>
+                    <div class="type-value" style="font-size: 1rem; margin-top: 6px;">{{ $inboxOverview['status_label'] }}</div>
+                </div>
+                <div>
+                    <small class="type-label" style="margin-bottom: 8px;">What’s happening</small>
+                    <div style="margin-top: 6px;">{{ $inboxOverview['status_note'] }}</div>
+                    @if (! empty($inboxOverview['secondary_note']))
+                        <div class="hint" style="margin-top: 6px;">{{ $inboxOverview['secondary_note'] }}</div>
+                    @endif
+                </div>
+                <div>
+                    <small class="type-label" style="margin-bottom: 8px;">Recent impact</small>
+                    <div style="margin-top: 6px;">{{ $inboxOverview['value_line'] }}</div>
+                </div>
+                @if (! empty($inboxOverview['cta']))
+                    <a href="{{ $inboxOverview['cta']['route'] }}" class="button button--secondary" style="align-self: start;">
+                        {{ $inboxOverview['cta']['label'] }}
+                    </a>
+                @endif
+            </div>
+        </section>
+    @endif
 
     <section class="grid grid-2" style="margin-top: 18px;">
         <div class="panel">

@@ -1,6 +1,6 @@
 # Sync360 Design System
 
-Last verified: `2026-04-24`
+Last verified: `2026-04-25`
 
 This document is the canonical design-system reference for the Sync360 Control App. It describes the current code-backed UI system used by the Blade surfaces in this repo.
 
@@ -25,6 +25,7 @@ Implementation status, 2026-04-19: the shared app and guest layouts now load `DM
 ## 2. Design Principles
 
 - Customer clarity first. Product screens should explain what is ready, blocked, or next without exposing backend implementation details.
+- Quiet reassurance over operational detail. Customer dashboard status cards should prove the assistant is alive and useful with plain-language cues like `Watching your inbox` or `Last checked 6 minutes ago`, not monitor jargon.
 - Calm control plane. Admin screens can be dense, but hierarchy should remain readable and operational actions should be easy to scan.
 - Scan hierarchy before truncation. In operational tables, keep tenant identity and primary risk signals readable first; collapse or truncate secondary metadata only after the main comparison targets remain recognizable.
 - Compress secondary admin summary UI. Summary strips above dense tables should stay compact and supportive; they are there to orient triage, not compete with the table itself.
@@ -72,6 +73,7 @@ Customer UI may be more expressive:
 - warmer onboarding copy
 - friendly progress and next-action language
 - impact/analytics cards should use estimated wording when metrics come from Sync360-authored defaults rather than measured tenant workflow data
+- compact skill reassurance cards may appear near the top of the dashboard when a feature is enabled and active for that tenant; these should stay small, use one primary status, one short note, one lightweight value line, and only one CTA when something needs attention
 
 Customer UI must stay readable and avoid internal system names unless the customer must act on them.
 
@@ -406,6 +408,8 @@ The onboarding wizard uses a view-local `.wizard-operation-note` with `role="sta
 While this note is visible, wizard navigation and competing actions should be disabled or ignored so customers cannot accidentally move backward/forward while the current step is saving. Do not use this pattern as a permanent blocker; release it on both success and failure.
 
 For already-live onboarding Step 7, the primary action reads `Resync Assistant` and uses the same operation-note pattern with resync-specific copy. Keep this visually equivalent to `Go Live` because it performs the same customer-facing assistant update path.
+
+Onboarding Step 4 is now a modules step. Present included `core` modules as non-editable reassurance rows and `featured` modules as the only selectable checkboxes. Do not reintroduce `Skill Pack` or granular `capabilities` language on customer screens.
 
 ### Forms
 

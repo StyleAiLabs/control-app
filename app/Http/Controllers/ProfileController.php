@@ -15,6 +15,7 @@ class ProfileController extends Controller
 {
     public function __construct(
         private readonly TenantProfileSyncService $profileSync,
+        private readonly \App\Services\TenantOnboardingSkillService $onboardingSkills,
     ) {
     }
 
@@ -190,12 +191,13 @@ class ProfileController extends Controller
     private function canSync(Tenant $tenant): bool
     {
         $channelConfig = is_array($tenant->channel_config) ? $tenant->channel_config : [];
+        $this->onboardingSkills->ensureCoreAssignments($tenant, $tenant->user_id);
+        $hasEnabledModules = $this->onboardingSkills->enabledModules($tenant) !== [];
 
         return $tenant->onboarding_status === 'complete'
             && $tenant->provisioning_status === TenantProvisioningStatus::Ready
             && filled($tenant->tone)
-            && is_array($tenant->capabilities)
-            && $tenant->capabilities !== []
+            && $hasEnabledModules
             && filled($tenant->runtime_path)
             && filled($tenant->workspace_url)
             && $tenant->channel === 'telegram'

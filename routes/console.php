@@ -12,6 +12,7 @@ use App\Services\TenantSkillAnalyticsRuntimeService;
 use App\Services\TenantSkillAnalyticsSyncService;
 use App\Services\TenantSkillRuntimeInspectorService;
 use App\Services\TenantInboxTriagePollingService;
+use App\Services\TenantOnboardingSkillService;
 use App\Services\TenantRuntimeCapabilityService;
 use App\Services\TenantProfileSyncService;
 use App\Services\TenantGoogleWorkspaceSmokeTestService;
@@ -783,3 +784,18 @@ Artisan::command('sync360:test-google-workspace {tenantSelector : Tenant id, ten
         $this->components->twoColumnDetail('Calendars returned', isset($containerResult['calendar_items_returned']) ? (string) $containerResult['calendar_items_returned'] : 'unknown');
     }
 })->purpose('Run a tenant-side Google Workspace smoke test against the mounted OpenClaw runtime auth');
+
+Artisan::command('sync360:ensure-core-onboarding-skills', function () {
+    /** @var TenantOnboardingSkillService $onboardingSkills */
+    $onboardingSkills = app(TenantOnboardingSkillService::class);
+    $tenantCount = 0;
+
+    Tenant::query()->orderBy('id')->chunkById(100, function ($tenants) use ($onboardingSkills, &$tenantCount): void {
+        foreach ($tenants as $tenant) {
+            $onboardingSkills->ensureCoreAssignments($tenant, $tenant->user_id);
+            $tenantCount++;
+        }
+    });
+
+    $this->components->info(sprintf('Ensured core onboarding skills for %d tenant%s.', $tenantCount, $tenantCount === 1 ? '' : 's'));
+})->purpose('Backfill missing core onboarding skill assignments for every tenant');

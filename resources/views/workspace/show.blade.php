@@ -24,8 +24,8 @@
                     {{ $tenant->industry }}
                 </div>
                 <div class="meta-item">
-                    <small>Skill Pack</small>
-                    {{ $tenant->skill_pack }}
+                    <small>Modules</small>
+                    Core modules included
                 </div>
             </div>
         </div>

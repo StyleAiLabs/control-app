@@ -291,7 +291,6 @@ class OnboardingFlowTest extends TestCase
                 'tenant' => [
                     'business_name' => 'Acme Plumbing',
                     'industry' => 'Trades',
-                    'skill_pack' => 'Operations Core',
                 ],
                 'business' => [
                     'business_name' => 'Acme Plumbing',
@@ -305,15 +304,23 @@ class OnboardingFlowTest extends TestCase
                     '1' => ['label' => 'Website', 'status' => 'incomplete'],
                     '2' => ['label' => 'Business Info', 'status' => 'incomplete'],
                     '3' => ['label' => 'Tone', 'status' => 'incomplete'],
-                    '4' => ['label' => 'Skills', 'status' => 'incomplete'],
+                    '4' => ['label' => 'Modules', 'status' => 'incomplete'],
                     '5' => ['label' => 'Channel', 'status' => 'incomplete'],
                     '6' => ['label' => 'Google Workspace', 'status' => 'incomplete'],
                     '7' => ['label' => 'Go Live', 'status' => 'incomplete'],
                 ],
+                'modules' => [
+                    'core' => [
+                        ['skill_key' => 'inbox-triage', 'label' => 'Inbox Triage (by Sync360)'],
+                    ],
+                    'featured' => [],
+                    'selected_featured_skill_keys' => [],
+                    'enabled_skill_keys' => ['inbox-triage'],
+                ],
             ]);
     }
 
-    public function test_onboarding_state_advances_when_profile_tone_and_capabilities_exist(): void
+    public function test_onboarding_state_advances_when_profile_tone_and_modules_exist(): void
     {
         [$user, $tenant, $profile, $files] = $this->seedTenantWithProfile();
 
@@ -327,7 +334,6 @@ class OnboardingFlowTest extends TestCase
             'onboarding_status' => 'in_progress',
             'onboarding_step' => 3,
             'tone' => 'friendly',
-            'capabilities' => ['faqs', 'messages'],
         ])->save();
 
         $files->forceFill([
@@ -342,12 +348,14 @@ class OnboardingFlowTest extends TestCase
                 'onboarding_status' => 'in_progress',
                 'resume_from_step' => 4,
                 'tone' => 'friendly',
-                'capabilities' => ['faqs', 'messages'],
+                'modules' => [
+                    'enabled_skill_keys' => ['inbox-triage'],
+                ],
                 'steps' => [
                     '1' => ['label' => 'Website', 'status' => 'complete'],
                     '2' => ['label' => 'Business Info', 'status' => 'complete'],
                     '3' => ['label' => 'Tone', 'status' => 'complete'],
-                    '4' => ['label' => 'Skills', 'status' => 'incomplete'],
+                    '4' => ['label' => 'Modules', 'status' => 'incomplete'],
                     '5' => ['label' => 'Channel', 'status' => 'incomplete'],
                     '6' => ['label' => 'Google Workspace', 'status' => 'incomplete'],
                     '7' => ['label' => 'Go Live', 'status' => 'incomplete'],
@@ -511,7 +519,7 @@ class OnboardingFlowTest extends TestCase
                     'tone' => 'professional',
                     'steps' => [
                         '3' => ['label' => 'Tone', 'status' => 'complete'],
-                        '4' => ['label' => 'Skills', 'status' => 'incomplete'],
+                        '4' => ['label' => 'Modules', 'status' => 'incomplete'],
                     ],
                 ],
             ]);
@@ -523,7 +531,7 @@ class OnboardingFlowTest extends TestCase
         $this->assertSame('professional', $tenant->businessProfile->tone_hint);
     }
 
-    public function test_save_capabilities_generates_internal_files_and_marks_step_four_complete(): void
+    public function test_save_modules_generates_internal_files_and_marks_step_four_complete(): void
     {
         [$user, $tenant, $profile, $files] = $this->seedTenantWithProfile();
 
@@ -546,8 +554,8 @@ class OnboardingFlowTest extends TestCase
 
         $this->actingAs($user);
 
-        $this->postJson('/onboarding/capabilities', [
-            'capabilities' => ['faqs', 'messages', 'after_hours'],
+        $this->postJson('/onboarding/modules', [
+            'featured_skill_keys' => [],
         ])
             ->assertOk()
             ->assertJson([
@@ -557,9 +565,11 @@ class OnboardingFlowTest extends TestCase
                     'onboarding_step' => 4,
                     'resume_from_step' => 5,
                     'tone' => 'friendly',
-                    'capabilities' => ['faqs', 'messages', 'after_hours'],
+                    'modules' => [
+                        'enabled_skill_keys' => ['inbox-triage'],
+                    ],
                     'steps' => [
-                        '4' => ['label' => 'Skills', 'status' => 'complete'],
+                        '4' => ['label' => 'Modules', 'status' => 'complete'],
                         '5' => ['label' => 'Channel', 'status' => 'incomplete'],
                         '6' => ['label' => 'Google Workspace', 'status' => 'incomplete'],
                     ],
@@ -569,7 +579,6 @@ class OnboardingFlowTest extends TestCase
         $tenant->refresh();
         $files->refresh();
 
-        $this->assertSame(['faqs', 'messages', 'after_hours'], $tenant->capabilities);
         $this->assertSame(4, $tenant->onboarding_step);
         $this->assertNotNull($files->generated_at);
         $this->assertIsString($files->identity_markdown);
@@ -578,7 +587,7 @@ class OnboardingFlowTest extends TestCase
         $this->assertIsString($files->bootstrap_markdown);
         $this->assertStringContainsString('Acme Plumbing', $files->identity_markdown);
         $this->assertStringContainsString('Communication Style', $files->soul_markdown);
-        $this->assertStringContainsString('Answer common questions', $files->soul_markdown);
+        $this->assertStringContainsString('Inbox Triage', $files->soul_markdown);
     }
 
     public function test_save_channel_persists_telegram_configuration_and_marks_step_five_complete(): void
@@ -595,7 +604,6 @@ class OnboardingFlowTest extends TestCase
             'onboarding_status' => 'in_progress',
             'onboarding_step' => 4,
             'tone' => 'friendly',
-            'capabilities' => ['faqs', 'messages'],
         ])->save();
 
         $tenant->businessProfileFiles->forceFill([
@@ -1548,7 +1556,6 @@ class OnboardingFlowTest extends TestCase
             'onboarding_status' => 'in_progress',
             'onboarding_step' => 6,
             'tone' => 'friendly',
-            'capabilities' => ['faqs', 'messages'],
             'channel' => 'telegram',
             'channel_config' => ['telegram_bot_token' => 'telegram-bot-token'],
             'provisioning_status' => TenantProvisioningStatus::Ready,
@@ -1566,37 +1573,12 @@ class OnboardingFlowTest extends TestCase
             'connected_at' => now(),
         ]);
 
-        $skillItem = SkillCatalogItem::query()->create([
-            'skill_key' => 'inbox-triage',
-            'label' => 'Inbox Triage (by Sync360)',
-            'description' => 'Inbox Triage',
-            'category' => 'operations',
-            'is_assignable' => true,
-            'is_orphaned' => false,
-        ]);
-        $skillVersion = SkillCatalogVersion::query()->create([
-            'skill_catalog_item_id' => $skillItem->id,
-            'skill_key' => 'inbox-triage',
-            'version' => '1.5.8',
-            'manifest_json' => [
-                'skill_id' => 'inbox-triage',
-                'version' => '1.5.8',
-                'label' => 'Inbox Triage (by Sync360)',
-                'description' => 'Inbox Triage',
-                'runtime_type' => 'sync360_workspace',
-                'openclaw_skill_ids' => ['inbox-triage'],
-                'default_agent_skill_ids' => ['inbox-triage'],
-            ],
-            'is_active_published' => true,
-            'is_archived' => false,
-            'is_available' => true,
-            'discovered_at' => now(),
-            'last_imported_at' => now(),
-        ]);
-        TenantSkillAssignment::query()->create([
+        $skillVersion = SkillCatalogVersion::query()->where('skill_key', 'inbox-triage')->firstOrFail();
+        TenantSkillAssignment::query()->updateOrCreate([
             'tenant_id' => $tenant->id,
-            'skill_catalog_version_id' => $skillVersion->id,
             'skill_key' => 'inbox-triage',
+        ], [
+            'skill_catalog_version_id' => $skillVersion->id,
             'assigned_by' => $user->id,
             'assigned_at' => now(),
             'is_enabled' => true,
@@ -1730,7 +1712,6 @@ class OnboardingFlowTest extends TestCase
             'onboarding_status' => 'in_progress',
             'onboarding_step' => 6,
             'tone' => 'friendly',
-            'capabilities' => ['faqs'],
             'channel' => 'telegram',
             'channel_config' => ['telegram_bot_token' => 'telegram-bot-token'],
             'provisioning_status' => TenantProvisioningStatus::Ready,
@@ -1785,6 +1766,34 @@ class OnboardingFlowTest extends TestCase
      */
     private function seedTenantWithProfile(): array
     {
+        $skill = SkillCatalogItem::query()->create([
+            'skill_key' => 'inbox-triage',
+            'label' => 'Inbox Triage (by Sync360)',
+            'description' => 'Inbox triage',
+            'category' => 'operations',
+            'onboarding_role' => 'core',
+            'is_assignable' => true,
+            'is_orphaned' => false,
+        ]);
+
+        SkillCatalogVersion::query()->create([
+            'skill_catalog_item_id' => $skill->id,
+            'skill_key' => 'inbox-triage',
+            'version' => '1.5.8',
+            'manifest_json' => [
+                'skill_id' => 'inbox-triage',
+                'version' => '1.5.8',
+                'label' => 'Inbox Triage (by Sync360)',
+                'description' => 'Inbox triage',
+                'onboarding_role' => 'core',
+            ],
+            'is_active_published' => true,
+            'is_archived' => false,
+            'is_available' => true,
+            'discovered_at' => now(),
+            'last_imported_at' => now(),
+        ]);
+
         $user = User::query()->create([
             'name' => 'Alice Admin',
             'email' => 'alice@example.com',

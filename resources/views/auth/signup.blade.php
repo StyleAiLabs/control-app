@@ -88,15 +88,6 @@
                             @endforeach
                         </select>
                     </label>
-                    <label>
-                        Skill Pack
-                        <select name="skill_pack" required>
-                            <option value="">What do you need most help with?</option>
-                            @foreach (['Operations Core', 'Sales Assist', 'Client Support', 'Bookings + Scheduling', 'Back Office'] as $skillPack)
-                                <option value="{{ $skillPack }}" @selected(old('skill_pack') === $skillPack)>{{ $skillPack }}</option>
-                            @endforeach
-                        </select>
-                    </label>
                 </div>
 
                 <div class="field-grid">

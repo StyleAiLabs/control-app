@@ -4,6 +4,7 @@
     "label": "Inbox Triage (by Sync360)",
     "description": "Monitors email inbox for high-value leads, categorizes inquiries, and routes qualified opportunities.",
     "category": "operations",
+    "onboarding_role": "core",
     "runtime_type": "sync360_workspace",
     "production_ready": true,
     "openclaw_skill_ids": [

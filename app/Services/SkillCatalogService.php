@@ -106,6 +106,7 @@ class SkillCatalogService
                         'label' => $row['label'] ?? $skillKey,
                         'description' => $row['description'] ?? null,
                         'category' => $row['category'] ?? null,
+                        'onboarding_role' => $row['onboarding_role'] ?? TenantOnboardingSkillService::ROLE_HIDDEN,
                         'is_assignable' => false,
                         'is_orphaned' => false,
                         'orphaned_warning' => null,
@@ -276,6 +277,7 @@ class SkillCatalogService
 
             $item->forceFill([
                 'is_assignable' => false,
+                'onboarding_role' => TenantOnboardingSkillService::ROLE_HIDDEN,
                 'is_orphaned' => true,
                 'orphaned_warning' => sprintf('Skill [%s] is missing from resources/skill-packs and is now orphaned.', $skillKey),
                 'last_imported_at' => now(),
@@ -295,7 +297,27 @@ class SkillCatalogService
 
         $item->forceFill([
             'is_assignable' => ! $item->is_orphaned && $hasActivePublishedVersion,
+            'onboarding_role' => $this->activePublishedOnboardingRole($item),
         ])->save();
+    }
+
+    private function activePublishedOnboardingRole(SkillCatalogItem $item): string
+    {
+        $manifest = SkillCatalogVersion::query()
+            ->where('skill_catalog_item_id', $item->id)
+            ->where('is_active_published', true)
+            ->where('is_archived', false)
+            ->value('manifest_json');
+
+        if (! is_array($manifest)) {
+            return TenantOnboardingSkillService::ROLE_HIDDEN;
+        }
+
+        $role = $manifest['onboarding_role'] ?? TenantOnboardingSkillService::ROLE_HIDDEN;
+
+        return is_string($role) && in_array(trim($role), TenantOnboardingSkillService::roles(), true)
+            ? trim($role)
+            : TenantOnboardingSkillService::ROLE_HIDDEN;
     }
 
     private function isLocalEnvironment(): bool

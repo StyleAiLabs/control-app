@@ -8,6 +8,8 @@ use App\Enums\TrialStatus;
 use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
 use App\Models\Server;
+use App\Models\SkillCatalogItem;
+use App\Models\SkillCatalogVersion;
 use App\Models\Tenant;
 use App\Models\TenantGoogleCredential;
 use App\Models\User;
@@ -45,7 +47,6 @@ class ProfileFlowTest extends TestCase
             'workspace_url' => 'https://acme-plumbing.workspace.test',
             'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
             'tone' => 'friendly',
-            'capabilities' => ['faqs', 'messages'],
             'channel' => 'telegram',
             'channel_config' => ['telegram_bot_token' => 'telegram-bot-token'],
         ])->save();
@@ -120,7 +121,6 @@ class ProfileFlowTest extends TestCase
             'workspace_url' => 'https://acme-plumbing.workspace.test',
             'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
             'tone' => 'friendly',
-            'capabilities' => ['faqs', 'after_hours'],
             'channel' => 'telegram',
             'channel_config' => ['telegram_bot_token' => 'telegram-bot-token'],
         ])->save();
@@ -232,6 +232,34 @@ class ProfileFlowTest extends TestCase
      */
     private function seedTenantProfile(): array
     {
+        $skill = SkillCatalogItem::query()->create([
+            'skill_key' => 'inbox-triage',
+            'label' => 'Inbox Triage (by Sync360)',
+            'description' => 'Inbox triage',
+            'category' => 'operations',
+            'onboarding_role' => 'core',
+            'is_assignable' => true,
+            'is_orphaned' => false,
+        ]);
+
+        SkillCatalogVersion::query()->create([
+            'skill_catalog_item_id' => $skill->id,
+            'skill_key' => 'inbox-triage',
+            'version' => '1.5.8',
+            'manifest_json' => [
+                'skill_id' => 'inbox-triage',
+                'version' => '1.5.8',
+                'label' => 'Inbox Triage (by Sync360)',
+                'description' => 'Inbox triage',
+                'onboarding_role' => 'core',
+            ],
+            'is_active_published' => true,
+            'is_archived' => false,
+            'is_available' => true,
+            'discovered_at' => now(),
+            'last_imported_at' => now(),
+        ]);
+
         $user = User::query()->create([
             'name' => 'Alice Admin',
             'email' => 'alice@example.com',
