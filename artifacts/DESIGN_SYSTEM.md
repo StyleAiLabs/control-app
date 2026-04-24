@@ -74,6 +74,9 @@ Customer UI may be more expressive:
 - friendly progress and next-action language
 - impact/analytics cards should use estimated wording when metrics come from Sync360-authored defaults rather than measured tenant workflow data
 - compact skill reassurance cards may appear near the top of the dashboard when a feature is enabled and active for that tenant; these should stay small, use one primary status, one short note, one lightweight value line, and only one CTA when something needs attention
+- the customer dashboard should now be outcomes-first: use a tight hero, a four-card health rail (`Assistant`, `Workspace`, `Trial`, `Inbox`), then analytical panels for performance, trial runway, top skills, and inbox performance
+- remove profile-heavy content (`Your Business`, contact details, industry, module lists) from the dashboard; that material belongs on the profile/settings surface
+- do not show completed onboarding as a large dashboard panel; only surface setup progress when onboarding is incomplete, and prefer a compact step wizard instead of a full meta list
 
 Customer UI must stay readable and avoid internal system names unless the customer must act on them.
 
@@ -108,6 +111,7 @@ For skill-version UX, tenant admin cards must distinguish `assigned version` fro
 - Use panels/cards to group a single decision area or data set.
 - On tenant-detail screens, prefer a light status strip plus calm tabs over a loud badge rail and repeated panel-level restatements.
 - On action-heavy admin tabs such as Support, group controls into small purpose-led clusters (`Recovery`, `Lifecycle`, etc.) so the operator reads intent before button labels.
+- On the customer dashboard, do not use recent-message feeds or conversation logs as a top-level widget. Favor analytical trend panels and compact health summaries over verbose activity blocks.
 - When an analytics metric is undefined, omit the card/row instead of showing a misleading zero value.
 - For estimated operational metrics such as time saved or ROI, label them explicitly as estimated in headings or supporting copy.
 - For background rollout/apply work, prefer compact polling progress panels with `queued`, `running`, `completed`, and `failed` badges plus a short explanatory line over noisy log-style output.
@@ -170,6 +174,16 @@ Core classes:
 - `type-value--technical` - important technical values
 - `type-tech` - compact technical text
 - `type-tech--wrap` - logs, output, or technical strings that must wrap
+
+Dashboard wrapper components in `resources/views/components/ui/*`:
+
+- `metric-card` - compact outcome/health card with status icon, short value, and one supporting note
+- `health-rail` - responsive four-card dashboard health strip
+- `chart-panel` - daisyUI-backed Sync360 analytical panel wrapper
+- `bar-chart` - vertical grouped bars for trends and horizontal bars for ranked impact
+- `runway-meter` - compact dual progress treatment for AI credit and remaining trial time
+- `step-wizard` - condensed setup progress for incomplete onboarding only
+- `empty-analytics` - empty-state wrapper for chart/analytics panels
 
 ### Spacing Scale
 

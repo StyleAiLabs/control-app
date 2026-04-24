@@ -7,6 +7,26 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-25 — Improvement: Customer Dashboard Outcomes-First Refresh
+
+Date: 2026-04-25
+Status: Implemented
+
+### Overview
+
+Refactored the customer dashboard into a calmer, more analytical SaaS surface that prioritizes assistant health, work handled, value created, and trial runway instead of repeating profile data and recent message history.
+
+### What Changed
+
+- replaced the old topbar + stats + status stack with a tighter dashboard hero and a four-card health rail for `Assistant`, `Workspace`, `Trial`, and `Inbox`
+- removed the `Your Business` dashboard block, the `Conversation Activity` widget, the recent conversation feed, and the completed onboarding wall
+- added a 30-day `Performance Overview` chart showing reviewed work against successful outcomes
+- compressed trial usage into a reusable `Trial Runway` dual-progress card with live refresh support
+- replaced the old bottom `Skill Outcomes` summary with a more explicit `Top Skills` ranked analytics panel
+- added an `Inbox Performance` panel that shows inbox state, reviewed volume, and recent outcome signals, including a setup-oriented empty state when the workflow is not enabled
+- added a compact `Finish setup` step wizard that appears only while onboarding is incomplete
+- introduced reusable dashboard wrappers behind Sync360 Blade components: `metric-card`, `health-rail`, `chart-panel`, `bar-chart`, `runway-meter`, `step-wizard`, and `empty-analytics`
+
 ## 2026-04-25 — Improvement: Customer Inbox Overview On Dashboard
 
 Date: 2026-04-25

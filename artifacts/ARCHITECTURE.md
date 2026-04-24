@@ -11,6 +11,7 @@ This document describes the current as-built architecture of the Sync360 Control
 **2026-04-25 Tenant detail visual polish pass:** the tenant detail shell now uses tighter status-strip spacing, slightly quieter tab/sidebar rhythm, and support-tab action clustering. The support surface groups commands into `Recovery` and `Lifecycle` clusters inside subpanels so operators see intent before command labels.
 
 **2026-04-25 Customer Inbox overview:** the customer dashboard now includes a compact `Inbox` panel when the tenant has an enabled `inbox-triage` assignment. The panel does not expose monitor internals; it derives a plain-language state from tenant live/readiness posture, Google verification status, inbox-monitor freshness/failure state, and recent `inbox-triage` conversion or reviewed-message activity.
+**2026-04-25 Customer dashboard outcomes-first refresh:** the customer dashboard now uses controller-shaped analytical payloads and new Sync360 dashboard wrappers (`metric-card`, `health-rail`, `chart-panel`, `bar-chart`, `runway-meter`, `step-wizard`, `empty-analytics`) to present a tighter hero, health rail, performance charting, trial runway, top-skill ranking, inbox analytics, and conditional setup wizard. Profile fields and recent conversation feed content were intentionally removed from the dashboard and left on their dedicated surfaces.
 
 **2026-04-22 Landing Page UX Refinement:** Landing page (`resources/views/landing.blade.php`) and authentication views updated with semantic typography classes, section connectors, trust bar with metrics, testimonials grid, flow diagram with icons, animated counter metrics, and trust badges in final CTA. Design system documentation updated in `artifacts/DESIGN_SYSTEM.md` with new landing page patterns and typography usage.
 
@@ -63,7 +64,7 @@ The shared app and guest layouts are the implementation home for the current typ
 
 Primary authenticated navigation lives in the shared sidebar and mobile drawer; admin overview does not duplicate those sidebar destinations as header action buttons. Dense admin list pages should prefer summary strips plus compact comparison tables over very wide status matrices when identity and triage need to stay readable on laptop-width screens. Tabbed admin detail pages should keep shared rollout/trial/account summary content in Overview and let later tabs focus on unique evidence and actions.
 
-The customer dashboard can show a small skill-specific reassurance panel near the top only when the feature is enabled and valuable to that tenant. The new Inbox panel follows that rule: it stays hidden for tenants without `inbox-triage`, uses one short status, one short note, one light value line, and at most one CTA, and avoids queue/runtime/polling terminology.
+The customer dashboard can show a small skill-specific reassurance panel near the top only when the feature is enabled and valuable to that tenant. The Inbox health card in the rail follows that rule: it stays calm, uses one short status, one short note, one light value line, and avoids queue/runtime/polling terminology. The larger `Inbox Performance` panel is now the dedicated analytical surface for configured or setup-ready inbox workflows.
 
 ### Infrastructure modes
 

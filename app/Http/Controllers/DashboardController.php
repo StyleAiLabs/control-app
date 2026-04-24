@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Contracts\DockerComposeRunner;
 use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
-use App\Models\ConversationLog;
 use App\Models\Tenant;
 use App\Models\TenantGoogleCredential;
 use App\Models\TenantInboxMonitorMessage;
@@ -25,6 +24,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
@@ -56,12 +56,13 @@ class DashboardController extends Controller
                 'skillAssignments.catalogVersion.item',
             ]))
             ->firstOrFail();
-        $recentConversations = $tenant->conversationLogs()
-            ->latest('created_at')
-            ->limit(10)
-            ->get();
         $onboardingSummary = $this->onboardingSummary($tenant);
         $workspaceState    = $this->workspaceState($tenant);
+        $agentContent      = $this->agentContent($tenant);
+        $trialData         = $this->trialData($tenant);
+        $impactSummary     = $this->skillAnalytics->tenantSummary($tenant);
+        $inboxOverview     = $this->inboxOverview($tenant);
+        $performanceSeries = $this->performanceSeries($tenant);
 
         // Inject workspace alert into the sidebar bell via request attributes
         // (the View composer in AppServiceProvider merges this in)
@@ -100,19 +101,21 @@ class DashboardController extends Controller
         return response()->view('dashboard', [
             'tenant'              => $tenant,
             'businessProfile'     => $tenant->businessProfile,
-            'businessFiles'       => $tenant->businessProfileFiles,
-            'recentConversations' => $recentConversations,
-            'conversationStats'   => $this->conversationStats($tenant),
             'onboardingSummary'   => $onboardingSummary,
-            'agentContent'        => $this->agentContent($tenant),
+            'agentContent'        => $agentContent,
             'firstName'           => Str::of($request->user()->name)->before(' ')->value() ?: $request->user()->name,
             'trialContent'        => $this->trialContent($tenant->trial_status),
             'provisioningContent' => $this->provisioningContent($tenant->provisioning_status),
-            'trialData'           => $this->trialData($tenant),
+            'trialData'           => $trialData,
             'workspaceState'      => $workspaceState,
-            'impactSummary'       => $this->skillAnalytics->tenantSummary($tenant),
-            'inboxOverview'       => $this->inboxOverview($tenant),
-            'moduleSummary'       => $this->onboardingSkills->customerSummary($tenant),
+            'impactSummary'       => $impactSummary,
+            'inboxOverview'       => $inboxOverview,
+            'healthRail'          => $this->healthRail($tenant, $agentContent, $workspaceState, $trialData, $inboxOverview),
+            'performanceSeries'   => $performanceSeries,
+            'runwaySummary'       => $this->runwaySummary($trialData),
+            'topSkillsSeries'     => $this->topSkillsSeries($impactSummary),
+            'inboxPerformance'    => $this->inboxPerformance($tenant, $inboxOverview, $performanceSeries),
+            'setupWizard'         => $this->setupWizard($onboardingSummary),
         ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, private')
             ->header('Pragma', 'no-cache')
             ->header('Expires', 'Fri, 01 Jan 1990 00:00:00 GMT');
@@ -339,22 +342,6 @@ class DashboardController extends Controller
     }
 
     /**
-     * @return array{total:int,today:int,week:int}
-     */
-    private function conversationStats(Tenant $tenant): array
-    {
-        $baseQuery = ConversationLog::query()->where('tenant_id', $tenant->id);
-        $todayStart = Carbon::now()->startOfDay();
-        $weekStart = Carbon::now()->startOfWeek();
-
-        return [
-            'total' => (clone $baseQuery)->count(),
-            'today' => (clone $baseQuery)->where('created_at', '>=', $todayStart)->count(),
-            'week'  => (clone $baseQuery)->where('created_at', '>=', $weekStart)->count(),
-        ];
-    }
-
-    /**
      * @return array<string, mixed>|null
      */
     private function inboxOverview(Tenant $tenant): ?array
@@ -414,6 +401,273 @@ class DashboardController extends Controller
             'secondary_note' => $secondaryNote,
             'value_line' => $this->inboxValueLine($tenant),
             'cta' => $cta,
+        ];
+    }
+
+    /**
+     * @param  array{label:string,description:string,badge:string,primary_cta_label:string,primary_cta_route:string}  $agentContent
+     * @param  array{
+     *   is_expired: bool,
+     *   max_budget: float,
+     *   spend: float,
+     *   days_left: int,
+     *   budget_percent: float,
+     *   time_percent: float,
+     *   urgency: string,
+     *   spend_cached_at: ?string
+     * }  $trialData
+     * @param  array<string,mixed>|null  $inboxOverview
+     * @return array<int, array<string, mixed>>
+     */
+    private function healthRail(Tenant $tenant, array $agentContent, string $workspaceState, array $trialData, ?array $inboxOverview): array
+    {
+        $workspace = match ($workspaceState) {
+            'running' => [
+                'status' => 'running',
+                'value' => 'Workspace is live',
+                'note' => 'Your workspace is online and ready to receive work.',
+            ],
+            'stopped' => [
+                'status' => 'stopped',
+                'value' => 'Workspace stopped',
+                'note' => 'The workspace needs attention before the assistant can respond.',
+            ],
+            'not_provisioned' => [
+                'status' => 'pending',
+                'value' => 'Provisioning in progress',
+                'note' => 'We are still lining up the workspace for first launch.',
+            ],
+            'missing_config' => [
+                'status' => 'failed',
+                'value' => 'Configuration missing',
+                'note' => 'Support needs to restore workspace configuration.',
+            ],
+            default => [
+                'status' => 'warning',
+                'value' => 'Status unavailable',
+                'note' => 'We could not confirm the live workspace state just now.',
+            ],
+        };
+
+        $trial = $trialData['is_expired']
+            ? [
+                'status' => 'expired',
+                'value' => 'Trial ended',
+                'note' => 'Contact us to reactivate your digital employee.',
+            ]
+            : [
+                'status' => $trialData['urgency'] === 'critical' ? 'error' : ($trialData['urgency'] === 'warning' ? 'warning' : 'success'),
+                'value' => $trialData['days_left'].' '.($trialData['days_left'] === 1 ? 'day' : 'days').' left',
+                'note' => '$'.number_format($trialData['spend'], 2).' of $'.number_format($trialData['max_budget'], 2).' AI credit used',
+            ];
+
+        $inbox = $inboxOverview
+            ? [
+                'status' => match ($inboxOverview['status_label']) {
+                    'Watching your inbox' => 'healthy',
+                    'Needs attention' => 'warning',
+                    'Setup incomplete' => 'pending',
+                    default => 'neutral',
+                },
+                'value' => $inboxOverview['status_label'],
+                'note' => $inboxOverview['value_line'],
+            ]
+            : [
+                'status' => 'neutral',
+                'value' => 'Not enabled',
+                'note' => 'Inbox monitoring will appear here once the workflow is turned on.',
+            ];
+
+        return [
+            [
+                'label' => 'Assistant',
+                'status' => $agentContent['badge'],
+                'value' => $agentContent['label'],
+                'note' => $agentContent['description'],
+            ],
+            [
+                'label' => 'Workspace',
+                'status' => $workspace['status'],
+                'value' => $workspace['value'],
+                'note' => $workspace['note'],
+            ],
+            [
+                'label' => 'Trial',
+                'status' => $trial['status'],
+                'value' => $trial['value'],
+                'note' => $trial['note'],
+                'dom_id' => 'dashboard-trial-health',
+            ],
+            [
+                'label' => 'Inbox',
+                'status' => $inbox['status'],
+                'value' => $inbox['value'],
+                'note' => $inbox['note'],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function performanceSeries(Tenant $tenant, int $days = 30): array
+    {
+        $days = max(7, $days);
+        $start = now()->startOfDay()->subDays($days - 1);
+        $dates = collect(range(0, $days - 1))
+            ->map(fn (int $offset): Carbon => $start->copy()->addDays($offset));
+
+        $conversionRows = TenantSkillConversionEvent::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('occurred_at', '>=', $start)
+            ->get(['occurred_at']);
+
+        $reviewRows = TenantInboxMonitorMessage::query()
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('status', [
+                TenantInboxMonitorMessage::STATUS_SENT_TO_AGENT,
+                TenantInboxMonitorMessage::STATUS_SKIPPED,
+            ])
+            ->where('detected_at', '>=', $start)
+            ->get(['detected_at']);
+
+        $conversionCounts = $conversionRows
+            ->groupBy(fn (TenantSkillConversionEvent $event): string => optional($event->occurred_at)->toDateString() ?? '')
+            ->map(fn (Collection $events): int => $events->count());
+
+        $reviewCounts = $reviewRows
+            ->groupBy(fn (TenantInboxMonitorMessage $message): string => optional($message->detected_at)->toDateString() ?? '')
+            ->map(fn (Collection $messages): int => $messages->count());
+
+        $items = $dates->map(function (Carbon $date) use ($conversionCounts, $reviewCounts): array {
+            $key = $date->toDateString();
+
+            return [
+                'label' => $date->format('j M'),
+                'short_label' => $date->format('j'),
+                'value' => (int) ($reviewCounts[$key] ?? 0),
+                'secondary' => (int) ($conversionCounts[$key] ?? 0),
+            ];
+        });
+
+        $reviewed = (int) $items->sum('value');
+        $outcomes = (int) $items->sum('secondary');
+
+        return [
+            'items' => $items->all(),
+            'reviewed_total' => $reviewed,
+            'outcomes_total' => $outcomes,
+            'window_days' => $days,
+            'has_data' => $reviewed > 0 || $outcomes > 0,
+        ];
+    }
+
+    /**
+     * @param  array{
+     *   is_expired: bool,
+     *   max_budget: float,
+     *   spend: float,
+     *   days_left: int,
+     *   budget_percent: float,
+     *   time_percent: float,
+     *   urgency: string,
+     *   spend_cached_at: ?string
+     * }  $trialData
+     * @return array<string,mixed>
+     */
+    private function runwaySummary(array $trialData): array
+    {
+        return [
+            'is_expired' => $trialData['is_expired'],
+            'budget_percent' => (float) $trialData['budget_percent'],
+            'time_percent' => (float) $trialData['time_percent'],
+            'days_left' => (int) $trialData['days_left'],
+            'spend' => (float) $trialData['spend'],
+            'max_budget' => (float) $trialData['max_budget'],
+            'urgency' => (string) $trialData['urgency'],
+            'spend_cached_at' => $trialData['spend_cached_at'],
+            'summary' => $trialData['is_expired']
+                ? 'Your trial has ended and the assistant is paused.'
+                : '$'.number_format($trialData['spend'], 2).' of $'.number_format($trialData['max_budget'], 2).' used with '.$trialData['days_left'].' '.($trialData['days_left'] === 1 ? 'day' : 'days').' remaining.',
+        ];
+    }
+
+    /**
+     * @param  array<string,mixed>  $impactSummary
+     * @return array<string,mixed>
+     */
+    private function topSkillsSeries(array $impactSummary): array
+    {
+        $items = collect($impactSummary['top_skills'] ?? [])
+            ->map(fn ($skill): array => [
+                'label' => Str::headline((string) $skill->skill_key),
+                'value' => (int) ($skill->conversions ?? 0),
+                'note' => (int) ($skill->net_minutes_saved ?? 0).' min saved',
+            ])
+            ->all();
+
+        return [
+            'items' => $items,
+            'has_data' => count($items) > 0,
+        ];
+    }
+
+    /**
+     * @param  array<string,mixed>|null  $inboxOverview
+     * @param  array<string,mixed>  $performanceSeries
+     * @return array<string,mixed>
+     */
+    private function inboxPerformance(Tenant $tenant, ?array $inboxOverview, array $performanceSeries): array
+    {
+        if (! $inboxOverview) {
+            return [
+                'enabled' => false,
+                'status_label' => 'Not enabled',
+                'status_note' => 'Turn on inbox workflows to see reviewed work and lead signals here.',
+                'value_line' => null,
+                'secondary_note' => null,
+                'cta' => [
+                    'label' => 'Open setup',
+                    'route' => route('onboarding.show'),
+                ],
+                'reviewed_total' => 0,
+                'outcomes_total' => 0,
+            ];
+        }
+
+        return [
+            'enabled' => true,
+            'status_label' => $inboxOverview['status_label'],
+            'status_note' => $inboxOverview['status_note'],
+            'value_line' => $inboxOverview['value_line'],
+            'secondary_note' => $inboxOverview['secondary_note'] ?? null,
+            'cta' => $inboxOverview['cta'] ?? null,
+            'reviewed_total' => $performanceSeries['reviewed_total'],
+            'outcomes_total' => $performanceSeries['outcomes_total'],
+        ];
+    }
+
+    /**
+     * @param  array{
+     *   resume_from_step:int,
+     *   completed_steps:int,
+     *   total_steps:int,
+     *   steps:array<int, array{label:string,status:string}>
+     * }  $onboardingSummary
+     * @return array<string,mixed>|null
+     */
+    private function setupWizard(array $onboardingSummary): ?array
+    {
+        if ($onboardingSummary['completed_steps'] >= $onboardingSummary['total_steps']) {
+            return null;
+        }
+
+        return [
+            'current_step' => $onboardingSummary['resume_from_step'],
+            'completed_steps' => $onboardingSummary['completed_steps'],
+            'total_steps' => $onboardingSummary['total_steps'],
+            'steps' => $onboardingSummary['steps'],
+            'summary' => $onboardingSummary['completed_steps'].' of '.$onboardingSummary['total_steps'].' setup steps are complete, and step '.$onboardingSummary['resume_from_step'].' is next.',
         ];
     }
 

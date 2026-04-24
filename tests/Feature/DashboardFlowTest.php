@@ -22,7 +22,7 @@ class DashboardFlowTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_dashboard_shows_resume_path_for_incomplete_onboarding(): void
+    public function test_dashboard_shows_condensed_setup_wizard_for_incomplete_onboarding(): void
     {
         [$user, $tenant] = $this->seedTenant();
 
@@ -39,13 +39,18 @@ class DashboardFlowTest extends TestCase
 
         $response
             ->assertOk()
-            ->assertSee('Setup Progress')
+            ->assertSee('Finish setup')
             ->assertSee('Continue Setup')
             ->assertSee('step 4 is next', escape: false)
             ->assertSee('Website')
             ->assertSee('Business Info')
             ->assertSee('Tone')
             ->assertSee('Modules')
+            ->assertSee('Assistant')
+            ->assertSee('Workspace')
+            ->assertSee('Trial')
+            ->assertDontSee('Your Business')
+            ->assertDontSee('Conversation Activity')
             ->assertDontSee('Business Website')
             ->assertDontSee('Capabilities');
 
@@ -56,7 +61,7 @@ class DashboardFlowTest extends TestCase
         $this->assertStringContainsString('private', (string) $response->headers->get('Cache-Control'));
     }
 
-    public function test_dashboard_shows_live_agent_and_recent_conversations(): void
+    public function test_dashboard_shows_outcomes_first_live_dashboard(): void
     {
         [$user, $tenant, $profile] = $this->seedTenant();
 
@@ -100,22 +105,25 @@ class DashboardFlowTest extends TestCase
         $response
             ->assertOk()
             ->assertSee('Live')
-            ->assertSee('Conversation Activity')
             ->assertSee('Open Sync360 Workspace')
-            ->assertSee('class="type-label"', false)
-            ->assertSee('class="type-value type-value--technical"', false)
-            ->assertSee('Do you do emergency callouts?')
-            ->assertSee('Yes, we do emergency callouts across Auckland.')
-            ->assertSee('Telegram')
-            ->assertSee('support@acme.example')
-            ->assertSee('Total')
-            ->assertSee('1')
-            ->assertDontSee('customer messages start arriving');
+            ->assertSee('Open Profile')
+            ->assertSee('Performance Overview')
+            ->assertSee('Trial Runway')
+            ->assertSee('Top Skills')
+            ->assertSee('Assistant')
+            ->assertSee('Workspace')
+            ->assertSee('Trial')
+            ->assertSee('Inbox')
+            ->assertDontSee('Your Business')
+            ->assertDontSee('Conversation Activity')
+            ->assertDontSee('Do you do emergency callouts?')
+            ->assertDontSee('support@acme.example')
+            ->assertDontSee('Setup Progress');
 
         $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
     }
 
-    public function test_dashboard_hides_inbox_card_when_inbox_triage_is_not_enabled(): void
+    public function test_dashboard_shows_inbox_empty_state_when_inbox_triage_is_not_enabled(): void
     {
         [$user, $tenant] = $this->seedTenant();
 
@@ -141,8 +149,10 @@ class DashboardFlowTest extends TestCase
 
         $this->get('/dashboard')
             ->assertOk()
-            ->assertDontSee('Watching your inbox')
-            ->assertDontSee('Last checked');
+            ->assertSee('Inbox Performance')
+            ->assertSee('Inbox analytics will show up here.')
+            ->assertSee('Open setup')
+            ->assertDontSee('Watching your inbox');
     }
 
     public function test_dashboard_shows_healthy_inbox_overview_with_conversion_summary(): void
@@ -194,7 +204,7 @@ class DashboardFlowTest extends TestCase
 
         $this->get('/dashboard')
             ->assertOk()
-            ->assertSee('Inbox')
+            ->assertSee('Inbox Performance')
             ->assertSee('Watching your inbox')
             ->assertSee('Last checked 6 minutes ago')
             ->assertSee('2 qualified leads in the last 7 days')
@@ -230,7 +240,7 @@ class DashboardFlowTest extends TestCase
 
         $this->get('/dashboard')
             ->assertOk()
-            ->assertSee('Inbox')
+            ->assertSee('Inbox Performance')
             ->assertSee('Setup incomplete')
             ->assertSee('Reconnect Google Workspace to resume inbox monitoring')
             ->assertSee('Open setup')
