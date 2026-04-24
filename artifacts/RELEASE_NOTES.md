@@ -7,6 +7,21 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-25 — Improvement: Expired Trial Dashboard Messaging Cleanup
+
+Date: 2026-04-25
+Status: Implemented
+
+### Overview
+
+Tightened the expired-trial dashboard state so customers see one clear urgent banner, compact status cards, and a recovery-oriented runway panel instead of the same pause message repeated three times.
+
+### What Changed
+
+- kept the page-level expired-trial banner as the only loud account-wide alert
+- changed the dashboard hero and health rail to show compact `Paused` / `Expired` states instead of restating the full reactivation message
+- turned the `Trial Runway` expired state into a recovery panel with a direct `Contact Sync360` action
+- added focused dashboard test coverage so expired-trial messaging stays hierarchical and does not regress into duplicate alarms
 ## 2026-04-25 — Improvement: Customer Dashboard Outcomes-First Refresh
 
 Date: 2026-04-25

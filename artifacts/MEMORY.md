@@ -233,6 +233,7 @@ Remaining documentation mismatch:
 - [`app/Services/TenantWorkspaceReadinessService.php`](../app/Services/TenantWorkspaceReadinessService.php) — shared runtime-ready vs customer-ready vs go-live-ready gating and UI blocking reasons
 - [`app/Console/Commands/SyncConversationReplies.php`](../app/Console/Commands/SyncConversationReplies.php) — session-log conversation sync
 - [`app/Services/TenantGatewayService.php`](../app/Services/TenantGatewayService.php) and [`app/Services/TenantHealthCheckService.php`](../app/Services/TenantHealthCheckService.php) — private gateway access and readiness checks
+- Customer dashboard expired-trial UX now uses a strict hierarchy: one urgent top banner, compact `Paused` / `Expired` health-rail states, and a reactivation-focused runway panel instead of repeating `trial ended` messaging in every surface.
 
 ## 8. Current priorities / open work
 

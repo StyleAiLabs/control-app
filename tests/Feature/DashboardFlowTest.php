@@ -123,6 +123,38 @@ class DashboardFlowTest extends TestCase
         $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
     }
 
+    public function test_dashboard_uses_single_urgent_banner_for_expired_trial_state(): void
+    {
+        [$user, $tenant] = $this->seedTenant();
+
+        $tenant->forceFill([
+            'trial_status' => TrialStatus::Expired,
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'onboarding_status' => 'complete',
+            'onboarding_step' => 7,
+            'agent_status' => 'live',
+            'workspace_url' => 'https://acme-plumbing.workspace.test',
+            'litellm_spend' => 5.00,
+            'litellm_max_budget' => 5.00,
+        ])->save();
+
+        $this->actingAs($user);
+
+        $this->get('/dashboard')
+            ->assertOk()
+            ->assertSee('Your trial has ended.')
+            ->assertSee('Acme Plumbing is paused until the account is reactivated.')
+            ->assertSee('Assistant')
+            ->assertSee('Paused')
+            ->assertSee('Trial')
+            ->assertSee('Expired')
+            ->assertSee('Reactivate workspace')
+            ->assertSee('Contact Sync360')
+            ->assertDontSee('Contact us to reactivate your digital employee.')
+            ->assertDontSee('Your trial has ended and the assistant is paused.')
+            ->assertDontSee('Trial ended');
+    }
+
     public function test_dashboard_shows_inbox_empty_state_when_inbox_triage_is_not_enabled(): void
     {
         [$user, $tenant] = $this->seedTenant();

@@ -34,7 +34,11 @@
 
     @if ($summary['is_expired'])
         <div class="sync-dashboard-runway__expired">
-            <x-ui.empty-state title="Trial ended" description="Your workspace is still here, but the live assistant is paused until the account is reactivated." />
+            <x-ui.empty-state title="Reactivate workspace" description="Your workspace is still here. Reach out and we will restore the live assistant for you.">
+                <x-ui.button href="mailto:hello@sync360.co.nz" variant="secondary" icon="external-link" icon-position="after">
+                    Contact Sync360
+                </x-ui.button>
+            </x-ui.empty-state>
         </div>
     @else
         <div class="sync-dashboard-runway__meters">

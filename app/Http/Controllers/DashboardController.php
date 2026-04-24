@@ -452,13 +452,25 @@ class DashboardController extends Controller
         $trial = $trialData['is_expired']
             ? [
                 'status' => 'expired',
-                'value' => 'Trial ended',
-                'note' => 'Contact us to reactivate your digital employee.',
+                'value' => 'Expired',
+                'note' => null,
             ]
             : [
                 'status' => $trialData['urgency'] === 'critical' ? 'error' : ($trialData['urgency'] === 'warning' ? 'warning' : 'success'),
                 'value' => $trialData['days_left'].' '.($trialData['days_left'] === 1 ? 'day' : 'days').' left',
                 'note' => '$'.number_format($trialData['spend'], 2).' of $'.number_format($trialData['max_budget'], 2).' AI credit used',
+            ];
+
+        $assistant = $trialData['is_expired']
+            ? [
+                'status' => 'expired',
+                'value' => 'Paused',
+                'note' => 'Reactivation is needed before customer replies can resume.',
+            ]
+            : [
+                'status' => $agentContent['badge'],
+                'value' => $agentContent['label'],
+                'note' => $agentContent['description'],
             ];
 
         $inbox = $inboxOverview
@@ -481,9 +493,9 @@ class DashboardController extends Controller
         return [
             [
                 'label' => 'Assistant',
-                'status' => $agentContent['badge'],
-                'value' => $agentContent['label'],
-                'note' => $agentContent['description'],
+                'status' => $assistant['status'],
+                'value' => $assistant['value'],
+                'note' => $assistant['note'],
             ],
             [
                 'label' => 'Workspace',
@@ -587,7 +599,7 @@ class DashboardController extends Controller
             'urgency' => (string) $trialData['urgency'],
             'spend_cached_at' => $trialData['spend_cached_at'],
             'summary' => $trialData['is_expired']
-                ? 'Your trial has ended and the assistant is paused.'
+                ? 'Next step: reactivate service to resume customer replies.'
                 : '$'.number_format($trialData['spend'], 2).' of $'.number_format($trialData['max_budget'], 2).' used with '.$trialData['days_left'].' '.($trialData['days_left'] === 1 ? 'day' : 'days').' remaining.',
         ];
     }

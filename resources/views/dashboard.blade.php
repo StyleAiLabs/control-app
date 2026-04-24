@@ -10,9 +10,11 @@
     @endif
 
     @php
-        $dashboardSummary = $setupWizard
-            ? $tenant->business_name.' is '.strtolower($provisioningContent['label']).' and step '.$setupWizard['current_step'].' is next.'
-            : $tenant->business_name.' is '.strtolower($agentContent['label']).' and your latest operating signals are below.';
+        $dashboardSummary = $trialData['is_expired']
+            ? $tenant->business_name.' is paused until the account is reactivated.'
+            : ($setupWizard
+                ? $tenant->business_name.' is '.strtolower($provisioningContent['label']).' and step '.$setupWizard['current_step'].' is next.'
+                : $tenant->business_name.' is '.strtolower($agentContent['label']).' and your latest operating signals are below.');
     @endphp
 
     <div class="customer-dashboard-shell">

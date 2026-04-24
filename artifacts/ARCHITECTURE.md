@@ -1080,6 +1080,7 @@ Notable current additions:
 - Tenant skill assignment controls runtime eligibility, not physical installation. Already-installed skill folders may remain on the tenant runtime after unassign, but Sync360 must remove the skill from agent allowlists and write `skills.entries.<skill>.enabled = false` so OpenClaw stops treating it as eligible. Any tenant-level helper instructions about assigned skills must be generated from the current enabled assignments and disappear again when a skill is unassigned.
 - Tenant skill guidance is generated into `.openclaw/workspace/AGENTS.md`, not persisted as a manual prompt override. The `Assigned Skill Guidance` section is composed from the currently enabled tenant skill assignments, appears when one or more skills are assigned, disappears when none are assigned, and is exposed in the admin `Agent Runtime` preview as a generated read-only file so operators can inspect the effective guidance.
 - Tenant runtime skill discovery is diagnostic, not authoritative. Assignment and rollout still come from `SkillCatalogItem`, `SkillCatalogVersion`, `TenantSkillAssignment`, and the existing tenant customization/apply pipeline.
+- Customer dashboard expired-trial rendering is intentionally split by role: the page-level banner owns the critical account message, the health rail carries compact state only, and the runway panel becomes the recovery/action surface. The same `trial ended` sentence should not be repeated across all three layers.
 
 ## 12. Code map for contributors
 

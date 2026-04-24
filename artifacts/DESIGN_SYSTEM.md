@@ -75,6 +75,7 @@ Customer UI may be more expressive:
 - impact/analytics cards should use estimated wording when metrics come from Sync360-authored defaults rather than measured tenant workflow data
 - compact skill reassurance cards may appear near the top of the dashboard when a feature is enabled and active for that tenant; these should stay small, use one primary status, one short note, one lightweight value line, and only one CTA when something needs attention
 - the customer dashboard should now be outcomes-first: use a tight hero, a four-card health rail (`Assistant`, `Workspace`, `Trial`, `Inbox`), then analytical panels for performance, trial runway, top skills, and inbox performance
+- for expired trial state, use a single global urgent banner as the loud message; demote the health rail to compact status (`Paused`, `Expired`) and make the runway panel action-oriented instead of repeating the same alarm copy
 - remove profile-heavy content (`Your Business`, contact details, industry, module lists) from the dashboard; that material belongs on the profile/settings surface
 - do not show completed onboarding as a large dashboard panel; only surface setup progress when onboarding is incomplete, and prefer a compact step wizard instead of a full meta list
 
