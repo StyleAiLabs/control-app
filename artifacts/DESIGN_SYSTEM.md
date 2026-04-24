@@ -1,6 +1,6 @@
 # Sync360 Design System
 
-Last verified: `2026-04-23`
+Last verified: `2026-04-24`
 
 This document is the canonical design-system reference for the Sync360 Control App. It describes the current code-backed UI system used by the Blade surfaces in this repo.
 
@@ -26,6 +26,8 @@ Implementation status, 2026-04-19: the shared app and guest layouts now load `DM
 
 - Customer clarity first. Product screens should explain what is ready, blocked, or next without exposing backend implementation details.
 - Calm control plane. Admin screens can be dense, but hierarchy should remain readable and operational actions should be easy to scan.
+- Scan hierarchy before truncation. In operational tables, keep tenant identity and primary risk signals readable first; collapse or truncate secondary metadata only after the main comparison targets remain recognizable.
+- Compress secondary admin summary UI. Summary strips above dense tables should stay compact and supportive; they are there to orient triage, not compete with the table itself.
 - Brand warmth with restraint. Use Sync360 orange, soft surfaces, rounded panels, and direct language without making every element loud.
 - Typography carries hierarchy. Use `DM Sans` for the product voice and reserve `JetBrains Mono` for technical precision.
 - Semantic components over one-off styling. Prefer shared classes such as `panel`, `badge`, `type-label`, and `type-value--technical` over repeated inline font, spacing, and tracking rules.
@@ -96,6 +98,9 @@ For skill-version UX, tenant admin cards must distinguish `assigned version` fro
 - Use `DM Sans` by default.
 - Use `JetBrains Mono` only for technical values.
 - Use badges for compact status, not for long explanations.
+- For multi-part operational systems such as Google, health, and workspace state, prefer icon + label state rows over stacking several equal-weight badges inside one cell.
+- In dense admin comparison tables, clamp secondary notes to a single line wherever the detail page already holds the full explanation.
+- Use explicit but quiet row-open affordances such as a subtle chevron chip when an entire table row is clickable.
 - Use notes for guidance, blockers, and warnings.
 - Use panels/cards to group a single decision area or data set.
 - When an analytics metric is undefined, omit the card/row instead of showing a misleading zero value.

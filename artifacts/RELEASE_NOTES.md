@@ -7,6 +7,26 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-24 — Improvement: Admin Tenants Scan-First Refactor
+
+Date: 2026-04-24
+Status: Implemented
+
+### Overview
+
+Refactored the admin tenants list so operators can identify tenants, runtime placement, and the main risk signals before secondary strings start truncating.
+
+### What Changed
+
+- added a compact summary strip above `admin/tenants` for tenant count, attention count, and workspace-not-running count
+- reshaped the tenant list from a nine-column matrix into a seven-column scan-first table with `Tenant`, `Runtime`, `Provisioning`, `Google`, `Agent`, `Trial`, and `Health`
+- grouped workspace URL under runtime placement instead of giving workspace a separate low-width column
+- replaced stacked Google and health/workspace badges with icon + label state rows so multi-part status is easier to compare across rows
+- added a subtle chevron row affordance to make tenant detail navigation clearer without adding a noisy action column
+- compressed the summary strip and shortened its copy so it supports triage without visually outweighing the table
+- tightened dense state-row spacing, clamped secondary Google/health notes to one line, and softened repeated trial urgency badges to keep row heights more consistent
+- documented the canonical design-system rule that dense admin tables should prioritize scan hierarchy before truncating secondary metadata
+
 ## 2026-04-23 — Feature: DaisyUI Design System PoC
 
 Date: 2026-04-23
