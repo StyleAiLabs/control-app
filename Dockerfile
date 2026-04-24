@@ -36,10 +36,25 @@ RUN composer install \
     --optimize-autoloader \
     --no-scripts
 
+FROM node:22-bookworm-slim AS frontend
+
+WORKDIR /var/www/html
+
+COPY package.json package-lock.json ./
+
+RUN npm ci
+
+COPY resources ./resources
+COPY public ./public
+COPY vite.config.js ./
+
+RUN npm run build
+
 FROM base AS production
 
 COPY . /var/www/html
 COPY --from=vendor /var/www/html/vendor /var/www/html/vendor
+COPY --from=frontend /var/www/html/public/build /var/www/html/public/build
 
 RUN chmod +x \
     docker/start-app.sh \
