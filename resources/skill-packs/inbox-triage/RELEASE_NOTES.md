@@ -1,5 +1,8 @@
 # Inbox Triage — Release Notes
 
+## 1.5.9
+- updated as a core module
+
 ## 1.5.8
 
 - Added Google Sheets qualified-lead logging to an auto-managed `Sync360 Inbox Triage Qualified Leads` spreadsheet and `Qualified Leads` tab.
