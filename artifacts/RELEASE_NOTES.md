@@ -2102,6 +2102,24 @@ Notable changes:
 Verification:
 - `php artisan test tests/Unit/TenantWorkspaceDependencyHealthServiceTest.php tests/Feature/WorkspaceDependencyMonitorCommandTest.php tests/Feature/OnboardingFlowTest.php tests/Feature/DashboardFlowTest.php tests/Feature/TenantSetupFlowTest.php tests/Feature/ProfileFlowTest.php tests/Feature/AdminTenantCustomizationFlowTest.php tests/Feature/SystemHealthTest.php` passed
 
+## 2026-04-25 - Admin Trial Extension Control
+
+Date: 2026-04-25
+
+Summary:
+- Added an admin tenant action to extend a customer's trial by 7 days each time it is needed.
+
+Notable changes:
+- added `POST /admin/tenants/{tenant}/trial/extend` on the admin tenant surface
+- added an `Add 7 Days` action to the admin tenant overview trial panel
+- extending a future trial adds 7 days to the existing `trial_ends_at`
+- extending an expired trial reactivates it for 7 days from now
+- resetting an expired trial also clears stale 3-day / expired notification timestamps so time-based notices can fire again for the new end date
+- updated trial elapsed-percentage logic so the admin time meter reflects the extended trial window instead of assuming a fixed 14-day display
+
+Verification:
+- `php artisan test tests/Feature/AdminTenantOperationsTest.php tests/Feature/DashboardFlowTest.php tests/Feature/AdminTenantCustomizationFlowTest.php` passed
+
 ## 2026-04-11 - Production Deployment Packaging
 
 Date: 2026-04-11

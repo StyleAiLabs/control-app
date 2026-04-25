@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
+use Illuminate\Support\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -198,9 +199,11 @@ class Tenant extends Model
 
     public function trialTimePercent(): float
     {
-        $elapsed = (int) $this->created_at->diffInDays(now());
+        $endsAt = $this->trial_ends_at ?? $this->created_at->copy()->addDays(14);
+        $durationSeconds = max(1, $endsAt->diffInSeconds($this->created_at, absolute: true));
+        $elapsedSeconds = min($durationSeconds, max(0, $this->created_at->diffInSeconds(now(), absolute: false)));
 
-        return min(100.0, round($elapsed / 14 * 100, 1));
+        return min(100.0, round($elapsedSeconds / $durationSeconds * 100, 1));
     }
 
     public function trialUrgency(): string
@@ -212,5 +215,20 @@ class Tenant extends Model
             $pct >= 60 => 'warning',
             default    => 'ok',
         };
+    }
+
+    public function extendTrialByDays(int $days = 7): void
+    {
+        $baseEndsAt = $this->trial_ends_at ?? $this->created_at->copy()->addDays(14);
+        $newEndsAt = $baseEndsAt->isFuture()
+            ? $baseEndsAt->copy()->addDays($days)
+            : now()->addDays($days);
+
+        $this->forceFill([
+            'trial_status' => TrialStatus::Active,
+            'trial_ends_at' => $newEndsAt,
+            'trial_3day_notified_at' => null,
+            'trial_expired_notified_at' => null,
+        ])->save();
     }
 }

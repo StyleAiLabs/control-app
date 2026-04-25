@@ -78,6 +78,7 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/deploy/control-app/status', [AdminController::class, 'controlAppDeployStatus'])->name('deploy.control-app.status');
         Route::post('/deploy/control-app', [AdminController::class, 'triggerControlAppDeploy'])->name('deploy.control-app');
         Route::post('/jobs/{tenant}/retry', [AdminController::class, 'retry'])->name('retry');
+        Route::post('/tenants/{tenant}/trial/extend', [AdminController::class, 'extendTrial'])->name('tenants.trial.extend');
         Route::post('/tenants/{tenant}/health-check', [AdminController::class, 'healthCheck'])->name('tenants.health-check');
         Route::post('/tenants/{tenant}/resync-agent', [AdminController::class, 'resyncAgent'])->name('tenants.resync-agent');
         Route::post('/tenants/{tenant}/runtime/bootstrap', [AdminController::class, 'bootstrapRuntimeHost'])->name('tenants.runtime.bootstrap');

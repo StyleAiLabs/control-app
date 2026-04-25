@@ -265,6 +265,18 @@ class AdminController extends Controller
         return $this->redirectToTenantShow($request, $tenant, 'support', 'Provisioning retry queued.');
     }
 
+    public function extendTrial(Request $request, Tenant $tenant): RedirectResponse
+    {
+        $tenant->extendTrialByDays(7);
+
+        return $this->redirectToTenantShow(
+            $request,
+            $tenant->fresh(),
+            'overview',
+            sprintf('Extended trial by 7 days. New end date: %s.', $tenant->fresh()->trial_ends_at?->toDateTimeString() ?? 'not set')
+        );
+    }
+
     public function startWorkspace(Request $request, Tenant $tenant): RedirectResponse
     {
         try {

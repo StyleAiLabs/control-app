@@ -151,6 +151,7 @@ class AdminTenantOperationsTest extends TestCase
 
         $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'overview']))
             ->assertOk()
+            ->assertSee('Add 7 Days')
             ->assertSee('class="badge badge--technical', false)
             ->assertSee('class="type-value type-value--technical"', false)
             ->assertSee('class="type-label"', false);
@@ -286,5 +287,101 @@ class AdminTenantOperationsTest extends TestCase
 
         $this->assertNotNull($queuedJob);
         $this->assertSame('queued', $queuedJob?->status?->value);
+    }
+
+    public function test_admin_can_extend_active_tenant_trial_by_seven_days(): void
+    {
+        Carbon::setTestNow('2026-04-25 10:00:00');
+
+        $admin = User::query()->create([
+            'name' => 'Debug Admin',
+            'email' => 'admin@example.com',
+            'password' => 'super-secret',
+            'is_admin' => true,
+        ]);
+
+        $user = User::query()->create([
+            'name' => 'Customer User',
+            'email' => 'customer@example.com',
+            'password' => 'super-secret',
+            'is_admin' => false,
+        ]);
+
+        $tenant = Tenant::query()->create([
+            'tenant_id' => 'tenant_trial_extend_01',
+            'slug' => 'trial-extend-shop',
+            'business_name' => 'Trial Extend Shop',
+            'industry' => 'Retail',
+            'skill_pack' => 'Client Support',
+            'user_id' => $user->id,
+            'server_id' => Server::query()->firstOrFail()->id,
+            'trial_status' => TrialStatus::Active,
+            'trial_ends_at' => Carbon::parse('2026-04-30 10:00:00'),
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+        ]);
+
+        $this->actingAs($admin);
+
+        $this->post(route('admin.tenants.trial.extend', $tenant), [
+            'return_tab' => 'overview',
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'overview']))
+            ->assertSessionHas('status', 'Extended trial by 7 days. New end date: 2026-05-07 10:00:00.');
+
+        $tenant->refresh();
+
+        $this->assertSame(TrialStatus::Active, $tenant->trial_status);
+        $this->assertSame('2026-05-07 10:00:00', $tenant->trial_ends_at?->toDateTimeString());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_admin_can_reactivate_expired_trial_for_seven_days_and_reset_expiry_warnings(): void
+    {
+        Carbon::setTestNow('2026-04-25 10:00:00');
+
+        $admin = User::query()->create([
+            'name' => 'Debug Admin',
+            'email' => 'admin@example.com',
+            'password' => 'super-secret',
+            'is_admin' => true,
+        ]);
+
+        $user = User::query()->create([
+            'name' => 'Customer User',
+            'email' => 'customer@example.com',
+            'password' => 'super-secret',
+            'is_admin' => false,
+        ]);
+
+        $tenant = Tenant::query()->create([
+            'tenant_id' => 'tenant_trial_extend_02',
+            'slug' => 'expired-trial-shop',
+            'business_name' => 'Expired Trial Shop',
+            'industry' => 'Retail',
+            'skill_pack' => 'Client Support',
+            'user_id' => $user->id,
+            'server_id' => Server::query()->firstOrFail()->id,
+            'trial_status' => TrialStatus::Expired,
+            'trial_ends_at' => Carbon::parse('2026-04-20 10:00:00'),
+            'trial_3day_notified_at' => Carbon::parse('2026-04-17 10:00:00'),
+            'trial_expired_notified_at' => Carbon::parse('2026-04-20 10:30:00'),
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+        ]);
+
+        $this->actingAs($admin);
+
+        $this->post(route('admin.tenants.trial.extend', $tenant), [
+            'return_tab' => 'overview',
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'overview']))
+            ->assertSessionHas('status', 'Extended trial by 7 days. New end date: 2026-05-02 10:00:00.');
+
+        $tenant->refresh();
+
+        $this->assertSame(TrialStatus::Active, $tenant->trial_status);
+        $this->assertSame('2026-05-02 10:00:00', $tenant->trial_ends_at?->toDateTimeString());
+        $this->assertNull($tenant->trial_3day_notified_at);
+        $this->assertNull($tenant->trial_expired_notified_at);
+
+        Carbon::setTestNow();
     }
 }

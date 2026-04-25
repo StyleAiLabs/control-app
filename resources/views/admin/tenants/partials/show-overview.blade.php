@@ -92,6 +92,11 @@
 
 <x-ui.panel title="Trial & AI Usage" description="Trial expiry, cached LiteLLM spend, and notification checkpoints.">
     <x-slot:actions>
+        <form method="POST" action="{{ route('admin.tenants.trial.extend', $tenant) }}" class="inline">
+            @csrf
+            <input type="hidden" name="return_tab" value="overview">
+            <x-ui.button type="submit" size="sm" icon="calendar-plus" variant="secondary">Add 7 Days</x-ui.button>
+        </form>
         @if ($tenant->isTrialExpired())
             <x-ui.badge status="expired">trial expired</x-ui.badge>
         @else
@@ -109,6 +114,9 @@
                 'warning'  => 'var(--color-warning)',
                 default    => 'var(--color-success)',
             };
+            $trialEndsAt = $tenant->trial_ends_at ?? $tenant->created_at->copy()->addDays(14);
+            $trialDurationDays = max(1, (int) ceil($tenant->created_at->diffInSeconds($trialEndsAt, absolute: true) / 86400));
+            $trialElapsedDays = min($trialDurationDays, max(0, (int) floor($tenant->created_at->diffInSeconds(now(), absolute: false) / 86400)));
         @endphp
         <div class="sync-poc-subpanel">
             <div style="display:flex; justify-content:space-between; gap:12px; font-size:0.82rem; color:color-mix(in oklch, var(--color-base-content) 58%, transparent); margin-bottom:5px;">
@@ -122,7 +130,7 @@
         <div class="sync-poc-subpanel" style="margin-top: 14px;">
             <div style="display:flex; justify-content:space-between; gap:12px; font-size:0.82rem; color:color-mix(in oklch, var(--color-base-content) 58%, transparent); margin-bottom:5px;">
                 <span>Time</span>
-                <span>{{ min(14, (int) $tenant->created_at->diffInDays(now())) }} of 14 days elapsed — {{ $tenant->trialDaysLeft() }} remaining</span>
+                <span>{{ $trialElapsedDays }} of {{ $trialDurationDays }} days elapsed — {{ $tenant->trialDaysLeft() }} remaining</span>
             </div>
             <div style="background:color-mix(in oklch, var(--color-base-content) 8%, transparent);border-radius:999px;height:8px;overflow:hidden;">
                 <div style="background:{{ $urgencyColor }};width:{{ min(100,$tenant->trialTimePercent()) }}%;height:100%;border-radius:999px;"></div>
