@@ -202,7 +202,7 @@
             <div style="display:flex; justify-content:space-between; gap:12px; align-items:start; flex-wrap:wrap;">
                 <div>
                     <h3 class="type-section-title" style="margin-top:0; font-size:1.12rem;">Runtime Apply Progress</h3>
-                    <div class="hint" style="margin-top:6px;">Apply runs as a background job. We refresh this panel automatically while the tenant runtime job is queued or running.</div>
+                    <div class="hint" style="margin-top:6px;">Apply runs first, then rollout-triggered live workspace resync runs as a follow-up stage when needed. We refresh this panel automatically while either stage is queued or running.</div>
                 </div>
             </div>
 
@@ -234,6 +234,29 @@
                     </div>
                     <div class="hint" style="margin-top:10px; color:#b45309; {{ $progressJob['error_message'] ? '' : 'display:none;' }}" data-role="error">
                         {{ $progressJob['error_message'] ?? '' }}
+                    </div>
+                    <div style="margin-top:14px; {{ ($tenantSkillProgress['auto_resync_job'] ?? null) ? '' : 'display:none;' }}" data-role="auto-resync-block">
+                        @if (($tenantSkillProgress['auto_resync_job'] ?? null) !== null)
+                            @php
+                                $autoResyncJob = $tenantSkillProgress['auto_resync_job'];
+                            @endphp
+                            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                                <x-ui.badge :status="$autoResyncJob['status']" technical data-role="auto-resync-status-badge">{{ $autoResyncJob['status'] }}</x-ui.badge>
+                                <span class="hint" data-role="auto-resync-detail">Auto-resync job #{{ $autoResyncJob['id'] ?? '—' }}</span>
+                            </div>
+                            <div class="hint" style="margin-top:10px;" data-role="auto-resync-timing">
+                                @if ($autoResyncJob['completed_at'])
+                                    Completed {{ $autoResyncJob['completed_at'] }}
+                                @elseif ($autoResyncJob['started_at'])
+                                    Started {{ $autoResyncJob['started_at'] }}
+                                @else
+                                    Waiting for the worker to start the workspace resync.
+                                @endif
+                            </div>
+                            <div class="hint" style="margin-top:10px; color:#b45309; {{ $autoResyncJob['error_message'] ? '' : 'display:none;' }}" data-role="auto-resync-error">
+                                {{ $autoResyncJob['error_message'] ?? '' }}
+                            </div>
+                        @endif
                     </div>
                 @else
                     <div class="hint" data-role="empty-state">No tenant runtime apply job has been queued yet from this screen.</div>
@@ -323,17 +346,26 @@
 
             const renderProgress = (payload) => {
                 const job = payload?.job ?? null;
+                const autoResyncJob = payload?.auto_resync_job ?? null;
                 const emptyState = progressEl.querySelector('[data-role="empty-state"]');
                 let badge = progressEl.querySelector('[data-role="status-badge"]');
                 let detail = progressEl.querySelector('[data-role="status-detail"]');
                 let timing = progressEl.querySelector('[data-role="timing"]');
                 let error = progressEl.querySelector('[data-role="error"]');
+                let autoResyncBlock = progressEl.querySelector('[data-role="auto-resync-block"]');
+                let autoResyncBadge = progressEl.querySelector('[data-role="auto-resync-status-badge"]');
+                let autoResyncDetail = progressEl.querySelector('[data-role="auto-resync-detail"]');
+                let autoResyncTiming = progressEl.querySelector('[data-role="auto-resync-timing"]');
+                let autoResyncError = progressEl.querySelector('[data-role="auto-resync-error"]');
 
                 if (!job) {
                     if (badge) badge.remove();
                     if (detail) detail.remove();
                     if (timing) timing.remove();
                     if (error) error.remove();
+                    if (autoResyncBlock) {
+                        autoResyncBlock.remove();
+                    }
 
                     if (!emptyState) {
                         const node = document.createElement('div');
@@ -402,6 +434,71 @@
 
                 error.textContent = job.error_message ?? '';
                 error.style.display = job.error_message ? '' : 'none';
+
+                if (autoResyncJob) {
+                    if (!autoResyncBlock) {
+                        autoResyncBlock = document.createElement('div');
+                        autoResyncBlock.style.marginTop = '14px';
+                        autoResyncBlock.dataset.role = 'auto-resync-block';
+                        progressEl.appendChild(autoResyncBlock);
+                    }
+
+                    if (!autoResyncBadge || !autoResyncDetail) {
+                        const header = document.createElement('div');
+                        header.style.display = 'flex';
+                        header.style.gap = '10px';
+                        header.style.flexWrap = 'wrap';
+                        header.style.alignItems = 'center';
+
+                        autoResyncBadge = document.createElement('span');
+                        autoResyncBadge.dataset.role = 'auto-resync-status-badge';
+                        autoResyncBadge.className = 'badge badge--technical dui-badge dui-badge-sm whitespace-nowrap font-bold uppercase tracking-[0.035em]';
+                        header.appendChild(autoResyncBadge);
+
+                        autoResyncDetail = document.createElement('span');
+                        autoResyncDetail.dataset.role = 'auto-resync-detail';
+                        autoResyncDetail.className = 'hint';
+                        header.appendChild(autoResyncDetail);
+
+                        autoResyncBlock.appendChild(header);
+                    }
+
+                    autoResyncBadge.className = `badge badge--technical dui-badge dui-badge-sm whitespace-nowrap font-bold uppercase tracking-[0.035em] ${autoResyncJob.status}`;
+                    autoResyncBadge.textContent = autoResyncJob.status;
+                    autoResyncDetail.textContent = `Auto-resync job #${autoResyncJob.id ?? '—'}`;
+
+                    if (!autoResyncTiming) {
+                        autoResyncTiming = document.createElement('div');
+                        autoResyncTiming.className = 'hint';
+                        autoResyncTiming.style.marginTop = '10px';
+                        autoResyncTiming.dataset.role = 'auto-resync-timing';
+                        autoResyncBlock.appendChild(autoResyncTiming);
+                    }
+
+                    if (autoResyncJob.completed_at) {
+                        autoResyncTiming.textContent = `Completed ${autoResyncJob.completed_at}`;
+                    } else if (autoResyncJob.started_at) {
+                        autoResyncTiming.textContent = `Started ${autoResyncJob.started_at}`;
+                    } else {
+                        autoResyncTiming.textContent = 'Waiting for the worker to start the workspace resync.';
+                    }
+
+                    if (!autoResyncError) {
+                        autoResyncError = document.createElement('div');
+                        autoResyncError.className = 'hint';
+                        autoResyncError.style.marginTop = '10px';
+                        autoResyncError.style.color = '#b45309';
+                        autoResyncError.dataset.role = 'auto-resync-error';
+                        autoResyncBlock.appendChild(autoResyncError);
+                    }
+
+                    autoResyncError.textContent = autoResyncJob.error_message ?? '';
+                    autoResyncError.style.display = autoResyncJob.error_message ? '' : 'none';
+                    autoResyncBlock.style.display = '';
+                } else if (autoResyncBlock) {
+                    autoResyncBlock.style.display = 'none';
+                }
+
                 shouldPoll = Boolean(payload?.should_poll);
             };
 

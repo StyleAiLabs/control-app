@@ -8,6 +8,7 @@ use App\Enums\TenantProvisioningStatus;
 use App\Jobs\ApplyTenantAgentCustomization;
 use App\Jobs\ProcessInitialGoogleWorkspaceSync;
 use App\Jobs\ProcessTenantProvisioning;
+use App\Jobs\ResyncLiveTenantWorkspaceAfterSkillRollout;
 use App\Models\ProvisioningJob;
 use App\Models\SkillCatalogItem;
 use App\Models\SkillCatalogVersion;
@@ -855,7 +856,7 @@ class AdminController extends Controller
         return redirect()
             ->route('admin.skills.show', $skill)
             ->with('status', sprintf(
-                'Queued rollout of %s v%s to %d outdated tenant%s. Runtime apply jobs started automatically.',
+                'Queued rollout of %s v%s to %d outdated tenant%s. Runtime apply jobs started automatically, and live workspace-managed tenants will resync their workspace files after apply completes.',
                 $skill->label,
                 $version->version,
                 count($tenantIds),
@@ -1601,16 +1602,21 @@ class AdminController extends Controller
      * @return array{
      *     tenant_id:int,
      *     should_poll:bool,
-     *     job:?array<string, mixed>
+     *     job:?array<string, mixed>,
+     *     auto_resync_job:?array<string, mixed>
      * }
      */
     private function tenantSkillProgressPayload(Tenant $tenant): array
     {
         $job = $this->latestTenantApplyJob($tenant);
+        $autoResyncJob = $this->latestTenantAutoResyncJob($tenant);
 
         return [
             'tenant_id' => $tenant->id,
             'should_poll' => in_array($job?->status?->value, [
+                ProvisioningJobStatus::Queued->value,
+                ProvisioningJobStatus::Running->value,
+            ], true) || in_array($autoResyncJob?->status?->value, [
                 ProvisioningJobStatus::Queued->value,
                 ProvisioningJobStatus::Running->value,
             ], true),
@@ -1623,6 +1629,14 @@ class AdminController extends Controller
                 'completed_at' => $job->completed_at?->toDateTimeString(),
                 'error_message' => $job->error_message,
             ] : null,
+            'auto_resync_job' => $autoResyncJob ? [
+                'id' => $autoResyncJob->id,
+                'status' => $autoResyncJob->status->value,
+                'source' => (string) data_get($autoResyncJob->payload_json, 'source', 'skill_rollout_auto_resync'),
+                'started_at' => $autoResyncJob->started_at?->toDateTimeString(),
+                'completed_at' => $autoResyncJob->completed_at?->toDateTimeString(),
+                'error_message' => $autoResyncJob->error_message,
+            ] : null,
         ];
     }
 
@@ -1631,6 +1645,15 @@ class AdminController extends Controller
         return ProvisioningJob::query()
             ->where('tenant_id', $tenant->id)
             ->where('job_type', ApplyTenantAgentCustomization::JOB_TYPE)
+            ->latest('id')
+            ->first();
+    }
+
+    private function latestTenantAutoResyncJob(Tenant $tenant): ?ProvisioningJob
+    {
+        return ProvisioningJob::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('job_type', ResyncLiveTenantWorkspaceAfterSkillRollout::JOB_TYPE)
             ->latest('id')
             ->first();
     }
@@ -1751,6 +1774,7 @@ class AdminController extends Controller
      *     total:int,
      *     should_poll:bool,
      *     counts:array<string, int>,
+     *     auto_resync_counts:array<string, int>,
      *     tenants:array<int, array<string, mixed>>
      * }
      */
@@ -1762,8 +1786,27 @@ class AdminController extends Controller
             ->orderBy('business_name')
             ->get()
             ->keyBy('id');
-        $jobsByTenantId = $this->latestRolloutJobsByTenant($skill, $version, $normalizedTenantIds);
+        $jobsByTenantId = $this->latestRolloutJobsByTenant(
+            $skill,
+            $version,
+            $normalizedTenantIds,
+            ApplyTenantAgentCustomization::JOB_TYPE,
+            'skill_rollout',
+        );
+        $autoResyncJobsByTenantId = $this->latestRolloutJobsByTenant(
+            $skill,
+            $version,
+            $normalizedTenantIds,
+            ResyncLiveTenantWorkspaceAfterSkillRollout::JOB_TYPE,
+            'skill_rollout_auto_resync',
+        );
         $counts = [
+            ProvisioningJobStatus::Queued->value => 0,
+            ProvisioningJobStatus::Running->value => 0,
+            ProvisioningJobStatus::Completed->value => 0,
+            ProvisioningJobStatus::Failed->value => 0,
+        ];
+        $autoResyncCounts = [
             ProvisioningJobStatus::Queued->value => 0,
             ProvisioningJobStatus::Running->value => 0,
             ProvisioningJobStatus::Completed->value => 0,
@@ -1774,8 +1817,13 @@ class AdminController extends Controller
         foreach ($normalizedTenantIds as $tenantId) {
             $tenant = $tenants->get($tenantId);
             $job = $jobsByTenantId[$tenantId] ?? null;
+            $autoResyncJob = $autoResyncJobsByTenantId[$tenantId] ?? null;
             $status = $job?->status?->value ?? ProvisioningJobStatus::Queued->value;
+            $autoResyncStatus = $autoResyncJob?->status?->value;
             $counts[$status] = ($counts[$status] ?? 0) + 1;
+            if (is_string($autoResyncStatus)) {
+                $autoResyncCounts[$autoResyncStatus] = ($autoResyncCounts[$autoResyncStatus] ?? 0) + 1;
+            }
 
             $rows[] = [
                 'tenant_id' => $tenantId,
@@ -1785,16 +1833,24 @@ class AdminController extends Controller
                 'error_message' => $job?->error_message,
                 'started_at' => $job?->started_at?->toDateTimeString(),
                 'completed_at' => $job?->completed_at?->toDateTimeString(),
+                'auto_resync_status' => $autoResyncStatus,
+                'auto_resync_error_message' => $autoResyncJob?->error_message,
+                'auto_resync_started_at' => $autoResyncJob?->started_at?->toDateTimeString(),
+                'auto_resync_completed_at' => $autoResyncJob?->completed_at?->toDateTimeString(),
                 'tenant_url' => $tenant ? route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'skills']) : null,
             ];
         }
+
+        $shouldPoll = ($counts[ProvisioningJobStatus::Queued->value] + $counts[ProvisioningJobStatus::Running->value]) > 0
+            || ($autoResyncCounts[ProvisioningJobStatus::Queued->value] + $autoResyncCounts[ProvisioningJobStatus::Running->value]) > 0;
 
         return [
             'version_id' => $version->id,
             'version' => $version->version,
             'total' => count($normalizedTenantIds),
-            'should_poll' => ($counts[ProvisioningJobStatus::Queued->value] + $counts[ProvisioningJobStatus::Running->value]) > 0,
+            'should_poll' => $shouldPoll,
             'counts' => $counts,
+            'auto_resync_counts' => $autoResyncCounts,
             'tenants' => $rows,
         ];
     }
@@ -1803,7 +1859,13 @@ class AdminController extends Controller
      * @param  list<int>  $tenantIds
      * @return array<int, ProvisioningJob>
      */
-    private function latestRolloutJobsByTenant(SkillCatalogItem $skill, SkillCatalogVersion $version, array $tenantIds): array
+    private function latestRolloutJobsByTenant(
+        SkillCatalogItem $skill,
+        SkillCatalogVersion $version,
+        array $tenantIds,
+        string $jobType,
+        string $source,
+    ): array
     {
         if ($tenantIds === []) {
             return [];
@@ -1811,7 +1873,7 @@ class AdminController extends Controller
 
         $jobs = ProvisioningJob::query()
             ->whereIn('tenant_id', $tenantIds)
-            ->where('job_type', ApplyTenantAgentCustomization::JOB_TYPE)
+            ->where('job_type', $jobType)
             ->latest('id')
             ->get();
         $matches = [];
@@ -1823,7 +1885,7 @@ class AdminController extends Controller
 
             $payload = is_array($job->payload_json) ? $job->payload_json : [];
 
-            if (($payload['source'] ?? null) !== 'skill_rollout') {
+            if (($payload['source'] ?? null) !== $source) {
                 continue;
             }
 

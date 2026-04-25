@@ -7,6 +7,7 @@ use App\Enums\ProvisioningJobStatus;
 use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
 use App\Jobs\ApplyTenantAgentCustomization;
+use App\Jobs\ResyncLiveTenantWorkspaceAfterSkillRollout;
 use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
 use App\Models\ProvisioningJob;
@@ -19,6 +20,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class ApplyTenantAgentCustomizationJobTest extends TestCase
@@ -308,6 +310,217 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
                 && str_contains($command, 'sync360-apply-shop')
                 && str_contains($command, 'log-skill-conversion --init-only')
         ));
+    }
+
+    public function test_successful_live_skill_rollout_apply_queues_follow_up_workspace_resync(): void
+    {
+        Queue::fake([ResyncLiveTenantWorkspaceAfterSkillRollout::class]);
+
+        [$tenant] = $this->seedTenantAndCustomization();
+        config()->set('sync360.infrastructure.driver', 'ssh');
+
+        $runner = new class implements DockerComposeRunner
+        {
+            public function syncRuntime(\App\Models\Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
+            public function syncWorkspaceFiles(\App\Models\Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void {}
+            public function httpRequest(\App\Models\Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15, array $headers = []): array { return ['status' => 200, 'body' => '']; }
+            public function putFile(\App\Models\Server $server, string $remotePath, string $contents, bool $sudo = false): void {}
+            public function removeFile(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function removeDirectory(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function runCommand(\App\Models\Server $server, string $command, bool $sudo = false): void {}
+            public function up(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function down(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function start(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function stop(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function isRunning(\App\Models\Server $server, string $composeFile, string $projectName): bool { return false; }
+            public function isHostPortInUse(\App\Models\Server $server, int $port): bool { return false; }
+            public function waitForHttpReady(\App\Models\Server $server, string $url, int $timeoutSeconds, int $pollIntervalMs): void {}
+        };
+
+        $this->instance(DockerComposeRunner::class, $runner);
+
+        $version = SkillCatalogVersion::query()->where('skill_key', 'hello-world')->firstOrFail();
+        $provisioningJob = ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Queued,
+            'payload_json' => [
+                'action' => TenantAgentCustomizationApply::ACTION_APPLY,
+                'source' => 'skill_rollout',
+                'skill_key' => 'hello-world',
+                'skill_catalog_version_id' => $version->id,
+            ],
+        ]);
+
+        $job = new ApplyTenantAgentCustomization($tenant->id, $provisioningJob->id, TenantAgentCustomizationApply::ACTION_APPLY);
+        $job->handle(
+            app(\App\Services\TenantAgentCustomizationService::class),
+            app(\App\Services\TenantRuntimeCustomizationComposer::class),
+        );
+
+        Queue::assertPushed(ResyncLiveTenantWorkspaceAfterSkillRollout::class, function (ResyncLiveTenantWorkspaceAfterSkillRollout $job) use ($tenant, $version): bool {
+            return $job->tenantId === $tenant->id
+                && $job->skillKey === 'hello-world'
+                && $job->skillCatalogVersionId === $version->id
+                && $job->sourceProvisioningJobId > 0;
+        });
+    }
+
+    public function test_non_rollout_apply_does_not_queue_follow_up_workspace_resync(): void
+    {
+        Queue::fake([ResyncLiveTenantWorkspaceAfterSkillRollout::class]);
+
+        [$tenant] = $this->seedTenantAndCustomization();
+        config()->set('sync360.infrastructure.driver', 'ssh');
+
+        $runner = new class implements DockerComposeRunner
+        {
+            public function syncRuntime(\App\Models\Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
+            public function syncWorkspaceFiles(\App\Models\Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void {}
+            public function httpRequest(\App\Models\Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15, array $headers = []): array { return ['status' => 200, 'body' => '']; }
+            public function putFile(\App\Models\Server $server, string $remotePath, string $contents, bool $sudo = false): void {}
+            public function removeFile(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function removeDirectory(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function runCommand(\App\Models\Server $server, string $command, bool $sudo = false): void {}
+            public function up(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function down(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function start(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function stop(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function isRunning(\App\Models\Server $server, string $composeFile, string $projectName): bool { return false; }
+            public function isHostPortInUse(\App\Models\Server $server, int $port): bool { return false; }
+            public function waitForHttpReady(\App\Models\Server $server, string $url, int $timeoutSeconds, int $pollIntervalMs): void {}
+        };
+
+        $this->instance(DockerComposeRunner::class, $runner);
+
+        $version = SkillCatalogVersion::query()->where('skill_key', 'hello-world')->firstOrFail();
+        $provisioningJob = ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Queued,
+            'payload_json' => [
+                'action' => TenantAgentCustomizationApply::ACTION_APPLY,
+                'source' => 'tenant_apply',
+                'skill_key' => 'hello-world',
+                'skill_catalog_version_id' => $version->id,
+            ],
+        ]);
+
+        $job = new ApplyTenantAgentCustomization($tenant->id, $provisioningJob->id, TenantAgentCustomizationApply::ACTION_APPLY);
+        $job->handle(
+            app(\App\Services\TenantAgentCustomizationService::class),
+            app(\App\Services\TenantRuntimeCustomizationComposer::class),
+        );
+
+        Queue::assertNothingPushed();
+    }
+
+    public function test_non_live_rollout_apply_does_not_queue_follow_up_workspace_resync(): void
+    {
+        Queue::fake([ResyncLiveTenantWorkspaceAfterSkillRollout::class]);
+
+        [$tenant] = $this->seedTenantAndCustomization();
+        config()->set('sync360.infrastructure.driver', 'ssh');
+
+        $runner = new class implements DockerComposeRunner
+        {
+            public function syncRuntime(\App\Models\Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
+            public function syncWorkspaceFiles(\App\Models\Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void {}
+            public function httpRequest(\App\Models\Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15, array $headers = []): array { return ['status' => 200, 'body' => '']; }
+            public function putFile(\App\Models\Server $server, string $remotePath, string $contents, bool $sudo = false): void {}
+            public function removeFile(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function removeDirectory(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function runCommand(\App\Models\Server $server, string $command, bool $sudo = false): void {}
+            public function up(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function down(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function start(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function stop(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function isRunning(\App\Models\Server $server, string $composeFile, string $projectName): bool { return false; }
+            public function isHostPortInUse(\App\Models\Server $server, int $port): bool { return false; }
+            public function waitForHttpReady(\App\Models\Server $server, string $url, int $timeoutSeconds, int $pollIntervalMs): void {}
+        };
+
+        $this->instance(DockerComposeRunner::class, $runner);
+
+        $tenant->forceFill([
+            'agent_status' => 'offline',
+        ])->save();
+
+        $version = SkillCatalogVersion::query()->where('skill_key', 'hello-world')->firstOrFail();
+        $provisioningJob = ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Queued,
+            'payload_json' => [
+                'action' => TenantAgentCustomizationApply::ACTION_APPLY,
+                'source' => 'skill_rollout',
+                'skill_key' => 'hello-world',
+                'skill_catalog_version_id' => $version->id,
+            ],
+        ]);
+
+        $job = new ApplyTenantAgentCustomization($tenant->id, $provisioningJob->id, TenantAgentCustomizationApply::ACTION_APPLY);
+        $job->handle(
+            app(\App\Services\TenantAgentCustomizationService::class),
+            app(\App\Services\TenantRuntimeCustomizationComposer::class),
+        );
+
+        Queue::assertNothingPushed();
+    }
+
+    public function test_non_workspace_runtime_rollout_apply_does_not_queue_follow_up_workspace_resync(): void
+    {
+        Queue::fake([ResyncLiveTenantWorkspaceAfterSkillRollout::class]);
+
+        [$tenant] = $this->seedTenantAndCustomization();
+        config()->set('sync360.infrastructure.driver', 'ssh');
+
+        $runner = new class implements DockerComposeRunner
+        {
+            public function syncRuntime(\App\Models\Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
+            public function syncWorkspaceFiles(\App\Models\Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void {}
+            public function httpRequest(\App\Models\Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15, array $headers = []): array { return ['status' => 200, 'body' => '']; }
+            public function putFile(\App\Models\Server $server, string $remotePath, string $contents, bool $sudo = false): void {}
+            public function removeFile(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function removeDirectory(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function runCommand(\App\Models\Server $server, string $command, bool $sudo = false): void {}
+            public function up(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function down(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function start(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function stop(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function isRunning(\App\Models\Server $server, string $composeFile, string $projectName): bool { return false; }
+            public function isHostPortInUse(\App\Models\Server $server, int $port): bool { return false; }
+            public function waitForHttpReady(\App\Models\Server $server, string $url, int $timeoutSeconds, int $pollIntervalMs): void {}
+        };
+
+        $this->instance(DockerComposeRunner::class, $runner);
+
+        $version = SkillCatalogVersion::query()->where('skill_key', 'hello-world')->firstOrFail();
+        $version->forceFill([
+            'manifest_json' => array_merge($version->manifest_json ?? [], [
+                'runtime_type' => 'openclaw_native',
+            ]),
+        ])->save();
+
+        $provisioningJob = ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Queued,
+            'payload_json' => [
+                'action' => TenantAgentCustomizationApply::ACTION_APPLY,
+                'source' => 'skill_rollout',
+                'skill_key' => 'hello-world',
+                'skill_catalog_version_id' => $version->id,
+            ],
+        ]);
+
+        $job = new ApplyTenantAgentCustomization($tenant->id, $provisioningJob->id, TenantAgentCustomizationApply::ACTION_APPLY);
+        $job->handle(
+            app(\App\Services\TenantAgentCustomizationService::class),
+            app(\App\Services\TenantRuntimeCustomizationComposer::class),
+        );
+
+        Queue::assertNothingPushed();
     }
 
     public function test_remote_apply_failure_marks_job_failed_when_skill_analytics_initialization_fails(): void

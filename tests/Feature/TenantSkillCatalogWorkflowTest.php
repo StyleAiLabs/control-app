@@ -6,6 +6,7 @@ use App\Enums\ProvisioningJobStatus;
 use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
 use App\Jobs\ApplyTenantAgentCustomization;
+use App\Jobs\ResyncLiveTenantWorkspaceAfterSkillRollout;
 use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
 use App\Models\ProvisioningJob;
@@ -697,7 +698,7 @@ class TenantSkillCatalogWorkflowTest extends TestCase
                 'scope' => 'all_outdated',
             ])
             ->assertRedirect(route('admin.skills.show', 'hello-world'))
-            ->assertSessionHas('status', 'Queued rollout of Hello World (by Sync360) v1.1.0 to 2 outdated tenants. Runtime apply jobs started automatically.');
+            ->assertSessionHas('status', 'Queued rollout of Hello World (by Sync360) v1.1.0 to 2 outdated tenants. Runtime apply jobs started automatically, and live workspace-managed tenants will resync their workspace files after apply completes.');
 
         $this->assertSame($newVersion->id, \App\Models\TenantSkillAssignment::query()->where('tenant_id', $tenantA->id)->value('skill_catalog_version_id'));
         $this->assertSame($newVersion->id, \App\Models\TenantSkillAssignment::query()->where('tenant_id', $tenantB->id)->value('skill_catalog_version_id'));
@@ -784,6 +785,71 @@ class TenantSkillCatalogWorkflowTest extends TestCase
             ->assertJsonPath('counts.failed', 1)
             ->assertJsonPath('should_poll', true)
             ->assertJsonPath('tenants.1.error_message', 'Remote sync failed.');
+    }
+
+    public function test_skill_rollout_progress_endpoint_reports_auto_resync_stage_for_live_workspace_skills(): void
+    {
+        $admin = User::query()->create([
+            'name' => 'Admin',
+            'email' => 'rollout-autoresync@example.com',
+            'password' => 'secret',
+            'is_admin' => true,
+        ]);
+
+        $tenant = $this->seedTenant('progress-resync', 'Progress Resync');
+
+        $this->artisan('sync360:skills:import')->assertExitCode(0);
+
+        $oldVersion = SkillCatalogVersion::query()
+            ->where('skill_key', 'hello-world')
+            ->firstOrFail();
+        app(\App\Services\SkillCatalogService::class)->publishVersion($oldVersion);
+        $newVersion = $this->createSkillCatalogVersion('hello-world', '1.1.0');
+        app(\App\Services\SkillCatalogService::class)->publishVersion($newVersion);
+
+        \App\Models\TenantSkillAssignment::query()->create([
+            'tenant_id' => $tenant->id,
+            'skill_catalog_version_id' => $oldVersion->id,
+            'skill_key' => 'hello-world',
+            'assigned_by' => $admin->id,
+            'assigned_at' => now(),
+            'is_enabled' => true,
+        ]);
+
+        ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Completed,
+            'payload_json' => [
+                'action' => 'apply',
+                'source' => 'skill_rollout',
+                'skill_key' => 'hello-world',
+                'skill_catalog_version_id' => $newVersion->id,
+            ],
+            'completed_at' => now(),
+        ]);
+
+        ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ResyncLiveTenantWorkspaceAfterSkillRollout::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Queued,
+            'payload_json' => [
+                'source' => 'skill_rollout_auto_resync',
+                'skill_key' => 'hello-world',
+                'skill_catalog_version_id' => $newVersion->id,
+            ],
+        ]);
+
+        $this->actingAs($admin)
+            ->getJson(route('admin.skills.versions.rollout-progress', [
+                'skill' => 'hello-world',
+                'version' => $newVersion->id,
+                'tenant_ids' => implode(',', [$tenant->id]),
+            ]))
+            ->assertOk()
+            ->assertJsonPath('auto_resync_counts.queued', 1)
+            ->assertJsonPath('tenants.0.auto_resync_status', 'queued')
+            ->assertJsonPath('should_poll', true);
     }
 
     public function test_repo_import_marks_missing_repo_skills_as_orphaned_warnings(): void

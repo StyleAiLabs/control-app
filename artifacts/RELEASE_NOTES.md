@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-25 — Improvement: Auto-Resync Live Tenants After Skill Rollout
+
+Date: 2026-04-25
+Status: Implemented
+
+### Overview
+
+Skill rollout is now decision-complete for already-live tenants using workspace-managed skills. After rollout updates the assignment and the apply job succeeds, Sync360 automatically queues a follow-up workspace resync so the live tenant picks up the newly materialized skill files without requiring a separate manual repair command.
+
+### What Changed
+
+- added `ResyncLiveTenantWorkspaceAfterSkillRollout` as a dedicated queued follow-up stage with its own `ProvisioningJob`
+- updated `ApplyTenantAgentCustomization` to queue that job only when the source is an explicit skill rollout, the tenant is already live, and the assigned skill runtime type is `sync360_workspace`
+- reused the workspace-only profile sync path for the follow-up stage, keeping rollout resync away from `syncRuntime()` and full runtime reprovisioning
+- extended rollout progress and tenant skill progress payloads so operators can see apply and auto-resync as separate stages
+- updated the admin skill detail and tenant skill panels to describe and display the new auto-resync stage
+
 ## 2026-04-25 — Fix: Trial Extension Restores Exhausted AI Credit As A Top-Up
 
 Date: 2026-04-25

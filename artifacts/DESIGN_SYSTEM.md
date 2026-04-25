@@ -459,6 +459,8 @@ Tab hover states should be quiet. Hover may use a subtle neutral surface tint an
 
 Tenant-detail tab content should avoid mixing old raw `.panel`/`.button` markup with PoC wrappers. Use `<x-ui.button>` for form actions and links, `<x-ui.badge>` for status, `<x-ui.table>` for histories/event rows, and `.sync-poc-pre` for markdown previews, hashes, logs, and raw runtime command output.
 
+Multi-stage admin workflow panels should surface background pipeline stages separately instead of collapsing everything into one generic status. The current pattern is the skill rollout panel, which shows apply counts and auto-resync counts independently, and the tenant skills progress panel, which shows the rollout-triggered auto-resync as a second stage under the primary apply status.
+
 ### Tables
 
 Use tables for dense operational data where comparison across rows matters. The page topbar should carry the dataset name and plain-language scope. Avoid placing a duplicate table title immediately above the table; use the column headers and row content to do the work.

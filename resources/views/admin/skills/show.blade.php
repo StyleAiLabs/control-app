@@ -16,7 +16,7 @@
 
     <section class="panel" style="margin-bottom:18px;">
         <span class="eyebrow">Version Flow</span>
-        <div class="grid grid-3" style="margin-top:14px;">
+        <div class="grid grid-4" style="margin-top:14px;">
             <div style="padding:14px; border:1px solid var(--stroke); border-radius:14px; background:#fff;">
                 <strong>1. Publish</strong>
                 <div class="hint" style="margin-top:6px;">Publishing makes the catalog version assignable. It does not change any tenant assignments.</div>
@@ -28,6 +28,10 @@
             <div style="padding:14px; border:1px solid var(--stroke); border-radius:14px; background:#fff;">
                 <strong>3. Apply runtime</strong>
                 <div class="hint" style="margin-top:6px;">Rollout queues tenant runtime apply jobs automatically so the new assigned version is materialized.</div>
+            </div>
+            <div style="padding:14px; border:1px solid var(--stroke); border-radius:14px; background:#fff;">
+                <strong>4. Auto-resync live workspaces</strong>
+                <div class="hint" style="margin-top:6px;">After apply succeeds, live tenants with workspace-managed skills resync their materialized workspace files automatically.</div>
             </div>
         </div>
     </section>
@@ -103,7 +107,7 @@
                     <div>
                         <span class="eyebrow">Rollout</span>
                         <h3 style="margin-top:8px;">Roll out v{{ $version->version }}</h3>
-                        <p class="hint" style="margin-top:6px;">Only tenants already assigned this skill on an older version are eligible. Runtime apply jobs are queued automatically after rollout.</p>
+                        <p class="hint" style="margin-top:6px;">Only tenants already assigned this skill on an older version are eligible. Runtime apply jobs are queued automatically after rollout, and live workspace-managed tenants resync their workspace files after apply completes.</p>
                     </div>
                     <div style="display:flex; gap:8px; flex-wrap:wrap;">
                         <span class="badge badge--technical ready">{{ $rolloutSummary['tenants_on_version_count'] }} on version</span>
@@ -125,18 +129,29 @@
                             <span class="badge badge--technical ready" data-role="count-completed">completed {{ $rolloutProgress['counts']['completed'] ?? 0 }}</span>
                             <span class="badge badge--technical failed" data-role="count-failed">failed {{ $rolloutProgress['counts']['failed'] ?? 0 }}</span>
                         </div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px;">
+                            <span class="badge badge--technical queued" data-role="resync-count-queued">auto-resync queued {{ $rolloutProgress['auto_resync_counts']['queued'] ?? 0 }}</span>
+                            <span class="badge badge--technical running" data-role="resync-count-running">auto-resync running {{ $rolloutProgress['auto_resync_counts']['running'] ?? 0 }}</span>
+                            <span class="badge badge--technical ready" data-role="resync-count-completed">auto-resync completed {{ $rolloutProgress['auto_resync_counts']['completed'] ?? 0 }}</span>
+                            <span class="badge badge--technical failed" data-role="resync-count-failed">auto-resync failed {{ $rolloutProgress['auto_resync_counts']['failed'] ?? 0 }}</span>
+                        </div>
                         <div class="hint" style="margin-top:10px;" data-role="summary">
-                            Tracking {{ $rolloutProgress['total'] ?? 0 }} tenant rollout job{{ ($rolloutProgress['total'] ?? 0) === 1 ? '' : 's' }} for v{{ $version->version }}.
+                            Tracking apply and auto-resync stages for {{ $rolloutProgress['total'] ?? 0 }} tenant rollout{{ ($rolloutProgress['total'] ?? 0) === 1 ? '' : 's' }} for v{{ $version->version }}.
                         </div>
                         <div style="display:grid; gap:8px; margin-top:14px;" data-role="tenant-status-list">
                             @foreach (($rolloutProgress['tenants'] ?? []) as $tenantProgress)
                                 <div style="padding:10px 12px; border:1px solid var(--stroke); border-radius:12px; background:#fff;">
                                     <div style="display:flex; justify-content:space-between; gap:10px; align-items:start; flex-wrap:wrap;">
                                         <div>
-                                            <strong>{{ $tenantProgress['business_name'] }}</strong>
-                                            <div class="hint">{{ $tenantProgress['slug'] }}</div>
+                                                <strong>{{ $tenantProgress['business_name'] }}</strong>
+                                                <div class="hint">{{ $tenantProgress['slug'] }}</div>
+                                            </div>
+                                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                            <span class="badge badge--technical {{ $tenantProgress['status'] }}">{{ $tenantProgress['status'] }}</span>
+                                            @if ($tenantProgress['auto_resync_status'])
+                                                <span class="badge badge--technical {{ $tenantProgress['auto_resync_status'] }}">auto-resync {{ $tenantProgress['auto_resync_status'] }}</span>
+                                            @endif
                                         </div>
-                                        <span class="badge badge--technical {{ $tenantProgress['status'] }}">{{ $tenantProgress['status'] }}</span>
                                     </div>
                                     @if ($tenantProgress['error_message'])
                                         <div class="hint" style="margin-top:8px; color:#b45309;">{{ $tenantProgress['error_message'] }}</div>
@@ -144,6 +159,13 @@
                                         <div class="hint" style="margin-top:8px;">Completed {{ $tenantProgress['completed_at'] }}</div>
                                     @elseif ($tenantProgress['started_at'])
                                         <div class="hint" style="margin-top:8px;">Started {{ $tenantProgress['started_at'] }}</div>
+                                    @endif
+                                    @if ($tenantProgress['auto_resync_error_message'])
+                                        <div class="hint" style="margin-top:8px; color:#b45309;">Auto-resync: {{ $tenantProgress['auto_resync_error_message'] }}</div>
+                                    @elseif ($tenantProgress['auto_resync_completed_at'])
+                                        <div class="hint" style="margin-top:8px;">Auto-resync completed {{ $tenantProgress['auto_resync_completed_at'] }}</div>
+                                    @elseif ($tenantProgress['auto_resync_started_at'])
+                                        <div class="hint" style="margin-top:8px;">Auto-resync started {{ $tenantProgress['auto_resync_started_at'] }}</div>
                                     @endif
                                 </div>
                             @endforeach
@@ -245,9 +267,13 @@
                                 <strong>${escapeHtml(row.business_name)}</strong>
                                 <div class="hint">${escapeHtml(row.slug)}</div>
                             </div>
-                            <span class="badge badge--technical ${escapeHtml(row.status)}">${escapeHtml(row.status)}</span>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                <span class="badge badge--technical ${escapeHtml(row.status)}">${escapeHtml(row.status)}</span>
+                                ${row.auto_resync_status ? `<span class="badge badge--technical ${escapeHtml(row.auto_resync_status)}">auto-resync ${escapeHtml(row.auto_resync_status)}</span>` : ''}
+                            </div>
                         </div>
                         ${row.error_message ? `<div class="hint" style="margin-top:8px; color:#b45309;">${escapeHtml(row.error_message)}</div>` : row.completed_at ? `<div class="hint" style="margin-top:8px;">Completed ${escapeHtml(row.completed_at)}</div>` : row.started_at ? `<div class="hint" style="margin-top:8px;">Started ${escapeHtml(row.started_at)}</div>` : ''}
+                        ${row.auto_resync_error_message ? `<div class="hint" style="margin-top:8px; color:#b45309;">Auto-resync: ${escapeHtml(row.auto_resync_error_message)}</div>` : row.auto_resync_completed_at ? `<div class="hint" style="margin-top:8px;">Auto-resync completed ${escapeHtml(row.auto_resync_completed_at)}</div>` : row.auto_resync_started_at ? `<div class="hint" style="margin-top:8px;">Auto-resync started ${escapeHtml(row.auto_resync_started_at)}</div>` : ''}
                     </div>
                 `).join('');
             };
@@ -257,7 +283,11 @@
                 progressEl.querySelector('[data-role="count-running"]').textContent = `running ${payload.counts.running ?? 0}`;
                 progressEl.querySelector('[data-role="count-completed"]').textContent = `completed ${payload.counts.completed ?? 0}`;
                 progressEl.querySelector('[data-role="count-failed"]').textContent = `failed ${payload.counts.failed ?? 0}`;
-                progressEl.querySelector('[data-role="summary"]').textContent = `Tracking ${payload.total ?? 0} tenant rollout job${(payload.total ?? 0) === 1 ? '' : 's'} for v${payload.version}.`;
+                progressEl.querySelector('[data-role="resync-count-queued"]').textContent = `auto-resync queued ${payload.auto_resync_counts?.queued ?? 0}`;
+                progressEl.querySelector('[data-role="resync-count-running"]').textContent = `auto-resync running ${payload.auto_resync_counts?.running ?? 0}`;
+                progressEl.querySelector('[data-role="resync-count-completed"]').textContent = `auto-resync completed ${payload.auto_resync_counts?.completed ?? 0}`;
+                progressEl.querySelector('[data-role="resync-count-failed"]').textContent = `auto-resync failed ${payload.auto_resync_counts?.failed ?? 0}`;
+                progressEl.querySelector('[data-role="summary"]').textContent = `Tracking apply and auto-resync stages for ${payload.total ?? 0} tenant rollout${(payload.total ?? 0) === 1 ? '' : 's'} for v${payload.version}.`;
                 renderRows(payload.tenants ?? []);
                 shouldPoll = Boolean(payload.should_poll);
             };

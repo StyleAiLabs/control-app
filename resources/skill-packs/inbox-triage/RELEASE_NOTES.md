@@ -1,5 +1,8 @@
 # Inbox Triage — Release Notes
 
+## 1.6.0
+- Automatically resync live tenants after a workspace-managed skill rollout, so the rollout path is effectively publish -> rollout -> apply -> auto-resync for sync360_workspace skills.
+
 ## 1.5.9
 - updated as a core module
 - added a narrow basic-enquiry reply branch for low-risk support and business-information emails

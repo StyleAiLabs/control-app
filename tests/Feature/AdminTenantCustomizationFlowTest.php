@@ -6,6 +6,7 @@ use App\Enums\ProvisioningJobStatus;
 use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
 use App\Jobs\ApplyTenantAgentCustomization;
+use App\Jobs\ResyncLiveTenantWorkspaceAfterSkillRollout;
 use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
 use App\Models\ProvisioningJob;
@@ -442,6 +443,38 @@ class AdminTenantCustomizationFlowTest extends TestCase
             ->assertJsonPath('should_poll', true)
             ->assertJsonPath('job.status', ProvisioningJobStatus::Queued->value)
             ->assertJsonPath('job.action', TenantAgentCustomizationApply::ACTION_APPLY);
+    }
+
+    public function test_tenant_skills_progress_endpoint_reports_auto_resync_job_status(): void
+    {
+        [$admin, $tenant] = $this->seedAdminAndTenant();
+
+        ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Completed,
+            'payload_json' => [
+                'action' => TenantAgentCustomizationApply::ACTION_APPLY,
+                'source' => 'skill_rollout',
+            ],
+            'completed_at' => now(),
+        ]);
+
+        ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ResyncLiveTenantWorkspaceAfterSkillRollout::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Queued,
+            'payload_json' => [
+                'source' => 'skill_rollout_auto_resync',
+            ],
+        ]);
+
+        $this->actingAs($admin)
+            ->getJson(route('admin.tenants.skills.progress', $tenant))
+            ->assertOk()
+            ->assertJsonPath('tenant_id', $tenant->id)
+            ->assertJsonPath('should_poll', true)
+            ->assertJsonPath('auto_resync_job.status', ProvisioningJobStatus::Queued->value);
     }
 
     public function test_admin_tenant_page_defaults_to_overview_and_falls_back_for_invalid_tab(): void
