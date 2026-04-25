@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-25 — Fix: Inbox Triage Must Execute Basic Gmail Replies Before Reporting Success
+
+Date: 2026-04-25
+Status: Implemented
+
+### Overview
+
+Hardened the Inbox Triage basic-enquiry contract after a live tenant run classified an email, logged analytics, and claimed a clarifying question would be emailed later without ever executing the Gmail reply step.
+
+### What Changed
+
+- tightened the `inbox-triage` skill so Sync360-triggered low-risk basic enquiries must execute exactly one Gmail send or draft action before the workflow can report success
+- added explicit `reply_status` / `reply_reason` outcome rules and disallowed summaries that promise a later email without a matching Gmail tool result in the current run
+- added concrete regression guidance for the reproduced `Opening hours` enquiry: answer documented services, ask one clarifying availability question when hours are unconfirmed, and do not send `High-Value Lead Detected` Telegram for that low-risk enquiry
+- updated generated tenant heartbeat guidance so the live runtime sees the same “execute, don’t just plan” rule even before reading the full skill file
+- bumped the Inbox Triage skill pack version to `1.6.1` and aligned related test fixtures to the new manifest version
+
 ## 2026-04-25 — Improvement: Auto-Resync Live Tenants After Skill Rollout
 
 Date: 2026-04-25

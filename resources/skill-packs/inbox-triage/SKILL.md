@@ -32,7 +32,8 @@ For internal `sync360-inbox-monitor` events, complete all required side effects 
 - Analytics: for every qualified lead where `lead_quality` is `high`, `medium`, or `ambiguous` and the message is not spam or low-intent, run `sh .sync360/bin/log-skill-conversion --skill inbox-triage --conversion-id <lead-id> --payload-json '<json>'`. For Gmail events, use the Gmail message id as `<lead-id>` and include required payload fields: `event_id`, `occurred_at`, `customer_label`, `outcome.lead_quality`, `outcome.inquiry_category`, and `outcome.suggested_action`.
 - Minimal analytics payload for Gmail events: `{"event_id":"inbox-triage-<gmail_message_id>","occurred_at":"<ISO-8601 timestamp>","customer_label":"<company or contact>","outcome":{"lead_quality":"high","inquiry_category":"quote-request","suggested_action":"quote-generation"}}`.
 - A Telegram success does not finish the workflow. Continue to Drive logging, Sheets logging, and analytics. A Telegram, Drive, or Sheets failure must not block analytics.
-- Basic enquiry reply gate: low-risk support and business-information enquiries may receive exactly one direct Gmail reply or one clarifying question when the answer is grounded in tenant workspace files or the current email thread. Do not auto-reply to quotes, pricing, custom scope, timeline commitments, complaints, legal/payment disputes, or undocumented business policies.
+- Basic enquiry reply gate: low-risk support and business-information enquiries must execute exactly one Gmail reply action when they enter this branch. Send exactly one direct Gmail reply when the answer is grounded, or send exactly one clarifying question when the answer is incomplete. Do not auto-reply to quotes, pricing, custom scope, timeline commitments, complaints, legal/payment disputes, or undocumented business policies.
+- Planned reply language is invalid. Do not say a clarifying question or follow-up email will be sent later unless you have already executed `gog gmail send` or `gog gmail drafts create` successfully in the current run.
 
 ## Google Workspace Context
 
@@ -73,6 +74,7 @@ Use this branch only for low-risk support and business-information enquiries. Th
 4. If the answer is grounded and low-risk, send exactly one Gmail reply.
 5. If the enquiry is basic but the answer is missing from tenant material, send exactly one short clarifying question instead of guessing.
 6. If the enquiry is outside the allowed categories, do not auto-reply; continue with the normal lead/opportunity or human-follow-up path.
+7. For Sync360-triggered inbox work, default to direct send. Use draft-only flow only when the owner explicitly asked for a draft workflow.
 
 ### Reply copy rules
 
@@ -81,6 +83,7 @@ Use this branch only for low-risk support and business-information enquiries. Th
 - Do not invent pricing, service guarantees, policies, turnaround times, or availability promises.
 - Ask one focused clarifying question when the answer is incomplete.
 - Preserve a human handoff option when appropriate.
+- Do not promise a later reply, later follow-up, or “next” email unless that message has already been sent or drafted in the current run.
 
 ### Required final reply outcome fields
 
@@ -88,9 +91,21 @@ When a basic enquiry reply is attempted, include these in the final summary:
 
 - `inquiry_category`
 - `reply_mode`: `auto_reply` or `clarifying_question`
-- `reply_status`
+- `reply_status`: `sent`, `drafted`, `not_attempted`, or `failed`
 - `reply_reason`
 - `used_clarification`: `true` or `false`
+
+### Reply outcome rules
+
+- If this branch required a reply and you executed `gog gmail send` successfully, report `reply_status: sent`.
+- If the owner explicitly wanted draft-only flow and you executed `gog gmail drafts create` successfully, report `reply_status: drafted`.
+- If a reply was required but the Gmail command failed, report `reply_status: failed` and include the exact command error in `reply_reason`.
+- If a reply was not required because the enquiry was classified outside the basic-enquiry branch, report `reply_status: not_attempted` and explain why in `reply_reason`.
+- Do not report `reply_status: sent` or `reply_status: drafted` without a matching successful Gmail tool result in the current run.
+
+### Regression example
+
+- Example: if the message asks, `What are your services and are you open next Monday?`, and tenant files document services but say business hours are not confirmed, classify it as a basic business-information enquiry, answer with the documented services, send exactly one clarifying question about availability instead of inventing hours, and do not send a `High-Value Lead Detected` Telegram notification.
 
 ## Required Workflow
 
@@ -101,6 +116,7 @@ Complete these steps in order for every delivered Gmail inquiry:
    - Categorize the inquiry as sales inquiry, support request, quote request, appointment inquiry, spam, low-intent, ambiguous, or another clear category.
    - Decide `lead_quality` as `high`, `medium`, `low`, or `ambiguous`.
    - Flag high-value only when there is genuine buying intent and ICP fit. Do not flag spam, newsletters, generic form spam, or low-intent messages.
+   - Do not classify a low-risk basic enquiry as high-value. Questions about services, opening hours, coverage, or simple support should not trigger `High-Value Lead Detected` unless the message separately shows real commercial buying intent.
 2. Build a stable lead id.
    - For Gmail-triggered events, use `gmail_message_id` as the primary lead id for Telegram `Lead ref`, Google Drive log naming, and analytics `conversion_id`.
    - Use the Sync360 `Job ID` only for internal traceability or when no Gmail message id exists.
@@ -120,6 +136,7 @@ Complete these steps in order for every delivered Gmail inquiry:
    - Google Drive log result or exact failure
    - Google Sheets row result or exact failure
    - analytics result or why analytics was not emitted
+   - never claim that a reply will happen later unless the summary also reports a successful send/draft result from this run
 
 Do not report the workflow as complete until each required side effect has either succeeded or has an explicit captured failure.
 
@@ -200,6 +217,7 @@ gog gmail drafts create --reply-to-message-id <gmail_message_id> --subject '<sub
 - Treat the reply as successful only when the command output confirms send/draft creation.
 - If Gmail reply sending fails, capture the exact command error and include it in the final summary.
 - Do not silently fall back to Telegram, public research, or an invented email flow when the Gmail command fails.
+- For Sync360-triggered basic enquiries, a missing Gmail send/draft command means the reply workflow is incomplete. Do not mark the enquiry handled until `reply_status` reflects the real send/draft/failure outcome.
 
 ## Google Drive Triage Log
 

@@ -217,7 +217,9 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
             'skillAssignments.catalogVersion.item',
         ]));
 
-        $this->assertStringContainsString('Inbox Triage may send one low-risk Gmail reply for basic support or business-information enquiries only', $composed->workspaceFiles['HEARTBEAT.md']);
+        $this->assertStringContainsString('Inbox Triage must execute exactly one Gmail send action for a low-risk basic support or business-information enquiry when that branch applies', $composed->workspaceFiles['HEARTBEAT.md']);
+        $this->assertStringContainsString('Do not claim that Inbox Triage will email a clarifying question or follow-up later unless `gog gmail send` or `gog gmail drafts create` already succeeded in the current run.', $composed->workspaceFiles['HEARTBEAT.md']);
+        $this->assertStringContainsString('Questions about services, opening hours, location coverage, or simple documented support do not qualify for `High-Value Lead Detected` unless the same message also shows clear commercial buying intent.', $composed->workspaceFiles['HEARTBEAT.md']);
         $this->assertStringContainsString('Verified Gmail write surface: `gog gmail send --reply-to-message-id <gmail_message_id> --subject "<subject>" --body "<plain-text-body>"` supports direct replies', $composed->workspaceFiles['TOOLS.md']);
         $this->assertStringContainsString('Verified Gmail draft surface: `gog gmail drafts create --reply-to-message-id <gmail_message_id> --subject "<subject>" --body "<plain-text-body>"` creates a reply draft without sending it.', $composed->workspaceFiles['TOOLS.md']);
     }

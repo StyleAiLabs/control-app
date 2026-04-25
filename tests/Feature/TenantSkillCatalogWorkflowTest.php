@@ -79,6 +79,13 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $this->assertStringContainsString('business hours or operating availability', $skill);
         $this->assertStringContainsString('If the answer is grounded and low-risk, send exactly one Gmail reply.', $skill);
         $this->assertStringContainsString('If the enquiry is basic but the answer is missing from tenant material, send exactly one short clarifying question instead of guessing.', $skill);
+        $this->assertStringContainsString('default to direct send. Use draft-only flow only when the owner explicitly asked for a draft workflow', $skill);
+        $this->assertStringContainsString('Do not promise a later reply, later follow-up, or “next” email unless that message has already been sent or drafted in the current run.', $skill);
+        $this->assertStringContainsString('`reply_status`: `sent`, `drafted`, `not_attempted`, or `failed`', $skill);
+        $this->assertStringContainsString('Do not report `reply_status: sent` or `reply_status: drafted` without a matching successful Gmail tool result in the current run.', $skill);
+        $this->assertStringContainsString('What are your services and are you open next Monday?', $skill);
+        $this->assertStringContainsString('do not send a `High-Value Lead Detected` Telegram notification', $skill);
+        $this->assertStringContainsString('Do not classify a low-risk basic enquiry as high-value.', $skill);
         $this->assertStringContainsString('## Gmail Reply Contract', $skill);
         $this->assertStringContainsString('gog gmail send --reply-to-message-id <gmail_message_id> --subject \'<subject>\' --body \'<plain-text-body>\' --thread-id <gmail_thread_id>', $skill);
         $this->assertStringContainsString('gog gmail drafts create --reply-to-message-id <gmail_message_id> --subject \'<subject>\' --body \'<plain-text-body>\'', $skill);

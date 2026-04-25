@@ -1,5 +1,10 @@
 # Inbox Triage — Release Notes
 
+## 1.6.1
+- tightened the basic-enquiry reply contract so Sync360-triggered low-risk enquiries must execute exactly one Gmail send or draft action before the workflow can report success
+- added explicit `reply_status` and `reply_reason` outcome rules, and forbade summaries that promise a later email without a matching Gmail tool result in the current run
+- clarified the reproduced `Opening hours` case: answer documented services, ask one clarifying availability question when hours are unconfirmed, and do not send `High-Value Lead Detected` Telegram for that low-risk enquiry
+
 ## 1.6.0
 - Automatically resync live tenants after a workspace-managed skill rollout, so the rollout path is effectively publish -> rollout -> apply -> auto-resync for sync360_workspace skills.
 
