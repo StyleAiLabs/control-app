@@ -7,6 +7,21 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-26 — Fix: Normalize OpenClaw Workspace Skill Labels During Runtime Verification
+
+Date: 2026-04-26
+Status: Implemented
+
+### Overview
+
+Fixed a remaining false-negative in runtime skill verification after the broader activation-contract rollout. Some live OpenClaw runtimes report workspace skills in `openclaw skills list --json` using human labels like `Inbox Triage` instead of canonical skill IDs like `inbox-triage`, which caused Sync360 to fail closed even when the required skill was actually active.
+
+### What Changed
+
+- updated runtime skill discovery to prefer canonical JSON id fields when available and normalize display labels to stable kebab-case skill ids before comparing them against the expected skill contract
+- applied the same normalization to table-output fallback parsing so verification stays correct even when JSON output is unavailable
+- added regression coverage for live-style OpenClaw JSON payloads that expose workspace skill labels rather than canonical ids
+
 ## 2026-04-25 — Fix: Inbox Triage Must Execute Basic Gmail Replies Before Reporting Success
 
 Date: 2026-04-25

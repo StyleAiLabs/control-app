@@ -6,6 +6,7 @@ use App\Contracts\DockerComposeRunner;
 use App\Models\Server;
 use App\Models\Tenant;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Str;
 use RuntimeException;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
@@ -176,9 +177,14 @@ class TenantRuntimeSkillDiscoveryService
                     continue;
                 }
 
-                foreach (['name', 'id', 'skill', 'key'] as $key) {
+                foreach (['id', 'skill', 'key', 'name'] as $key) {
                     if (is_string($row[$key] ?? null) && trim((string) $row[$key]) !== '') {
-                        $skills[] = trim((string) $row[$key]);
+                        $skillId = $this->normalizeSkillIdentifier((string) $row[$key]);
+
+                        if ($skillId !== '') {
+                            $skills[] = $skillId;
+                        }
+
                         break;
                     }
                 }
@@ -222,13 +228,14 @@ class TenantRuntimeSkillDiscoveryService
                 if (count($columns) >= 2) {
                     $skillColumn = preg_replace('/^\p{So}+\s*/u', '', $columns[1]) ?? $columns[1];
                     $skillColumn = trim($skillColumn);
+                    $skillId = $this->normalizeSkillIdentifier($skillColumn);
 
                     if (
-                        $skillColumn !== ''
-                        && ! in_array(strtolower($skillColumn), ['skill', 'skills'], true)
+                        $skillId !== ''
+                        && ! in_array(strtolower($skillId), ['skill', 'skills'], true)
                         && ! preg_match('/^status$/i', $columns[0] ?? '')
                     ) {
-                        $skills[] = $skillColumn;
+                        $skills[] = $skillId;
                     }
                 }
 
@@ -237,6 +244,7 @@ class TenantRuntimeSkillDiscoveryService
 
             $normalized = preg_replace('/^[-*]\s+/', '', $normalized) ?? $normalized;
             $normalized = preg_replace('/^\d+[.)]\s+/', '', $normalized) ?? $normalized;
+            $normalized = $this->normalizeSkillIdentifier($normalized);
 
             if ($normalized === '') {
                 continue;
@@ -256,6 +264,21 @@ class TenantRuntimeSkillDiscoveryService
         $withoutAnsi = preg_replace('/\e\[[\d;]*[A-Za-z]/', '', $output) ?? $output;
 
         return trim($withoutAnsi);
+    }
+
+    private function normalizeSkillIdentifier(string $value): string
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return '';
+        }
+
+        if (preg_match('/^[a-z0-9][a-z0-9._:-]*$/', $value) === 1) {
+            return $value;
+        }
+
+        return Str::slug($value);
     }
 
     /**

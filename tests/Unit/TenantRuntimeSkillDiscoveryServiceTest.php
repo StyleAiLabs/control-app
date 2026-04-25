@@ -28,6 +28,23 @@ class TenantRuntimeSkillDiscoveryServiceTest extends TestCase
         $this->assertSame(['gog', 'inbox-triage'], $skills);
     }
 
+    public function test_parse_skill_output_normalizes_workspace_display_names_from_json(): void
+    {
+        $service = app(TenantRuntimeSkillDiscoveryService::class);
+        $method = (new ReflectionClass($service))->getMethod('parseSkillOutput');
+        $method->setAccessible(true);
+
+        $skills = $method->invoke($service, json_encode([
+            'skills' => [
+                ['name' => 'Inbox Triage', 'eligible' => true, 'source' => 'openclaw-workspace'],
+                ['name' => 'Appointment Booking', 'eligible' => true, 'source' => 'openclaw-workspace'],
+                ['name' => 'gog', 'eligible' => true, 'source' => 'openclaw-bundled'],
+            ],
+        ], JSON_UNESCAPED_SLASHES));
+
+        $this->assertSame(['appointment-booking', 'gog', 'inbox-triage'], $skills);
+    }
+
     public function test_parse_skill_output_understands_openclaw_table_output(): void
     {
         $service = app(TenantRuntimeSkillDiscoveryService::class);
@@ -46,6 +63,6 @@ TEXT;
 
         $skills = $method->invoke($service, $output);
 
-        $this->assertSame(['Inbox Triage', 'gog'], $skills);
+        $this->assertSame(['gog', 'inbox-triage'], $skills);
     }
 }
