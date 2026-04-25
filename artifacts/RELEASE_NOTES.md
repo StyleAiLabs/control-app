@@ -2203,6 +2203,7 @@ Notable changes:
 - Updated tenant apply and go-live flows to persist the expected skill contract, rotate stale agent session state when the expected skill set changes, and fail when live runtime verification still reports missing expected skills.
 - Updated `TenantWorkspaceMessenger` so callers can require runtime skills before hook delivery, and updated Inbox Triage polling to require `inbox-triage` before a Gmail monitor event can be marked `SENT_TO_AGENT`.
 - Extended tenant runtime inspection/admin refresh surfaces to show expected skills, verified skills, and verification errors instead of relying on diagnostics alone.
+- Follow-up fix: runtime verification now prefers JSON output from `openclaw skills list --eligible --json` / `openclaw skills list --json` and only falls back to text parsing, preventing false “missing skill” failures on VPS builds that render the skills list as a Unicode table.
 
 ## 2026-04-11 - Production Deployment Packaging
 

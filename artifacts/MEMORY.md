@@ -255,6 +255,7 @@ Remaining documentation mismatch:
 - `TenantRuntimeSkillActivationService` is the shared activation path for apply, go-live, admin runtime refresh, and fail-closed trigger delivery. It owns expected-skill hashing, contract persistence, `openclaw skills list --eligible` verification, session rotation, and the one-shot self-heal path for required-skill delivery.
 - `TenantWorkspaceMessenger` now treats custom-skill delivery as a verified prerequisite. Callers can declare `requiredSkillIds`, and the messenger will refuse to deliver the hook if the required runtime skill still cannot be verified after one self-heal cycle.
 - Inbox Triage Gmail polling now depends on verified `inbox-triage` runtime readiness before a message can be marked `SENT_TO_AGENT`, which closes the platform-wide loophole where future custom skills could be materialized on disk but still absent from the live runtime session registry.
+- OpenClaw VPS builds can render `openclaw skills list --eligible` as a Unicode table even when JSON output is available. Sync360 runtime verification should prefer JSON from `openclaw skills list --json` / `--eligible --json` and only use text parsing as fallback, or it can falsely conclude that no skills are active.
 
 ## 8. Current priorities / open work
 

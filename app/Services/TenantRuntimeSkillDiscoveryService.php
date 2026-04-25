@@ -43,7 +43,7 @@ class TenantRuntimeSkillDiscoveryService
         }
 
         $serviceName = (string) config('sync360.openclaw.service_name', 'openclaw-gateway');
-        $command = 'openclaw skills list --eligible';
+        $command = 'openclaw skills list --eligible --json 2>/dev/null || openclaw skills list --json 2>/dev/null || openclaw skills list --eligible';
 
         try {
             $output = $this->shouldUseLocalComposeExecution($tenant)
@@ -154,6 +154,42 @@ class TenantRuntimeSkillDiscoveryService
      */
     private function parseSkillOutput(string $output): array
     {
+        $decoded = json_decode(trim($output), true);
+
+        if (is_array($decoded)) {
+            $rows = array_is_list($decoded) ? $decoded : ($decoded['skills'] ?? []);
+            $skills = [];
+
+            foreach (is_array($rows) ? $rows : [] as $row) {
+                if (is_string($row) && trim($row) !== '') {
+                    $skills[] = trim($row);
+                    continue;
+                }
+
+                if (! is_array($row)) {
+                    continue;
+                }
+
+                $eligible = $row['eligible'] ?? true;
+
+                if ($eligible === false) {
+                    continue;
+                }
+
+                foreach (['name', 'id', 'skill', 'key'] as $key) {
+                    if (is_string($row[$key] ?? null) && trim((string) $row[$key]) !== '') {
+                        $skills[] = trim((string) $row[$key]);
+                        break;
+                    }
+                }
+            }
+
+            $skills = array_values(array_unique($skills));
+            sort($skills);
+
+            return $skills;
+        }
+
         $skills = [];
         $lines = preg_split('/\R+/', $output) ?: [];
 
@@ -168,6 +204,37 @@ class TenantRuntimeSkillDiscoveryService
                 continue;
             }
 
+            if (preg_match('/^skills\s*\(\d+\/\d+\s+ready\)$/i', $normalized) === 1) {
+                continue;
+            }
+
+            if (preg_match('/^[┌┬┐├┼┤└┴┘─]+$/u', $normalized) === 1) {
+                continue;
+            }
+
+            if (str_starts_with($normalized, 'Tip:')) {
+                continue;
+            }
+
+            if (str_contains($normalized, '│')) {
+                $columns = array_values(array_filter(array_map('trim', explode('│', $normalized))));
+
+                if (count($columns) >= 2) {
+                    $skillColumn = preg_replace('/^\p{So}+\s*/u', '', $columns[1]) ?? $columns[1];
+                    $skillColumn = trim($skillColumn);
+
+                    if (
+                        $skillColumn !== ''
+                        && ! in_array(strtolower($skillColumn), ['skill', 'skills'], true)
+                        && ! preg_match('/^status$/i', $columns[0] ?? '')
+                    ) {
+                        $skills[] = $skillColumn;
+                    }
+                }
+
+                continue;
+            }
+
             $normalized = preg_replace('/^[-*]\s+/', '', $normalized) ?? $normalized;
             $normalized = preg_replace('/^\d+[.)]\s+/', '', $normalized) ?? $normalized;
 
@@ -178,7 +245,10 @@ class TenantRuntimeSkillDiscoveryService
             $skills[] = $normalized;
         }
 
-        return array_values(array_unique($skills));
+        $skills = array_values(array_unique($skills));
+        sort($skills);
+
+        return $skills;
     }
 
     private function normalizeOutput(string $output): string
