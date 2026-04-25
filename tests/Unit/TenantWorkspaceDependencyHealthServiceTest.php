@@ -129,6 +129,47 @@ class TenantWorkspaceDependencyHealthServiceTest extends TestCase
         $this->assertNull($health['google_workspace']['predicted_expiry_at']);
     }
 
+    public function test_inbox_health_uses_fresh_google_evaluation_not_stale_persisted_google_health(): void
+    {
+        config()->set('services.google.oauth_app_mode', 'live');
+
+        $tenant = $this->makeInboxTenant();
+
+        TenantGoogleCredential::query()->create([
+            'tenant_id' => $tenant->id,
+            'status' => TenantGoogleCredential::STATUS_CONNECTED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_VERIFIED,
+            'health_status' => TenantGoogleCredential::HEALTH_RECONNECT_REQUIRED,
+            'google_email' => 'owner@example.com',
+            'refresh_token' => 'refresh-token',
+            'connected_at' => now()->subDay(),
+            'last_verified_at' => now(),
+            'health_checked_at' => now()->subHour(),
+            'last_error' => null,
+        ]);
+
+        TenantInboxMonitorState::query()->create([
+            'tenant_id' => $tenant->id,
+            'enabled' => true,
+            'status' => TenantInboxMonitorState::STATUS_IDLE,
+            'health_status' => TenantInboxMonitorState::HEALTH_DOWN,
+            'last_checked_at' => now()->subMinutes(5),
+            'health_checked_at' => now()->subHour(),
+            'consecutive_failures' => 0,
+            'last_error' => null,
+        ]);
+
+        $health = app(TenantWorkspaceDependencyHealthService::class)->evaluate($tenant->fresh([
+            'googleCredential',
+            'inboxMonitorState',
+            'skillAssignments.catalogVersion',
+        ]));
+
+        $this->assertSame(TenantGoogleCredential::HEALTH_HEALTHY, $health['google_workspace']['health_status']);
+        $this->assertSame(TenantInboxMonitorState::HEALTH_HEALTHY, $health['inbox_monitor']['health_status']);
+        $this->assertSame('Watching your inbox', $health['inbox_monitor']['health_label']);
+    }
+
     private function makeTenant(): Tenant
     {
         $user = User::factory()->create();

@@ -2120,6 +2120,21 @@ Notable changes:
 Verification:
 - `php artisan test tests/Feature/AdminTenantOperationsTest.php tests/Feature/DashboardFlowTest.php tests/Feature/AdminTenantCustomizationFlowTest.php` passed
 
+## 2026-04-25 - Immediate Inbox Health Recovery After Google Reconnect
+
+Date: 2026-04-25
+
+Summary:
+- Fixed stale inbox-down badges that could persist after a tenant reconnected Google Workspace successfully.
+
+Notable changes:
+- updated dependency-health evaluation so inbox health reads the freshly computed Google health result in the same request
+- removed the stale-state dependency on persisted `tenant_google_credentials.health_status` for inbox recovery decisions
+- added a regression test covering the case where stored Google health is stale but current Google verification is healthy
+
+Verification:
+- `php artisan test tests/Unit/TenantWorkspaceDependencyHealthServiceTest.php tests/Feature/WorkspaceDependencyMonitorCommandTest.php tests/Feature/AdminTenantCustomizationFlowTest.php tests/Feature/DashboardFlowTest.php` passed
+
 ## 2026-04-11 - Production Deployment Packaging
 
 Date: 2026-04-11

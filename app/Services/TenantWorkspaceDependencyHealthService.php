@@ -34,7 +34,7 @@ class TenantWorkspaceDependencyHealthService
         $oauthMode = $this->oauthAppMode();
         $predictedExpiryAt = $this->predictedExpiryAt($google, $oauthMode);
         $googleStatus = $this->googleHealthStatus($google, $monitor, $predictedExpiryAt);
-        $inboxStatus = $this->inboxHealthStatus($tenant, $google, $monitor, $inboxEnabled);
+        $inboxStatus = $this->inboxHealthStatus($google, $monitor, $inboxEnabled, $googleStatus['status']);
 
         return [
             'oauth_app_mode' => $oauthMode,
@@ -228,10 +228,10 @@ class TenantWorkspaceDependencyHealthService
      * @return array{status:string,label:string,note:string}
      */
     private function inboxHealthStatus(
-        Tenant $tenant,
         ?TenantGoogleCredential $credential,
         ?TenantInboxMonitorState $monitor,
         bool $inboxEnabled,
+        string $googleHealthStatus,
     ): array {
         if (! $inboxEnabled) {
             return [
@@ -249,8 +249,7 @@ class TenantWorkspaceDependencyHealthService
             ];
         }
 
-        $googleStatus = $tenant->googleCredential?->health_status;
-        if ($googleStatus === TenantGoogleCredential::HEALTH_RECONNECT_REQUIRED) {
+        if ($googleHealthStatus === TenantGoogleCredential::HEALTH_RECONNECT_REQUIRED) {
             return [
                 'status' => TenantInboxMonitorState::HEALTH_DOWN,
                 'label' => 'Inbox down',
