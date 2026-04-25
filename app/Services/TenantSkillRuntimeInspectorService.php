@@ -32,6 +32,7 @@ class TenantSkillRuntimeInspectorService
             ->values();
         $config = $this->readJson($tenant, $this->openClawConfigPath($tenant));
         $registry = $this->readJson($tenant, $this->analyticsRegistryPath($tenant));
+        $skillContract = $this->readJson($tenant, $this->runtimeSkillContractPath($tenant));
         $analyticsRegistrySkills = is_array($registry['skills'] ?? null) ? $registry['skills'] : [];
         $configuredSkillIds = $this->configuredOpenClawSkillIds($config);
         $runtimeVisibility = $this->runtimeSkillVisibility($tenant);
@@ -115,6 +116,28 @@ class TenantSkillRuntimeInspectorService
             $warnings[] = sprintf('Analytics-enabled tenant has no runtime SQLite DB at %s.', $analyticsDbPath);
         }
 
+        $expectedSkillIds = $this->stringList($skillContract['expected_skill_ids'] ?? []);
+        $verifiedSkillIds = $this->stringList($skillContract['verified_skill_ids'] ?? []);
+        $verifiedHash = is_string($skillContract['verified_skill_set_hash'] ?? null)
+            ? trim((string) $skillContract['verified_skill_set_hash'])
+            : '';
+        $currentHash = is_string($skillContract['skill_set_hash'] ?? null)
+            ? trim((string) $skillContract['skill_set_hash'])
+            : '';
+
+        if ($expectedSkillIds !== [] && ($verifiedHash === '' || $verifiedHash !== $currentHash)) {
+            $warnings[] = 'Runtime skill verification is stale or has not succeeded for the current expected skill set.';
+        }
+
+        $missingVerified = array_values(array_diff($expectedSkillIds, $verifiedSkillIds));
+
+        if ($missingVerified !== []) {
+            $warnings[] = sprintf(
+                'Runtime skill contract is missing verified skills: %s.',
+                implode(', ', $missingVerified)
+            );
+        }
+
         $syncState = $tenant->skillAnalyticsSyncState;
 
         return [
@@ -144,6 +167,20 @@ class TenantSkillRuntimeInspectorService
             ],
             'openclaw_config_skill_ids' => $configuredSkillIds,
             'runtime_skill_visibility' => $runtimeVisibility,
+            'runtime_skill_contract' => [
+                'path' => $this->runtimeSkillContractPath($tenant),
+                'exists' => $this->pathExists($tenant, $this->runtimeSkillContractPath($tenant), 'file'),
+                'expected_skill_ids' => $expectedSkillIds,
+                'skill_set_hash' => $currentHash !== '' ? $currentHash : null,
+                'verified_skill_ids' => $verifiedSkillIds,
+                'verified_skill_set_hash' => $verifiedHash !== '' ? $verifiedHash : null,
+                'last_verified_at' => is_string($skillContract['last_verified_at'] ?? null)
+                    ? trim((string) $skillContract['last_verified_at'])
+                    : null,
+                'last_verification_error' => is_string($skillContract['last_verification_error'] ?? null)
+                    ? trim((string) $skillContract['last_verification_error'])
+                    : null,
+            ],
             'warnings' => array_values(array_unique($warnings)),
         ];
     }
@@ -169,6 +206,13 @@ class TenantSkillRuntimeInspectorService
         return $this->usesLocalRuntimeDriver()
             ? $this->runtime->localSkillAnalyticsDbPath($tenant)
             : $this->runtime->remoteSkillAnalyticsDbPath($tenant);
+    }
+
+    private function runtimeSkillContractPath(Tenant $tenant): string
+    {
+        return $this->usesLocalRuntimeDriver()
+            ? $this->runtime->localRuntimeSkillContractPath($tenant)
+            : $this->runtime->remoteRuntimeSkillContractPath($tenant);
     }
 
     private function workspaceSkillPath(Tenant $tenant, string $skillKey, string $filename): string

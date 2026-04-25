@@ -172,6 +172,7 @@ class TenantInboxTriagePollingService
                 self::CHANNEL,
                 self::FROM,
                 $this->triggerMessage($tenant, $summary, $metadata, $detail['body'], $filter['hints']),
+                [self::SKILL_KEY],
             );
 
             $record->forceFill([

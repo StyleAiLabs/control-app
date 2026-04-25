@@ -157,6 +157,12 @@ class TenantRuntimeService
             .DIRECTORY_SEPARATOR.'.openclaw'.DIRECTORY_SEPARATOR.'workspace';
     }
 
+    public function localRuntimeSkillContractPath(Tenant $tenant): string
+    {
+        return $this->localWorkspacePath($tenant)
+            .DIRECTORY_SEPARATOR.'.sync360'.DIRECTORY_SEPARATOR.'runtime-skill-contract.json';
+    }
+
     public function localWorkspaceMemoryPath(Tenant $tenant): string
     {
         return $this->localWorkspacePath($tenant).DIRECTORY_SEPARATOR.'memory';
@@ -166,6 +172,12 @@ class TenantRuntimeService
     {
         return $this->localRuntimePath($tenant)
             .DIRECTORY_SEPARATOR.'.openclaw'.DIRECTORY_SEPARATOR.'data'.DIRECTORY_SEPARATOR.'analytics'.DIRECTORY_SEPARATOR.'skill-events.sqlite';
+    }
+
+    public function localAgentSessionStatePath(Tenant $tenant): string
+    {
+        return $this->localRuntimePath($tenant)
+            .DIRECTORY_SEPARATOR.'data'.DIRECTORY_SEPARATOR.'agents';
     }
 
     public function remoteOpenClawConfigPath(Tenant $tenant): string
@@ -180,6 +192,12 @@ class TenantRuntimeService
             .DIRECTORY_SEPARATOR.'.openclaw'.DIRECTORY_SEPARATOR.'workspace';
     }
 
+    public function remoteRuntimeSkillContractPath(Tenant $tenant): string
+    {
+        return $this->remoteWorkspacePath($tenant)
+            .DIRECTORY_SEPARATOR.'.sync360'.DIRECTORY_SEPARATOR.'runtime-skill-contract.json';
+    }
+
     public function remoteWorkspaceMemoryPath(Tenant $tenant): string
     {
         return $this->remoteWorkspacePath($tenant).DIRECTORY_SEPARATOR.'memory';
@@ -189,6 +207,12 @@ class TenantRuntimeService
     {
         return rtrim($tenant->runtime_path ?: $this->remoteRuntimePath($tenant), DIRECTORY_SEPARATOR)
             .DIRECTORY_SEPARATOR.'.openclaw'.DIRECTORY_SEPARATOR.'data'.DIRECTORY_SEPARATOR.'analytics'.DIRECTORY_SEPARATOR.'skill-events.sqlite';
+    }
+
+    public function remoteAgentSessionStatePath(Tenant $tenant): string
+    {
+        return rtrim($tenant->runtime_path ?: $this->remoteRuntimePath($tenant), DIRECTORY_SEPARATOR)
+            .DIRECTORY_SEPARATOR.'data'.DIRECTORY_SEPARATOR.'agents';
     }
 
     public function containerWorkspacePath(): string

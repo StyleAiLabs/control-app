@@ -82,10 +82,11 @@ class InboxTriagePollingTest extends TestCase
             ]);
         $messenger->shouldReceive('send')
             ->once()
-            ->withArgs(function (Tenant $value, string $channel, string $from, string $message): bool {
+            ->withArgs(function (Tenant $value, string $channel, string $from, string $message, array $requiredSkillIds): bool {
                 return $value->slug === 'lead-shop'
                     && $channel === TenantInboxTriagePollingService::CHANNEL
                     && $from === TenantInboxTriagePollingService::FROM
+                    && $requiredSkillIds === ['inbox-triage']
                     && str_contains($message, 'business-plausible Gmail message')
                     && str_contains($message, 'This trigger has not classified the email as high-value.')
                     && str_contains($message, 'Read the workspace skill file at ./skills/inbox-triage/SKILL.md')
@@ -239,10 +240,11 @@ class InboxTriagePollingTest extends TestCase
             ],
             'body' => 'We need a cleaning and maintenance quote for three newly completed sites.',
         ]);
-        $messenger->shouldReceive('send')->once()->withArgs(function (Tenant $value, string $channel, string $from, string $message): bool {
+        $messenger->shouldReceive('send')->once()->withArgs(function (Tenant $value, string $channel, string $from, string $message, array $requiredSkillIds): bool {
             return $value->slug === 'thread-follow-up-shop'
                 && $channel === TenantInboxTriagePollingService::CHANNEL
                 && $from === TenantInboxTriagePollingService::FROM
+                && $requiredSkillIds === ['inbox-triage']
                 && str_contains($message, '"gmail_message_id": "msg-follow-up"');
         })->andReturn('routed');
 

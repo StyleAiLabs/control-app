@@ -1,4 +1,4 @@
-# Sync360 Custom Skill Authoring Prompt
+# Sync360 Custom Skill Authoring / Contract Prompt
 
 Use this prompt when creating or updating a Sync360 custom skill pack. It defines the platform criteria for repo layout, runtime behavior, analytics, tracking, privacy, and verification.
 
@@ -58,6 +58,13 @@ Analytics event rules:
 - `skill_version` must equal the manifest version string exactly.
 - The Sync360 helper resolves `skill_key` and `skill_version` from the deployed registry; the skill instructions should not hardcode event rows or write SQL directly.
 
+Runtime activation rules:
+- Treat runtime activation as a separate contract from file materialization. A valid custom skill must work when Sync360 materializes it into `.openclaw/workspace/skills/<skill-id>/`, allowlists it in `openclaw.json`, and verifies it through the live runtime skill list.
+- For `sync360_workspace`, keep `manifest.json.skill_id`, `openclaw_skill_ids[0]`, `default_agent_skill_ids[0]`, the materialized folder name, and the `agent-instructions.md` pointer aligned to the same exact skill id. Do not create alias ids, alternate folder names, or mixed identifiers unless the runtime design explicitly requires them.
+- Do not rely on `AGENTS.md` or `agent-instructions.md` alone to make the skill usable. Those files are discovery hints. The skill must still be valid when Sync360 verifies runtime eligibility independently.
+- Assume Sync360 may fail closed when a trigger requires this skill but the live runtime has not verified it yet. Write trigger descriptions, command contracts, and required side effects so the runtime can safely withhold delivery until the skill is truly active.
+- If the skill depends on another runtime-managed capability or native skill, say so explicitly in the manifest/runtime contract instead of implying it only in prose.
+
 Required analytics invocation pattern:
 - The skill must use the workspace exec tool.
 - The skill must call the Sync360-owned helper:
@@ -94,12 +101,18 @@ Privacy rules:
 Required tool-contract rules:
 - Every required side effect must name the exact tool or command family, allowed fields or flags, forbidden fields or flags, success signal, failure behavior, privacy boundary, and idempotency key.
 - Do not describe required side effects with vague verbs such as "notify", "upload", "sync", "log", or "update" unless the skill also provides the exact tool/command contract and validation rule.
+- If a workflow branch requires a side effect, the skill must require the agent to execute that side effect in the current run, not merely plan or promise it. Phrases like "next I will email them", "this will be logged", or "a follow-up will be sent" are invalid unless a matching tool/command result already exists.
+- The final response contract must be evidence-based: never let the agent claim `sent`, `drafted`, `uploaded`, `logged`, `created`, or similar completion states without a matching successful tool/command result in the same run.
+- When a side effect is required by the workflow, define explicit outcome states such as `succeeded`, `skipped_with_reason`, and `failed_with_error`, and require the final summary to report the real outcome instead of future intent.
 - For Telegram notifications through the runtime `message` tool, normal sends must use only `action: "send"`, `channel: "telegram"`, `target: <chat id>`, and `message: <body>` unless the skill is explicitly creating another message type.
 - Telegram normal sends must not include poll-only or unrelated fields such as `poll*`, `limit`, `pageSize`, `duration*`, buttons, interactive payloads, or poll options.
 - For `gog` commands, use only command shapes already proven in Sync360 runtime guidance or tell the agent to inspect the exact service help before running the action.
 - Do not invent `gog` flags. If a command fails because of unsupported flags, the skill must capture the exact error, inspect help once, and report the supported syntax or failure instead of retrying with guessed flags.
 - Do not use workspace patch/file-edit tools as a substitute for an external side effect. If a skill promises Google Drive, CRM, calendar, Telegram, or another external action, success requires the corresponding external tool/command to confirm that action.
 - Internal workflow triggers should use tenant workspace files and event payloads as source material. Do not use public web browsing or `web_search` unless the owner explicitly asks for external research or the skill defines a verified research step.
+- If the skill uses provider ids from incoming events, the final contract must preserve those ids exactly through follow-up actions, references, notifications, analytics, and logs whenever they are the safest handle for reopening the same record later.
+- Required side effects must be branch-complete. Do not leave a branch in a state where the agent can classify, summarize, or log the work while the required customer-facing action remains unexecuted.
+- If a required side effect is intentionally draft-only or human-review-only, the skill must say that explicitly and define the exact drafted/not-sent outcome state. Never let the agent quietly downgrade a required send into a draft without that branch being designed to do so.
 
 Required `SKILL.md` content:
 - YAML frontmatter with `name` and `description`.
@@ -116,7 +129,10 @@ Required `SKILL.md` content:
   - exact success validation
   - exact failure handling
 - Do not leave required side effects as vague bullets like "log this", "notify the team", or "update records". If the agent must do it, provide enough command/tool guidance and validation rules that it can prove completion.
+- Do not let the skill describe a required side effect as a future handoff unless that handoff is truly outside the runtime and explicitly marked as such. If the runtime is supposed to send the email, post the message, create the calendar item, or write the record, the skill must require execution now plus output validation now.
 - A final response contract requiring the agent to report each required side effect as succeeded, skipped with reason, or failed with exact error/output.
+- For trigger-driven skills, a short section naming the required runtime references and source-of-truth ids from the incoming event. If the trigger includes an exact provider id, require the skill to reuse it instead of re-discovering the same record through a fuzzy search.
+- For any branch that depends on a live runtime side effect, language that forbids "will do next", "to be sent", "prepared", or similar future-intent phrasing unless the branch is explicitly draft-only and the draft action already succeeded.
 - An `Analytics Contract` section that says:
   - when success is authoritative
   - which `conversion_id` to use
@@ -141,6 +157,7 @@ Example:
 ```
 
 - The trigger description must be specific enough to fire on real user requests without false positives.
+- The trigger description must also be strong enough that Sync360 can safely use it as a runtime-required skill declaration for automated workflows. Avoid vague catch-all wording that could overlap with unrelated default assistant behavior.
 - The pointer to `skills/<skill-id>/SKILL.md` is the workspace path materialized by Sync360 — do not use `/app/skills/`.
 - The "Do not use your default" clause is required to override OpenClaw's built-in behavior.
 
@@ -165,6 +182,9 @@ Verification checklist:
 - Scan/import fails if `RELEASE_NOTES.md` is missing, empty, or does not include the current manifest version.
 - Runtime materialization places files under `.openclaw/workspace/skills/<skill-id>/`.
 - Runtime materialization does not create `.openclaw/workspace/skills/<skill-id>/skills/<skill-id>/`.
+- The skill id shown in `manifest.json`, `openclaw_skill_ids`, `default_agent_skill_ids`, `agent-instructions.md`, and the materialized folder name all match exactly.
+- The runtime can expose the skill through the live eligibility surface (`openclaw skills list --eligible`) after Sync360 assignment/apply, rather than only showing the files on disk.
+- If the skill is intended for automated trigger delivery, verify at least one regression path where the runtime is missing the skill at first and Sync360 must either self-heal or fail closed instead of delivering to the wrong/default behavior.
 - The emitted analytics payload passes helper validation.
 - Duplicate `event_id` does not create duplicate conversion records.
 - Required non-analytics side effects are tested or manually verified from runtime transcripts, including proof that the agent used the intended tool/command and inspected success output.

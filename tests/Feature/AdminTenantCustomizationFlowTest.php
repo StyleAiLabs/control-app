@@ -20,7 +20,7 @@ use App\Models\TenantInboxMonitorState;
 use App\Models\TenantSkillAssignment;
 use App\Models\User;
 use App\Services\TenantHealthCheckService;
-use App\Services\TenantRuntimeSkillDiscoveryService;
+use App\Services\TenantRuntimeSkillActivationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
@@ -640,15 +640,27 @@ class AdminTenantCustomizationFlowTest extends TestCase
     {
         [$admin, $tenant] = $this->seedAdminAndTenant();
 
-        $this->mock(TenantRuntimeSkillDiscoveryService::class, function ($mock) use ($tenant): void {
-            $mock->shouldReceive('inspect')
+        $this->mock(TenantRuntimeSkillActivationService::class, function ($mock) use ($tenant): void {
+            $mock->shouldReceive('verifyRuntimeSkills')
                 ->once()
                 ->withArgs(fn (Tenant $candidate): bool => $candidate->is($tenant))
                 ->andReturn([
+                    'ready' => true,
+                    'contract' => [
+                        'expected_skill_ids' => ['gog', 'hello-world'],
+                        'skill_set_hash' => 'expected-hash',
+                        'verified_skill_ids' => ['gog', 'hello-world'],
+                        'verified_skill_set_hash' => 'expected-hash',
+                        'last_verified_at' => '2026-04-18T20:05:00+00:00',
+                        'last_verification_error' => null,
+                    ],
                     'workspace_state' => 'running',
                     'refreshed_at' => '2026-04-18 20:05:00',
                     'skills' => ['hello-world', 'gog'],
                     'raw_output' => "hello-world\ngog",
+                    'missing_expected_skill_ids' => [],
+                    'missing_required_skill_ids' => [],
+                    'error' => null,
                 ]);
         });
 

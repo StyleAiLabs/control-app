@@ -793,3 +793,14 @@ Google Workspace and Inbox Triage dependency state now follow one shared present
 - Customer-facing dependency UI should use one clear CTA only, usually a reconnect/setup action. Avoid multiple competing repair buttons on customer pages.
 - Admin/operator panels may show richer metadata such as predicted expiry, last health check, last verified success, and customer-alert delivery timestamps, but they should still read from the same shared health model rather than inventing a second interpretation.
 - Admin overview action rows can mix a small inline management button with a status badge when the action is tightly related to the panel's primary object. The current example is the tenant trial panel, which pairs the `Add 7 Days` action with the trial status badge in the panel actions area.
+
+## 16. Runtime Verification Panels
+
+Admin runtime diagnostics now follow a compact verification-summary pattern:
+
+- Lead with a small status badge that answers the operator's main question first, such as `verified` or `verification pending`.
+- Keep technical companion badges nearby for narrow secondary state like `Workspace state: running`.
+- Show expected-vs-verified runtime data as short hint lines, not as large alert blocks or nested cards.
+- Use warning-colored hint text for mismatch/error details such as missing skills or last verification failure.
+- Preserve raw command output below the summary block as supporting evidence, not as the primary status surface.
+- Runtime diagnostics should stay read-only in presentation. Assignment controls, rollout controls, and verification evidence should remain visually distinct even when they live in the same tab.

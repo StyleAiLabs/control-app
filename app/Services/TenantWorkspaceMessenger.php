@@ -12,11 +12,14 @@ class TenantWorkspaceMessenger
         private readonly TenantGatewayService $gateway,
         private readonly TenantRuntimeService $runtime,
         private readonly Filesystem $files,
+        private readonly TenantRuntimeSkillActivationService $runtimeSkillActivation,
     ) {
     }
 
-    public function send(Tenant $tenant, string $channel, string $from, string $message): string
+    public function send(Tenant $tenant, string $channel, string $from, string $message, array $requiredSkillIds = []): string
     {
+        $this->runtimeSkillActivation->ensureRequiredSkillsReady($tenant, $requiredSkillIds);
+
         $hookPath = '/'.ltrim((string) config('sync360.workspace_gateway.agent_hook_path', '/hooks/agent'), '/');
         $hookToken = $this->hookToken($tenant);
 

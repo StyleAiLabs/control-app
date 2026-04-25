@@ -22,6 +22,7 @@ class TenantAgentCustomizationService
         private readonly TenantRuntimeService $runtime,
         private readonly TenantSkillAssignmentService $skillAssignments,
         private readonly TenantSkillAnalyticsRuntimeService $skillAnalyticsRuntime,
+        private readonly TenantRuntimeSkillActivationService $runtimeSkillActivation,
     ) {
     }
 
@@ -169,8 +170,17 @@ class TenantAgentCustomizationService
 
                     if ($runtimeChanged) {
                         $this->materializeWorkspaceFiles($tenant, $composed);
+                        $skillContractUpdate = $this->runtimeSkillActivation->syncExpectedContract($tenant, $freshTenant->agentCustomization);
                         $configChanged = $this->writeLocalConfig($tenant, $composed->openClawConfig);
-                        $this->syncRemoteArtifacts($tenant, $composed->openClawConfig, $runtimeChanged || $configChanged);
+                        $this->syncRemoteArtifacts($tenant, $composed->openClawConfig);
+
+                        if ($runtimeChanged || $configChanged || $skillContractUpdate['skill_set_changed']) {
+                            $this->runtimeSkillActivation->activateExpectedSkills(
+                                $tenant->fresh(['server', 'agentCustomization', 'skillAssignments.catalogVersion']),
+                                recreate: false,
+                                forceSessionRotation: (bool) $skillContractUpdate['skill_set_changed'],
+                            );
+                        }
                     }
 
                     $this->skillAnalyticsRuntime->initializeTenant($freshTenant);
@@ -338,7 +348,7 @@ class TenantAgentCustomizationService
         return $existing !== $contents;
     }
 
-    private function syncRemoteArtifacts(Tenant $tenant, string $configContents, bool $shouldRestart): void
+    private function syncRemoteArtifacts(Tenant $tenant, string $configContents): void
     {
         if (app()->environment('local')) {
             return;
@@ -360,19 +370,6 @@ class TenantAgentCustomizationService
             $tenant->server,
             $this->runtime->remoteOpenClawConfigPath($tenant),
             $configContents,
-        );
-
-        if (! $shouldRestart) {
-            return;
-        }
-
-        $this->dockerCompose->runCommand(
-            $tenant->server,
-            sprintf(
-                'docker compose -f %s -p %s restart',
-                escapeshellarg($this->runtime->remoteComposePath($tenant)),
-                escapeshellarg($this->runtime->projectName($tenant)),
-            ),
         );
     }
 

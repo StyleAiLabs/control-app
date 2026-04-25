@@ -13,6 +13,7 @@ use App\Models\TenantSkillAnalyticsSyncState;
 use App\Models\TenantSkillAssignment;
 use App\Models\User;
 use App\Services\TenantRuntimeCustomizationComposer;
+use App\Services\TenantRuntimeSkillActivationService;
 use App\Services\TenantSkillRuntimeInspectorService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
@@ -54,6 +55,8 @@ class TenantSkillRuntimeInspectorTest extends TestCase
         $this->assertSame(['hello-world'], data_get($report, 'analytics_registry.skills'));
         $this->assertFalse(data_get($report, 'sqlite_db.exists'));
         $this->assertFalse(data_get($report, 'runtime_skill_visibility.checked'));
+        $this->assertSame(['gog', 'hello-world'], data_get($report, 'runtime_skill_contract.expected_skill_ids'));
+        $this->assertSame(hash('sha256', "gog\nhello-world"), data_get($report, 'runtime_skill_contract.skill_set_hash'));
         $this->assertNotContains('hello-world is missing from OpenClaw agent skill allowlists.', $report['warnings']);
         $this->assertFalse(collect($report['warnings'])->contains(
             fn (string $warning): bool => str_contains($warning, 'must not appear in openclaw.json')
@@ -311,5 +314,11 @@ class TenantSkillRuntimeInspectorTest extends TestCase
             File::ensureDirectoryExists(dirname($workspaceRoot.'/'.$path));
             File::put($workspaceRoot.'/'.$path, $contents);
         }
+
+        app(TenantRuntimeSkillActivationService::class)->syncExpectedContract(
+            $tenant->fresh(['agentCustomization', 'skillAssignments.catalogVersion'])
+        );
+
+        clearstatcache();
     }
 }

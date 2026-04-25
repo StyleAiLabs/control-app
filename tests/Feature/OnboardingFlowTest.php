@@ -19,6 +19,7 @@ use App\Models\TenantSkillAssignment;
 use App\Models\User;
 use App\Services\TenantAgentSyncService;
 use App\Services\TenantGoogleWorkspaceSmokeTestService;
+use App\Services\TenantRuntimeSkillActivationService;
 use Illuminate\Support\Facades\File;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -30,6 +31,47 @@ use Tests\TestCase;
 class OnboardingFlowTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->mock(TenantRuntimeSkillActivationService::class, function ($mock): void {
+            $mock->shouldReceive('syncExpectedContract')
+                ->andReturn([
+                    'changed' => true,
+                    'skill_set_changed' => false,
+                    'contract' => [
+                        'expected_skill_ids' => ['gog', 'inbox-triage'],
+                        'skill_set_hash' => 'expected-hash',
+                        'verified_skill_ids' => ['gog', 'inbox-triage'],
+                        'verified_skill_set_hash' => 'expected-hash',
+                        'last_verified_at' => now()->toIso8601String(),
+                        'last_verification_error' => null,
+                    ],
+                ]);
+            $mock->shouldReceive('rotateAgentSessions')->zeroOrMoreTimes();
+            $mock->shouldReceive('verifyRuntimeSkills')
+                ->andReturn([
+                    'ready' => true,
+                    'contract' => [
+                        'expected_skill_ids' => ['gog', 'inbox-triage'],
+                        'skill_set_hash' => 'expected-hash',
+                        'verified_skill_ids' => ['gog', 'inbox-triage'],
+                        'verified_skill_set_hash' => 'expected-hash',
+                        'last_verified_at' => now()->toIso8601String(),
+                        'last_verification_error' => null,
+                    ],
+                    'workspace_state' => 'running',
+                    'refreshed_at' => now()->toDateTimeString(),
+                    'skills' => ['gog', 'inbox-triage'],
+                    'raw_output' => "gog\ninbox-triage",
+                    'missing_expected_skill_ids' => [],
+                    'missing_required_skill_ids' => [],
+                    'error' => null,
+                ]);
+        });
+    }
 
     public function test_authenticated_tenant_can_view_onboarding_shell(): void
     {
@@ -1503,6 +1545,110 @@ class OnboardingFlowTest extends TestCase
         $this->assertCount(1, $runnerSpy->upCalls);
         $this->assertSame('/srv/sync360/runtime/tenants/acme-plumbing/.openclaw/workspace', $runnerSpy->syncCalls[0]['remote']);
         $this->assertSame('/srv/sync360/runtime/tenants/acme-plumbing/compose.yaml', $runnerSpy->upCalls[0]['compose_file']);
+    }
+
+    public function test_go_live_returns_422_when_runtime_skill_activation_verification_fails(): void
+    {
+        [$user, $tenant, $profile, $files] = $this->seedTenantWithProfile();
+
+        $profile->forceFill([
+            'website_url' => 'https://acme.example',
+            'description' => 'Acme Plumbing helps homeowners with urgent repairs and scheduled installs.',
+            'services' => ['Emergency plumbing'],
+        ])->save();
+
+        $files->forceFill([
+            'identity_markdown' => "# Identity\n\nAcme Plumbing",
+            'soul_markdown' => "# Soul\n\nFriendly and helpful.",
+            'user_markdown' => "# User\n\nSupport homeowners.",
+            'bootstrap_markdown' => "# Bootstrap\n\nStart with the business profile.",
+            'generated_at' => now(),
+        ])->save();
+
+        $tenant->forceFill([
+            'onboarding_status' => 'in_progress',
+            'onboarding_step' => 6,
+            'tone' => 'friendly',
+            'capabilities' => ['faqs'],
+            'channel' => 'telegram',
+            'channel_config' => ['telegram_bot_token' => 'telegram-bot-token'],
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'assigned_port' => 4100,
+            'workspace_url' => 'https://acme-plumbing.workspace.test',
+            'runtime_path' => '/srv/sync360/runtime/tenants/acme-plumbing',
+            'litellm_virtual_key' => 'sk-tenant-acme',
+        ])->save();
+
+        $tenant->googleCredential()->create([
+            'status' => TenantGoogleCredential::STATUS_CONNECTED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_VERIFIED,
+            'google_email' => 'owner@example.com',
+            'access_token' => 'google-access-token',
+            'refresh_token' => 'google-refresh-token',
+            'scopes' => ['openid', 'email'],
+            'connected_at' => now(),
+        ]);
+
+        $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
+        File::ensureDirectoryExists($localRuntimePath.'/.openclaw/workspace');
+        File::ensureDirectoryExists($localRuntimePath.'/config');
+        File::put($localRuntimePath.'/.env', implode(PHP_EOL, [
+            'OPENCLAW_GATEWAY_TOKEN=test-token',
+            'OPENAI_API_KEY=sk-tenant-acme',
+            'OPENAI_BASE_URL=https://litellm.stylesoftware.co.nz',
+            '',
+        ]));
+        File::put($localRuntimePath.'/config/openclaw.json', json_encode([
+            'gateway' => [
+                'auth' => [
+                    'mode' => 'token',
+                    'token' => 'test-token',
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+        File::put($localRuntimePath.'/compose.yaml', 'services: {}'.PHP_EOL);
+
+        $this->mock(TenantRuntimeSkillActivationService::class, function ($mock): void {
+            $mock->shouldReceive('syncExpectedContract')
+                ->andReturn([
+                    'changed' => true,
+                    'skill_set_changed' => false,
+                    'contract' => [
+                        'expected_skill_ids' => ['gog', 'inbox-triage'],
+                        'skill_set_hash' => 'expected-hash',
+                        'verified_skill_ids' => [],
+                        'verified_skill_set_hash' => null,
+                        'last_verified_at' => null,
+                        'last_verification_error' => null,
+                    ],
+                ]);
+            $mock->shouldReceive('rotateAgentSessions')->zeroOrMoreTimes();
+            $mock->shouldReceive('verifyRuntimeSkills')
+                ->andReturn([
+                    'ready' => false,
+                    'contract' => [
+                        'expected_skill_ids' => ['gog', 'inbox-triage'],
+                        'skill_set_hash' => 'expected-hash',
+                        'verified_skill_ids' => ['gog'],
+                        'verified_skill_set_hash' => null,
+                        'last_verified_at' => now()->toIso8601String(),
+                        'last_verification_error' => 'Missing expected skills: inbox-triage.',
+                    ],
+                    'workspace_state' => 'running',
+                    'refreshed_at' => now()->toDateTimeString(),
+                    'skills' => ['gog'],
+                    'raw_output' => "gog\n",
+                    'missing_expected_skill_ids' => ['inbox-triage'],
+                    'missing_required_skill_ids' => [],
+                    'error' => 'Missing expected skills: inbox-triage.',
+                ]);
+        });
+
+        $this->actingAs($user)
+            ->postJson('/onboarding/go-live')
+            ->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('message', 'Runtime skill activation verification failed after go-live. Missing expected skills: inbox-triage.');
     }
 
     public function test_live_agent_can_use_go_live_endpoint_to_resync_assistant(): void

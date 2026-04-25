@@ -250,6 +250,11 @@ Remaining documentation mismatch:
 - [`app/Services/TenantGatewayService.php`](../app/Services/TenantGatewayService.php) and [`app/Services/TenantHealthCheckService.php`](../app/Services/TenantHealthCheckService.php) — private gateway access and readiness checks
 - Customer dashboard expired-trial UX now uses a strict hierarchy: one urgent top banner, compact `Paused` / `Expired` health-rail states, and a reactivation-focused runway panel instead of repeating `trial ended` messaging in every surface.
 - The customer dashboard top analytics row now intentionally keeps `Performance Overview` and `Trial Runway` aligned in height so the analytical band reads as one balanced row instead of one tall chart beside a short recovery card.
+- Custom workspace skill activation is now tracked as a runtime contract, not an implicit side effect of file sync. Sync360 writes `.openclaw/workspace/.sync360/runtime-skill-contract.json` with `expected_skill_ids`, a deterministic `skill_set_hash`, the last verified runtime skills, and the last verification error.
+- A tenant runtime restart does not guarantee new custom skills are live. Stale OpenClaw agent session state under `data/agents` can keep an older `resolvedSkills` snapshot alive, so Sync360 now rotates that state whenever the expected skill set changes.
+- `TenantRuntimeSkillActivationService` is the shared activation path for apply, go-live, admin runtime refresh, and fail-closed trigger delivery. It owns expected-skill hashing, contract persistence, `openclaw skills list --eligible` verification, session rotation, and the one-shot self-heal path for required-skill delivery.
+- `TenantWorkspaceMessenger` now treats custom-skill delivery as a verified prerequisite. Callers can declare `requiredSkillIds`, and the messenger will refuse to deliver the hook if the required runtime skill still cannot be verified after one self-heal cycle.
+- Inbox Triage Gmail polling now depends on verified `inbox-triage` runtime readiness before a message can be marked `SENT_TO_AGENT`, which closes the platform-wide loophole where future custom skills could be materialized on disk but still absent from the live runtime session registry.
 
 ## 8. Current priorities / open work
 

@@ -27,7 +27,7 @@ use App\Services\TenantDeletionService;
 use App\Services\TenantHealthCheckService;
 use App\Services\TenantProfileSyncService;
 use App\Services\TenantRuntimeCustomizationComposer;
-use App\Services\TenantRuntimeSkillDiscoveryService;
+use App\Services\TenantRuntimeSkillActivationService;
 use App\Services\TenantSkillAnalyticsReportService;
 use App\Services\TenantSkillAssignmentService;
 use App\Services\TenantSkillRegistryService;
@@ -71,6 +71,7 @@ class AdminController extends Controller
         private readonly TenantDeletionService $tenantDeletion,
         private readonly TenantAgentCustomizationService $tenantCustomizations,
         private readonly TenantRuntimeCustomizationComposer $tenantRuntimeComposer,
+        private readonly TenantRuntimeSkillActivationService $runtimeSkillActivation,
         private readonly TenantSkillRegistryService $skillRegistry,
         private readonly SkillCatalogService $skillCatalog,
         private readonly TenantSkillAssignmentService $tenantSkillAssignments,
@@ -461,10 +462,9 @@ class AdminController extends Controller
     public function refreshRuntimeAvailableSkills(
         Request $request,
         Tenant $tenant,
-        TenantRuntimeSkillDiscoveryService $runtimeSkillDiscovery,
     ): RedirectResponse {
         try {
-            $inspection = $runtimeSkillDiscovery->inspect($tenant);
+            $verification = $this->runtimeSkillActivation->verifyRuntimeSkills($tenant);
         } catch (Throwable $exception) {
             return $this->redirectToTenantShow($request, $tenant, 'skills', $exception->getMessage());
         }
@@ -475,7 +475,7 @@ class AdminController extends Controller
                 'tab' => $this->resolveTenantTab($request->input('return_tab', 'skills')),
             ])
             ->with('status', 'Runtime skills refreshed.')
-            ->with('tenantRuntimeSkillInspection', array_merge($inspection, [
+            ->with('tenantRuntimeSkillInspection', array_merge($verification, [
                 'tenant_id' => $tenant->id,
             ]));
     }
@@ -1374,10 +1374,15 @@ class AdminController extends Controller
     /**
      * @return array{
      *     tenant_id:int,
-     *     workspace_state:string,
-     *     refreshed_at:string,
+     *     ready:bool,
+     *     workspace_state:?string,
+     *     refreshed_at:?string,
      *     skills:array<int, string>,
-     *     raw_output:string
+     *     raw_output:string,
+     *     missing_expected_skill_ids:array<int, string>,
+     *     missing_required_skill_ids:array<int, string>,
+     *     error:?string,
+     *     contract:array<string, mixed>
      * }|null
      */
     private function runtimeSkillInspectionFor(Request $request, Tenant $tenant): ?array
@@ -1394,10 +1399,15 @@ class AdminController extends Controller
 
         return [
             'tenant_id' => $tenant->id,
-            'workspace_state' => (string) ($inspection['workspace_state'] ?? 'unknown'),
-            'refreshed_at' => (string) ($inspection['refreshed_at'] ?? ''),
+            'ready' => (bool) ($inspection['ready'] ?? false),
+            'workspace_state' => is_string($inspection['workspace_state'] ?? null) ? (string) $inspection['workspace_state'] : null,
+            'refreshed_at' => is_string($inspection['refreshed_at'] ?? null) ? (string) $inspection['refreshed_at'] : null,
             'skills' => array_values(array_filter((array) ($inspection['skills'] ?? []), 'is_string')),
             'raw_output' => (string) ($inspection['raw_output'] ?? ''),
+            'missing_expected_skill_ids' => array_values(array_filter((array) ($inspection['missing_expected_skill_ids'] ?? []), 'is_string')),
+            'missing_required_skill_ids' => array_values(array_filter((array) ($inspection['missing_required_skill_ids'] ?? []), 'is_string')),
+            'error' => is_string($inspection['error'] ?? null) ? (string) $inspection['error'] : null,
+            'contract' => is_array($inspection['contract'] ?? null) ? $inspection['contract'] : [],
         ];
     }
 

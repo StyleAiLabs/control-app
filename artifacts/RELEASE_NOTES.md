@@ -2186,6 +2186,24 @@ Notable changes:
 Verification:
 - `php artisan test tests/Unit/TenantWorkspaceDependencyHealthServiceTest.php tests/Feature/WorkspaceDependencyMonitorCommandTest.php tests/Feature/AdminTenantCustomizationFlowTest.php tests/Feature/DashboardFlowTest.php` passed
 
+- `php artisan test tests/Unit/TenantRuntimeSkillActivationServiceTest.php tests/Unit/TenantWorkspaceMessengerTest.php tests/Feature/TenantAgentCustomizationApplyTest.php tests/Feature/InboxTriagePollingTest.php tests/Feature/TenantSkillRuntimeInspectorTest.php tests/Feature/AdminTenantCustomizationFlowTest.php` passed
+- `php artisan test tests/Feature/OnboardingFlowTest.php --filter='test_go_live_writes_runtime_files_syncs_and_marks_agent_live|test_go_live_returns_422_when_runtime_skill_activation_verification_fails|test_go_live_includes_owner_google_workspace_guidance_when_connected|test_go_live_replays_saved_channel_config_before_syncing_workspace'` passed
+
+## 2026-04-25 - Permanent Runtime Skill Activation Verification
+
+Date: 2026-04-25
+Branch: `codex/control-app-prod-deploy`
+
+Summary:
+- Closed the platform-wide loophole where a custom skill could be materialized on disk and listed in tenant config, yet still be absent from the live OpenClaw session `resolvedSkills` snapshot.
+
+Notable changes:
+- Added `TenantRuntimeSkillActivationService` to own custom-skill activation contracts, expected skill-set hashing, live `openclaw skills list --eligible` verification, persisted verification state, and one-shot self-heal for required-skill delivery.
+- Added `.openclaw/workspace/.sync360/runtime-skill-contract.json` as the generated runtime artifact for expected-vs-verified skill state.
+- Updated tenant apply and go-live flows to persist the expected skill contract, rotate stale agent session state when the expected skill set changes, and fail when live runtime verification still reports missing expected skills.
+- Updated `TenantWorkspaceMessenger` so callers can require runtime skills before hook delivery, and updated Inbox Triage polling to require `inbox-triage` before a Gmail monitor event can be marked `SENT_TO_AGENT`.
+- Extended tenant runtime inspection/admin refresh surfaces to show expected skills, verified skills, and verification errors instead of relying on diagnostics alone.
+
 ## 2026-04-11 - Production Deployment Packaging
 
 Date: 2026-04-11

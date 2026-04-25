@@ -280,9 +280,36 @@
             <div class="sync-poc-subpanel" style="margin-top:14px;">
                 @if ($runtimeSkillInspection)
                     <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-                        <x-ui.badge status="pending" technical>Workspace state: {{ $runtimeSkillInspection['workspace_state'] }}</x-ui.badge>
-                        <span class="hint">Last refreshed: {{ $runtimeSkillInspection['refreshed_at'] }}</span>
+                        <x-ui.badge :status="$runtimeSkillInspection['ready'] ? 'ready' : 'pending'" technical>
+                            {{ $runtimeSkillInspection['ready'] ? 'verified' : 'verification pending' }}
+                        </x-ui.badge>
+                        <x-ui.badge status="pending" technical>Workspace state: {{ $runtimeSkillInspection['workspace_state'] ?? 'unknown' }}</x-ui.badge>
+                        <span class="hint">Last refreshed: {{ $runtimeSkillInspection['refreshed_at'] ?? 'not refreshed' }}</span>
                     </div>
+
+                    @php
+                        $contract = $runtimeSkillInspection['contract'] ?? [];
+                    @endphp
+
+                    @if (($contract['expected_skill_ids'] ?? []) !== [])
+                        <div style="display:grid; gap:8px; margin-top:14px;">
+                            <div class="hint">Expected skills: {{ implode(', ', $contract['expected_skill_ids']) }}</div>
+                            <div class="hint">Verified skills: {{ ($contract['verified_skill_ids'] ?? []) !== [] ? implode(', ', $contract['verified_skill_ids']) : 'none yet' }}</div>
+                            <div class="hint">Last verification: {{ $contract['last_verified_at'] ?? 'not verified yet' }}</div>
+                        </div>
+                    @endif
+
+                    @if (($runtimeSkillInspection['missing_expected_skill_ids'] ?? []) !== [])
+                        <div class="hint" style="margin-top:10px; color:#b45309;">
+                            Missing expected runtime skills: {{ implode(', ', $runtimeSkillInspection['missing_expected_skill_ids']) }}
+                        </div>
+                    @endif
+
+                    @if (! empty($runtimeSkillInspection['error']))
+                        <div class="hint" style="margin-top:10px; color:#b45309;">
+                            {{ $runtimeSkillInspection['error'] }}
+                        </div>
+                    @endif
 
                     @if ($runtimeSkillInspection['skills'] !== [])
                         <div style="display:grid; gap:8px; margin-top:14px;">

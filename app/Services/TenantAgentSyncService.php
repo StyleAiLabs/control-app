@@ -30,6 +30,7 @@ class TenantAgentSyncService
         private readonly TenantRuntimeCustomizationComposer $runtimeCustomizationComposer,
         private readonly TenantSkillAnalyticsRuntimeService $skillAnalyticsRuntime,
         private readonly TenantWorkspaceDependencyHealthService $dependencyHealth,
+        private readonly TenantRuntimeSkillActivationService $runtimeSkillActivation,
     ) {
     }
 
@@ -62,11 +63,16 @@ class TenantAgentSyncService
 
         try {
             $this->syncSavedChannelIfReady($tenant);
+            $skillContractUpdate = $this->runtimeSkillActivation->syncExpectedContract($tenant, $tenant->agentCustomization);
 
             foreach ($artifacts as $filename => $contents) {
                 $artifactPath = $workspacePath.DIRECTORY_SEPARATOR.$filename;
                 $this->files->ensureDirectoryExists(dirname($artifactPath));
                 $this->files->put($artifactPath, $contents);
+            }
+
+            if ($skillContractUpdate['skill_set_changed']) {
+                $this->runtimeSkillActivation->rotateAgentSessions($tenant);
             }
 
             /* Skip SSH-based remote sync in local dev — files are already on disk. */
@@ -82,6 +88,17 @@ class TenantAgentSyncService
 
                 $this->dockerCompose->syncWorkspaceFiles($tenant->server, $localWorkspacePath, $remoteWorkspacePath);
                 $this->dockerCompose->up($tenant->server, $composeFile, $projectName);
+            }
+
+            $verification = $this->runtimeSkillActivation->verifyRuntimeSkills(
+                $tenant->fresh(['server', 'agentCustomization', 'skillAssignments.catalogVersion'])
+            );
+
+            if ($verification['missing_expected_skill_ids'] !== []) {
+                throw new RuntimeException(sprintf(
+                    'Runtime skill activation verification failed after go-live. Missing expected skills: %s.',
+                    implode(', ', $verification['missing_expected_skill_ids'])
+                ));
             }
 
             $this->skillAnalyticsRuntime->initializeTenant($tenant);

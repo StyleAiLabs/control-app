@@ -8,6 +8,7 @@ use App\Enums\TrialStatus;
 use App\Models\Server;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\TenantRuntimeSkillActivationService;
 use App\Services\TenantWorkspaceMessenger;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
@@ -75,6 +76,17 @@ class TenantWorkspaceMessengerTest extends TestCase
         };
 
         $this->instance(DockerComposeRunner::class, $runner);
+        $activation = \Mockery::mock(TenantRuntimeSkillActivationService::class);
+        $activation->shouldReceive('ensureRequiredSkillsReady')
+            ->once()
+            ->withArgs(fn (Tenant $candidate, array $requiredSkillIds): bool => $candidate->is($tenant) && $requiredSkillIds === [])
+            ->andReturn([
+                'expected_skill_ids' => ['gog'],
+                'skill_set_hash' => 'hash',
+                'verified_skill_ids' => ['gog'],
+                'verified_skill_set_hash' => 'hash',
+            ]);
+        $this->instance(TenantRuntimeSkillActivationService::class, $activation);
 
         app(TenantWorkspaceMessenger::class)->send(
             $tenant,
