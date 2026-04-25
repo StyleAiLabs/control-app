@@ -579,6 +579,7 @@ class TenantRuntimeCustomizationComposer
             $rules[] = '- For internal workflow triggers, do not browse the public web or research companies unless the owner explicitly asks for external research.';
             $rules[] = '- Inbox Triage must execute exactly one Gmail send action for a low-risk basic support or business-information enquiry when that branch applies: send the grounded answer now, or send one focused clarifying question when the answer is incomplete.';
             $rules[] = '- Do not claim that Inbox Triage will email a clarifying question or follow-up later unless `gog gmail send` or `gog gmail drafts create` already succeeded in the current run.';
+            $rules[] = '- Inbox Triage auto-replies must follow the tenant tone chosen during onboarding, stay concise, and use plain ASCII body text without literal escape sequences such as `\\n`, `\\r`, or `\\t`.';
             $rules[] = '- Questions about services, opening hours, location coverage, or simple documented support do not qualify for `High-Value Lead Detected` unless the same message also shows clear commercial buying intent.';
             $rules[] = '- Never auto-reply from Inbox Triage with invented pricing, timelines, policy promises, legal/payment positions, or bespoke commitments.';
         } else {

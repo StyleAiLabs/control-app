@@ -204,7 +204,7 @@ class TenantWorkspaceDependencyHealthServiceTest extends TestCase
         $version = SkillCatalogVersion::query()->create([
             'skill_catalog_item_id' => $item->id,
             'skill_key' => 'inbox-triage',
-            'version' => '1.6.1',
+            'version' => '1.6.2',
             'manifest_json' => ['key' => 'inbox-triage'],
             'is_available' => true,
             'is_active_published' => true,

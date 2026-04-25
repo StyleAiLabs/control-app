@@ -79,11 +79,15 @@ Use this branch only for low-risk support and business-information enquiries. Th
 ### Reply copy rules
 
 - Keep replies concise, businesslike, and plain.
+- Match the tenant communication style captured during onboarding. Use `SOUL.md`, `USER.md`, `PROFILE.md`, and the tenant tone hint as the voice source before drafting the reply.
 - Answer only what is known from tenant files or the email thread.
 - Do not invent pricing, service guarantees, policies, turnaround times, or availability promises.
 - Ask one focused clarifying question when the answer is incomplete.
 - Preserve a human handoff option when appropriate.
 - Do not promise a later reply, later follow-up, or “next” email unless that message has already been sent or drafted in the current run.
+- Send the Gmail body as one plain-text paragraph unless a true list is required by the customer question.
+- Do not include literal escape sequences such as `\n`, `\r`, or `\t` in the reply body.
+- Keep the reply body ASCII-only and avoid decorative symbols, emoji, markdown formatting, smart quotes, bullets, or other special characters unless the business name or customer-provided text requires them exactly.
 
 ### Required final reply outcome fields
 

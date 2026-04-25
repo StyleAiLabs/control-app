@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-26 — Improvement: Inbox Triage Replies Now Follow Onboarding Tone And Plain-Text Formatting
+
+Date: 2026-04-26
+Status: Implemented
+
+### Overview
+
+Tightened the Inbox Triage basic-enquiry reply copy contract so customer-facing Gmail auto-replies stay clean, on-brand, and free of literal escape artifacts.
+
+### What Changed
+
+- updated the workspace-managed `inbox-triage` skill to source reply voice from the tenant onboarding tone and profile files before drafting a basic-enquiry auto-reply
+- required plain-text single-paragraph reply bodies by default and explicitly forbade literal escape sequences such as `\n`, `\r`, and `\t`
+- discouraged decorative special characters, markdown, emoji, and smart punctuation in customer-facing reply bodies unless the business or customer text requires them exactly
+- mirrored the same formatting/tone constraint in generated tenant `HEARTBEAT.md` guidance so the runtime sees it even before loading the full skill file
+- bumped the Inbox Triage skill pack version to `1.6.2`
+
 ## 2026-04-26 — Fix: Poll Inbox at Gmail Message Level, Not Thread Level
 
 Date: 2026-04-26

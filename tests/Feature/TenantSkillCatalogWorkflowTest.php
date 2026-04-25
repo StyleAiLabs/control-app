@@ -81,6 +81,9 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $this->assertStringContainsString('If the enquiry is basic but the answer is missing from tenant material, send exactly one short clarifying question instead of guessing.', $skill);
         $this->assertStringContainsString('default to direct send. Use draft-only flow only when the owner explicitly asked for a draft workflow', $skill);
         $this->assertStringContainsString('Do not promise a later reply, later follow-up, or “next” email unless that message has already been sent or drafted in the current run.', $skill);
+        $this->assertStringContainsString('Match the tenant communication style captured during onboarding.', $skill);
+        $this->assertStringContainsString('Do not include literal escape sequences such as `\\n`, `\\r`, or `\\t` in the reply body.', $skill);
+        $this->assertStringContainsString('Keep the reply body ASCII-only and avoid decorative symbols, emoji, markdown formatting, smart quotes, bullets, or other special characters', $skill);
         $this->assertStringContainsString('`reply_status`: `sent`, `drafted`, `not_attempted`, or `failed`', $skill);
         $this->assertStringContainsString('Do not report `reply_status: sent` or `reply_status: drafted` without a matching successful Gmail tool result in the current run.', $skill);
         $this->assertStringContainsString('What are your services and are you open next Monday?', $skill);

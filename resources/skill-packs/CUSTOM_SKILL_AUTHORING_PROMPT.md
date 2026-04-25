@@ -113,6 +113,9 @@ Required tool-contract rules:
 - If the skill uses provider ids from incoming events, the final contract must preserve those ids exactly through follow-up actions, references, notifications, analytics, and logs whenever they are the safest handle for reopening the same record later.
 - Required side effects must be branch-complete. Do not leave a branch in a state where the agent can classify, summarize, or log the work while the required customer-facing action remains unexecuted.
 - If a required side effect is intentionally draft-only or human-review-only, the skill must say that explicitly and define the exact drafted/not-sent outcome state. Never let the agent quietly downgrade a required send into a draft without that branch being designed to do so.
+- For customer-facing messages such as Gmail replies, SMS, WhatsApp, or chat follow-ups, the skill must define the copy format explicitly. When the business has an onboarding tone or workspace voice source, require the skill to follow that tone rather than inventing a new style ad hoc.
+- For customer-facing plain-text messages, explicitly forbid literal escape sequences such as `\n`, `\r`, and `\t` in the sent body, and say whether the message should be a single paragraph or another constrained format.
+- If the business wants clean plain-text customer messaging, say so directly: require ASCII-safe body text by default and forbid decorative special characters, emoji, markdown, smart quotes, bullets, or other formatting noise unless the exact business/customer text requires them.
 
 Required `SKILL.md` content:
 - YAML frontmatter with `name` and `description`.
@@ -128,6 +131,7 @@ Required `SKILL.md` content:
   - privacy limits
   - exact success validation
   - exact failure handling
+- For customer-facing send/draft actions, include copy-style rules near the command contract: tone source, allowed formatting, forbidden escape sequences, paragraph/list expectations, and any character-set restrictions the business wants.
 - Do not leave required side effects as vague bullets like "log this", "notify the team", or "update records". If the agent must do it, provide enough command/tool guidance and validation rules that it can prove completion.
 - Do not let the skill describe a required side effect as a future handoff unless that handoff is truly outside the runtime and explicitly marked as such. If the runtime is supposed to send the email, post the message, create the calendar item, or write the record, the skill must require execution now plus output validation now.
 - A final response contract requiring the agent to report each required side effect as succeeded, skipped with reason, or failed with exact error/output.
@@ -189,6 +193,7 @@ Verification checklist:
 - Duplicate `event_id` does not create duplicate conversion records.
 - Required non-analytics side effects are tested or manually verified from runtime transcripts, including proof that the agent used the intended tool/command and inspected success output.
 - A regression transcript or test covers at least one failure path for each required side effect where practical.
+- For customer-facing messaging skills, verify at least one transcript or regression path proving the sent/drafted body does not contain literal escape sequences, matches the intended tone source, and respects any plain-text/ASCII formatting rule the skill declares.
 - Tenant dashboard shows successful conversions and estimated time saved.
 - Admin Skill Analytics shows the skill and tenant rollups.
 

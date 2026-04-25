@@ -1810,6 +1810,7 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('For internal workflow triggers, do not browse the public web or research companies unless the owner explicitly asks', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('Inbox Triage must execute exactly one Gmail send action for a low-risk basic support or business-information enquiry when that branch applies', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('Do not claim that Inbox Triage will email a clarifying question or follow-up later unless `gog gmail send` or `gog gmail drafts create` already succeeded in the current run.', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
+        $this->assertStringContainsString('Inbox Triage auto-replies must follow the tenant tone chosen during onboarding, stay concise, and use plain ASCII body text without literal escape sequences such as `\\n`, `\\r`, or `\\t`.', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('Questions about services, opening hours, location coverage, or simple documented support do not qualify for `High-Value Lead Detected` unless the same message also shows clear commercial buying intent.', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('Never auto-reply from Inbox Triage with invented pricing, timelines, policy promises, legal/payment positions, or bespoke commitments', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('Critical Runtime Contracts', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
@@ -1827,6 +1828,9 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('## Basic Enquiry Reply Flow', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('`reply_status`: `sent`, `drafted`, `not_attempted`, or `failed`', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('Do not report `reply_status: sent` or `reply_status: drafted` without a matching successful Gmail tool result in the current run.', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
+        $this->assertStringContainsString('Match the tenant communication style captured during onboarding.', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
+        $this->assertStringContainsString('Do not include literal escape sequences such as `\\n`, `\\r`, or `\\t` in the reply body.', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
+        $this->assertStringContainsString('Keep the reply body ASCII-only and avoid decorative symbols, emoji, markdown formatting, smart quotes, bullets, or other special characters', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('What are your services and are you open next Monday?', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('gog gmail send --reply-to-message-id <gmail_message_id> --subject \'<subject>\' --body \'<plain-text-body>\' --thread-id <gmail_thread_id>', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
         $this->assertStringContainsString('gog gmail drafts create --reply-to-message-id <gmail_message_id> --subject \'<subject>\' --body \'<plain-text-body>\'', File::get($localRuntimePath.'/.openclaw/workspace/skills/inbox-triage/SKILL.md'));
@@ -1939,10 +1943,10 @@ class OnboardingFlowTest extends TestCase
         SkillCatalogVersion::query()->create([
             'skill_catalog_item_id' => $skill->id,
             'skill_key' => 'inbox-triage',
-            'version' => '1.6.1',
+            'version' => '1.6.2',
             'manifest_json' => [
                 'skill_id' => 'inbox-triage',
-                'version' => '1.6.1',
+                'version' => '1.6.2',
                 'label' => 'Inbox Triage (by Sync360)',
                 'description' => 'Inbox triage',
                 'onboarding_role' => 'core',

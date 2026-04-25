@@ -1,6 +1,6 @@
 {
     "skill_id": "inbox-triage",
-    "version": "1.6.1",
+    "version": "1.6.2",
     "label": "Inbox Triage (by Sync360)",
     "description": "Monitors email inbox for high-value leads, categorizes inquiries, and routes qualified opportunities.",
     "category": "operations",

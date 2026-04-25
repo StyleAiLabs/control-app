@@ -1,5 +1,9 @@
 # Inbox Triage — Release Notes
 
+## 1.6.2
+- tightened the basic-enquiry reply copy rules so Gmail auto-replies follow the tenant tone chosen during onboarding
+- required plain-text single-paragraph reply bodies by default, forbade literal escape sequences such as `\n`, `\r`, and `\t`, and discouraged decorative special characters or markdown in customer-facing replies
+
 ## 1.6.1
 - tightened the basic-enquiry reply contract so Sync360-triggered low-risk enquiries must execute exactly one Gmail send or draft action before the workflow can report success
 - added explicit `reply_status` and `reply_reason` outcome rules, and forbade summaries that promise a later email without a matching Gmail tool result in the current run
