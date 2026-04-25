@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-25 — Fix: Trial Extension Restores Exhausted AI Credit As A Top-Up
+
+Date: 2026-04-25
+Status: Implemented
+
+### Overview
+
+Adjusted the admin tenant `Add 7 Days` action so extending a trial now fully reactivates tenants that were paused by exhausted LiteLLM credit, without resetting historical spend or rotating the existing LiteLLM key.
+
+### What Changed
+
+- kept trial extension as a 7-day date/status update for every tenant
+- added exhausted-budget detection based on the tenant’s persisted LiteLLM spend and budget fields rather than `trial_status` alone
+- when a tenant is out of AI credit, extending the trial now increases the existing LiteLLM key budget by `$5` above the current used amount instead of resetting the budget to a fresh trial ceiling
+- left time-only extensions unchanged when the tenant still has AI credit remaining
+- updated admin trial-extension coverage for active-with-credit, expired-by-time, exhausted-at-limit, and previously-suspended budget states
+
 ## 2026-04-25 — Improvement: Customer Onboarding Wizard Refresh
 
 Date: 2026-04-25

@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Services\ControlAppDeploymentService;
 use App\Services\SkillCatalogService;
 use App\Services\SystemHealthService;
+use App\Services\LiteLlmTenantKeyService;
 use App\Services\TenantAgentCustomizationService;
 use App\Services\TenantAgentSyncService;
 use App\Services\TenantDeletionService;
@@ -75,6 +76,7 @@ class AdminController extends Controller
         private readonly TenantSkillAnalyticsReportService $skillAnalytics,
         private readonly SystemHealthService $systemHealth,
         private readonly TenantWorkspaceDependencyHealthService $dependencyHealth,
+        private readonly LiteLlmTenantKeyService $liteLlmTenantKeys,
     ) {}
 
     public function index(): View
@@ -267,13 +269,35 @@ class AdminController extends Controller
 
     public function extendTrial(Request $request, Tenant $tenant): RedirectResponse
     {
+        $shouldTopUpBudget = $tenant->hasExhaustedTrialBudget();
         $tenant->extendTrialByDays(7);
+
+        if ($shouldTopUpBudget) {
+            $tenant->refresh();
+            $this->liteLlmTenantKeys->updateTenantBudget(
+                $tenant,
+                'trial',
+                $tenant->extendedTrialBudgetTarget(5.0),
+                (string) config('sync360.litellm.default_budget_duration', 'monthly'),
+            );
+        }
+
+        $freshTenant = $tenant->fresh();
+        $statusMessage = $shouldTopUpBudget
+            ? sprintf(
+                'Extended trial by 7 days and added $5 AI credit. New end date: %s.',
+                $freshTenant->trial_ends_at?->toDateTimeString() ?? 'not set',
+            )
+            : sprintf(
+                'Extended trial by 7 days. New end date: %s.',
+                $freshTenant->trial_ends_at?->toDateTimeString() ?? 'not set',
+            );
 
         return $this->redirectToTenantShow(
             $request,
-            $tenant->fresh(),
+            $freshTenant,
             'overview',
-            sprintf('Extended trial by 7 days. New end date: %s.', $tenant->fresh()->trial_ends_at?->toDateTimeString() ?? 'not set')
+            $statusMessage,
         );
     }
 

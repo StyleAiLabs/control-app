@@ -11,6 +11,7 @@ use App\Models\Server;
 use App\Models\Tenant;
 use App\Models\TenantGoogleCredential;
 use App\Models\User;
+use App\Services\LiteLlmTenantKeyService;
 use App\Services\TenantHealthCheckService;
 use App\Services\TenantProfileSyncService;
 use Illuminate\Support\Carbon;
@@ -318,7 +319,16 @@ class AdminTenantOperationsTest extends TestCase
             'trial_status' => TrialStatus::Active,
             'trial_ends_at' => Carbon::parse('2026-04-30 10:00:00'),
             'provisioning_status' => TenantProvisioningStatus::Ready,
+            'litellm_virtual_key' => 'sk-tenant-active',
+            'litellm_plan_name' => 'trial',
+            'litellm_max_budget' => 5,
+            'litellm_budget_duration' => 'monthly',
+            'litellm_spend' => 2,
         ]);
+
+        $liteLlmKeys = Mockery::mock(LiteLlmTenantKeyService::class);
+        $liteLlmKeys->shouldNotReceive('updateTenantBudget');
+        $this->instance(LiteLlmTenantKeyService::class, $liteLlmKeys);
 
         $this->actingAs($admin);
 
@@ -331,6 +341,7 @@ class AdminTenantOperationsTest extends TestCase
 
         $this->assertSame(TrialStatus::Active, $tenant->trial_status);
         $this->assertSame('2026-05-07 10:00:00', $tenant->trial_ends_at?->toDateTimeString());
+        $this->assertSame('5.00', $tenant->litellm_max_budget);
 
         Carbon::setTestNow();
     }
@@ -368,6 +379,10 @@ class AdminTenantOperationsTest extends TestCase
             'provisioning_status' => TenantProvisioningStatus::Ready,
         ]);
 
+        $liteLlmKeys = Mockery::mock(LiteLlmTenantKeyService::class);
+        $liteLlmKeys->shouldNotReceive('updateTenantBudget');
+        $this->instance(LiteLlmTenantKeyService::class, $liteLlmKeys);
+
         $this->actingAs($admin);
 
         $this->post(route('admin.tenants.trial.extend', $tenant), [
@@ -381,6 +396,150 @@ class AdminTenantOperationsTest extends TestCase
         $this->assertSame('2026-05-02 10:00:00', $tenant->trial_ends_at?->toDateTimeString());
         $this->assertNull($tenant->trial_3day_notified_at);
         $this->assertNull($tenant->trial_expired_notified_at);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_admin_extending_budget_exhausted_trial_adds_five_dollars_of_headroom(): void
+    {
+        Carbon::setTestNow('2026-04-25 10:00:00');
+
+        $admin = User::query()->create([
+            'name' => 'Debug Admin',
+            'email' => 'admin@example.com',
+            'password' => 'super-secret',
+            'is_admin' => true,
+        ]);
+
+        $user = User::query()->create([
+            'name' => 'Customer User',
+            'email' => 'customer@example.com',
+            'password' => 'super-secret',
+            'is_admin' => false,
+        ]);
+
+        $tenant = Tenant::query()->create([
+            'tenant_id' => 'tenant_trial_extend_03',
+            'slug' => 'budget-expired-shop',
+            'business_name' => 'Budget Expired Shop',
+            'industry' => 'Retail',
+            'skill_pack' => 'Client Support',
+            'user_id' => $user->id,
+            'server_id' => Server::query()->firstOrFail()->id,
+            'trial_status' => TrialStatus::Expired,
+            'trial_ends_at' => Carbon::parse('2026-04-20 10:00:00'),
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'litellm_virtual_key' => 'sk-tenant-budget',
+            'litellm_plan_name' => 'trial',
+            'litellm_max_budget' => 5,
+            'litellm_budget_duration' => 'monthly',
+            'litellm_spend' => 5,
+        ]);
+
+        $liteLlmKeys = Mockery::mock(LiteLlmTenantKeyService::class);
+        $liteLlmKeys->shouldReceive('updateTenantBudget')
+            ->once()
+            ->withArgs(function (Tenant $updatedTenant, string $planName, float $budget, ?string $budgetDuration): bool {
+                return $updatedTenant->tenant_id === 'tenant_trial_extend_03'
+                    && $planName === 'trial'
+                    && $budget === 10.0
+                    && $budgetDuration === 'monthly';
+            })
+            ->andReturnUsing(function (Tenant $updatedTenant, string $planName, float $budget, ?string $budgetDuration): void {
+                $updatedTenant->forceFill([
+                    'litellm_plan_name' => $planName,
+                    'litellm_max_budget' => $budget,
+                    'litellm_budget_duration' => $budgetDuration,
+                    'litellm_last_synced_at' => now(),
+                ])->save();
+            });
+        $this->instance(LiteLlmTenantKeyService::class, $liteLlmKeys);
+
+        $this->actingAs($admin);
+
+        $this->post(route('admin.tenants.trial.extend', $tenant), [
+            'return_tab' => 'overview',
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'overview']))
+            ->assertSessionHas('status', 'Extended trial by 7 days and added $5 AI credit. New end date: 2026-05-02 10:00:00.');
+
+        $tenant->refresh();
+
+        $this->assertSame(TrialStatus::Active, $tenant->trial_status);
+        $this->assertSame('2026-05-02 10:00:00', $tenant->trial_ends_at?->toDateTimeString());
+        $this->assertSame('10.00', $tenant->litellm_max_budget);
+        $this->assertSame('5.000000', $tenant->litellm_spend);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_admin_extending_suspended_budget_exhausted_trial_restores_budget_above_existing_spend(): void
+    {
+        Carbon::setTestNow('2026-04-25 10:00:00');
+
+        $admin = User::query()->create([
+            'name' => 'Debug Admin',
+            'email' => 'admin@example.com',
+            'password' => 'super-secret',
+            'is_admin' => true,
+        ]);
+
+        $user = User::query()->create([
+            'name' => 'Customer User',
+            'email' => 'customer@example.com',
+            'password' => 'super-secret',
+            'is_admin' => false,
+        ]);
+
+        $tenant = Tenant::query()->create([
+            'tenant_id' => 'tenant_trial_extend_04',
+            'slug' => 'budget-suspended-shop',
+            'business_name' => 'Budget Suspended Shop',
+            'industry' => 'Retail',
+            'skill_pack' => 'Client Support',
+            'user_id' => $user->id,
+            'server_id' => Server::query()->firstOrFail()->id,
+            'trial_status' => TrialStatus::Expired,
+            'trial_ends_at' => Carbon::parse('2026-04-20 10:00:00'),
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'litellm_virtual_key' => 'sk-tenant-suspended',
+            'litellm_plan_name' => 'trial',
+            'litellm_max_budget' => 0,
+            'litellm_budget_duration' => null,
+            'litellm_spend' => 5,
+        ]);
+
+        $liteLlmKeys = Mockery::mock(LiteLlmTenantKeyService::class);
+        $liteLlmKeys->shouldReceive('updateTenantBudget')
+            ->once()
+            ->withArgs(function (Tenant $updatedTenant, string $planName, float $budget, ?string $budgetDuration): bool {
+                return $updatedTenant->tenant_id === 'tenant_trial_extend_04'
+                    && $planName === 'trial'
+                    && $budget === 10.0
+                    && $budgetDuration === 'monthly';
+            })
+            ->andReturnUsing(function (Tenant $updatedTenant, string $planName, float $budget, ?string $budgetDuration): void {
+                $updatedTenant->forceFill([
+                    'litellm_plan_name' => $planName,
+                    'litellm_max_budget' => $budget,
+                    'litellm_budget_duration' => $budgetDuration,
+                    'litellm_last_synced_at' => now(),
+                ])->save();
+            });
+        $this->instance(LiteLlmTenantKeyService::class, $liteLlmKeys);
+
+        $this->actingAs($admin);
+
+        $this->post(route('admin.tenants.trial.extend', $tenant), [
+            'return_tab' => 'overview',
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'overview']))
+            ->assertSessionHas('status', 'Extended trial by 7 days and added $5 AI credit. New end date: 2026-05-02 10:00:00.');
+
+        $tenant->refresh();
+
+        $this->assertSame(TrialStatus::Active, $tenant->trial_status);
+        $this->assertSame('2026-05-02 10:00:00', $tenant->trial_ends_at?->toDateTimeString());
+        $this->assertSame('10.00', $tenant->litellm_max_budget);
+        $this->assertSame('monthly', $tenant->litellm_budget_duration);
 
         Carbon::setTestNow();
     }

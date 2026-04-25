@@ -231,4 +231,28 @@ class Tenant extends Model
             'trial_expired_notified_at' => null,
         ])->save();
     }
+
+    public function hasExhaustedTrialBudget(): bool
+    {
+        $spend = max(0.0, (float) ($this->litellm_spend ?? 0.0));
+        $maxBudget = max(0.0, (float) ($this->litellm_max_budget ?? 0.0));
+
+        if ($this->litellm_virtual_key === null) {
+            return false;
+        }
+
+        if ($maxBudget > 0.0) {
+            return $spend >= $maxBudget;
+        }
+
+        return $spend > 0.0;
+    }
+
+    public function extendedTrialBudgetTarget(float $topUpAmount = 5.0): float
+    {
+        $spend = max(0.0, (float) ($this->litellm_spend ?? 0.0));
+        $maxBudget = max(0.0, (float) ($this->litellm_max_budget ?? 0.0));
+
+        return round(max($spend, $maxBudget) + $topUpAmount, 2);
+    }
 }
