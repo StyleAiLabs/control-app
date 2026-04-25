@@ -6,6 +6,7 @@ use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
 use App\Models\Tenant;
 use App\Services\TenantAgentSyncService;
+use App\Services\TenantWorkspaceDependencyHealthService;
 use App\Services\TenantWorkspaceReadinessService;
 use App\Support\GoogleWorkspaceFeature;
 use Illuminate\Contracts\View\View;
@@ -19,6 +20,7 @@ class TenantSetupController extends Controller
     public function __construct(
         private readonly TenantWorkspaceReadinessService $workspaceReadiness,
         private readonly TenantAgentSyncService $agentSync,
+        private readonly TenantWorkspaceDependencyHealthService $dependencyHealth,
     ) {
     }
 
@@ -35,6 +37,7 @@ class TenantSetupController extends Controller
 
         return view('tenant.setup', [
             'tenant' => $tenant,
+            'dependencyHealth' => $this->dependencyHealth->evaluate($tenant),
         ]);
     }
 
@@ -63,6 +66,7 @@ class TenantSetupController extends Controller
             'blocking_code' => $readiness['blocking_code'],
             'blocking_message' => $readiness['blocking_message'],
             'next_action' => $readiness['next_action'],
+            'dependency_health' => $this->dependencyHealth->evaluate($tenant),
             'error_message' => $tenant->provisioningJobs()->latest('id')->value('error_message'),
         ]);
     }
@@ -80,6 +84,7 @@ class TenantSetupController extends Controller
             'trialLabel' => $this->trialLabel($tenant->trial_status),
             'nextSteps' => $this->nextSteps($tenant, $readiness),
             'workspaceReadiness' => $readiness,
+            'dependencyHealth' => $this->dependencyHealth->evaluate($tenant),
         ]);
     }
 

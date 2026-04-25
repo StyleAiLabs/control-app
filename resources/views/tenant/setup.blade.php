@@ -67,6 +67,17 @@
         </div>
     </section>
 
+    @php
+        $googleHealth = is_array($dependencyHealth['google_workspace'] ?? null) ? $dependencyHealth['google_workspace'] : [];
+        $inboxHealth = is_array($dependencyHealth['inbox_monitor'] ?? null) ? $dependencyHealth['inbox_monitor'] : [];
+    @endphp
+    @if (in_array($googleHealth['health_status'] ?? null, ['expiring_soon', 'degraded', 'reconnect_required'], true) || in_array($inboxHealth['health_status'] ?? null, ['degraded', 'down'], true))
+        <section class="panel" style="margin-top: 20px;">
+            <span class="eyebrow">Dependency Health</span>
+            <div class="note" style="margin-top: 14px;">{{ $googleHealth['health_note'] ?? $inboxHealth['health_note'] ?? 'Setup needs attention before live tools can work normally.' }}</div>
+        </section>
+    @endif
+
     <script>
         const statusEndpoint = @json(route('tenant.status'));
         const statusLabel    = document.getElementById('status-label');
@@ -114,7 +125,7 @@
             statusBadge.textContent = badgeMap[data.provisioning_status] ?? data.provisioning_status;
             statusBadge.className   = `badge ${data.provisioning_status}`;
             workspaceUrl.textContent = data.workspace_url ?? 'Almost ready\u2026';
-            progressMessage.textContent = messageMap[data.provisioning_status] ?? 'Checking your setup status\u2026';
+            progressMessage.textContent = data.blocking_message || messageMap[data.provisioning_status] || 'Checking your setup status\u2026';
 
             if (data.provisioning_status === 'failed' && data.error_message) {
                 errorMessage.style.display = 'block';

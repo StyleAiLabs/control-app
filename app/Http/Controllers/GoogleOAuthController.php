@@ -6,6 +6,7 @@ use App\Models\Tenant;
 use App\Models\TenantGoogleCredential;
 use App\Services\GoogleWorkspaceOAuthService;
 use App\Services\TenantAgentSyncService;
+use App\Services\TenantWorkspaceDependencyHealthService;
 use App\Support\GoogleWorkspaceFeature;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,6 +17,7 @@ class GoogleOAuthController extends Controller
     public function __construct(
         private readonly GoogleWorkspaceOAuthService $oauth,
         private readonly TenantAgentSyncService $agentSync,
+        private readonly TenantWorkspaceDependencyHealthService $dependencyHealth,
     ) {
     }
 
@@ -66,6 +68,7 @@ class GoogleOAuthController extends Controller
                 $request->string('state')->toString(),
                 $request->string('code')->toString(),
             );
+            $this->dependencyHealth->resetGoogleAlerts($tenant->fresh('googleCredential')->googleCredential);
 
             $syncJob = $this->agentSync->dispatchInitialGoogleWorkspaceSync(
                 $tenant->fresh(['server', 'googleCredential']),

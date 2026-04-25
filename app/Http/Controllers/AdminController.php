@@ -30,6 +30,7 @@ use App\Services\TenantSkillAnalyticsReportService;
 use App\Services\TenantSkillAssignmentService;
 use App\Services\TenantSkillRegistryService;
 use App\Services\TenantRuntimeService;
+use App\Services\TenantWorkspaceDependencyHealthService;
 use App\Services\WorkspaceReadyEmailService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -73,6 +74,7 @@ class AdminController extends Controller
         private readonly TenantSkillAssignmentService $tenantSkillAssignments,
         private readonly TenantSkillAnalyticsReportService $skillAnalytics,
         private readonly SystemHealthService $systemHealth,
+        private readonly TenantWorkspaceDependencyHealthService $dependencyHealth,
     ) {}
 
     public function index(): View
@@ -1011,6 +1013,8 @@ class AdminController extends Controller
     private function googleStateFor(Tenant $tenant, ?ProvisioningJob $syncJob = null): array
     {
         $credential = $tenant->googleCredential;
+        $dependencyHealth = $this->dependencyHealth->evaluate($tenant);
+        $googleHealth = is_array($dependencyHealth['google_workspace'] ?? null) ? $dependencyHealth['google_workspace'] : [];
         $connectionStatus = $credential?->status ?? TenantGoogleCredential::STATUS_PENDING;
         $runtimeSyncStatus = $credential?->runtime_sync_status ?? TenantGoogleCredential::RUNTIME_SYNC_PENDING;
         $syncJobStatus = $syncJob?->status?->value;
@@ -1061,6 +1065,14 @@ class AdminController extends Controller
             },
             'google_email' => $credential?->google_email,
             'last_error' => $credential?->last_error ?: $syncJob?->error_message,
+            'health_status' => $googleHealth['health_status'] ?? TenantGoogleCredential::HEALTH_NOT_CONNECTED,
+            'health_label' => $googleHealth['health_label'] ?? 'Not connected',
+            'health_note' => $googleHealth['health_note'] ?? null,
+            'last_health_checked_at' => $googleHealth['last_health_checked_at'] ?? null,
+            'last_verified_at' => $googleHealth['last_verified_at'] ?? null,
+            'predicted_expiry_at' => $googleHealth['predicted_expiry_at'] ?? null,
+            'predicted_expiry_label' => $googleHealth['predicted_expiry_label'] ?? null,
+            'requires_reconnect' => $googleHealth['requires_reconnect'] ?? false,
             'last_timestamp_label' => $lastTimestampLabel,
             'last_timestamp' => $lastTimestamp,
             'sync_job_status' => $syncJobStatus,
@@ -1206,6 +1218,9 @@ class AdminController extends Controller
         ]);
 
         $monitorState = $tenant->inboxMonitorState;
+        $dependencyHealth = $this->dependencyHealth->evaluate($tenant);
+        $inboxHealth = is_array($dependencyHealth['inbox_monitor'] ?? null) ? $dependencyHealth['inbox_monitor'] : [];
+        $googleHealth = is_array($dependencyHealth['google_workspace'] ?? null) ? $dependencyHealth['google_workspace'] : [];
         $assignedInboxSkill = $tenant->skillAssignments
             ->first(fn ($assignment) => $assignment->skill_key === 'inbox-triage' && $assignment->is_enabled);
 
@@ -1220,37 +1235,34 @@ class AdminController extends Controller
             'failed' => $tenant->inboxMonitorMessages->where('status', \App\Models\TenantInboxMonitorMessage::STATUS_FAILED)->count(),
         ];
 
-        $stateStatus = match (true) {
-            ! $assignedInboxSkill => 'pending',
-            ! ($tenant->googleCredential?->isConnected() ?? false) => 'warning',
-            $monitorState?->status === \App\Models\TenantInboxMonitorState::STATUS_FAILED => 'failed',
-            $monitorState?->backoff_until && $monitorState->backoff_until->isFuture() => 'warning',
-            default => 'ready',
+        $stateStatus = match ($inboxHealth['health_status'] ?? null) {
+            \App\Models\TenantInboxMonitorState::HEALTH_HEALTHY => 'ready',
+            \App\Models\TenantInboxMonitorState::HEALTH_DEGRADED => 'warning',
+            \App\Models\TenantInboxMonitorState::HEALTH_DOWN => 'failed',
+            default => 'pending',
         };
 
-        $stateLabel = match (true) {
-            ! $assignedInboxSkill => 'Not assigned',
-            ! ($tenant->googleCredential?->isConnected() ?? false) => 'Google not connected',
-            $monitorState?->status === \App\Models\TenantInboxMonitorState::STATUS_FAILED => 'Needs attention',
-            $monitorState?->backoff_until && $monitorState->backoff_until->isFuture() => 'Backoff active',
-            $monitorState?->enabled === false => 'Disabled',
-            $monitorState?->last_checked_at => 'Healthy',
-            default => 'Pending first poll',
-        };
+        $stateLabel = $inboxHealth['health_label'] ?? 'Pending';
 
         return [
             'status' => $stateStatus,
             'status_label' => $stateLabel,
+            'health_note' => $inboxHealth['health_note'] ?? null,
             'enabled' => $monitorState?->enabled ?? $assignedInboxSkill !== null,
             'last_checked_at' => $monitorState?->last_checked_at?->toDateTimeString(),
+            'health_checked_at' => $monitorState?->health_checked_at?->toDateTimeString(),
             'last_failed_at' => $monitorState?->last_failed_at?->toDateTimeString(),
             'backoff_until' => $monitorState?->backoff_until?->toDateTimeString(),
             'last_error' => $monitorState?->last_error,
             'consecutive_failures' => $monitorState?->consecutive_failures ?? 0,
+            'incident_alert_sent_at' => $monitorState?->incident_alert_sent_at?->toDateTimeString(),
+            'incident_alert_reason' => $monitorState?->incident_alert_reason,
             'google_runtime_state' => $tenant->googleCredential?->runtime_sync_status ?? 'not_connected',
             'google_runtime_label' => $tenant->googleCredential?->runtime_sync_status
                 ? str_replace('_', ' ', $tenant->googleCredential->runtime_sync_status)
                 : 'not connected',
+            'google_health_status' => $googleHealth['health_status'] ?? TenantGoogleCredential::HEALTH_NOT_CONNECTED,
+            'google_health_label' => $googleHealth['health_label'] ?? 'Not connected',
             'assigned_skill_version' => $assignedInboxSkill?->catalogVersion?->version,
             'message_counts' => $counts,
             'recent_messages' => $recentMessages->map(fn ($message) => [

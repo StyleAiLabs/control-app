@@ -2084,6 +2084,24 @@ Notable changes:
 Verification:
 - `php artisan test tests/Feature/SignupFlowTest.php tests/Feature/OnboardingFlowTest.php tests/Feature/TenantSkillCatalogWorkflowTest.php tests/Feature/DashboardFlowTest.php tests/Feature/ProfileFlowTest.php tests/Unit/TenantRuntimeCustomizationComposerTest.php` passed
 
+## 2026-04-25 - Google Workspace And Inbox Health Monitoring
+
+Date: 2026-04-25
+
+Summary:
+- Replaced stale Google Workspace "connected and ready" messaging with a live dependency-health model spanning Google auth/runtime verification, Inbox Triage polling health, and customer/admin alerting.
+
+Notable changes:
+- added `TenantWorkspaceDependencyHealthService` as the shared source of truth for normalized Google Workspace and Inbox Triage health payloads across customer and admin surfaces
+- added `sync360:monitor-workspace-dependencies`, scheduled hourly, to run Google smoke checks for connected tenants, persist health state, and send deduped Telegram reminders/incidents when possible
+- extended `tenant_google_credentials` and `tenant_inbox_monitor_states` with durable health, reminder, and incident-alert fields
+- updated onboarding Step 6, dashboard Inbox overview, setup/workspace-ready pages, and authenticated sidebar alerts to stop treating `connected` as equivalent to `working`
+- updated admin Google and Inbox Monitor tabs to show predicted expiry, last health check, last verified success, and customer-alert metadata
+- added testing-mode 7-day predicted expiry handling with 3-day / 1-day reminders while keeping live mode on failure-driven monitoring only
+
+Verification:
+- `php artisan test tests/Unit/TenantWorkspaceDependencyHealthServiceTest.php tests/Feature/WorkspaceDependencyMonitorCommandTest.php tests/Feature/OnboardingFlowTest.php tests/Feature/DashboardFlowTest.php tests/Feature/TenantSetupFlowTest.php tests/Feature/ProfileFlowTest.php tests/Feature/AdminTenantCustomizationFlowTest.php tests/Feature/SystemHealthTest.php` passed
+
 ## 2026-04-11 - Production Deployment Packaging
 
 Date: 2026-04-11

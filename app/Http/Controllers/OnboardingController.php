@@ -12,6 +12,7 @@ use App\Services\BusinessExtractionService;
 use App\Services\GoogleWorkspaceOAuthService;
 use App\Services\TenantAgentSyncService;
 use App\Services\TenantOnboardingSkillService;
+use App\Services\TenantWorkspaceDependencyHealthService;
 use App\Services\TenantWorkspaceReadinessService;
 use App\Support\GoogleWorkspaceFeature;
 use App\Support\OnboardingStepCatalog;
@@ -30,6 +31,7 @@ class OnboardingController extends Controller
         private readonly TenantOnboardingSkillService $onboardingSkills,
         private readonly GoogleWorkspaceOAuthService $googleOAuth,
         private readonly TenantWorkspaceReadinessService $workspaceReadiness,
+        private readonly TenantWorkspaceDependencyHealthService $dependencyHealth,
     ) {
     }
 
@@ -393,6 +395,7 @@ class OnboardingController extends Controller
         $googleCredential = GoogleWorkspaceFeature::isAvailable() ? $tenant->googleCredential : null;
         $googleSyncJob = $this->latestInitialGoogleWorkspaceSyncJob($tenant);
         $workspaceReadiness = $this->workspaceReadiness->evaluate($tenant, GoogleWorkspaceFeature::isAvailable(), $googleSyncJob);
+        $dependencyHealth = $this->dependencyHealth->evaluate($tenant);
         $stepLabels = OnboardingStepCatalog::labels();
 
         $steps = [
@@ -467,7 +470,7 @@ class OnboardingController extends Controller
             'modules' => $modules,
             'channel' => $tenant->channel === 'telegram' ? 'telegram' : null,
             'channel_setup' => $this->channelSetupPayload($tenant, $channelConfig),
-            'google_workspace' => $this->googleWorkspacePayload($tenant, $googleCredential, $workspaceReadiness, $googleSyncJob),
+            'google_workspace' => $this->googleWorkspacePayload($tenant, $googleCredential, $workspaceReadiness, $googleSyncJob, $dependencyHealth),
             'workspace' => [
                 'url' => $tenant->workspace_url,
                 'ready' => $workspaceReadiness['ready'],
@@ -566,12 +569,21 @@ class OnboardingController extends Controller
         ?TenantGoogleCredential $credential,
         array $workspaceReadiness,
         ?\App\Models\ProvisioningJob $syncJob,
+        array $dependencyHealth,
     ): array
     {
         if (! GoogleWorkspaceFeature::isAvailable()) {
             return [
                 'status' => 'unavailable',
                 'runtime_sync_status' => 'unavailable',
+                'health_status' => 'not_connected',
+                'health_label' => 'Unavailable',
+                'health_note' => 'Google Workspace connect is temporarily unavailable in this environment until the latest database migration has been run.',
+                'last_health_checked_at' => null,
+                'last_verified_at' => null,
+                'predicted_expiry_at' => null,
+                'predicted_expiry_label' => null,
+                'requires_reconnect' => false,
                 'connected_email' => null,
                 'scopes' => $this->googleOAuth->scopes(),
                 'can_connect' => false,
@@ -607,15 +619,24 @@ class OnboardingController extends Controller
             && $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_VERIFIED;
         $needsAttention = $status === TenantGoogleCredential::STATUS_CONNECTED
             && $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_FAILED;
+        $health = is_array($dependencyHealth['google_workspace'] ?? null) ? $dependencyHealth['google_workspace'] : [];
 
         return [
             'status' => $status,
             'runtime_sync_status' => $runtimeSyncStatus,
             'runtime_sync_label' => (string) $workspaceReadiness['google_runtime_sync_label'],
+            'health_status' => $health['health_status'] ?? TenantGoogleCredential::HEALTH_NOT_CONNECTED,
+            'health_label' => $health['health_label'] ?? 'Not connected',
+            'health_note' => $health['health_note'] ?? 'Connect Google Workspace to finish preparing your customer-ready workspace.',
+            'last_health_checked_at' => $health['last_health_checked_at'] ?? null,
+            'last_verified_at' => $health['last_verified_at'] ?? null,
+            'predicted_expiry_at' => $health['predicted_expiry_at'] ?? null,
+            'predicted_expiry_label' => $health['predicted_expiry_label'] ?? null,
+            'requires_reconnect' => $health['requires_reconnect'] ?? false,
             'connected_email' => $credential?->google_email,
             'scopes' => is_array($credential?->scopes) ? $credential->scopes : $this->googleOAuth->scopes(),
             'can_connect' => $configured,
-            'can_reconnect' => $status === TenantGoogleCredential::STATUS_DISCONNECTED,
+            'can_reconnect' => $status === TenantGoogleCredential::STATUS_DISCONNECTED || ($health['requires_reconnect'] ?? false),
             'connected' => $status === TenantGoogleCredential::STATUS_CONNECTED,
             'pending_sync' => $status === TenantGoogleCredential::STATUS_CONNECTED
                 && $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_PENDING

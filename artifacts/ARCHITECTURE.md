@@ -1081,6 +1081,9 @@ Notable current additions:
 - Historical release notes and plans still contain webhook-first Telegram narratives and more complete WhatsApp claims than the current implementation.
 - Production assumptions should be verified against the deployed environment rather than inferred from repo docs alone.
 - Skill analytics import is a scheduled control-plane pull from tenant runtime SQLite databases. The current cadence is every five minutes via `sync360:sync-skill-conversions`, not a push-based realtime stream.
+- Google Workspace and Inbox Triage now share a separate dependency-health scheduler path. `sync360:monitor-workspace-dependencies` runs hourly, performs Google smoke verification for connected tenants, persists normalized health state on `tenant_google_credentials` and `tenant_inbox_monitor_states`, and sends deduped Telegram reminder/incident alerts when tenant Telegram destination details are available.
+- Customer-facing Google readiness must not be inferred from `tenant_google_credentials.status=connected` or historical `runtime_sync_status=verified` alone. The canonical truth is the shared dependency-health model produced by `TenantWorkspaceDependencyHealthService`, which emits normalized `google_workspace` and `inbox_monitor` states for customer and admin surfaces.
+- In testing-mode OAuth environments, the dependency-health service predicts Google reconnect risk as `connected_at + 7 days` and exposes `expiring_soon` before failure. In live OAuth environments, there is no countdown; the product relies on periodic smoke checks and immediate failure-driven alerting when auth breaks.
 - In remote/SSH mode, analytics import reads the tenant DB from inside the running tenant container with `docker exec` plus Node SQLite. It no longer requires the client VPS host to have a `sqlite3` binary installed.
 - Analytics sync is failure-isolated per tenant: one broken tenant transport should be logged into that tenant's sync-state record and must not prevent other tenants from importing successfully in the same scheduler run.
 - Inbox Triage proactive monitoring is implemented as a Sync360-owned polling trigger, not OpenClaw `hooks.gmail` / Gmail Pub/Sub. It still uses OpenClaw's generic private `/hooks/agent` HTTP ingress to wake the tenant agent; missing Telegram destination context does not block event delivery, and the skill receives `telegram_default_chat_id: null` before deciding the next action.
@@ -1116,6 +1119,8 @@ Start with these files:
 - `app/Services/TenantAgentSyncService.php`
 - `app/Services/TenantGatewayService.php`
 - `app/Services/TenantHealthCheckService.php`
+- `app/Services/TenantWorkspaceDependencyHealthService.php`
+- `app/Services/TenantWorkspaceDependencyMonitorService.php`
 - `app/Services/ConversationSummaryService.php`
 - `app/Services/WorkspaceSessionLogReader.php`
 - `app/Console/Commands/SyncConversationReplies.php`

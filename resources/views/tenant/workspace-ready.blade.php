@@ -79,4 +79,22 @@
             </div>
         </div>
     </section>
+
+    @php
+        $googleHealth = is_array($dependencyHealth['google_workspace'] ?? null) ? $dependencyHealth['google_workspace'] : [];
+        $inboxHealth = is_array($dependencyHealth['inbox_monitor'] ?? null) ? $dependencyHealth['inbox_monitor'] : [];
+    @endphp
+    @if (in_array($googleHealth['health_status'] ?? null, ['expiring_soon', 'degraded', 'reconnect_required'], true) || in_array($inboxHealth['health_status'] ?? null, ['degraded', 'down'], true))
+        <section class="panel" style="margin-top: 20px;">
+            <span class="eyebrow">Workspace Dependencies</span>
+            <div class="note" style="margin-top: 14px;">
+                {{ $googleHealth['health_note'] ?? $inboxHealth['health_note'] ?? 'Some live tools need attention before everything is working normally.' }}
+            </div>
+            @if (! empty($dependencyHealth['primary_cta']['href'] ?? null))
+                <a href="{{ $dependencyHealth['primary_cta']['href'] }}" class="button button--secondary" style="margin-top: 14px;">
+                    {{ $dependencyHealth['primary_cta']['text'] ?? 'Review setup' }}
+                </a>
+            @endif
+        </section>
+    @endif
 </x-layouts.app>

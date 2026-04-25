@@ -29,6 +29,7 @@ class TenantAgentSyncService
         private readonly TenantRuntimeCapabilityService $runtimeCapabilities,
         private readonly TenantRuntimeCustomizationComposer $runtimeCustomizationComposer,
         private readonly TenantSkillAnalyticsRuntimeService $skillAnalyticsRuntime,
+        private readonly TenantWorkspaceDependencyHealthService $dependencyHealth,
     ) {
     }
 
@@ -398,6 +399,7 @@ class TenantAgentSyncService
             'last_synced_at' => now(),
             'last_error' => null,
         ])->save();
+        $this->dependencyHealth->resetGoogleAlerts($credential->fresh());
 
         $this->files->deleteDirectory($localConfigRoot);
 
@@ -584,6 +586,7 @@ class TenantAgentSyncService
             'last_synced_at' => now(),
             'last_error' => null,
         ])->save();
+        $this->dependencyHealth->markGoogleVerified($credential->fresh());
     }
 
     public function clearKnownGoogleWorkspaceFailureMemory(Tenant $tenant): void

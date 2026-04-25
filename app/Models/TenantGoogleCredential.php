@@ -20,6 +20,13 @@ class TenantGoogleCredential extends Model
     public const RUNTIME_SYNC_VERIFIED = 'verified';
     public const RUNTIME_SYNC_FAILED = 'failed';
 
+    public const HEALTH_NOT_CONNECTED = 'not_connected';
+    public const HEALTH_SYNCING = 'syncing';
+    public const HEALTH_HEALTHY = 'healthy';
+    public const HEALTH_EXPIRING_SOON = 'expiring_soon';
+    public const HEALTH_DEGRADED = 'degraded';
+    public const HEALTH_RECONNECT_REQUIRED = 'reconnect_required';
+
     /**
      * @var list<string>
      */
@@ -27,6 +34,7 @@ class TenantGoogleCredential extends Model
         'tenant_id',
         'status',
         'runtime_sync_status',
+        'health_status',
         'google_email',
         'access_token',
         'refresh_token',
@@ -38,6 +46,13 @@ class TenantGoogleCredential extends Model
         'connected_at',
         'disconnected_at',
         'last_synced_at',
+        'health_checked_at',
+        'last_verified_at',
+        'predicted_testing_expiry_at',
+        'expiry_warning_3day_sent_at',
+        'expiry_warning_1day_sent_at',
+        'incident_alert_sent_at',
+        'incident_alert_reason',
         'last_error',
     ];
 
@@ -53,6 +68,12 @@ class TenantGoogleCredential extends Model
             'connected_at' => 'datetime',
             'disconnected_at' => 'datetime',
             'last_synced_at' => 'datetime',
+            'health_checked_at' => 'datetime',
+            'last_verified_at' => 'datetime',
+            'predicted_testing_expiry_at' => 'datetime',
+            'expiry_warning_3day_sent_at' => 'datetime',
+            'expiry_warning_1day_sent_at' => 'datetime',
+            'incident_alert_sent_at' => 'datetime',
         ];
     }
 
@@ -85,5 +106,10 @@ class TenantGoogleCredential extends Model
     public function runtimeNeedsAttention(): bool
     {
         return $this->runtime_sync_status === self::RUNTIME_SYNC_FAILED;
+    }
+
+    public function healthRequiresReconnect(): bool
+    {
+        return $this->health_status === self::HEALTH_RECONNECT_REQUIRED;
     }
 }

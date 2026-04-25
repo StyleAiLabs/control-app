@@ -1178,7 +1178,7 @@ class OnboardingFlowTest extends TestCase
 
         $this->get('/onboarding?step=6')
             ->assertOk()
-            ->assertSee('Google Workspace is connected and ready in your live workspace.')
+            ->assertSee('Google Workspace is connected and working.')
             ->assertSee('id="google-workspace-connect-wrapper" style="display: none;"', false)
             ->assertSee('id="google-workspace-skip-form" style="display: none;"', false)
             ->assertSee('id="google-workspace-disconnect-form" style="display: block;"', false);

@@ -511,9 +511,9 @@
 
                     <div class="sync-onboarding-meta-grid">
                         <div class="meta-item">
-                            <small>Status</small>
+                            <small>Connection</small>
                             <span id="google-workspace-status">
-                                {{ ucfirst($state['google_workspace']['status'] ?? 'pending') }}
+                                {{ $state['google_workspace']['health_label'] ?? ucfirst($state['google_workspace']['status'] ?? 'pending') }}
                             </span>
                         </div>
                         <div class="meta-item">
@@ -523,9 +523,9 @@
                             </span>
                         </div>
                         <div class="meta-item">
-                            <small>Live Access</small>
+                            <small>Health</small>
                             <span id="google-workspace-runtime-sync">
-                                {{ $state['google_workspace']['runtime_sync_label'] ?? ucfirst($state['google_workspace']['runtime_sync_status'] ?? 'pending') }}
+                                {{ $state['google_workspace']['health_label'] ?? ($state['google_workspace']['runtime_sync_label'] ?? ucfirst($state['google_workspace']['runtime_sync_status'] ?? 'pending')) }}
                             </span>
                         </div>
                     </div>
@@ -536,27 +536,7 @@
                         <h4 class="sync-onboarding-field-group__title">What this means</h4>
                     </div>
                     <div class="note" id="google-workspace-note">
-                        @if (($state['google_workspace']['available'] ?? true) === false)
-                            Google Workspace connect is temporarily unavailable in this environment until the latest database migration has been run.
-                        @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['needs_attention'] ?? false))
-                            Google Workspace is connected. The live tools just need one more update before Gmail and Calendar are ready here.
-                        @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['sync_queued'] ?? false))
-                            Google Workspace is connected. The first live workspace sync is queued and will start shortly.
-                        @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['sync_in_progress'] ?? false))
-                            Google Workspace is connected. We are syncing it into your live workspace now.
-                        @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['pending_sync'] ?? false))
-                            Google Workspace is connected. We will finish linking it to your live workspace as soon as setup is ready.
-                        @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['pending_verification'] ?? false))
-                            Google Workspace is connected and synced. We are running a quick live check for Gmail and Calendar now.
-                        @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['verified'] ?? false))
-                            Google Workspace is connected and ready in your live workspace.
-                        @elseif (($state['google_workspace']['status'] ?? null) === 'connected')
-                            Google Workspace is connected. A live access check will run after the workspace sync completes.
-                        @elseif (($state['google_workspace']['status'] ?? null) === 'disconnected')
-                            Google Workspace was disconnected. You can reconnect this account at any time.
-                        @else
-                            Connect Google Workspace to finish preparing your customer-ready workspace.
-                        @endif
+                        {{ $state['google_workspace']['health_note'] ?? 'Connect Google Workspace to finish preparing your customer-ready workspace.' }}
                     </div>
                     <div class="note error" style="display: {{ filled($state['google_workspace']['last_error'] ?? null) ? 'block' : 'none' }};" id="google-workspace-error">
                         {{ $state['google_workspace']['last_error'] ?? '' }}
@@ -570,7 +550,7 @@
                         <h4 class="sync-onboarding-field-group__title">Next action</h4>
                     </div>
                     <div class="sync-onboarding-action-row" id="google-workspace-actions">
-                        <div id="google-workspace-connect-wrapper" style="display: {{ ($state['google_workspace']['connected'] ?? false) ? 'none' : 'block' }};">
+                        <div id="google-workspace-connect-wrapper" style="display: {{ (($state['google_workspace']['connected'] ?? false) && !($state['google_workspace']['requires_reconnect'] ?? false)) ? 'none' : 'block' }};">
                             <x-ui.button
                                 :href="($state['google_workspace']['can_connect'] ?? false) ? route('onboarding.google.connect') : '#'"
                                 id="google-workspace-connect-link"
@@ -587,7 +567,7 @@
                             <x-ui.button type="submit" variant="secondary">Skip For Now</x-ui.button>
                         </form>
 
-                        <form method="POST" action="{{ route('onboarding.google.disconnect') }}" id="google-workspace-disconnect-form" style="display: {{ (($state['google_workspace']['status'] ?? 'pending') === 'connected') ? 'block' : 'none' }};">
+                        <form method="POST" action="{{ route('onboarding.google.disconnect') }}" id="google-workspace-disconnect-form" style="display: {{ ((($state['google_workspace']['status'] ?? 'pending') === 'connected') && !($state['google_workspace']['requires_reconnect'] ?? false)) ? 'block' : 'none' }};">
                             @csrf
                             <x-ui.button type="submit" variant="secondary" icon="trash-2">Disconnect</x-ui.button>
                         </form>
@@ -1124,19 +1104,20 @@
             goLiveChannelStatus.textContent = state.channel === 'telegram'
                 ? (state.channel_setup?.status === 'connected' ? 'Telegram' : 'Telegram saved')
                 : 'Not connected yet';
-            googleWorkspaceStatus.textContent = formatStatus(state.google_workspace?.status || 'pending');
+            googleWorkspaceStatus.textContent = state.google_workspace?.health_label || formatStatus(state.google_workspace?.status || 'pending');
             googleWorkspaceEmail.textContent = state.google_workspace?.connected_email || 'Not connected yet';
-            googleWorkspaceRuntimeSync.textContent = state.google_workspace?.runtime_sync_label || formatStatus(state.google_workspace?.runtime_sync_status || 'pending');
+            googleWorkspaceRuntimeSync.textContent = state.google_workspace?.health_label || state.google_workspace?.runtime_sync_label || formatStatus(state.google_workspace?.runtime_sync_status || 'pending');
             googleWorkspaceConnectLink.textContent = state.google_workspace?.can_reconnect
                 ? 'Reconnect Google Workspace'
                 : 'Connect Google Workspace';
             const googleStatus = state.google_workspace?.status || 'pending';
             const googleIsConnected = googleStatus === 'connected';
+            const googleRequiresReconnect = !!state.google_workspace?.requires_reconnect;
             const googleIsDisconnected = googleStatus === 'disconnected';
 
-            googleWorkspaceConnectWrapper.style.display = googleIsConnected ? 'none' : 'block';
+            googleWorkspaceConnectWrapper.style.display = (googleIsConnected && !googleRequiresReconnect) ? 'none' : 'block';
             googleWorkspaceSkipForm.style.display = 'none';
-            googleWorkspaceDisconnectForm.style.display = googleIsConnected ? 'block' : 'none';
+            googleWorkspaceDisconnectForm.style.display = (googleIsConnected && !googleRequiresReconnect) ? 'block' : 'none';
 
             if (state.google_workspace?.can_connect) {
                 googleWorkspaceConnectLink.style.pointerEvents = '';
@@ -1145,27 +1126,10 @@
                 googleWorkspaceConnectLink.style.pointerEvents = 'none';
                 googleWorkspaceConnectLink.style.opacity = '0.45';
             }
-            if (state.google_workspace?.available === false) {
-                googleWorkspaceNote.textContent = 'Google Workspace connect is temporarily unavailable in this environment until the latest database migration has been run.';
-            } else if (state.google_workspace?.status === 'connected' && state.google_workspace?.needs_attention) {
-                googleWorkspaceNote.textContent = 'Google Workspace is connected. The live tools just need one more update before Gmail and Calendar are ready here.';
-            } else if (state.google_workspace?.status === 'connected' && state.google_workspace?.sync_queued) {
-                googleWorkspaceNote.textContent = 'Google Workspace is connected. The first live workspace sync is queued and will start shortly.';
-            } else if (state.google_workspace?.status === 'connected' && state.google_workspace?.sync_in_progress) {
-                googleWorkspaceNote.textContent = 'Google Workspace is connected. We are syncing it into your live workspace now.';
-            } else if (state.google_workspace?.status === 'connected' && state.google_workspace?.pending_sync) {
-                googleWorkspaceNote.textContent = 'Google Workspace is connected. We will finish linking it to your live workspace as soon as setup is ready.';
-            } else if (state.google_workspace?.status === 'connected' && state.google_workspace?.pending_verification) {
-                googleWorkspaceNote.textContent = 'Google Workspace is connected and synced. We are running a quick live check for Gmail and Calendar now.';
-            } else if (state.google_workspace?.status === 'connected' && state.google_workspace?.verified) {
-                googleWorkspaceNote.textContent = 'Google Workspace is connected and ready in your live workspace.';
-            } else if (state.google_workspace?.status === 'connected') {
-                googleWorkspaceNote.textContent = 'Google Workspace is connected. A live access check will run after the workspace sync completes.';
-            } else if (googleIsDisconnected) {
-                googleWorkspaceNote.textContent = 'Google Workspace was disconnected. You can reconnect this account at any time.';
-            } else {
-                googleWorkspaceNote.textContent = 'Connect Google Workspace to finish preparing your customer-ready workspace.';
-            }
+            googleWorkspaceNote.textContent = state.google_workspace?.health_note
+                || (googleIsDisconnected
+                    ? 'Google Workspace was disconnected. You can reconnect this account at any time.'
+                    : 'Connect Google Workspace to finish preparing your customer-ready workspace.');
             googleWorkspaceError.textContent = state.google_workspace?.last_error || '';
             googleWorkspaceError.style.display = state.google_workspace?.last_error ? 'block' : 'none';
             goLiveAgentStatus.textContent = state.agent_status

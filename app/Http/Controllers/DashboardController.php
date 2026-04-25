@@ -8,6 +8,7 @@ use App\Enums\TrialStatus;
 use App\Models\Tenant;
 use App\Models\TenantGoogleCredential;
 use App\Models\TenantInboxMonitorMessage;
+use App\Models\TenantInboxMonitorState;
 use App\Models\TenantSkillConversionEvent;
 use App\Services\LiteLlmTenantKeyService;
 use App\Services\TenantAgentSyncService;
@@ -15,6 +16,7 @@ use App\Services\TenantInboxTriagePollingService;
 use App\Services\TenantOnboardingSkillService;
 use App\Services\TenantSkillAnalyticsReportService;
 use App\Services\TenantRuntimeService;
+use App\Services\TenantWorkspaceDependencyHealthService;
 use App\Services\TenantWorkspaceReadinessService;
 use App\Support\GoogleWorkspaceFeature;
 use App\Support\OnboardingStepCatalog;
@@ -40,6 +42,7 @@ class DashboardController extends Controller
         private readonly TenantOnboardingSkillService $onboardingSkills,
         private readonly TenantWorkspaceReadinessService $workspaceReadiness,
         private readonly TenantSkillAnalyticsReportService $skillAnalytics,
+        private readonly TenantWorkspaceDependencyHealthService $dependencyHealth,
     ) {}
 
     public function index(Request $request): Response|RedirectResponse
@@ -61,7 +64,8 @@ class DashboardController extends Controller
         $agentContent      = $this->agentContent($tenant);
         $trialData         = $this->trialData($tenant);
         $impactSummary     = $this->skillAnalytics->tenantSummary($tenant);
-        $inboxOverview     = $this->inboxOverview($tenant);
+        $dependencyHealth  = $this->dependencyHealth->evaluate($tenant);
+        $inboxOverview     = $this->inboxOverview($tenant, $dependencyHealth);
         $performanceSeries = $this->performanceSeries($tenant);
 
         // Inject workspace alert into the sidebar bell via request attributes
@@ -344,7 +348,7 @@ class DashboardController extends Controller
     /**
      * @return array<string, mixed>|null
      */
-    private function inboxOverview(Tenant $tenant): ?array
+    private function inboxOverview(Tenant $tenant, array $dependencyHealth): ?array
     {
         $assignment = $tenant->skillAssignments
             ->first(fn ($item) => $item->skill_key === TenantInboxTriagePollingService::SKILL_KEY && $item->is_enabled);
@@ -353,45 +357,34 @@ class DashboardController extends Controller
             return null;
         }
 
-        $google = $tenant->googleCredential;
-        $monitorState = $tenant->inboxMonitorState;
-        $customerActionRequired = $tenant->agent_status !== 'live'
-            || $tenant->provisioning_status !== TenantProvisioningStatus::Ready
-            || ! $google
-            || $google->status !== TenantGoogleCredential::STATUS_CONNECTED
-            || $google->runtime_sync_status !== TenantGoogleCredential::RUNTIME_SYNC_VERIFIED;
-        $isMonitorStale = $monitorState?->last_checked_at === null || $monitorState->last_checked_at->lt(now()->subMinutes(15));
-        $needsAttention = ! $customerActionRequired && (
-            ($monitorState?->enabled === false)
-            || $monitorState?->status === 'failed'
-            || ($monitorState?->backoff_until && $monitorState->backoff_until->isFuture())
-            || $isMonitorStale
-        );
+        $googleHealth = is_array($dependencyHealth['google_workspace'] ?? null) ? $dependencyHealth['google_workspace'] : [];
+        $inboxHealth = is_array($dependencyHealth['inbox_monitor'] ?? null) ? $dependencyHealth['inbox_monitor'] : [];
+        $cta = isset($dependencyHealth['primary_cta']) && is_array($dependencyHealth['primary_cta'])
+            ? [
+                'label' => $dependencyHealth['primary_cta']['text'],
+                'route' => $dependencyHealth['primary_cta']['href'],
+            ]
+            : null;
+        $googleSetupIncomplete = in_array($googleHealth['health_status'] ?? null, [
+            TenantGoogleCredential::HEALTH_NOT_CONNECTED,
+            TenantGoogleCredential::HEALTH_SYNCING,
+        ], true);
 
-        $statusLabel = 'Watching your inbox';
-        $statusNote = $monitorState?->last_checked_at
-            ? 'Last checked '.$monitorState->last_checked_at->diffForHumans()
-            : 'Last checked recently';
-        $cta = null;
-
-        if ($customerActionRequired) {
+        if (($googleHealth['requires_reconnect'] ?? false) || $googleSetupIncomplete || ($inboxHealth['health_status'] ?? null) === TenantInboxMonitorState::HEALTH_NOT_ENABLED) {
             $statusLabel = 'Setup incomplete';
             $statusNote = 'Reconnect Google Workspace to resume inbox monitoring';
-            $cta = [
-                'label' => 'Open setup',
-                'route' => route('onboarding.show'),
-            ];
-        } elseif ($needsAttention) {
+        } elseif (($inboxHealth['health_status'] ?? null) === TenantInboxMonitorState::HEALTH_HEALTHY) {
+            $statusLabel = 'Watching your inbox';
+            $statusNote = $inboxHealth['health_note'] ?? 'Last checked recently';
+        } else {
             $statusLabel = 'Needs attention';
             $statusNote = 'We’re having trouble checking your inbox right now.';
-            $cta = [
-                'label' => 'Open setup',
-                'route' => route('onboarding.show'),
-            ];
         }
 
         $secondaryNote = null;
-        if ($statusLabel === 'Watching your inbox' && $this->telegramDefaultChatId($tenant) === null) {
+        if (($googleHealth['health_status'] ?? null) === TenantGoogleCredential::HEALTH_EXPIRING_SOON) {
+            $secondaryNote = $googleHealth['health_note'] ?? null;
+        } elseif ($statusLabel === 'Watching your inbox' && $this->telegramDefaultChatId($tenant) === null) {
             $secondaryNote = 'Urgent Telegram alerts are not set up yet.';
         }
 

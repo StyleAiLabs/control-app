@@ -9,6 +9,7 @@ use App\Services\LocalDockerComposeRunner;
 use App\Services\LocalTenantProvisioningService;
 use App\Services\OpenClawProvisioner;
 use App\Services\SshDockerComposeRunner;
+use App\Services\TenantWorkspaceDependencyHealthService;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -80,6 +81,8 @@ class AppServiceProvider extends ServiceProvider
 
             $tenant = $user->tenant;
             $alerts = [];
+            $dependencyAlerts = app(TenantWorkspaceDependencyHealthService::class)
+                ->evaluate($tenant)['customer_alerts'] ?? [];
 
             // Trial expiry / urgency alert
             if ($tenant->isTrialExpired()) {
@@ -116,7 +119,7 @@ class AppServiceProvider extends ServiceProvider
                 ];
             }
 
-            $view->with('sidebarAlerts', array_merge($alerts, request()->attributes->get('_workspaceAlert', [])));
+            $view->with('sidebarAlerts', array_merge($alerts, $dependencyAlerts, request()->attributes->get('_workspaceAlert', [])));
         });
     }
 }

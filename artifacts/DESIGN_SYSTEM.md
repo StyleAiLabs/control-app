@@ -780,3 +780,13 @@ Use `.note` (app) or `.alert.alert--success` (guest) for success flash messages.
 - If code and this document drift, update whichever is wrong; current code wins until corrected.
 - Future UI implementation should read this file before changing Blade presentation.
 - `ui-redesign-plan.html` is historical reference only and should not override this document.
+
+## 15. Dependency Health UI
+
+Google Workspace and Inbox Triage dependency state now follow one shared presentation rule across customer and admin surfaces:
+
+- Do not present Google Workspace as "ready" based only on historical connection state.
+- Customer-facing Google copy should derive from the shared dependency-health payload and use plain-language states such as `connected and working`, `needs attention`, `will need reconnecting soon`, or `reconnect required`.
+- Customer-facing dependency warnings belong in compact, action-oriented surfaces: onboarding Step 6, dashboard Inbox card, setup/workspace-ready panels, and the shared authenticated alert bell.
+- Customer-facing dependency UI should use one clear CTA only, usually a reconnect/setup action. Avoid multiple competing repair buttons on customer pages.
+- Admin/operator panels may show richer metadata such as predicted expiry, last health check, last verified success, and customer-alert delivery timestamps, but they should still read from the same shared health model rather than inventing a second interpretation.

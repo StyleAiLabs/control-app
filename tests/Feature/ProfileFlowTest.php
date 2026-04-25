@@ -12,6 +12,7 @@ use App\Models\SkillCatalogItem;
 use App\Models\SkillCatalogVersion;
 use App\Models\Tenant;
 use App\Models\TenantGoogleCredential;
+use App\Models\TenantInboxMonitorState;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
@@ -59,6 +60,37 @@ class ProfileFlowTest extends TestCase
             ->assertSee('We’ll show assistant sync progress here while a live sync is running.')
             ->assertSee('Saving your business profile and syncing the live assistant.', false)
             ->assertSee('id="sync-progress-note"', false);
+    }
+
+    public function test_profile_page_shows_dependency_alerts_in_sidebar_when_google_needs_reconnect(): void
+    {
+        [$user, $tenant] = $this->seedTenantProfile();
+
+        $tenant->googleCredential()->create([
+            'status' => TenantGoogleCredential::STATUS_CONNECTED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_FAILED,
+            'refresh_token' => 'refresh-token',
+            'google_email' => 'owner@example.com',
+            'health_status' => TenantGoogleCredential::HEALTH_RECONNECT_REQUIRED,
+            'health_checked_at' => now(),
+            'last_error' => 'invalid_grant: Token has been expired or revoked.',
+        ]);
+
+        $tenant->inboxMonitorState()->create([
+            'skill_key' => 'inbox-triage',
+            'is_enabled' => true,
+            'health_status' => TenantInboxMonitorState::HEALTH_DOWN,
+            'last_error' => 'invalid_grant: Token has been expired or revoked.',
+            'last_checked_at' => now()->subMinutes(20),
+            'health_checked_at' => now(),
+        ]);
+
+        $this->actingAs($user);
+
+        $this->get('/profile')
+            ->assertOk()
+            ->assertSee('Reconnect Google Workspace')
+            ->assertSee('Reconnect Google Workspace to restore inbox monitoring and live tools.');
     }
 
     public function test_profile_update_persists_business_details(): void

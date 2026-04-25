@@ -44,6 +44,10 @@ class SystemHealthService
                 'label' => 'Inbox Triage Polling',
                 'threshold_seconds' => 420,
             ],
+            'scheduled:sync360:monitor-workspace-dependencies' => [
+                'label' => 'Workspace Dependency Monitor',
+                'threshold_seconds' => 4200,
+            ],
         ];
     }
 

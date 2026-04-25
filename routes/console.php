@@ -16,6 +16,7 @@ use App\Services\TenantOnboardingSkillService;
 use App\Services\TenantRuntimeCapabilityService;
 use App\Services\TenantProfileSyncService;
 use App\Services\TenantGoogleWorkspaceSmokeTestService;
+use App\Services\TenantWorkspaceDependencyMonitorService;
 use App\Services\TrialNotificationEmailService;
 use App\Jobs\ProcessTenantInboxTriage;
 use Illuminate\Foundation\Inspiring;
@@ -392,6 +393,57 @@ $trackScheduledCommand(
     Schedule::command('sync360:poll-inbox-triage')->everyFiveMinutes(),
     'scheduled:sync360:poll-inbox-triage',
     'Inbox Triage Polling',
+);
+
+Artisan::command('sync360:monitor-workspace-dependencies {tenantSelector? : Tenant id, tenant_id, or slug. Omit to monitor every connected Google Workspace tenant}', function (?string $tenantSelector = null) {
+    /** @var TenantWorkspaceDependencyMonitorService $monitor */
+    $monitor = app(TenantWorkspaceDependencyMonitorService::class);
+
+    if (is_string($tenantSelector) && trim($tenantSelector) !== '') {
+        $selector = trim($tenantSelector);
+        $tenant = Tenant::query()
+            ->with(['server', 'googleCredential', 'inboxMonitorState', 'skillAssignments.catalogVersion'])
+            ->where(function ($query) use ($selector): void {
+                if (ctype_digit($selector)) {
+                    $query->where('id', (int) $selector);
+                }
+
+                $query->orWhere('tenant_id', $selector)
+                    ->orWhere('slug', $selector);
+            })
+            ->first();
+
+        if (! $tenant) {
+            throw new \RuntimeException(sprintf('No tenant matched [%s].', $selector));
+        }
+
+        $result = $monitor->monitorTenant($tenant);
+
+        $this->components->info(sprintf(
+            'Workspace dependency monitor finished for %s. Google status: %s. Alerts sent: %d.',
+            $tenant->slug,
+            $result['google_health_status'],
+            $result['alerts_sent'],
+        ));
+
+        return;
+    }
+
+    $result = $monitor->monitorAll();
+
+    $this->components->info(sprintf(
+        'Workspace dependency monitor finished. Tenants %d. Healthy %d. Alerts sent %d. Failures %d.',
+        $result['tenants'],
+        $result['healthy'],
+        $result['alerts_sent'],
+        $result['failures'],
+    ));
+})->purpose('Monitor Google Workspace and inbox dependency health, persist customer-facing status, and send reminders/incident alerts.');
+
+$trackScheduledCommand(
+    Schedule::command('sync360:monitor-workspace-dependencies')->hourly(),
+    'scheduled:sync360:monitor-workspace-dependencies',
+    'Workspace Dependency Monitor',
 );
 
 Artisan::command('sync360:init-skill-analytics {tenantSelector? : Tenant id, tenant_id, or slug. Omit to initialize every tenant runtime with analytics-enabled skills}', function (?string $tenantSelector = null) {

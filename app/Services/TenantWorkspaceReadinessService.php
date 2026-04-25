@@ -165,6 +165,18 @@ class TenantWorkspaceReadinessService
             ];
         }
 
+        if ($credential->health_status === TenantGoogleCredential::HEALTH_RECONNECT_REQUIRED) {
+            return [
+                'google_reconnect_required',
+                'Reconnect Google Workspace to restore inbox monitoring and live tools.',
+                [
+                    'type' => 'reconnect_google',
+                    'label' => 'Reconnect Google Workspace',
+                    'route' => route('onboarding.show', ['step' => 6]),
+                ],
+            ];
+        }
+
         if ($googleRuntimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_FAILED) {
             return [
                 'google_sync_failed',
@@ -228,8 +240,8 @@ class TenantWorkspaceReadinessService
         }
 
         return match (true) {
+            $connectionStatus === TenantGoogleCredential::STATUS_CONNECTED && $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_VERIFIED && $workspaceReady => 'Ready',
             $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_FAILED => 'Needs attention',
-            $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_VERIFIED => 'Ready',
             $runtimeSyncStatus === TenantGoogleCredential::RUNTIME_SYNC_SYNCED => 'Checking',
             $syncJobStatus === ProvisioningJobStatus::Running->value => 'Syncing',
             $syncJobStatus === ProvisioningJobStatus::Queued->value => 'Queued',

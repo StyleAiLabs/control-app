@@ -68,6 +68,7 @@ return [
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect_uri' => env('GOOGLE_REDIRECT_URI'),
         'project_id' => env('GOOGLE_PROJECT_ID'),
+        'oauth_app_mode' => env('GOOGLE_OAUTH_APP_MODE', 'live'),
     ],
 
 ];

@@ -13,6 +13,7 @@ use App\Models\SkillCatalogVersion;
 use App\Models\Tenant;
 use App\Models\TenantAgentCustomization;
 use App\Models\TenantAgentCustomizationApply;
+use App\Models\TenantGoogleCredential;
 use App\Models\TenantInboxMonitorMessage;
 use App\Models\TenantInboxMonitorState;
 use App\Models\TenantSkillAssignment;
@@ -550,6 +551,56 @@ class AdminTenantCustomizationFlowTest extends TestCase
             ->assertSee('data-active-tab="inbox-monitor"', false)
             ->assertDontSee('Agent Runtime Customization')
             ->assertDontSee('Permanent Delete');
+    }
+
+    public function test_admin_google_and_inbox_tabs_show_dependency_health_metadata(): void
+    {
+        config()->set('services.google.oauth_app_mode', 'testing');
+
+        [$admin, $tenant] = $this->seedAdminAndTenant();
+
+        $tenant->googleCredential()->create([
+            'status' => TenantGoogleCredential::STATUS_CONNECTED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_VERIFIED,
+            'refresh_token' => 'refresh-token',
+            'google_email' => 'owner@example.com',
+            'connected_at' => now()->subDays(6)->subHours(2),
+            'last_verified_at' => now()->subMinutes(15),
+            'health_status' => TenantGoogleCredential::HEALTH_EXPIRING_SOON,
+            'health_checked_at' => now()->subMinutes(10),
+            'predicted_testing_expiry_at' => now()->addHours(22),
+            'incident_alert_sent_at' => now()->subHour(),
+            'incident_alert_reason' => 'google_expiring_soon',
+        ]);
+
+        TenantInboxMonitorState::query()->create([
+            'tenant_id' => $tenant->id,
+            'skill_key' => 'inbox-triage',
+            'is_enabled' => true,
+            'health_status' => TenantInboxMonitorState::HEALTH_DOWN,
+            'last_checked_at' => now()->subHours(2),
+            'health_checked_at' => now()->subMinutes(10),
+            'incident_alert_sent_at' => now()->subMinutes(45),
+            'incident_alert_reason' => 'google_auth_failure',
+            'last_error' => 'invalid_grant: Token has been expired or revoked.',
+        ]);
+
+        $this->actingAs($admin);
+
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'google']))
+            ->assertOk()
+            ->assertSee('Predicted Expiry')
+            ->assertSee('Health')
+            ->assertSee('Last Health Check')
+            ->assertSee('Last Verified');
+
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'inbox-monitor']))
+            ->assertOk()
+            ->assertSee('Inbox Monitor')
+            ->assertSee('Google health')
+            ->assertSee('Last customer alert')
+            ->assertSee('Customer alert reason: google_auth_failure')
+            ->assertSee('invalid_grant: Token has been expired or revoked.');
     }
 
     public function test_admin_can_refresh_runtime_available_skills_from_skills_tab(): void

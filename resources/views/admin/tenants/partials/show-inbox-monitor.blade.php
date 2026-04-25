@@ -35,15 +35,29 @@
                 <div class="hint" style="margin-top: 6px;">{{ $monitor['google_runtime_label'] ?? 'not connected' }}</div>
             </div>
             <div class="sync-poc-field">
+                <strong>Google health</strong>
+                <div class="hint" style="margin-top: 6px;">{{ $monitor['google_health_label'] ?? 'unknown' }}</div>
+            </div>
+            <div class="sync-poc-field">
                 <strong>Consecutive failures</strong>
                 <div class="hint" style="margin-top: 6px;">{{ $monitor['consecutive_failures'] ?? 0 }}</div>
             </div>
+            <div class="sync-poc-field">
+                <strong>Last customer alert</strong>
+                <div class="hint" style="margin-top: 6px;">{{ $monitor['incident_alert_sent_at'] ?? 'not sent' }}</div>
+            </div>
         </div>
 
+        @if (! empty($monitor['health_note']))
+            <div class="hint" style="margin-top: 14px;">{{ $monitor['health_note'] }}</div>
+        @endif
         @if (! empty($monitor['last_error']))
             <div class="note error" style="margin-top: 14px;">
                 {{ $monitor['last_error'] }}
             </div>
+        @endif
+        @if (! empty($monitor['incident_alert_reason']))
+            <div class="hint" style="margin-top: 14px;">Customer alert reason: {{ $monitor['incident_alert_reason'] }}</div>
         @endif
     </section>
 

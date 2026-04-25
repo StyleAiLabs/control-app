@@ -32,6 +32,13 @@
     <x-slot:actions>
         <x-ui.badge :status="$googleState['connection_badge']">{{ $googleState['connection_label'] }}</x-ui.badge>
         <x-ui.badge :status="$googleState['runtime_badge']">{{ $googleState['runtime_label'] }}</x-ui.badge>
+        <x-ui.badge :status="match($googleState['health_status'] ?? null) {
+            'healthy' => 'ready',
+            'expiring_soon' => 'warning',
+            'reconnect_required' => 'failed',
+            'degraded' => 'warning',
+            default => 'pending',
+        }">{{ $googleState['health_label'] ?? 'Pending' }}</x-ui.badge>
         @if ($googleState['sync_job_status'])
             <x-ui.badge :status="$googleState['sync_job_badge']">{{ $googleState['sync_job_status'] }}</x-ui.badge>
         @endif
@@ -49,10 +56,16 @@
                     </div>
                 </div>
                 <div class="sync-poc-state-row">
-                    <x-ui.status-icon :status="$googleState['runtime_badge']" :label="'Google runtime '.$googleState['runtime_label']" />
+                    <x-ui.status-icon :status="match($googleState['health_status'] ?? null) {
+                        'healthy' => 'ready',
+                        'expiring_soon' => 'warning',
+                        'reconnect_required' => 'failed',
+                        'degraded' => 'warning',
+                        default => $googleState['runtime_badge'],
+                    }" :label="'Google health '.($googleState['health_label'] ?? $googleState['runtime_label'])" />
                     <div class="sync-poc-state-copy">
-                        <span class="sync-poc-state-label">Live Access</span>
-                        <span class="sync-poc-state-value">{{ $googleState['runtime_label'] }}</span>
+                        <span class="sync-poc-state-label">Health</span>
+                        <span class="sync-poc-state-value">{{ $googleState['health_label'] ?? $googleState['runtime_label'] }}</span>
                     </div>
                 </div>
                 @if ($googleState['sync_job_status'])
@@ -76,6 +89,9 @@
             <span class="eyebrow">Recommended Next Step</span>
             <h3 class="type-section-title" style="margin-top: 12px;">{{ $recommendedAction['title'] }}</h3>
             <p class="type-body" style="margin: 10px 0 0;">{{ $recommendedAction['detail'] }}</p>
+            @if (filled($googleState['health_note'] ?? null))
+                <div class="hint" style="margin-top: 12px;">{{ $googleState['health_note'] }}</div>
+            @endif
 
             <div class="sync-poc-panel-actions" style="margin-top: 16px;">
                 <form method="POST" action="{{ route('admin.tenants.google.sync', $tenant) }}" class="inline">
@@ -115,6 +131,18 @@
         <div class="sync-poc-field">
             <span class="sync-poc-field__label">Last Synced At</span>
             <strong class="sync-poc-field__value">{{ $googleState['last_synced_at'] ?? '—' }}</strong>
+        </div>
+        <div class="sync-poc-field">
+            <span class="sync-poc-field__label">Last Health Check</span>
+            <strong class="sync-poc-field__value">{{ $googleState['last_health_checked_at'] ?? '—' }}</strong>
+        </div>
+        <div class="sync-poc-field">
+            <span class="sync-poc-field__label">Last Verified</span>
+            <strong class="sync-poc-field__value">{{ $googleState['last_verified_at'] ?? '—' }}</strong>
+        </div>
+        <div class="sync-poc-field">
+            <span class="sync-poc-field__label">Predicted Expiry</span>
+            <strong class="sync-poc-field__value">{{ $googleState['predicted_expiry_at'] ?? '—' }}</strong>
         </div>
         <div class="sync-poc-field">
             <span class="sync-poc-field__label">Initial Sync Job</span>
