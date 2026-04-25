@@ -2,6 +2,9 @@
 
 ## 1.5.9
 - updated as a core module
+- added a narrow basic-enquiry reply branch for low-risk support and business-information emails
+- verified the Gmail write surface for this skill against the live `gog` CLI and documented the exact `gog gmail send` and `gog gmail drafts create` reply shapes
+- clarified that basic enquiry replies must be grounded in tenant workspace files plus the exact Gmail thread and must fall back to one clarifying question instead of guessing
 
 ## 1.5.8
 

@@ -6,6 +6,7 @@ use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
 use App\Models\BusinessProfile;
 use App\Models\BusinessProfileFiles;
+use App\Models\TenantGoogleCredential;
 use App\Models\SkillCatalogVersion;
 use App\Models\Tenant;
 use App\Models\TenantAgentCustomization;
@@ -152,6 +153,73 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
             data_get($config, 'agents.list.0.skills')
         );
         $this->assertNotSame('', $composed->contentHash);
+    }
+
+    public function test_it_includes_verified_gmail_reply_guidance_when_google_workspace_is_connected(): void
+    {
+        $tenant = $this->seedTenant();
+        $this->artisan('sync360:skills:import', ['--skill' => 'inbox-triage'])->assertExitCode(0);
+        $version = SkillCatalogVersion::query()->where('skill_key', 'inbox-triage')->firstOrFail();
+
+        BusinessProfile::query()->create([
+            'tenant_id' => $tenant->id,
+            'business_name' => 'Acme Plumbing',
+            'industry' => 'Home Services',
+            'description' => 'Fast local plumbing support.',
+            'services' => ['Emergency plumbing'],
+        ]);
+
+        BusinessProfileFiles::query()->create([
+            'tenant_id' => $tenant->id,
+            'identity_markdown' => "# Identity\n\nBase identity",
+            'soul_markdown' => "# Soul\n\nBase soul",
+            'user_markdown' => "# User\n\nBase user",
+            'bootstrap_markdown' => "# Bootstrap\n\nBase bootstrap",
+            'generated_at' => now(),
+        ]);
+
+        TenantAgentCustomization::query()->create([
+            'tenant_id' => $tenant->id,
+            'prompt_overrides_json' => [],
+            'agent_defaults_json' => [],
+            'draft_version' => 1,
+            'draft_updated_by' => $tenant->user_id,
+            'draft_updated_at' => now(),
+        ]);
+
+        TenantGoogleCredential::query()->create([
+            'tenant_id' => $tenant->id,
+            'google_email' => 'owner@example.com',
+            'scopes' => ['gmail.readonly'],
+            'status' => TenantGoogleCredential::STATUS_CONNECTED,
+            'refresh_token' => 'refresh-token',
+            'connected_at' => now(),
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_VERIFIED,
+        ]);
+
+        TenantSkillAssignment::query()->create([
+            'tenant_id' => $tenant->id,
+            'skill_catalog_version_id' => $version->id,
+            'skill_key' => 'inbox-triage',
+            'assigned_by' => $tenant->user_id,
+            'assigned_at' => now(),
+            'is_enabled' => true,
+        ]);
+
+        File::ensureDirectoryExists(dirname($this->runtimeConfigPath($tenant)));
+        File::put($this->runtimeConfigPath($tenant), json_encode(['agents' => ['defaults' => []]], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+
+        $composed = app(TenantRuntimeCustomizationComposer::class)->compose($tenant->fresh([
+            'businessProfile',
+            'businessProfileFiles',
+            'googleCredential',
+            'agentCustomization',
+            'skillAssignments.catalogVersion.item',
+        ]));
+
+        $this->assertStringContainsString('Inbox Triage may send one low-risk Gmail reply for basic support or business-information enquiries only', $composed->workspaceFiles['HEARTBEAT.md']);
+        $this->assertStringContainsString('Verified Gmail write surface: `gog gmail send --reply-to-message-id <gmail_message_id> --subject "<subject>" --body "<plain-text-body>"` supports direct replies', $composed->workspaceFiles['TOOLS.md']);
+        $this->assertStringContainsString('Verified Gmail draft surface: `gog gmail drafts create --reply-to-message-id <gmail_message_id> --subject "<subject>" --body "<plain-text-body>"` creates a reply draft without sending it.', $composed->workspaceFiles['TOOLS.md']);
     }
 
     public function test_it_flags_base_drift_for_replace_overrides(): void

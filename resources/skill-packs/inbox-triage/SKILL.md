@@ -32,6 +32,7 @@ For internal `sync360-inbox-monitor` events, complete all required side effects 
 - Analytics: for every qualified lead where `lead_quality` is `high`, `medium`, or `ambiguous` and the message is not spam or low-intent, run `sh .sync360/bin/log-skill-conversion --skill inbox-triage --conversion-id <lead-id> --payload-json '<json>'`. For Gmail events, use the Gmail message id as `<lead-id>` and include required payload fields: `event_id`, `occurred_at`, `customer_label`, `outcome.lead_quality`, `outcome.inquiry_category`, and `outcome.suggested_action`.
 - Minimal analytics payload for Gmail events: `{"event_id":"inbox-triage-<gmail_message_id>","occurred_at":"<ISO-8601 timestamp>","customer_label":"<company or contact>","outcome":{"lead_quality":"high","inquiry_category":"quote-request","suggested_action":"quote-generation"}}`.
 - A Telegram success does not finish the workflow. Continue to Drive logging, Sheets logging, and analytics. A Telegram, Drive, or Sheets failure must not block analytics.
+- Basic enquiry reply gate: low-risk support and business-information enquiries may receive exactly one direct Gmail reply or one clarifying question when the answer is grounded in tenant workspace files or the current email thread. Do not auto-reply to quotes, pricing, custom scope, timeline commitments, complaints, legal/payment disputes, or undocumented business policies.
 
 ## Google Workspace Context
 
@@ -40,6 +41,56 @@ This skill uses GOG (Google Workspace OAuth), which is pre-configured on the Ope
 1. **Use the configured GOG account** — Do not ask the owner to choose an account unless tooling explicitly reports multiple accounts or no default.
 2. **Verify the connection before tool actions** — If GOG fails, stop and report the error to the operator instead of guessing from missing context.
 3. **Do not create your own watcher** — Sync360 owns polling and de-dupe. This skill owns evaluation and follow-up after an email event is delivered.
+
+## Basic Enquiry Reply Flow
+
+Use this branch only for low-risk support and business-information enquiries. The source of truth is limited to tenant workspace files plus the exact Gmail message or thread context already available in the workspace. Do not use public web research for this flow.
+
+### Allowed auto-reply categories
+
+- business hours or operating availability
+- service area or location coverage
+- offered services when clearly documented in tenant files
+- simple support or status questions when the answer is already present in tenant files or the current email thread
+- appointment or contact-routing clarifications that do not commit pricing, scope, dates, turnaround, or legal promises
+
+### Never auto-reply for these
+
+- quotes, pricing, or estimates
+- custom scope, project timelines, negotiated commitments, or bespoke delivery promises
+- complaints, disputes, refunds, billing conflicts, or legal/policy issues
+- ambiguous enquiries where the answer is not grounded in tenant material
+- anything that would require public research or undocumented assumptions
+
+### Reply policy
+
+1. Read the exact Gmail message first with `gog gmail get <gmail_message_id>` when a Gmail message id is available.
+2. Classify the enquiry as `basic-info`, `basic-support`, or non-basic.
+3. Gather the answer only from:
+   - `PROFILE.md`, `IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`
+   - assigned skill files when relevant
+   - the exact Gmail message and thread context
+4. If the answer is grounded and low-risk, send exactly one Gmail reply.
+5. If the enquiry is basic but the answer is missing from tenant material, send exactly one short clarifying question instead of guessing.
+6. If the enquiry is outside the allowed categories, do not auto-reply; continue with the normal lead/opportunity or human-follow-up path.
+
+### Reply copy rules
+
+- Keep replies concise, businesslike, and plain.
+- Answer only what is known from tenant files or the email thread.
+- Do not invent pricing, service guarantees, policies, turnaround times, or availability promises.
+- Ask one focused clarifying question when the answer is incomplete.
+- Preserve a human handoff option when appropriate.
+
+### Required final reply outcome fields
+
+When a basic enquiry reply is attempted, include these in the final summary:
+
+- `inquiry_category`
+- `reply_mode`: `auto_reply` or `clarifying_question`
+- `reply_status`
+- `reply_reason`
+- `used_clarification`: `true` or `false`
 
 ## Required Workflow
 
@@ -64,6 +115,7 @@ Complete these steps in order for every delivered Gmail inquiry:
    - category
    - lead quality
    - suggested action
+   - basic enquiry reply outcome when attempted
    - Telegram result when attempted
    - Google Drive log result or exact failure
    - Google Sheets row result or exact failure
@@ -114,6 +166,40 @@ Suggested action: <next step>
 - If the owner did not reply to the original notification or the replied message does not contain `Lead ref`, ask them to reply to the original lead notification again or paste the lead reference.
 
 **If the Telegram send fails:** Log the failure to the Google Drive triage log and continue — do not retry in a loop or block the triage workflow.
+
+## Gmail Reply Contract
+
+For low-risk basic enquiries only, use the native verified Gmail write surface below.
+
+### Reply directly to the original email
+
+Use `gog gmail send` when you are sending the answer now:
+
+```bash
+gog gmail send --reply-to-message-id <gmail_message_id> --subject '<subject>' --body '<plain-text-body>' --thread-id <gmail_thread_id>
+```
+
+Notes:
+
+- `--reply-to-message-id <gmail_message_id>` is the primary reply anchor.
+- `--thread-id <gmail_thread_id>` should be included when the trigger already provides a Gmail thread id.
+- If the original message has multiple recipients and the business should reply to all, add `--reply-all`.
+- If a quoted reply is useful, add `--quote`.
+- Do not invent unsupported Gmail write flags.
+
+### Create a draft instead of sending
+
+Use `gog gmail drafts create` only when the owner explicitly wants a draft workflow:
+
+```bash
+gog gmail drafts create --reply-to-message-id <gmail_message_id> --subject '<subject>' --body '<plain-text-body>'
+```
+
+### Validation
+
+- Treat the reply as successful only when the command output confirms send/draft creation.
+- If Gmail reply sending fails, capture the exact command error and include it in the final summary.
+- Do not silently fall back to Telegram, public research, or an invented email flow when the Gmail command fails.
 
 ## Google Drive Triage Log
 

@@ -85,6 +85,14 @@ Status: Implemented
 
 ### Overview
 
+Verified and extended Inbox Triage so it now has a concrete low-risk email reply path plus an operator-facing Inbox Monitor panel in tenant admin.
+
+- verified the live `gog gmail` write surface on a client VPS and codified the exact reply/draft command shapes used by Inbox Triage
+- added a narrow basic-enquiry branch to the Inbox Triage skill for grounded support and business-information emails, with a clarifying-question fallback instead of guessed answers
+- updated generated `HEARTBEAT.md` / `TOOLS.md` guidance so Inbox Triage can send one low-risk Gmail reply when the answer is grounded in tenant workspace files or the exact Gmail thread
+- added an `Inbox Monitor` admin tenant tab showing polling status, backoff/failure details, assigned skill version, and recent inbox monitor events
+- expanded feature and unit coverage so the new Gmail reply contract and operator monitor surface are asserted in generated runtime and admin UI tests
+
 Added a compact customer-facing `Inbox` overview to the dashboard for tenants with the `inbox-triage` custom skill enabled, so customers can see quiet proof of life and value without being shown operational monitor details.
 
 ### What Changed

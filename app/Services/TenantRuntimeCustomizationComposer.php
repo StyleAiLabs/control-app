@@ -577,6 +577,8 @@ class TenantRuntimeCustomizationComposer
             $rules[] = '- Do not guess with Gmail searches from company labels or notification summaries when an exact `Lead ref` is present in the replied message.';
             $rules[] = '- If the owner asks to continue from an email but did not reply to the original lead notification or no `Lead ref` is visible, ask them to reply to the original lead notification again or paste the lead reference.';
             $rules[] = '- For internal workflow triggers, do not browse the public web or research companies unless the owner explicitly asks for external research.';
+            $rules[] = '- Inbox Triage may send one low-risk Gmail reply for basic support or business-information enquiries only when the answer is grounded in tenant workspace files or the exact Gmail thread. If the answer is missing, ask one focused clarifying question instead of guessing.';
+            $rules[] = '- Never auto-reply from Inbox Triage with invented pricing, timelines, policy promises, legal/payment positions, or bespoke commitments.';
         } else {
             $rules[] = '- If the owner asks for Google Workspace help before Google Workspace is connected, explain that the workspace connection still needs to be completed in Sync360.';
         }

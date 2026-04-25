@@ -52,6 +52,7 @@ class AdminController extends Controller
         'workspace',
         'google',
         'skills',
+        'inbox-monitor',
         'analytics',
         'agent-runtime',
         'support',
@@ -155,6 +156,8 @@ class AdminController extends Controller
             'googleCredential',
             'businessProfile',
             'businessProfileFiles',
+            'inboxMonitorState',
+            'inboxMonitorMessages' => fn ($query) => $query->latest('detected_at')->limit(12),
             'provisioningJobs' => fn ($query) => $query->latest('id'),
         ];
         $agentCustomizationAvailable = $this->agentCustomizationTablesAvailable();
@@ -220,6 +223,7 @@ class AdminController extends Controller
             'runtimeCustomizationAvailable' => $runtimeCustomizationAvailable,
             'skillChangeHistory' => $runtimeCustomizationAvailable ? $this->skillChangeHistoryFor($tenant) : [],
             'tenantAnalytics' => $this->skillAnalytics->tenantSummary($tenant),
+            'inboxMonitorSummary' => $this->inboxMonitorSummary($tenant),
         ]);
     }
 
@@ -1187,6 +1191,82 @@ class AdminController extends Controller
         }
 
         return in_array($tab, self::TENANT_SHOW_TABS, true) ? $tab : 'overview';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function inboxMonitorSummary(Tenant $tenant): array
+    {
+        $tenant->loadMissing([
+            'googleCredential',
+            'inboxMonitorState',
+            'inboxMonitorMessages' => fn ($query) => $query->latest('detected_at')->limit(12),
+            'skillAssignments.catalogVersion.item',
+        ]);
+
+        $monitorState = $tenant->inboxMonitorState;
+        $assignedInboxSkill = $tenant->skillAssignments
+            ->first(fn ($assignment) => $assignment->skill_key === 'inbox-triage' && $assignment->is_enabled);
+
+        $recentMessages = $tenant->inboxMonitorMessages
+            ->sortByDesc(fn ($message) => optional($message->detected_at)->getTimestamp() ?? 0)
+            ->take(8)
+            ->values();
+
+        $counts = [
+            'sent_to_agent' => $tenant->inboxMonitorMessages->where('status', \App\Models\TenantInboxMonitorMessage::STATUS_SENT_TO_AGENT)->count(),
+            'skipped' => $tenant->inboxMonitorMessages->where('status', \App\Models\TenantInboxMonitorMessage::STATUS_SKIPPED)->count(),
+            'failed' => $tenant->inboxMonitorMessages->where('status', \App\Models\TenantInboxMonitorMessage::STATUS_FAILED)->count(),
+        ];
+
+        $stateStatus = match (true) {
+            ! $assignedInboxSkill => 'pending',
+            ! ($tenant->googleCredential?->isConnected() ?? false) => 'warning',
+            $monitorState?->status === \App\Models\TenantInboxMonitorState::STATUS_FAILED => 'failed',
+            $monitorState?->backoff_until && $monitorState->backoff_until->isFuture() => 'warning',
+            default => 'ready',
+        };
+
+        $stateLabel = match (true) {
+            ! $assignedInboxSkill => 'Not assigned',
+            ! ($tenant->googleCredential?->isConnected() ?? false) => 'Google not connected',
+            $monitorState?->status === \App\Models\TenantInboxMonitorState::STATUS_FAILED => 'Needs attention',
+            $monitorState?->backoff_until && $monitorState->backoff_until->isFuture() => 'Backoff active',
+            $monitorState?->enabled === false => 'Disabled',
+            $monitorState?->last_checked_at => 'Healthy',
+            default => 'Pending first poll',
+        };
+
+        return [
+            'status' => $stateStatus,
+            'status_label' => $stateLabel,
+            'enabled' => $monitorState?->enabled ?? $assignedInboxSkill !== null,
+            'last_checked_at' => $monitorState?->last_checked_at?->toDateTimeString(),
+            'last_failed_at' => $monitorState?->last_failed_at?->toDateTimeString(),
+            'backoff_until' => $monitorState?->backoff_until?->toDateTimeString(),
+            'last_error' => $monitorState?->last_error,
+            'consecutive_failures' => $monitorState?->consecutive_failures ?? 0,
+            'google_runtime_state' => $tenant->googleCredential?->runtime_sync_status ?? 'not_connected',
+            'google_runtime_label' => $tenant->googleCredential?->runtime_sync_status
+                ? str_replace('_', ' ', $tenant->googleCredential->runtime_sync_status)
+                : 'not connected',
+            'assigned_skill_version' => $assignedInboxSkill?->catalogVersion?->version,
+            'message_counts' => $counts,
+            'recent_messages' => $recentMessages->map(fn ($message) => [
+                'gmail_message_id' => $message->gmail_message_id,
+                'gmail_thread_id' => $message->gmail_thread_id,
+                'subject_preview' => $message->subject_preview,
+                'sender_domain' => $message->sender_domain,
+                'status' => $message->status,
+                'skip_reason' => $message->skip_reason,
+                'attempts' => $message->attempts,
+                'detected_at' => $message->detected_at?->toDateTimeString(),
+                'delivered_to_agent_at' => $message->delivered_to_agent_at?->toDateTimeString(),
+                'last_attempted_at' => $message->last_attempted_at?->toDateTimeString(),
+                'last_error' => $message->last_error,
+            ])->all(),
+        ];
     }
 
     private function redirectToTenantShow(Request $request, Tenant $tenant, string $fallbackTab, string $status): RedirectResponse

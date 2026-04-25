@@ -74,6 +74,13 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $this->assertStringContainsString('Qualified Leads', $skill);
         $this->assertStringContainsString('A qualified lead is any non-spam, non-low-intent message where `lead_quality` is `high`, `medium`, or `ambiguous`', $skill);
         $this->assertStringContainsString('gog sheets append <spreadsheetId> \'Qualified Leads!A:L\' \'<pipe-delimited-row>\'', $skill);
+        $this->assertStringContainsString('## Basic Enquiry Reply Flow', $skill);
+        $this->assertStringContainsString('business hours or operating availability', $skill);
+        $this->assertStringContainsString('If the answer is grounded and low-risk, send exactly one Gmail reply.', $skill);
+        $this->assertStringContainsString('If the enquiry is basic but the answer is missing from tenant material, send exactly one short clarifying question instead of guessing.', $skill);
+        $this->assertStringContainsString('## Gmail Reply Contract', $skill);
+        $this->assertStringContainsString('gog gmail send --reply-to-message-id <gmail_message_id> --subject \'<subject>\' --body \'<plain-text-body>\' --thread-id <gmail_thread_id>', $skill);
+        $this->assertStringContainsString('gog gmail drafts create --reply-to-message-id <gmail_message_id> --subject \'<subject>\' --body \'<plain-text-body>\'', $skill);
         $this->assertStringContainsString('A Google Sheets failure must not change or block the analytics result', $skill);
         $this->assertStringContainsString('"event_id":"inbox-triage-<gmail_message_id>"', $skill);
         $this->assertStringContainsString('For Gmail-triggered events, `<lead-id>` must be the Gmail message id when available, not the Sync360 Job ID', $skill);

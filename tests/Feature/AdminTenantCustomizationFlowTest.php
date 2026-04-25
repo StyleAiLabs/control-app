@@ -13,6 +13,8 @@ use App\Models\SkillCatalogVersion;
 use App\Models\Tenant;
 use App\Models\TenantAgentCustomization;
 use App\Models\TenantAgentCustomizationApply;
+use App\Models\TenantInboxMonitorMessage;
+use App\Models\TenantInboxMonitorState;
 use App\Models\TenantSkillAssignment;
 use App\Models\User;
 use App\Services\TenantHealthCheckService;
@@ -513,6 +515,41 @@ class AdminTenantCustomizationFlowTest extends TestCase
             ->assertDontSee('Default Skill IDs')
             ->assertDontSee('Google Workspace Connection')
             ->assertDontSee('Permanent Delete');
+
+        TenantInboxMonitorState::query()->create([
+            'tenant_id' => $tenant->id,
+            'enabled' => true,
+            'status' => TenantInboxMonitorState::STATUS_FAILED,
+            'last_checked_at' => now()->subMinutes(12),
+            'last_failed_at' => now()->subMinutes(5),
+            'last_error' => 'gog gmail search failed',
+            'backoff_until' => now()->addMinutes(9),
+            'consecutive_failures' => 3,
+        ]);
+        TenantInboxMonitorMessage::query()->create([
+            'tenant_id' => $tenant->id,
+            'gmail_message_id' => 'gmail-msg-1',
+            'gmail_thread_id' => 'gmail-thread-1',
+            'sender_domain' => 'example.com',
+            'subject_preview' => 'Need service area details',
+            'subject_hash' => hash('sha256', 'Need service area details'),
+            'status' => TenantInboxMonitorMessage::STATUS_FAILED,
+            'attempts' => 2,
+            'detected_at' => now()->subMinutes(10),
+            'last_attempted_at' => now()->subMinutes(5),
+            'last_error' => 'gateway timeout',
+        ]);
+
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'inbox-monitor']))
+            ->assertOk()
+            ->assertSee('Inbox Monitor')
+            ->assertSee('Monitor State')
+            ->assertSee('Recent Inbox Events')
+            ->assertSee('gog gmail search failed')
+            ->assertSee('Need service area details')
+            ->assertSee('data-active-tab="inbox-monitor"', false)
+            ->assertDontSee('Agent Runtime Customization')
+            ->assertDontSee('Permanent Delete');
     }
 
     public function test_admin_can_refresh_runtime_available_skills_from_skills_tab(): void
@@ -562,6 +599,7 @@ class AdminTenantCustomizationFlowTest extends TestCase
             ->assertSee('Workspace')
             ->assertSee('Google')
             ->assertSee('Skills')
+            ->assertSee('Inbox Monitor')
             ->assertSee('Agent Runtime')
             ->assertSee('Support')
             ->assertDontSee('Status, identifiers, and the latest job snapshot.')
@@ -576,11 +614,14 @@ class AdminTenantCustomizationFlowTest extends TestCase
 
         $this->get(route('admin.tenants.show', $tenant))
             ->assertOk()
-            ->assertSee('Provisioning: ready')
-            ->assertSee('Agent: live')
-            ->assertSee('Health: unchecked')
-            ->assertSee('Workspace:')
-            ->assertSee('Google:');
+            ->assertSee('Provisioning')
+            ->assertSee('ready')
+            ->assertSee('Agent')
+            ->assertSee('live')
+            ->assertSee('Health')
+            ->assertSee('unchecked')
+            ->assertSee('Workspace')
+            ->assertSee('Google');
     }
 
     public function test_tenant_actions_redirect_back_to_active_tab(): void

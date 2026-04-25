@@ -119,6 +119,8 @@ For skill-version UX, tenant admin cards must distinguish `assigned version` fro
 - When an analytics metric is undefined, omit the card/row instead of showing a misleading zero value.
 - For estimated operational metrics such as time saved or ROI, label them explicitly as estimated in headings or supporting copy.
 - For background rollout/apply work, prefer compact polling progress panels with `queued`, `running`, `completed`, and `failed` badges plus a short explanatory line over noisy log-style output.
+- Tenant admin may add narrow operator tabs for one subsystem when a skill needs its own operational evidence view. The new `Inbox Monitor` tab follows that rule: it stays tenant-scoped, uses the same calm panel language as other admin tabs, shows polling/backoff/failure facts plus recent monitor rows, and keeps customer-facing auto-reply history out of this panel.
+- Skill-authored customer reply behavior should be grounded in tenant files and current thread context. When UI or guidance references email reply capability, prefer explicit verified command shapes over generic “inspect help first” language once the tool surface has been confirmed in production-like runtime.
 
 ## 5. Design Tokens
 

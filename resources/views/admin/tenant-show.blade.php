@@ -86,6 +86,11 @@
                 'badge_label' => $tenantSkillsStatus['label'],
                 'badge_class' => $tenantSkillsStatus['class'],
             ],
+            'inbox-monitor' => [
+                'label' => 'Inbox Monitor',
+                'badge_label' => $inboxMonitorSummary['status_label'] ?? null,
+                'badge_class' => $inboxMonitorSummary['status'] ?? null,
+            ],
             'analytics' => [
                 'label' => 'Analytics',
                 'badge_label' => null,
@@ -199,6 +204,10 @@
 
                     @case('skills')
                         @include('admin.tenants.partials.show-skills')
+                        @break
+
+                    @case('inbox-monitor')
+                        @include('admin.tenants.partials.show-inbox-monitor')
                         @break
 
                     @case('analytics')
