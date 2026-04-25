@@ -17,12 +17,12 @@ class TenantInboxGmailRuntimeService
     /**
      * @return list<array<string, mixed>>
      */
-    public function searchRecentInbox(Tenant $tenant, string $query = 'in:inbox newer_than:2d', int $max = 20): array
+    public function searchRecentInbox(Tenant $tenant, string $query = 'in:inbox newer_than:2d -label:sent -label:draft', int $max = 20): array
     {
         $output = $this->runTenantCommand(
             $tenant,
             sprintf(
-                'gog --json gmail search %s --max %d',
+                'gog --json gmail messages search %s --max %d',
                 escapeshellarg($query),
                 max(1, $max),
             ),
@@ -34,7 +34,7 @@ class TenantInboxGmailRuntimeService
             throw new RuntimeException('Gmail search returned invalid JSON.');
         }
 
-        $rows = $decoded['threads'] ?? $decoded['messages'] ?? $decoded['items'] ?? [];
+        $rows = $decoded['messages'] ?? $decoded['items'] ?? [];
 
         if (! is_array($rows)) {
             return [];

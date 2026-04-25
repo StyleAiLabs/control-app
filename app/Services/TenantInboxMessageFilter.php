@@ -19,7 +19,7 @@ class TenantInboxMessageFilter
         foreach ($labels as $label) {
             $normalized = strtoupper($label);
 
-            if (in_array($normalized, ['CATEGORY_PROMOTIONS', 'CATEGORY_SOCIAL', 'SPAM', 'TRASH'], true)) {
+            if (in_array($normalized, ['CATEGORY_PROMOTIONS', 'CATEGORY_SOCIAL', 'SPAM', 'TRASH', 'SENT', 'DRAFT'], true)) {
                 return ['skip' => true, 'reason' => 'noise_label:'.$normalized, 'hints' => []];
             }
         }

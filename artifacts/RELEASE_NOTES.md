@@ -7,6 +7,22 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-26 — Fix: Poll Inbox at Gmail Message Level, Not Thread Level
+
+Date: 2026-04-26
+Status: Implemented
+
+### Overview
+
+Fixed a live inbox-monitor regression where follow-up customer replies inside an existing Gmail thread were missed while Sync360 re-ingested the tenant's own outbound auto-reply as a new event.
+
+### What Changed
+
+- changed tenant inbox polling from `gog gmail search` thread search to `gog gmail messages search` so Sync360 evaluates concrete Gmail message ids instead of thread summaries
+- strengthened the default Gmail inbox query to exclude obvious outbound-only labels with `-label:sent -label:draft`
+- hardened the inbox message filter to skip `SENT` and `DRAFT` labels even if an upstream Gmail search result still includes them
+- added regression coverage proving new messages in an existing thread are still delivered while outbound sent mail is skipped
+
 ## 2026-04-26 — Fix: Normalize OpenClaw Workspace Skill Labels During Runtime Verification
 
 Date: 2026-04-26
