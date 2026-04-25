@@ -7,6 +7,27 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-25 — Improvement: Customer Onboarding Wizard Refresh
+
+Date: 2026-04-25
+Status: Implemented
+
+### Overview
+
+Refreshed the customer onboarding wizard into a more restrained single-column guided flow that preserves the existing seven-step product logic while making the experience clearer, less technical, and more professional across mobile and desktop.
+
+### What Changed
+
+- replaced the large view-local onboarding style block with shared app CSS plus new onboarding wrappers: `step-progress` and `setup-status`
+- redesigned the wizard shell around a narrower, quieter hero, one full-width progress rail, and one focused step canvas instead of multiple competing setup widgets
+- regrouped the business-details step into clearer identity, contact, and location/services sections
+- upgraded tone, module, and channel selection into stronger choice-card style decision surfaces
+- made Telegram the clear primary channel path and kept WhatsApp visible only as a subdued future-facing signal
+- simplified the website step into one primary website-read path with a quieter manual alternative underneath
+- simplified the BotFather guidance into a shorter setup checklist and reframed Google Workspace around state, meaning, and next action
+- tightened the Go Live step into a steadier confirmation surface while preserving live-resync and expired-trial behavior, and demoted background workspace status into a slim conditional strip instead of a second top card
+- added feature assertions covering the refreshed onboarding tone and future-channel messaging while keeping the existing onboarding behavior contract intact
+
 ## 2026-04-25 — Improvement: Dashboard Analytics Row Balance
 
 Date: 2026-04-25

@@ -41,10 +41,11 @@ class OnboardingFlowTest extends TestCase
             ->assertOk()
             ->assertSee('Guided Setup')
             ->assertSee('Set up your digital employee')
-            ->assertSee('Wizard Progress')
+            ->assertSee('Setup Progress')
+            ->assertSee('Start with the basics and we will keep the technical setup moving behind the scenes.')
             ->assertSee('class="wizard-step-label"', false)
             ->assertSee('class="type-section-title"', false)
-            ->assertSee('Behind The Scenes')
+            ->assertSee('id="workspace-setup-strip"', false)
             ->assertSee('Read your business website')
             ->assertSee('Confirm your business details')
             ->assertSee('Connect your messaging channel')
@@ -52,7 +53,8 @@ class OnboardingFlowTest extends TestCase
             ->assertSee('id="channel-step-next"', false)
             ->assertSee('Bring it live')
             ->assertSee('WhatsApp')
-            ->assertSee('Coming Soon')
+            ->assertSee('WhatsApp is coming later.')
+            ->assertSee('Telegram is the live path today')
             ->assertSee('Bot Token');
     }
 

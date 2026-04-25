@@ -1,335 +1,269 @@
 <x-layouts.app title="Guided Setup — Sync360">
+    @php
+        $initialStep = request()->integer('step', (int) ($state['resume_from_step'] ?? 1));
+        $totalSteps = count($state['steps'] ?? []);
+        $currentStepMeta = $state['steps'][$initialStep] ?? ['label' => 'Setup'];
+        $completedSteps = collect($state['steps'] ?? [])->where('status', 'complete')->count();
+        $progressPercent = (int) round(($initialStep / max($totalSteps, 1)) * 100);
+        $progressNote = $completedSteps > 0
+            ? $completedSteps.' of '.$totalSteps.' steps are complete. We will carry the technical setup in the background while you finish the remaining details.'
+            : 'Start with the basics and we will keep the technical setup moving behind the scenes.';
+        $statusTone = match (true) {
+            ($state['provisioning_status'] ?? null) === 'failed' => 'error',
+            default => 'warning',
+        };
+        $statusLabel = match (true) {
+            ($state['provisioning_status'] ?? null) === 'failed' => 'Workspace setup needs attention',
+            default => 'Workspace setup in progress',
+        };
+        $statusNote = match (true) {
+            ($state['provisioning_status'] ?? null) === 'failed' => 'The background workspace setup hit an issue. You can keep filling in your details while support checks the runtime setup.',
+            default => 'We are preparing the workspace in the background. Moving around this wizard will not restart that setup.',
+        };
+        $showSetupStatus = ($state['agent_status'] ?? null) !== 'live'
+            && ($state['provisioning_status'] ?? null) !== 'ready';
+    @endphp
 
-    {{-- ───────────────────────── Wizard chrome ───────────────────────── --}}
-    <style>
-        /* ── wizard layout ── */
-        .wizard-wrapper { }
-
-        /* ── step indicator bar ── */
-        .wizard-steps-bar {
-            display: flex; gap: 4px; margin-bottom: 32px;
-            padding: 0; list-style: none;
-        }
-        .wizard-steps-bar li {
-            flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
-            color: var(--text-muted, #9ca3af); cursor: pointer; position: relative;
-            transition: color 0.25s;
-        }
-        .wizard-step-label {
-            font-size: 0.74rem;
-            font-weight: 700;
-            letter-spacing: 0.05em;
-            line-height: 1.35;
-            text-transform: uppercase;
-        }
-        .wizard-steps-bar li::before {
-            content: ''; display: block; width: 100%; height: 4px; border-radius: 2px;
-            background: var(--border, #e5e7eb); transition: background 0.3s;
-        }
-        .wizard-steps-bar li.done::before { background: var(--success, #22c55e); }
-        .wizard-steps-bar li.active::before { background: var(--primary, #ef4444); }
-        .wizard-steps-bar li.active { color: var(--text, #111827); font-weight: 600; }
-        .wizard-steps-bar li.done { color: var(--success, #22c55e); }
-
-        /* ── panels ── */
-        .wizard-panel {
-            animation: wizardFadeIn 0.3s ease;
-        }
-        @keyframes wizardFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* ── nav row ── */
-        .wizard-nav {
-            display: flex; justify-content: space-between; gap: 12px;
-            margin-top: 28px; padding-top: 20px;
-            border-top: 1px solid var(--border, #e5e7eb);
-        }
-        .wizard-nav .spacer { flex: 1; }
-
-        .wizard-status {
-            display: grid;
-            grid-template-columns: minmax(0, 1.3fr) minmax(260px, 0.7fr);
-            gap: 16px;
-            margin-bottom: 24px;
-        }
-        .wizard-status-card {
-            border: 1px solid var(--border, #e5e7eb);
-            border-radius: 20px;
-            background: rgba(255, 255, 255, 0.88);
-            padding: 18px 20px;
-        }
-        .wizard-status-track {
-            width: 100%;
-            height: 10px;
-            border-radius: 999px;
-            background: #f1f5f9;
-            overflow: hidden;
-            margin-top: 12px;
-        }
-        .wizard-status-track span {
-            display: block;
-            height: 100%;
-            width: 0;
-            background: linear-gradient(90deg, #ff6b35 0%, #ef4444 100%);
-            transition: width 0.25s ease;
-        }
-        .wizard-status-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            border-radius: 999px;
-            padding: 8px 12px;
-            font-size: 0.82rem;
-            font-weight: 600;
-            background: #fff7ed;
-            color: #c2410c;
-        }
-        .wizard-auto-note {
-            margin-top: 12px;
-            font-size: 0.84rem;
-            color: var(--text-muted, #6b7280);
-        }
-        .wizard-operation-note {
-            display: none;
-            margin-top: 10px;
-            padding: 10px 12px;
-            border-radius: 8px;
-            background: #fff7ed;
-            color: #9a3412;
-            font-size: 0.86rem;
-            font-weight: 600;
-        }
-        .wizard-steps-bar.is-locked {
-            cursor: wait;
-        }
-        .wizard-steps-bar.is-locked li {
-            opacity: 0.65;
-            pointer-events: none;
-        }
-
-        /* ── progress spinner from Step 1 ── */
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .progress-step { transition: opacity 0.4s ease; }
-
-        @media (max-width: 980px) {
-            .wizard-status {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
-
-    <div class="wizard-wrapper">
-        {{-- ── top bar ── --}}
-        <div class="topbar" style="margin-bottom: 24px;">
-            <div>
+    <div class="wizard-wrapper sync-onboarding-shell">
+        <header class="sync-onboarding-hero">
+            <div class="sync-onboarding-hero__copy">
                 <span class="eyebrow">Guided Setup</span>
                 <h2>Set up your digital employee</h2>
-                <p class="type-body" style="margin-top: 4px;">Tell us about your business, choose how your digital employee should communicate, connect your messaging channel, and optionally add Google Workspace access.</p>
+                <p>Finish the essentials and we will handle the technical setup in the background.</p>
             </div>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <a href="{{ route('dashboard') }}" class="button button--secondary">Back to Dashboard</a>
+
+            <div class="sync-onboarding-hero__actions">
+                <x-ui.button :href="route('dashboard')" variant="secondary" icon="arrow-left">
+                    Back to Dashboard
+                </x-ui.button>
                 @if (($state['workspace']['ready'] ?? false) === false)
-                    <a href="{{ route('tenant.setup') }}" class="button button--primary">Watch Workspace Setup</a>
+                    <x-ui.button :href="route('tenant.setup')" variant="secondary" icon="activity">
+                        Watch Workspace Setup
+                    </x-ui.button>
                 @elseif (! empty($state['workspace']['url']))
-                    <a href="{{ $state['workspace']['url'] }}" class="button button--primary" rel="noreferrer">Open Sync360 Workspace</a>
+                    <x-ui.button :href="$state['workspace']['url']" icon="external-link" icon-position="after" rel="noreferrer">
+                        Open Sync360 Workspace
+                    </x-ui.button>
                 @endif
             </div>
-        </div>
+        </header>
 
-        {{-- ── step indicator ── --}}
-        <ul class="wizard-steps-bar" id="wizard-steps-bar">
-            @foreach ($state['steps'] as $number => $step)
-                <li data-step="{{ $number }}" class="{{ $step['status'] === 'complete' ? 'done' : '' }}">
-                    <span></span><span class="wizard-step-label">{{ $step['label'] }}</span>
-                </li>
-            @endforeach
-        </ul>
+        <x-ui.step-progress
+            :steps="$state['steps']"
+            :current-step="$initialStep"
+            :current-label="$currentStepMeta['label']"
+            :progress-percent="$progressPercent"
+            :progress-note="$progressNote"
+            :completed-steps="$completedSteps"
+            :total-steps="$totalSteps"
+        />
 
-        <div class="wizard-status">
-            <div class="wizard-status-card">
-                <span class="eyebrow">Wizard Progress</span>
-                <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-top: 12px;">
-                    <div>
-                        <strong id="wizard-step-counter" style="display: block; font-size: 1.15rem;">Step 1 of 7</strong>
-                        <span id="wizard-step-name" class="hint type-muted" style="display: block; margin-top: 4px;">Website</span>
-                    </div>
-                    <strong id="wizard-progress-percent" style="font-size: 0.92rem;">14%</strong>
-                </div>
-                <div class="wizard-status-track">
-                    <span id="wizard-progress-fill"></span>
-                </div>
-                <div class="wizard-auto-note" id="wizard-progress-note">
-                    Move through the setup at your own pace. We’ll keep your place and carry on with the background workspace setup while you complete these steps.
-                </div>
-                <div class="wizard-operation-note" id="wizard-operation-note" role="status" aria-live="polite"></div>
-            </div>
-
-            <div class="wizard-status-card">
-                <span class="eyebrow">Behind The Scenes</span>
-                <div style="margin-top: 12px;">
-                    <span class="wizard-status-pill" id="workspace-setup-badge">Workspace setup in progress</span>
-                    <p id="workspace-setup-note" style="margin-top: 12px; color: var(--text-muted, #6b7280);">
-                        Your workspace is being prepared in the background. Moving around this wizard will not restart that setup.
-                    </p>
-                </div>
-            </div>
-        </div>
+        <x-ui.setup-status
+            id="workspace-setup-strip"
+            :status="$statusLabel"
+            :note="$statusNote"
+            :tone="$statusTone"
+            :visible="$showSetupStatus"
+            status-id="workspace-setup-badge"
+            note-id="workspace-setup-note"
+        />
 
         {{-- ═══════════════════ STEP 1 — Read Website ═══════════════════ --}}
-        <div class="wizard-panel panel" data-wizard-step="1" id="wizard-step-1" style="display: none;">
-            <span class="eyebrow">Step 1</span>
-            <h3 class="type-section-title" style="margin-top: 16px;">Read your business website</h3>
-            <p class="type-body" style="margin-top: 8px;">
-                Add your website and we'll pull in the basics for you. If website reading isn't available or your site is sparse, you can fill everything in manually in the next step.
-            </p>
+        <x-ui.panel variant="subtle" class="wizard-panel sync-onboarding-step" data-wizard-step="1" id="wizard-step-1" style="display: none;">
+            <div class="sync-onboarding-step__intro">
+                <span class="eyebrow">Step 1</span>
+                <h3 class="type-section-title">Read your business website</h3>
+                <p>Start with your website and we will pull in the basics for you. If you would rather type things in yourself, you can move straight to the next step.</p>
+            </div>
 
-            <form id="website-form" style="margin-top: 18px;">
-                @csrf
-                <div class="field-single">
-                    <label>
-                        Business Website
-                        <input id="website-url" type="url" name="url" placeholder="https://yourbusiness.com" value="{{ $state['business']['website_url'] ?? '' }}">
-                    </label>
-                </div>
-                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button type="submit" id="read-website-btn">Read My Website</button>
-                    <button type="button" class="button button--secondary" id="manual-focus-button">Fill In Manually →</button>
-                </div>
-            </form>
+            <div class="sync-onboarding-primary-surface">
+                <form id="website-form" class="sync-onboarding-section-stack sync-onboarding-form-cluster">
+                    @csrf
+                    <div class="sync-onboarding-surface-head">
+                        <div>
+                            <span class="sync-onboarding-surface-kicker">Primary path</span>
+                            <h4 class="sync-onboarding-surface-title">Read my website</h4>
+                        </div>
+                        <p class="sync-onboarding-surface-note">Paste your website and we will prefill what we can so you spend less time typing later.</p>
+                    </div>
 
-            <div id="website-progress" style="margin-top: 18px; display: none;">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <svg id="progress-spinner" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0; animation: spin 1s linear infinite;">
+                    <div class="field-single">
+                        <label>
+                            Business Website
+                            <input id="website-url" type="url" name="url" placeholder="https://yourbusiness.com" value="{{ $state['business']['website_url'] ?? '' }}">
+                        </label>
+                    </div>
+                    <div class="sync-onboarding-primary-actions">
+                        <x-ui.button type="submit" id="read-website-btn">
+                            Read My Website
+                        </x-ui.button>
+                    </div>
+                </form>
+
+                <div id="website-progress" class="sync-onboarding-inline-progress" style="display: none;">
+                    <div class="sync-onboarding-inline-progress__head">
+                        <svg id="progress-spinner" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0; animation: spin 1s linear infinite;">
                         <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2" stroke-dasharray="40" stroke-dashoffset="15" opacity="0.25"/>
                         <path d="M10 2a8 8 0 0 1 8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
-                    <span id="progress-message" style="font-size: 0.875rem; color: var(--text-muted, #6b7280);">Reading your website pages…</span>
-                </div>
-                <div id="progress-steps" style="margin-top: 12px; display: grid; gap: 6px;">
-                    <div class="progress-step" data-step="scraping" style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem;">
-                        <span class="step-icon" style="width: 16px; text-align: center;">⏳</span>
+                        </svg>
+                        <span id="progress-message">Reading your website pages…</span>
+                    </div>
+                    <div id="progress-steps" class="sync-onboarding-inline-progress__steps">
+                        <div class="progress-step" data-step="scraping">
+                            <span class="step-icon">⏳</span>
                         <span>Reading your website pages</span>
-                    </div>
-                    <div class="progress-step" data-step="analysing" style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; opacity: 0.4;">
-                        <span class="step-icon" style="width: 16px; text-align: center;">⏳</span>
+                        </div>
+                        <div class="progress-step" data-step="analysing" style="opacity: 0.4;">
+                            <span class="step-icon">⏳</span>
                         <span>Analysing business information</span>
-                    </div>
-                    <div class="progress-step" data-step="writing" style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; opacity: 0.4;">
-                        <span class="step-icon" style="width: 16px; text-align: center;">⏳</span>
+                        </div>
+                        <div class="progress-step" data-step="writing" style="opacity: 0.4;">
+                            <span class="step-icon">⏳</span>
                         <span>Filling in your business details</span>
+                        </div>
                     </div>
+                </div>
+
+                <div class="sync-onboarding-secondary-path">
+                    <p class="sync-onboarding-secondary-path__copy">Prefer to type the details yourself? You can skip the website scan and start filling in your business information now.</p>
+                    <x-ui.button type="button" variant="secondary" id="manual-focus-button" icon="chevron-right" icon-position="after">
+                        Continue Manually
+                    </x-ui.button>
                 </div>
             </div>
 
-            <div class="note" style="margin-top: 18px; display: none;" id="website-success"></div>
-            <div class="note error" style="margin-top: 18px; display: none;" id="website-error"></div>
+            <div class="note" style="display: none;" id="website-success"></div>
+            <div class="note error" style="display: none;" id="website-error"></div>
 
             <div class="wizard-nav">
                 <span class="spacer"></span>
             </div>
-        </div>
+        </x-ui.panel>
 
         {{-- ═══════════════════ STEP 2 — Business Details ═══════════════════ --}}
-        <div class="wizard-panel panel" data-wizard-step="2" id="wizard-step-2" style="display: none;">
-            <span class="eyebrow">Step 2</span>
-            <h3 class="type-section-title" style="margin-top: 16px;">Confirm your business details</h3>
-            <p class="type-body" style="margin-top: 8px;">
-                Check what we know so far and adjust anything that needs fixing. These details will shape how your digital employee talks about your business later.
-            </p>
+        <x-ui.panel variant="subtle" class="wizard-panel sync-onboarding-step" data-wizard-step="2" id="wizard-step-2" style="display: none;">
+            <div class="sync-onboarding-step__intro">
+                <span class="eyebrow">Step 2</span>
+                <h3 class="type-section-title">Confirm your business details</h3>
+                <p>Check what we know so far and adjust anything that needs fixing. These details shape how your digital employee introduces your business and answers customers later.</p>
+            </div>
 
-            <form id="business-form" style="margin-top: 18px;">
+            <form id="business-form" class="sync-onboarding-section-stack">
                 @csrf
-                <div class="field-grid">
-                    <label>
-                        Business Name
-                        <input id="business-name-input" type="text" name="business_name" value="{{ $state['business']['business_name'] ?? $tenant->business_name }}">
-                    </label>
-                    <label>
-                        Trading Name <span class="hint">(optional)</span>
-                        <input id="trading-name-input" type="text" name="trading_name" value="{{ $state['business']['trading_name'] ?? '' }}">
-                    </label>
+                <div class="sync-onboarding-field-group">
+                    <div class="sync-onboarding-field-group__header">
+                        <h4 class="sync-onboarding-field-group__title">Business identity</h4>
+                        <p class="sync-onboarding-field-group__note">The essentials customers should recognise right away.</p>
+                    </div>
+                    <div class="field-grid">
+                        <label>
+                            Business Name
+                            <input id="business-name-input" type="text" name="business_name" value="{{ $state['business']['business_name'] ?? $tenant->business_name }}">
+                        </label>
+                        <label>
+                            Trading Name <span class="hint">(optional)</span>
+                            <input id="trading-name-input" type="text" name="trading_name" value="{{ $state['business']['trading_name'] ?? '' }}">
+                        </label>
+                    </div>
+
+                    <div class="field-grid">
+                        <label>
+                            Industry
+                            <input id="industry-input" type="text" name="industry" value="{{ $state['business']['industry'] ?? $tenant->industry }}">
+                        </label>
+                        <label>
+                            Tagline <span class="hint">(optional)</span>
+                            <input id="tagline-input" type="text" name="tagline" value="{{ $state['business']['tagline'] ?? '' }}">
+                        </label>
+                    </div>
+
+                    <div class="field-single">
+                        <label>
+                            What your business does
+                            <textarea id="description-input" name="description" placeholder="Describe what you do, who you help, and the kinds of work you handle.">{{ $state['business']['description'] ?? '' }}</textarea>
+                        </label>
+                    </div>
                 </div>
 
-                <div class="field-grid">
-                    <label>
-                        Industry
-                        <input id="industry-input" type="text" name="industry" value="{{ $state['business']['industry'] ?? $tenant->industry }}">
-                    </label>
-                    <label>
-                        Tagline <span class="hint">(optional)</span>
-                        <input id="tagline-input" type="text" name="tagline" value="{{ $state['business']['tagline'] ?? '' }}">
-                    </label>
+                <div class="sync-onboarding-field-group">
+                    <div class="sync-onboarding-field-group__header">
+                        <h4 class="sync-onboarding-field-group__title">Contact details</h4>
+                        <p class="sync-onboarding-field-group__note">How customers and staff should recognise the right contact points.</p>
+                    </div>
+                    <div class="field-grid">
+                        <label>
+                            Contact Email
+                            <input id="contact-email-input" type="email" name="contact_email" value="{{ $state['business']['contact_email'] ?? '' }}">
+                        </label>
+                        <label>
+                            Contact Phone
+                            <input id="contact-phone-input" type="text" name="contact_phone" value="{{ $state['business']['contact_phone'] ?? '' }}">
+                        </label>
+                    </div>
+
+                    <div class="field-grid">
+                        <label>
+                            Business Website <span class="hint">(optional)</span>
+                            <input id="website-url-input" type="url" name="website_url" value="{{ $state['business']['website_url'] ?? '' }}">
+                        </label>
+                        <label>
+                            Owner Name <span class="hint">(optional)</span>
+                            <input id="owner-name-input" type="text" name="owner_name" value="{{ $state['business']['owner_name'] ?? '' }}">
+                        </label>
+                    </div>
                 </div>
 
-                <div class="field-single">
-                    <label>
-                        What your business does
-                        <textarea id="description-input" name="description" placeholder="Describe what you do, who you help, and the kinds of work you handle.">{{ $state['business']['description'] ?? '' }}</textarea>
-                    </label>
+                <div class="sync-onboarding-field-group">
+                    <div class="sync-onboarding-field-group__header">
+                        <h4 class="sync-onboarding-field-group__title">Location and services</h4>
+                        <p class="sync-onboarding-field-group__note">Give the assistant enough context to explain where you work and what jobs you handle.</p>
+                    </div>
+                    <div class="field-grid">
+                        <label>
+                            Address <span class="hint">(optional)</span>
+                            <input id="physical-address-input" type="text" name="physical_address" value="{{ $state['business']['physical_address'] ?? '' }}">
+                        </label>
+                        <label>
+                            City <span class="hint">(optional)</span>
+                            <input id="city-input" type="text" name="city" value="{{ $state['business']['city'] ?? '' }}">
+                        </label>
+                    </div>
+
+                    <div class="field-single">
+                        <label>
+                            Services
+                            <textarea id="services-input" name="services_text" placeholder="Add one service per line">{{ $state['business']['services'] !== [] ? implode("\n", $state['business']['services']) : '' }}</textarea>
+                        </label>
+                    </div>
                 </div>
 
-                <div class="field-grid">
-                    <label>
-                        Contact Email
-                        <input id="contact-email-input" type="email" name="contact_email" value="{{ $state['business']['contact_email'] ?? '' }}">
-                    </label>
-                    <label>
-                        Contact Phone
-                        <input id="contact-phone-input" type="text" name="contact_phone" value="{{ $state['business']['contact_phone'] ?? '' }}">
-                    </label>
-                </div>
-
-                <div class="field-grid">
-                    <label>
-                        Business Website <span class="hint">(optional)</span>
-                        <input id="website-url-input" type="url" name="website_url" value="{{ $state['business']['website_url'] ?? '' }}">
-                    </label>
-                    <label>
-                        Owner Name <span class="hint">(optional)</span>
-                        <input id="owner-name-input" type="text" name="owner_name" value="{{ $state['business']['owner_name'] ?? '' }}">
-                    </label>
-                </div>
-
-                <div class="field-grid">
-                    <label>
-                        Address <span class="hint">(optional)</span>
-                        <input id="physical-address-input" type="text" name="physical_address" value="{{ $state['business']['physical_address'] ?? '' }}">
-                    </label>
-                    <label>
-                        City <span class="hint">(optional)</span>
-                        <input id="city-input" type="text" name="city" value="{{ $state['business']['city'] ?? '' }}">
-                    </label>
-                </div>
-
-                <div class="field-single">
-                    <label>
-                        Services
-                        <textarea id="services-input" name="services_text" placeholder="Add one service per line">{{ $state['business']['services'] !== [] ? implode("\n", $state['business']['services']) : '' }}</textarea>
-                    </label>
-                </div>
-
-                <button type="submit">Save Business Details</button>
+                <x-ui.button type="submit">
+                    Save Business Details
+                </x-ui.button>
                 <div class="wizard-auto-note">We’ll move you straight to the next step after saving.</div>
             </form>
             <div class="note" style="margin-top: 18px; display: none;" id="business-success"></div>
             <div class="note error" style="margin-top: 18px; display: none;" id="business-error"></div>
 
             <div class="wizard-nav">
-                <button type="button" class="button button--secondary" data-wizard-prev>← Back</button>
+                <x-ui.button type="button" variant="secondary" data-wizard-prev icon="arrow-left">
+                    Back
+                </x-ui.button>
                 <span class="spacer"></span>
             </div>
-        </div>
+        </x-ui.panel>
 
         {{-- ═══════════════════ STEP 3 — Personality ═══════════════════ --}}
-        <div class="wizard-panel panel" data-wizard-step="3" id="wizard-step-3" style="display: none;">
-            <span class="eyebrow">Step 3</span>
-            <h3 class="type-section-title" style="margin-top: 16px;">Choose the communication style</h3>
-            <p style="margin-top: 8px;">
-                Pick the style that feels most like your business. You can change this later.
-            </p>
+        <x-ui.panel variant="subtle" class="wizard-panel sync-onboarding-step" data-wizard-step="3" id="wizard-step-3" style="display: none;">
+            <div class="sync-onboarding-step__intro">
+                <span class="eyebrow">Step 3</span>
+                <h3 class="type-section-title">Choose the communication style</h3>
+                <p>Pick the tone that feels most like your business. You can change this later as you learn what feels right.</p>
+            </div>
 
-            <form id="personality-form" style="margin-top: 18px;">
+            <form id="personality-form" class="sync-onboarding-section-stack">
                 @csrf
-                <div style="display: grid; gap: 12px;">
+                <div class="sync-onboarding-choice-grid">
                     @php
                         $toneOptions = [
                             'friendly' => ['label' => 'Friendly & Warm', 'description' => 'Approachable, warm, and easy to talk to.'],
@@ -339,112 +273,123 @@
                         ];
                     @endphp
                     @foreach ($toneOptions as $value => $toneOption)
-                        <label class="meta-item" style="cursor: pointer;">
-                            <span style="display: flex; gap: 12px; align-items: flex-start;">
-                                <input type="radio" name="tone" value="{{ $value }}" style="width: auto; margin-top: 2px;" @checked(($state['tone'] ?? $state['business']['tone_hint'] ?? null) === $value)>
-                                <span>
-                                    <strong>{{ $toneOption['label'] }}</strong>
-                                    <span class="hint" style="display: block; margin-top: 4px;">{{ $toneOption['description'] }}</span>
+                        <label class="sync-onboarding-choice-card">
+                            <input class="sync-onboarding-choice-card__input" type="radio" name="tone" value="{{ $value }}" @checked(($state['tone'] ?? $state['business']['tone_hint'] ?? null) === $value)>
+                            <span class="sync-onboarding-choice-card__panel">
+                                <span class="sync-onboarding-choice-card__head">
+                                    <span class="sync-onboarding-choice-card__title">{{ $toneOption['label'] }}</span>
+                                    <span class="sync-onboarding-choice-card__badge">Tone</span>
                                 </span>
+                                <span class="sync-onboarding-choice-card__description">{{ $toneOption['description'] }}</span>
                             </span>
                         </label>
                     @endforeach
                 </div>
-                <button type="submit">Save Communication Style</button>
+                <x-ui.button type="submit">
+                    Save Communication Style
+                </x-ui.button>
                 <div class="wizard-auto-note">We’ll move you straight to the next step after saving.</div>
             </form>
             <div class="note" style="margin-top: 18px; display: none;" id="personality-success"></div>
             <div class="note error" style="margin-top: 18px; display: none;" id="personality-error"></div>
 
             <div class="wizard-nav">
-                <button type="button" class="button button--secondary" data-wizard-prev>← Back</button>
+                <x-ui.button type="button" variant="secondary" data-wizard-prev icon="arrow-left">
+                    Back
+                </x-ui.button>
                 <span class="spacer"></span>
             </div>
-        </div>
+        </x-ui.panel>
 
         {{-- ═══════════════════ STEP 4 — Modules ═══════════════════ --}}
-        <div class="wizard-panel panel" data-wizard-step="4" id="wizard-step-4" style="display: none;">
-            <span class="eyebrow">Step 4</span>
-            <h3 class="type-section-title" style="margin-top: 16px;">Choose your modules</h3>
-            <p style="margin-top: 8px;">
-                Core modules are already included. Add any featured modules you want your digital employee to support from day one.
-            </p>
+        <x-ui.panel variant="subtle" class="wizard-panel sync-onboarding-step" data-wizard-step="4" id="wizard-step-4" style="display: none;">
+            <div class="sync-onboarding-step__intro">
+                <span class="eyebrow">Step 4</span>
+                <h3 class="type-section-title">Choose your modules</h3>
+                <p>Core modules are already included. Add any featured modules you want your digital employee to support from day one.</p>
+            </div>
 
-            <form id="capabilities-form" style="margin-top: 18px;">
+            <form id="capabilities-form" class="sync-onboarding-section-stack">
                 @csrf
-                <div style="display: grid; gap: 18px;">
-                    <div>
-                        <div class="hint" style="margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.08em;">Included Core Modules</div>
-                        <div style="display: grid; gap: 12px;" id="core-modules-list">
-                            @foreach (($state['modules']['core'] ?? []) as $module)
-                                <div class="meta-item">
-                                    <span style="display: flex; gap: 12px; align-items: flex-start;">
-                                        <span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 999px; background: rgba(34, 197, 94, 0.12); color: #15803d; font-size: 0.8rem; margin-top: 2px;">✓</span>
-                                        <span>
-                                            <strong>{{ $module['label'] }}</strong>
-                                            @if (! empty($module['description']))
-                                                <span class="hint" style="display: block; margin-top: 4px;">{{ $module['description'] }}</span>
-                                            @endif
-                                        </span>
-                                    </span>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                    <div>
-                        <div class="hint" style="margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.08em;">Featured Modules</div>
-                        <div style="display: grid; gap: 12px;" id="featured-modules-list">
-                            @forelse (($state['modules']['featured'] ?? []) as $module)
-                                <label class="meta-item" style="cursor: pointer;">
-                                    <span style="display: flex; gap: 12px; align-items: flex-start;">
-                                        <input type="checkbox" name="featured_skill_keys[]" value="{{ $module['skill_key'] }}" style="width: auto; margin-top: 2px;" @checked(in_array($module['skill_key'], $state['modules']['selected_featured_skill_keys'] ?? [], true))>
-                                        <span>
-                                            <strong>{{ $module['label'] }}</strong>
-                                            @if (! empty($module['description']))
-                                                <span class="hint" style="display: block; margin-top: 4px;">{{ $module['description'] }}</span>
-                                            @endif
-                                        </span>
-                                    </span>
-                                </label>
-                            @empty
-                                <div class="meta-item">
-                                    <span class="hint">No extra featured modules are available yet. Your core modules are ready to go.</span>
-                                </div>
-                            @endforelse
-                        </div>
+                <div class="sync-onboarding-guidance">
+                    <h4 class="sync-onboarding-guidance__title">Included Core Modules</h4>
+                    <p class="sync-onboarding-guidance__body">These are already part of your setup, so you can focus on choosing any optional extras below.</p>
+                    <div class="sync-onboarding-choice-grid" id="core-modules-list">
+                        @foreach (($state['modules']['core'] ?? []) as $module)
+                            <div class="sync-onboarding-choice-card__panel">
+                                <span class="sync-onboarding-choice-card__head">
+                                    <span class="sync-onboarding-choice-card__title">{{ $module['label'] }}</span>
+                                    <span class="sync-onboarding-choice-card__badge">Included</span>
+                                </span>
+                                @if (! empty($module['description']))
+                                    <span class="sync-onboarding-choice-card__description">{{ $module['description'] }}</span>
+                                @endif
+                            </div>
+                        @endforeach
                     </div>
                 </div>
-                <button type="submit">Save &amp; Prepare Files</button>
+
+                <div class="sync-onboarding-field-group">
+                    <div class="sync-onboarding-field-group__header">
+                        <h4 class="sync-onboarding-field-group__title">Featured modules</h4>
+                        <p class="sync-onboarding-field-group__note">Choose any extras you want enabled from the start.</p>
+                    </div>
+                    <div class="sync-onboarding-choice-grid" id="featured-modules-list">
+                        @forelse (($state['modules']['featured'] ?? []) as $module)
+                            <label class="sync-onboarding-choice-card">
+                                <input class="sync-onboarding-choice-card__input" type="checkbox" name="featured_skill_keys[]" value="{{ $module['skill_key'] }}" @checked(in_array($module['skill_key'], $state['modules']['selected_featured_skill_keys'] ?? [], true))>
+                                <span class="sync-onboarding-choice-card__panel">
+                                    <span class="sync-onboarding-choice-card__head">
+                                        <span class="sync-onboarding-choice-card__title">{{ $module['label'] }}</span>
+                                        <span class="sync-onboarding-choice-card__badge">Optional</span>
+                                    </span>
+                                    @if (! empty($module['description']))
+                                        <span class="sync-onboarding-choice-card__description">{{ $module['description'] }}</span>
+                                    @endif
+                                </span>
+                            </label>
+                        @empty
+                            <div class="sync-onboarding-guidance">
+                                <p class="sync-onboarding-guidance__body">No extra featured modules are available yet. Your included core modules are ready to go.</p>
+                            </div>
+                        @endforelse
+                    </div>
+                </div>
+
+                <x-ui.button type="submit">
+                    Save &amp; Prepare Files
+                </x-ui.button>
                 <div class="wizard-auto-note">We’ll move you straight to the next step after saving.</div>
             </form>
             <div class="note" style="margin-top: 18px; display: none;" id="capabilities-success"></div>
             <div class="note error" style="margin-top: 18px; display: none;" id="capabilities-error"></div>
-            <div class="note" style="margin-top: 18px;" id="files-note">
+            <div class="sync-onboarding-summary-note" id="files-note">
                 @if (! empty($state['files']['generated_at']))
                     Your internal setup files were generated on {{ $state['files']['generated_at'] }}.
                 @else
-                    Once you save your modules, we'll prepare the internal setup files behind the scenes.
+                    Once you save your modules, we will prepare the internal setup files behind the scenes.
                 @endif
             </div>
 
             <div class="wizard-nav">
-                <button type="button" class="button button--secondary" data-wizard-prev>← Back</button>
+                <x-ui.button type="button" variant="secondary" data-wizard-prev icon="arrow-left">
+                    Back
+                </x-ui.button>
                 <span class="spacer"></span>
             </div>
-        </div>
+        </x-ui.panel>
 
         {{-- ═══════════════════ STEP 5 — Channel ═══════════════════ --}}
-        <div class="wizard-panel panel" data-wizard-step="5" id="wizard-step-5" style="display: none;">
-            <span class="eyebrow">Step 5</span>
-            <h3 class="type-section-title" style="margin-top: 16px;">Connect your messaging channel</h3>
-            <p style="margin-top: 8px;">
-                Pick the messaging app you already use. Your digital employee will use this channel to reach you — so you can ask questions and get real-time updates directly from it.
-            </p>
+        <x-ui.panel variant="subtle" class="wizard-panel sync-onboarding-step" data-wizard-step="5" id="wizard-step-5" style="display: none;">
+            <div class="sync-onboarding-step__intro">
+                <span class="eyebrow">Step 5</span>
+                <h3 class="type-section-title">Connect your messaging channel</h3>
+                <p>Telegram is the live channel today. Connect it here so your digital employee can reach you with updates and replies.</p>
+            </div>
 
-            {{-- Connected status panel — shown when a channel is already connected --}}
-            <div id="channel-connected-panel" style="margin-top: 18px; display: {{ ($state['channel_setup']['status'] ?? '') === 'connected' ? 'block' : 'none' }};">
-                <div class="meta-item" style="display: flex; align-items: center; justify-content: space-between; padding: 16px 20px;">
-                    <div style="display: flex; align-items: center; gap: 12px;">
+            <div id="channel-connected-panel" style="display: {{ ($state['channel_setup']['status'] ?? '') === 'connected' ? 'block' : 'none' }};">
+                <div class="sync-onboarding-channel-status">
+                    <div class="sync-onboarding-channel-status__copy">
                         <span id="connected-channel-icon">
                             @if(($state['channel'] ?? '') === 'telegram')
                                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-.98-.19-1.46-.35-.59-.2-1.06-.3-1.02-.64.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z" fill="#229ED9"/></svg>
@@ -452,69 +397,73 @@
                                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" fill="#25D366"/><path d="M12.004 2C6.489 2 2 6.489 2 12.004c0 1.762.46 3.476 1.333 4.99L2 22l5.233-1.237A9.956 9.956 0 0012.004 22C17.52 22 22 17.52 22 12.004 22 6.489 17.52 2 12.004 2zm0 18.15A8.14 8.14 0 017.55 18.8l-.35-.21-3.1.73.82-3-.23-.36a8.108 8.108 0 01-1.24-4.35C3.45 7.29 7.29 3.45 12 3.45c2.27 0 4.4.88 6.01 2.49a8.453 8.453 0 012.49 6.01c.01 4.72-3.84 8.56-8.5 8.56v-.01z" fill="#25D366"/></svg>
                             @endif
                         </span>
-                        <div>
-                            <strong id="connected-channel-name" style="font-size: 1.05rem;">{{ ucfirst($state['channel'] ?? '') }}</strong>
-                            <span style="display: inline-block; margin-left: 10px; background: #22c55e; color: #fff; font-size: 0.72rem; font-weight: 600; padding: 2px 10px; border-radius: 6px; vertical-align: middle;">Connected</span>
-                            <span class="hint" style="display: block; margin-top: 4px;">Your digital employee is connected and ready to respond through this channel.</span>
+                        <div class="sync-onboarding-channel-status__meta">
+                            <p class="sync-onboarding-channel-status__title">
+                                <span id="connected-channel-name">{{ ucfirst($state['channel'] ?? '') }}</span>
+                                <span class="sync-onboarding-chip sync-onboarding-chip--success">Connected</span>
+                            </p>
+                            <p class="sync-onboarding-channel-status__note">Your digital employee is connected and ready to respond through this channel.</p>
                         </div>
                     </div>
-                    <button type="button" id="disconnect-channel-btn" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; padding: 6px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 500; cursor: pointer; white-space: nowrap;">
+                    <x-ui.button type="button" id="disconnect-channel-btn" variant="secondary" icon="trash-2">
                         Disconnect
-                    </button>
+                    </x-ui.button>
                 </div>
             </div>
 
-            {{-- WhatsApp Coming Soon — visible so customers know it's planned --}}
-            <div id="whatsapp-coming-soon" class="meta-item" style="margin-top: 12px; cursor: not-allowed; opacity: 0.55;">
-                <span style="display: flex; gap: 12px; align-items: center; padding: 4px 0;">
-                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" style="flex-shrink: 0;"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" fill="#25D366"/><path d="M12.004 2C6.489 2 2 6.489 2 12.004c0 1.762.46 3.476 1.333 4.99L2 22l5.233-1.237A9.956 9.956 0 0012.004 22C17.52 22 22 17.52 22 12.004 22 6.489 17.52 2 12.004 2zm0 18.15A8.14 8.14 0 017.55 18.8l-.35-.21-3.1.73.82-3-.23-.36a8.108 8.108 0 01-1.24-4.35C3.45 7.29 7.29 3.45 12 3.45c2.27 0 4.4.88 6.01 2.49a8.453 8.453 0 012.49 6.01c.01 4.72-3.84 8.56-8.5 8.56v-.01z" fill="#25D366"/></svg>
-                    <span>
-                        <strong>WhatsApp</strong>
-                        <span style="display: inline-block; margin-left: 8px; background: var(--accent, #FF6B35); color: #fff; font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 6px; vertical-align: middle;">Coming Soon</span>
-                    </span>
-                </span>
-            </div>
-
-            <form id="channel-form" style="margin-top: 18px; {{ ($state['channel_setup']['status'] ?? '') === 'connected' ? 'display: none;' : '' }}">
+            <form id="channel-form" class="sync-onboarding-section-stack" style="{{ ($state['channel_setup']['status'] ?? '') === 'connected' ? 'display: none;' : '' }}">
                 @csrf
-                <div style="display: grid; gap: 12px;">
-                    <label class="meta-item" style="cursor: pointer;">
-                        <span style="display: flex; gap: 12px; align-items: flex-start;">
-                            <input type="radio" name="channel" value="telegram" style="width: auto; margin-top: 2px;" @checked(($state['channel'] ?? null) === 'telegram')>
-                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" style="flex-shrink: 0; margin-top: 1px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-.98-.19-1.46-.35-.59-.2-1.06-.3-1.02-.64.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z" fill="#229ED9"/></svg>
-                            <span>
-                                <strong>Telegram</strong>
-                                <span class="hint" style="display: block; margin-top: 4px;">Connect Telegram so you can message your digital employee directly from your Telegram account.</span>
-                            </span>
+                <label class="sync-onboarding-choice-card sync-onboarding-choice-card--primary">
+                    <input class="sync-onboarding-choice-card__input" type="radio" name="channel" value="telegram" @checked(($state['channel'] ?? 'telegram') === 'telegram')>
+                    <span class="sync-onboarding-choice-card__panel">
+                        <span class="sync-onboarding-choice-card__head">
+                            <span class="sync-onboarding-choice-card__title">Telegram</span>
+                            <span class="sync-onboarding-choice-card__badge">Available now</span>
                         </span>
-                    </label>
+                        <span class="sync-onboarding-choice-card__description">Use Telegram to chat with your digital employee directly and receive live status updates.</span>
+                    </span>
+                </label>
+
+                <div id="telegram-fields" style="display: none;">
+                    <div class="sync-onboarding-primary-surface sync-onboarding-primary-surface--compact">
+                        <div class="sync-onboarding-surface-head">
+                            <div>
+                                <span class="sync-onboarding-surface-kicker">Primary path</span>
+                                <h4 class="sync-onboarding-surface-title">Connect Telegram</h4>
+                            </div>
+                            <p class="sync-onboarding-surface-note">You only need a BotFather token. Paste it below and we will save the connection for you.</p>
+                        </div>
+
+                        <div class="field-single">
+                            <label>
+                                Bot Token
+                                <textarea name="telegram_bot_token" placeholder="Paste the bot token from @BotFather"></textarea>
+                            </label>
+                        </div>
+
+                        <div class="sync-onboarding-primary-actions">
+                            <x-ui.button type="submit">
+                                Connect Channel
+                            </x-ui.button>
+                        </div>
+
+                        <details class="sync-onboarding-disclosure">
+                            <summary>How to get your Telegram bot token</summary>
+                            <ol class="sync-onboarding-guidance__list">
+                                <li>Open Telegram and search for <strong>@BotFather</strong>.</li>
+                                <li>Send <strong>/newbot</strong> and follow the prompts to name your bot.</li>
+                                <li>Copy the token BotFather sends back.</li>
+                                <li>Paste it here and connect the channel.</li>
+                            </ol>
+                            <p class="sync-onboarding-guidance__footnote">After connecting, open a chat with your bot in Telegram and send your first message there.</p>
+                        </details>
+                    </div>
                 </div>
 
-                <div id="telegram-fields" style="margin-top: 18px; display: none;">
-                    <div style="background: #faf9f8; border: 1px solid var(--stroke, #e5e7eb); border-radius: 14px; padding: 18px 20px; margin-bottom: 18px;">
-                        <strong style="display: block; margin-bottom: 10px; font-size: 0.95rem;">Set up your Telegram connection</strong>
-                        <p style="margin: 0 0 12px; font-size: 0.88rem; color: var(--muted, #6b7280); line-height: 1.6;">
-                            To connect Telegram, you need a Telegram Bot — this is the channel your digital employee will use to reach you. It only takes a minute to set one up:
-                        </p>
-                        <ol style="margin: 0; padding-left: 20px; font-size: 0.88rem; color: var(--muted, #6b7280); line-height: 1.7;">
-                            <li>Open Telegram on your phone or desktop and search for <strong>@BotFather</strong>.</li>
-                            <li>Send the message <strong>/newbot</strong> and follow the prompts to pick a name and username for your bot.</li>
-                            <li>BotFather will reply with a <strong>bot token</strong> &mdash; it looks something like <code style="background: #eee; padding: 2px 6px; border-radius: 4px;">123456:ABC-DEF1234</code>.</li>
-                            <li>Copy the token, paste it below, and click <strong>Connect Channel</strong>. Once connected, your digital employee will be reachable at this bot.</li>
-                        </ol>
-                        <p style="margin: 12px 0 0; font-size: 0.82rem; color: var(--muted, #6b7280);">
-                            That's it! Once connected, open a chat with your bot in Telegram and start a conversation with your digital employee directly.
-                        </p>
-                    </div>
-                    <div class="field-single">
-                        <label>
-                            Bot Token
-                            <textarea name="telegram_bot_token" placeholder="Paste the bot token from @BotFather"></textarea>
-                        </label>
-                    </div>
+                <div class="sync-onboarding-secondary-note" id="whatsapp-coming-soon">
+                    <p class="sync-onboarding-secondary-note__title">WhatsApp is coming later.</p>
+                    <p class="sync-onboarding-secondary-note__body">Telegram is the live path today, and more customer channels will follow once they are ready.</p>
                 </div>
-
-                <button type="submit">Connect Channel</button>
                 <div class="wizard-auto-note">We’ll move you straight to the next step after saving.</div>
             </form>
             <div class="note" style="margin-top: 18px; display: none;" id="channel-success"></div>
@@ -535,161 +484,203 @@
             </div>
 
             <div class="wizard-nav">
-                <button type="button" class="button button--secondary" data-wizard-prev>← Back</button>
+                <x-ui.button type="button" variant="secondary" data-wizard-prev icon="arrow-left">
+                    Back
+                </x-ui.button>
                 <span class="spacer"></span>
-                <button type="button" class="button button--primary" data-wizard-next id="channel-step-next">Continue To Google Workspace →</button>
+                <x-ui.button type="button" variant="secondary" data-wizard-next id="channel-step-next" icon="chevron-right" icon-position="after">
+                    Continue To Google Workspace
+                </x-ui.button>
             </div>
-        </div>
+        </x-ui.panel>
 
         {{-- ═══════════════════ STEP 6 — Google Workspace ═══════════════════ --}}
-        <div class="wizard-panel panel" data-wizard-step="6" id="wizard-step-6" style="display: none;">
-            <span class="eyebrow">Step 6</span>
-            <h3 class="type-section-title" style="margin-top: 16px;">Connect Google Workspace</h3>
-            <p style="margin-top: 8px;">
-                Connect Google Workspace so your digital employee can work with Gmail, Calendar, Drive, Contacts, Sheets, and Docs, and so your workspace can become customer-ready.
-            </p>
-
-            <div class="meta" style="margin-top: 18px;">
-                <div class="meta-item">
-                    <small>Status</small>
-                    <span id="google-workspace-status">
-                        {{ ucfirst($state['google_workspace']['status'] ?? 'pending') }}
-                    </span>
-                </div>
-                <div class="meta-item">
-                    <small>Connected Account</small>
-                    <span id="google-workspace-email">
-                        {{ $state['google_workspace']['connected_email'] ?? 'Not connected yet' }}
-                    </span>
-                </div>
-                <div class="meta-item">
-                    <small>Live Access</small>
-                    <span id="google-workspace-runtime-sync">
-                        {{ $state['google_workspace']['runtime_sync_label'] ?? ucfirst($state['google_workspace']['runtime_sync_status'] ?? 'pending') }}
-                    </span>
-                </div>
+        <x-ui.panel variant="subtle" class="wizard-panel sync-onboarding-step" data-wizard-step="6" id="wizard-step-6" style="display: none;">
+            <div class="sync-onboarding-step__intro">
+                <span class="eyebrow">Step 6</span>
+                <h3 class="type-section-title">Connect Google Workspace</h3>
+                <p>Connect Google Workspace to finish preparing Gmail, Calendar, Drive, Contacts, Sheets, and Docs for your live workspace.</p>
             </div>
 
-            <div class="note" style="margin-top: 18px;" id="google-workspace-note">
-                @if (($state['google_workspace']['available'] ?? true) === false)
-                    Google Workspace connect is temporarily unavailable in this environment until the latest database migration has been run.
-                @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['needs_attention'] ?? false))
-                    Google Workspace is connected. The live tools just need one more update before Gmail and Calendar are ready here.
-                @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['sync_queued'] ?? false))
-                    Google Workspace is connected. The first live workspace sync is queued and will start shortly.
-                @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['sync_in_progress'] ?? false))
-                    Google Workspace is connected. We are syncing it into your live workspace now.
-                @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['pending_sync'] ?? false))
-                    Google Workspace is connected. We will finish linking it to your live workspace as soon as setup is ready.
-                @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['pending_verification'] ?? false))
-                    Google Workspace is connected and synced. We are running a quick live check for Gmail and Calendar now.
-                @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['verified'] ?? false))
-                    Google Workspace is connected and ready in your live workspace.
-                @elseif (($state['google_workspace']['status'] ?? null) === 'connected')
-                    Google Workspace is connected. A live access check will run after the workspace sync completes.
-                @elseif (($state['google_workspace']['status'] ?? null) === 'disconnected')
-                    Google Workspace was disconnected. You can reconnect this account at any time.
-                @else
-                    Connect Google Workspace to finish preparing your customer-ready workspace.
-                @endif
-            </div>
+            <div class="sync-onboarding-section-stack">
+                <div class="sync-onboarding-field-group">
+                    <div class="sync-onboarding-field-group__header">
+                        <h4 class="sync-onboarding-field-group__title">Current state</h4>
+                        <p class="sync-onboarding-field-group__note">These are the three signals that matter most before you go live.</p>
+                    </div>
 
-            <div class="note error" style="margin-top: 18px; display: {{ filled($state['google_workspace']['last_error'] ?? null) ? 'block' : 'none' }};" id="google-workspace-error">
-                {{ $state['google_workspace']['last_error'] ?? '' }}
-            </div>
-
-            <div class="note" style="margin-top: 18px;" id="google-workspace-scopes-note">
-                Requested access includes Gmail read/send/compose, Calendar, Drive file access, Contacts read-only, Sheets, and Docs.
-            </div>
-
-            <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px;" id="google-workspace-actions">
-                <div id="google-workspace-connect-wrapper" style="display: {{ ($state['google_workspace']['connected'] ?? false) ? 'none' : 'block' }};">
-                    <a
-                        href="{{ ($state['google_workspace']['can_connect'] ?? false) ? route('onboarding.google.connect') : '#' }}"
-                        id="google-workspace-connect-link"
-                        class="button button--primary"
-                        style="{{ ($state['google_workspace']['can_connect'] ?? false) ? '' : 'pointer-events:none; opacity:0.45;' }}"
-                    >
-                        {{ ($state['google_workspace']['can_reconnect'] ?? false) ? 'Reconnect Google Workspace' : 'Connect Google Workspace' }}
-                    </a>
+                    <div class="sync-onboarding-meta-grid">
+                        <div class="meta-item">
+                            <small>Status</small>
+                            <span id="google-workspace-status">
+                                {{ ucfirst($state['google_workspace']['status'] ?? 'pending') }}
+                            </span>
+                        </div>
+                        <div class="meta-item">
+                            <small>Connected Account</small>
+                            <span id="google-workspace-email">
+                                {{ $state['google_workspace']['connected_email'] ?? 'Not connected yet' }}
+                            </span>
+                        </div>
+                        <div class="meta-item">
+                            <small>Live Access</small>
+                            <span id="google-workspace-runtime-sync">
+                                {{ $state['google_workspace']['runtime_sync_label'] ?? ucfirst($state['google_workspace']['runtime_sync_status'] ?? 'pending') }}
+                            </span>
+                        </div>
+                    </div>
                 </div>
 
-                <form method="POST" action="{{ route('onboarding.google.skip') }}" id="google-workspace-skip-form" style="display: none;">
-                    @csrf
-                    <button type="submit" class="button button--secondary">Skip For Now</button>
-                </form>
+                <div class="sync-onboarding-field-group">
+                    <div class="sync-onboarding-field-group__header">
+                        <h4 class="sync-onboarding-field-group__title">What this means</h4>
+                    </div>
+                    <div class="note" id="google-workspace-note">
+                        @if (($state['google_workspace']['available'] ?? true) === false)
+                            Google Workspace connect is temporarily unavailable in this environment until the latest database migration has been run.
+                        @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['needs_attention'] ?? false))
+                            Google Workspace is connected. The live tools just need one more update before Gmail and Calendar are ready here.
+                        @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['sync_queued'] ?? false))
+                            Google Workspace is connected. The first live workspace sync is queued and will start shortly.
+                        @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['sync_in_progress'] ?? false))
+                            Google Workspace is connected. We are syncing it into your live workspace now.
+                        @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['pending_sync'] ?? false))
+                            Google Workspace is connected. We will finish linking it to your live workspace as soon as setup is ready.
+                        @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['pending_verification'] ?? false))
+                            Google Workspace is connected and synced. We are running a quick live check for Gmail and Calendar now.
+                        @elseif (($state['google_workspace']['status'] ?? null) === 'connected' && ($state['google_workspace']['verified'] ?? false))
+                            Google Workspace is connected and ready in your live workspace.
+                        @elseif (($state['google_workspace']['status'] ?? null) === 'connected')
+                            Google Workspace is connected. A live access check will run after the workspace sync completes.
+                        @elseif (($state['google_workspace']['status'] ?? null) === 'disconnected')
+                            Google Workspace was disconnected. You can reconnect this account at any time.
+                        @else
+                            Connect Google Workspace to finish preparing your customer-ready workspace.
+                        @endif
+                    </div>
+                    <div class="note error" style="display: {{ filled($state['google_workspace']['last_error'] ?? null) ? 'block' : 'none' }};" id="google-workspace-error">
+                        {{ $state['google_workspace']['last_error'] ?? '' }}
+                    </div>
+                    <p class="sync-onboarding-summary-note" id="google-workspace-scopes-note">
+                        Requested access includes Gmail, Calendar, Drive file access, Contacts read-only, Sheets, and Docs.
+                    </p>
+                </div>
+                <div class="sync-onboarding-field-group">
+                    <div class="sync-onboarding-field-group__header">
+                        <h4 class="sync-onboarding-field-group__title">Next action</h4>
+                    </div>
+                    <div class="sync-onboarding-action-row" id="google-workspace-actions">
+                        <div id="google-workspace-connect-wrapper" style="display: {{ ($state['google_workspace']['connected'] ?? false) ? 'none' : 'block' }};">
+                            <x-ui.button
+                                :href="($state['google_workspace']['can_connect'] ?? false) ? route('onboarding.google.connect') : '#'"
+                                id="google-workspace-connect-link"
+                                icon="external-link"
+                                icon-position="after"
+                                style="{{ ($state['google_workspace']['can_connect'] ?? false) ? '' : 'pointer-events:none; opacity:0.45;' }}"
+                            >
+                                {{ ($state['google_workspace']['can_reconnect'] ?? false) ? 'Reconnect Google Workspace' : 'Connect Google Workspace' }}
+                            </x-ui.button>
+                        </div>
 
-                <form method="POST" action="{{ route('onboarding.google.disconnect') }}" id="google-workspace-disconnect-form" style="display: {{ (($state['google_workspace']['status'] ?? 'pending') === 'connected') ? 'block' : 'none' }};">
-                    @csrf
-                    <button type="submit" class="button button--secondary">Disconnect</button>
-                </form>
+                        <form method="POST" action="{{ route('onboarding.google.skip') }}" id="google-workspace-skip-form" style="display: none;">
+                            @csrf
+                            <x-ui.button type="submit" variant="secondary">Skip For Now</x-ui.button>
+                        </form>
+
+                        <form method="POST" action="{{ route('onboarding.google.disconnect') }}" id="google-workspace-disconnect-form" style="display: {{ (($state['google_workspace']['status'] ?? 'pending') === 'connected') ? 'block' : 'none' }};">
+                            @csrf
+                            <x-ui.button type="submit" variant="secondary" icon="trash-2">Disconnect</x-ui.button>
+                        </form>
+                    </div>
+                </div>
             </div>
 
             <div class="wizard-nav">
-                <button type="button" class="button button--secondary" data-wizard-prev>← Back</button>
-                <button type="button" class="button button--primary" data-wizard-next>Continue To Go Live →</button>
+                <x-ui.button type="button" variant="secondary" data-wizard-prev icon="arrow-left">
+                    Back
+                </x-ui.button>
+                <x-ui.button type="button" data-wizard-next icon="chevron-right" icon-position="after">
+                    Continue To Go Live
+                </x-ui.button>
             </div>
-        </div>
+        </x-ui.panel>
 
         {{-- ═══════════════════ STEP 7 — Go Live ═══════════════════ --}}
-        <div class="wizard-panel panel" data-wizard-step="7" id="wizard-step-7" style="display: none;">
-            <span class="eyebrow">Step 7</span>
-            <h3 class="type-section-title" style="margin-top: 16px;">Bring it live</h3>
-            <p style="margin-top: 8px;">
-                Once your business details, communication style, skills, channel, and Google Workspace are ready, we'll activate your digital employee.
-            </p>
+        <x-ui.panel variant="subtle" class="wizard-panel sync-onboarding-step" data-wizard-step="7" id="wizard-step-7" style="display: none;">
+            <div class="sync-onboarding-step__intro">
+                <span class="eyebrow">Step 7</span>
+                <h3 class="type-section-title">Bring it live</h3>
+                <p>Once the essentials are ready, this is where you activate or resync your digital employee.</p>
+            </div>
 
-            <div class="meta" style="margin-top: 18px;">
-                <div class="meta-item">
-                    <small>Workspace Status</small>
-                    <span id="go-live-workspace-status">{{ ($state['workspace']['ready'] ?? false) ? 'Ready' : 'Setting up…' }}</span>
+            <div class="sync-onboarding-section-stack">
+                <div class="sync-onboarding-field-group">
+                    <div class="sync-onboarding-field-group__header">
+                        <h4 class="sync-onboarding-field-group__title">Current state</h4>
+                        <p class="sync-onboarding-field-group__note">These signals tell you whether you can go live now or what still needs attention.</p>
+                    </div>
+                    <div class="sync-onboarding-meta-grid">
+                        <div class="meta-item">
+                            <small>Workspace Status</small>
+                            <span id="go-live-workspace-status">{{ ($state['workspace']['ready'] ?? false) ? 'Ready' : 'Setting up…' }}</span>
+                        </div>
+                        <div class="meta-item">
+                            <small>Selected Channel</small>
+                            <span id="go-live-channel-status">
+                                @if (($state['channel'] ?? null) === 'telegram')
+                                    Telegram
+                                @else
+                                    Not connected yet
+                                @endif
+                            </span>
+                        </div>
+                        <div class="meta-item">
+                            <small>Agent Status</small>
+                            <span id="go-live-agent-status">{{ ucfirst($state['agent_status'] ?? 'offline') }}</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="meta-item">
-                    <small>Selected Channel</small>
-                    <span id="go-live-channel-status">
-                        @if (($state['channel'] ?? null) === 'telegram')
-                            Telegram
+
+                <div class="sync-onboarding-field-group">
+                    <div class="sync-onboarding-field-group__header">
+                        <h4 class="sync-onboarding-field-group__title">What happens next</h4>
+                    </div>
+                    <div class="note" id="go-live-note">
+                        @if (($state['agent_status'] ?? null) === 'live')
+                            Your digital employee is already active.
+                        @elseif (($state['workspace']['go_live_ready'] ?? false) === true)
+                            Everything is ready. Click below to activate your digital employee.
                         @else
-                            Not connected yet
+                            {{ $state['workspace']['blocking_message'] ?? 'Finish the remaining setup steps before going live.' }}
                         @endif
-                    </span>
-                </div>
-                <div class="meta-item">
-                    <small>Agent Status</small>
-                    <span id="go-live-agent-status">{{ ucfirst($state['agent_status'] ?? 'offline') }}</span>
+                    </div>
+
+                    @if ($tenant->isTrialExpired())
+                        <div class="note error">
+                            Your trial has ended — activating your digital employee is not available.
+                            <a href="mailto:hello@sync360.co.nz">Contact us</a> to continue.
+                        </div>
+                        <x-ui.button type="button" disabled>Go Live</x-ui.button>
+                    @else
+                        <form id="go-live-form">
+                            @csrf
+                            <x-ui.button type="submit" :disabled="!(($state['workspace']['go_live_ready'] ?? false) || (($state['agent_status'] ?? null) === 'live'))">
+                                {{ ($state['agent_status'] ?? null) === 'live' ? 'Resync Assistant' : 'Go Live' }}
+                            </x-ui.button>
+                        </form>
+                    @endif
                 </div>
             </div>
-
-            <div class="note" style="margin-top: 18px;" id="go-live-note">
-                @if (($state['agent_status'] ?? null) === 'live')
-                    Your digital employee is already active.
-                @elseif (($state['workspace']['go_live_ready'] ?? false) === true)
-                    Everything is ready. Click below to activate your digital employee.
-                @else
-                    {{ $state['workspace']['blocking_message'] ?? 'Finish the remaining setup steps before going live.' }}
-                @endif
-            </div>
-
-            @if ($tenant->isTrialExpired())
-                <div class="note error" style="margin-top: 18px;">
-                    Your trial has ended — activating your digital employee is not available.
-                    <a href="mailto:hello@sync360.co.nz">Contact us</a> to continue.
-                </div>
-                <button type="button" disabled style="margin-top: 12px; opacity: 0.45; cursor: not-allowed;">Go Live</button>
-            @else
-                <form id="go-live-form" style="margin-top: 18px;">
-                    @csrf
-                    <button type="submit" {{ (($state['workspace']['go_live_ready'] ?? false) || (($state['agent_status'] ?? null) === 'live')) ? '' : 'disabled' }}>{{ ($state['agent_status'] ?? null) === 'live' ? 'Resync Assistant' : 'Go Live' }}</button>
-                </form>
-            @endif
-            <div class="note" style="margin-top: 18px; display: none;" id="go-live-success"></div>
-            <div class="note error" style="margin-top: 18px; display: none;" id="go-live-error"></div>
+            <div class="note" style="display: none;" id="go-live-success"></div>
+            <div class="note error" style="display: none;" id="go-live-error"></div>
 
             <div class="wizard-nav">
-                <button type="button" class="button button--secondary" data-wizard-prev>← Back</button>
+                <x-ui.button type="button" variant="secondary" data-wizard-prev icon="arrow-left">
+                    Back
+                </x-ui.button>
                 <span class="spacer"></span>
             </div>
-        </div>
+        </x-ui.panel>
     </div>
 
     {{-- ═══════════════════════════════════════════════════════════════════
@@ -756,6 +747,7 @@
         const wizardProgressFill = document.getElementById('wizard-progress-fill');
         const wizardProgressNote = document.getElementById('wizard-progress-note');
         const wizardOperationNote = document.getElementById('wizard-operation-note');
+        const workspaceSetupStrip = document.getElementById('workspace-setup-strip');
         const workspaceSetupBadge = document.getElementById('workspace-setup-badge');
         const workspaceSetupNote = document.getElementById('workspace-setup-note');
 
@@ -1008,27 +1000,27 @@
             wizardProgressPercent.textContent = `${progressPercent}%`;
             wizardProgressFill.style.width = `${progressPercent}%`;
             wizardProgressNote.textContent = completedCount > 0
-                ? `${completedCount} of ${totalSteps} steps completed. You can move around the wizard without restarting the background setup.`
-                : `Start anywhere that feels easiest. We’ll keep your place and carry on with the background workspace setup while you complete these steps.`;
+                ? `${completedCount} of ${totalSteps} steps completed. We’ll keep the technical setup moving while you finish the remaining details.`
+                : `Start with the basics and we’ll keep the technical setup moving in the background.`;
 
             if (state?.agent_status === 'live') {
-                workspaceSetupBadge.textContent = 'Digital employee is live';
-                workspaceSetupNote.textContent = 'Everything behind the scenes is ready. You can return to any step to refine details and resync when needed.';
+                workspaceSetupStrip?.classList.add('is-hidden');
                 return;
             }
 
             if (state?.provisioning_status === 'ready') {
-                workspaceSetupBadge.textContent = 'Workspace is ready';
-                workspaceSetupNote.textContent = 'Your workspace is ready in the background. Finish the remaining setup steps and go live when you’re ready.';
+                workspaceSetupStrip?.classList.add('is-hidden');
                 return;
             }
 
             if (state?.provisioning_status === 'failed') {
+                workspaceSetupStrip?.classList.remove('is-hidden');
                 workspaceSetupBadge.textContent = 'Workspace setup needs attention';
                 workspaceSetupNote.textContent = 'The background workspace setup hit an issue. You can still review your details here while support checks the runtime setup.';
                 return;
             }
 
+            workspaceSetupStrip?.classList.remove('is-hidden');
             workspaceSetupBadge.textContent = 'Workspace setup in progress';
             workspaceSetupNote.textContent = 'Your workspace is being prepared in the background. Moving around this wizard will not restart that setup.';
         }

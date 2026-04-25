@@ -77,6 +77,8 @@ Customer UI may be more expressive:
 - the customer dashboard should now be outcomes-first: use a tight hero, a four-card health rail (`Assistant`, `Workspace`, `Trial`, `Inbox`), then analytical panels for performance, trial runway, top skills, and inbox performance
 - for expired trial state, use a single global urgent banner as the loud message; demote the health rail to compact status (`Paused`, `Expired`) and make the runway panel action-oriented instead of repeating the same alarm copy
 - when the top dashboard analytics row pairs a large chart with a companion runway/recovery panel, keep both panels visually aligned in height so the row reads as one balanced band
+- the onboarding wizard should stay a calm single-column guide: one full-width progress rail at the top, one focused step canvas, one primary CTA per step, and quiet reassurance about background setup instead of technical setup chatter
+- in onboarding, present Telegram as the only live customer channel path, keep WhatsApp visibly future-facing but subdued, and structure Google Workspace as `state + what it means + next action` rather than a long wall of status prose
 - remove profile-heavy content (`Your Business`, contact details, industry, module lists) from the dashboard; that material belongs on the profile/settings surface
 - do not show completed onboarding as a large dashboard panel; only surface setup progress when onboarding is incomplete, and prefer a compact step wizard instead of a full meta list
 
@@ -186,6 +188,8 @@ Dashboard wrapper components in `resources/views/components/ui/*`:
 - `runway-meter` - compact dual progress treatment for AI credit and remaining trial time
 - `step-wizard` - condensed setup progress for incomplete onboarding only
 - `empty-analytics` - empty-state wrapper for chart/analytics panels
+- `step-progress` - onboarding progress rail plus current-step summary wrapper
+- `setup-status` - slim onboarding status strip for background setup or other single-message guidance when attention is actually needed
 
 ### Spacing Scale
 

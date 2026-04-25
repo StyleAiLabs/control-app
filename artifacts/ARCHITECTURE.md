@@ -12,6 +12,7 @@ This document describes the current as-built architecture of the Sync360 Control
 
 **2026-04-25 Customer Inbox overview:** the customer dashboard now includes a compact `Inbox` panel when the tenant has an enabled `inbox-triage` assignment. The panel does not expose monitor internals; it derives a plain-language state from tenant live/readiness posture, Google verification status, inbox-monitor freshness/failure state, and recent `inbox-triage` conversion or reviewed-message activity.
 **2026-04-25 Customer dashboard outcomes-first refresh:** the customer dashboard now uses controller-shaped analytical payloads and new Sync360 dashboard wrappers (`metric-card`, `health-rail`, `chart-panel`, `bar-chart`, `runway-meter`, `step-wizard`, `empty-analytics`) to present a tighter hero, health rail, performance charting, trial runway, top-skill ranking, inbox analytics, and conditional setup wizard. Profile fields and recent conversation feed content were intentionally removed from the dashboard and left on their dedicated surfaces.
+**2026-04-25 Customer onboarding wizard refresh:** the onboarding shell now uses shared Sync360 onboarding wrappers (`step-progress`, `setup-status`) and shared CSS instead of a large view-local style block. The product logic is unchanged, but the rendered flow is now intentionally a restrained single-column guide with a full-width progress rail, conditional setup-status strip, simplified step canvases, a Telegram-first channel step, and clearer Google/go-live action hierarchy.
 
 **2026-04-22 Landing Page UX Refinement:** Landing page (`resources/views/landing.blade.php`) and authentication views updated with semantic typography classes, section connectors, trust bar with metrics, testimonials grid, flow diagram with icons, animated counter metrics, and trust badges in final CTA. Design system documentation updated in `artifacts/DESIGN_SYSTEM.md` with new landing page patterns and typography usage.
 
@@ -385,6 +386,13 @@ Services involved:
 - `OnboardingStepCatalog` for the shared step-label contract used by the onboarding wizard and dashboard summaries
 
 The onboarding Blade shows explicit wizard progress and a background-setup status card, then polls `/onboarding/state` in the background to refresh progress and readiness. The client preserves unsaved local drafts for website, business details, tone, modules, and channel setup so in-progress edits are not wiped by refreshes. Successful saves on the main setup steps auto-advance the wizard to the next step, and onboarding navigation/state polling does not regenerate the tenant LiteLLM key because key creation remains provisioning-only.
+
+The visual contract is now:
+
+- full-width progress rail plus current-step summary at the top
+- a single focused step card for the active step
+- one clear primary action per step
+- background setup shown only when relevant as a quiet inline status strip instead of repeated operational prose
 
 Step 4 is now catalog-driven. `SkillCatalogItem::onboarding_role` is denormalized from the active published manifest and supports:
 
