@@ -16,6 +16,11 @@ class ExpiredTrialAccessPolicy
         return ! $tenant->isTrialExpired() || $tenant->allow_runtime_replies_when_trial_expired;
     }
 
+    public function shouldEnableDirectCustomerChannels(Tenant $tenant): bool
+    {
+        return $this->canSendCustomerFacingRuntimeWork($tenant);
+    }
+
     public function shouldSuspendLiteLlmOnExpiry(Tenant $tenant): bool
     {
         return ! $tenant->allow_litellm_when_trial_expired;

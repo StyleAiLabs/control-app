@@ -214,6 +214,8 @@ Artisan::command('sync360:check-trial-expiry', function () {
     $litellm = app(LiteLlmTenantKeyService::class);
     /** @var ExpiredTrialAccessPolicy $expiredTrialAccess */
     $expiredTrialAccess = app(ExpiredTrialAccessPolicy::class);
+    /** @var TenantAgentSyncService $tenantAgentSync */
+    $tenantAgentSync = app(TenantAgentSyncService::class);
 
     /** @var TrialNotificationEmailService $mailer */
     $mailer = app(TrialNotificationEmailService::class);
@@ -258,6 +260,7 @@ Artisan::command('sync360:check-trial-expiry', function () {
                 if ($expiredTrialAccess->shouldSuspendLiteLlmOnExpiry($tenant)) {
                     $litellm->suspendTenant($tenant);
                 }
+                $tenantAgentSync->syncSavedChannelIfReady($tenant->fresh());
                 $expired++;
 
                 if (! $tenant->trial_expired_notified_at) {

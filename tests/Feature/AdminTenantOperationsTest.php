@@ -12,6 +12,7 @@ use App\Models\Tenant;
 use App\Models\TenantGoogleCredential;
 use App\Models\User;
 use App\Services\LiteLlmTenantKeyService;
+use App\Services\TenantAgentSyncService;
 use App\Services\TenantHealthCheckService;
 use App\Services\TenantProfileSyncService;
 use Illuminate\Support\Carbon;
@@ -330,6 +331,13 @@ class AdminTenantOperationsTest extends TestCase
         $liteLlmKeys->shouldNotReceive('updateTenantBudget');
         $this->instance(LiteLlmTenantKeyService::class, $liteLlmKeys);
 
+        $agentSync = Mockery::mock(TenantAgentSyncService::class);
+        $agentSync->shouldReceive('syncSavedChannelIfReady')
+            ->once()
+            ->withArgs(fn (Tenant $syncedTenant): bool => $syncedTenant->is($tenant))
+            ->andReturn(true);
+        $this->instance(TenantAgentSyncService::class, $agentSync);
+
         $this->actingAs($admin);
 
         $this->post(route('admin.tenants.trial.extend', $tenant), [
@@ -382,6 +390,13 @@ class AdminTenantOperationsTest extends TestCase
         $liteLlmKeys = Mockery::mock(LiteLlmTenantKeyService::class);
         $liteLlmKeys->shouldNotReceive('updateTenantBudget');
         $this->instance(LiteLlmTenantKeyService::class, $liteLlmKeys);
+
+        $agentSync = Mockery::mock(TenantAgentSyncService::class);
+        $agentSync->shouldReceive('syncSavedChannelIfReady')
+            ->once()
+            ->withArgs(fn (Tenant $syncedTenant): bool => $syncedTenant->is($tenant))
+            ->andReturn(true);
+        $this->instance(TenantAgentSyncService::class, $agentSync);
 
         $this->actingAs($admin);
 
@@ -455,6 +470,13 @@ class AdminTenantOperationsTest extends TestCase
             });
         $this->instance(LiteLlmTenantKeyService::class, $liteLlmKeys);
 
+        $agentSync = Mockery::mock(TenantAgentSyncService::class);
+        $agentSync->shouldReceive('syncSavedChannelIfReady')
+            ->once()
+            ->withArgs(fn (Tenant $syncedTenant): bool => $syncedTenant->is($tenant))
+            ->andReturn(true);
+        $this->instance(TenantAgentSyncService::class, $agentSync);
+
         $this->actingAs($admin);
 
         $this->post(route('admin.tenants.trial.extend', $tenant), [
@@ -526,6 +548,13 @@ class AdminTenantOperationsTest extends TestCase
                 ])->save();
             });
         $this->instance(LiteLlmTenantKeyService::class, $liteLlmKeys);
+
+        $agentSync = Mockery::mock(TenantAgentSyncService::class);
+        $agentSync->shouldReceive('syncSavedChannelIfReady')
+            ->once()
+            ->withArgs(fn (Tenant $syncedTenant): bool => $syncedTenant->is($tenant))
+            ->andReturn(false);
+        $this->instance(TenantAgentSyncService::class, $agentSync);
 
         $this->actingAs($admin);
 

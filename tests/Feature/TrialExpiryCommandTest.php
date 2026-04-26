@@ -8,6 +8,7 @@ use App\Models\Server;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\LiteLlmTenantKeyService;
+use App\Services\TenantAgentSyncService;
 use App\Services\TrialNotificationEmailService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery;
@@ -34,6 +35,13 @@ class TrialExpiryCommandTest extends TestCase
             ->once()
             ->withArgs(fn (Tenant $candidate): bool => $candidate->tenant_id === $tenant->tenant_id);
         $this->instance(LiteLlmTenantKeyService::class, $litellm);
+
+        $agentSync = Mockery::mock(TenantAgentSyncService::class);
+        $agentSync->shouldReceive('syncSavedChannelIfReady')
+            ->once()
+            ->withArgs(fn (Tenant $candidate): bool => $candidate->tenant_id === $tenant->tenant_id)
+            ->andReturn(false);
+        $this->instance(TenantAgentSyncService::class, $agentSync);
 
         $mailer = Mockery::mock(TrialNotificationEmailService::class);
         $mailer->shouldReceive('sendTrialExpired')
@@ -64,6 +72,13 @@ class TrialExpiryCommandTest extends TestCase
         $litellm->shouldNotReceive('suspendTenant');
         $this->instance(LiteLlmTenantKeyService::class, $litellm);
 
+        $agentSync = Mockery::mock(TenantAgentSyncService::class);
+        $agentSync->shouldReceive('syncSavedChannelIfReady')
+            ->once()
+            ->withArgs(fn (Tenant $candidate): bool => $candidate->tenant_id === $tenant->tenant_id)
+            ->andReturn(false);
+        $this->instance(TenantAgentSyncService::class, $agentSync);
+
         $mailer = Mockery::mock(TrialNotificationEmailService::class);
         $mailer->shouldReceive('sendTrialExpired')->once();
         $this->instance(TrialNotificationEmailService::class, $mailer);
@@ -93,6 +108,8 @@ class TrialExpiryCommandTest extends TestCase
             'trial_status' => TrialStatus::Active,
             'trial_ends_at' => now()->addDays(2),
             'provisioning_status' => TenantProvisioningStatus::Ready,
+            'channel' => 'telegram',
+            'channel_config' => ['telegram_bot_token' => 'telegram-bot-token'],
             'litellm_virtual_key' => 'sk-trial-tenant',
             'litellm_max_budget' => 5,
             'litellm_budget_duration' => 'monthly',

@@ -31,6 +31,7 @@ class TenantAgentSyncService
         private readonly TenantSkillAnalyticsRuntimeService $skillAnalyticsRuntime,
         private readonly TenantWorkspaceDependencyHealthService $dependencyHealth,
         private readonly TenantRuntimeSkillActivationService $runtimeSkillActivation,
+        private readonly ExpiredTrialAccessPolicy $expiredTrialAccess,
     ) {
     }
 
@@ -136,6 +137,12 @@ class TenantAgentSyncService
     public function configureChannel(Tenant $tenant): void
     {
         $tenant->loadMissing('server');
+
+        if (! $this->expiredTrialAccess->shouldEnableDirectCustomerChannels($tenant)) {
+            $this->removeChannelConfig($tenant);
+
+            return;
+        }
 
         $localRuntimePath = $this->runtime->localRuntimePath($tenant);
         $configPath = $localRuntimePath.DIRECTORY_SEPARATOR.'config'.DIRECTORY_SEPARATOR.'openclaw.json';
@@ -284,6 +291,12 @@ class TenantAgentSyncService
         }
 
         if (! $this->files->exists($this->runtime->localOpenClawConfigPath($tenant))) {
+            return false;
+        }
+
+        if (! $this->expiredTrialAccess->shouldEnableDirectCustomerChannels($tenant)) {
+            $this->removeChannelConfig($tenant);
+
             return false;
         }
 

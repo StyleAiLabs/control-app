@@ -81,6 +81,7 @@ class AdminController extends Controller
         private readonly TenantWorkspaceDependencyHealthService $dependencyHealth,
         private readonly LiteLlmTenantKeyService $liteLlmTenantKeys,
         private readonly ExpiredTrialAccessPolicy $expiredTrialAccess,
+        private readonly TenantAgentSyncService $tenantAgentSync,
     ) {}
 
     public function index(): View
@@ -292,6 +293,8 @@ class AdminController extends Controller
             );
         }
 
+        $this->tenantAgentSync->syncSavedChannelIfReady($tenant->fresh());
+
         $freshTenant = $tenant->fresh();
         $statusMessage = $shouldTopUpBudget
             ? sprintf(
@@ -335,6 +338,8 @@ class AdminController extends Controller
                 $this->liteLlmTenantKeys->suspendTenant($tenant->fresh());
             }
         }
+
+        $this->tenantAgentSync->syncSavedChannelIfReady($tenant->fresh());
 
         return $this->redirectToTenantShow(
             $request,

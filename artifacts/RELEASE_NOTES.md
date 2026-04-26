@@ -2466,6 +2466,24 @@ Notable changes:
 Verification:
 - `php artisan test tests/Feature/ApplyTenantAgentCustomizationJobTest.php`
 
+## 2026-04-27 - Expired Trial Runtime Pause For Telegram
+
+Date: 2026-04-27
+Branch: `cdx-feature/Expired-TrialRuntimeEnforcement`
+
+Summary:
+- Paused direct Telegram polling/replies at the tenant runtime when an expired trial does not allow customer-facing runtime work
+
+Notable changes:
+- Updated [`app/Services/TenantAgentSyncService`](/Users/gayanhewage/Projects/openclaw-saas/app/Services/TenantAgentSyncService.php) to treat expired-trial runtime access policy as the source of truth for direct customer channels, removing `channels.telegram` from live `openclaw.json` when replies are paused and restoring the saved Telegram config when replies are allowed again
+- Updated [`routes/console.php`](/Users/gayanhewage/Projects/openclaw-saas/routes/console.php) so `sync360:check-trial-expiry` pauses tenant Telegram runtime config as part of the expiry flow instead of relying on LiteLLM suspension alone
+- Updated [`app/Http/Controllers/AdminController.php`](/Users/gayanhewage/Projects/openclaw-saas/app/Http/Controllers/AdminController.php) so trial reactivation and expired-trial override changes immediately resync live channel state
+- Added regression coverage in [`tests/Unit/TenantAgentSyncServiceTest.php`](/Users/gayanhewage/Projects/openclaw-saas/tests/Unit/TenantAgentSyncServiceTest.php), plus expiry/admin flow assertions in [`tests/Feature/TrialExpiryCommandTest.php`](/Users/gayanhewage/Projects/openclaw-saas/tests/Feature/TrialExpiryCommandTest.php) and [`tests/Feature/AdminTenantOperationsTest.php`](/Users/gayanhewage/Projects/openclaw-saas/tests/Feature/AdminTenantOperationsTest.php)
+
+Verification:
+- `php artisan test tests/Unit/TenantAgentSyncServiceTest.php tests/Feature/TrialExpiryCommandTest.php tests/Feature/AdminTenantOperationsTest.php`
+- `php artisan test tests/Unit/TenantWorkspaceMessengerTest.php tests/Feature/InboxTriagePollingTest.php tests/Feature/LiteLlmTenantKeyServiceTest.php tests/Feature/WorkspaceDependencyMonitorCommandTest.php`
+
 ## 2026-04-11 - Sync360 Control App MVP
 
 Date: 2026-04-11
