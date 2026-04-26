@@ -99,10 +99,24 @@ Current v1 behavior:
 
 - capability metadata is declared centrally under `sync360.runtime_capabilities`
 - the first shipped capability is `gog`
-- Sync360 installs the pinned Linux release binary onto the client VPS host
-- tenant compose generation mounts that host binary read-only into every tenant container
-- tenant `openclaw.json` generation enables the corresponding OpenClaw skill and normalizes agent skill allowlists
-- verification checks both the host binary and the running container view of that binary
+- the second shipped capability is `weasyprint`
+- Sync360 installs the pinned host dependency surface onto the client VPS host
+- tenant compose generation mounts the required host dependency path read-only into every tenant container
+- capabilities that represent real OpenClaw skills also update tenant `openclaw.json` skill allowlists; dependency-only capabilities do not
+- verification checks both the host dependency surface and the running container view of that surface
+
+Current capability strategies:
+
+- `binary_download`
+  - used by `gog`
+  - downloads a pinned archive, verifies checksum, installs a stable host binary, and mount-exposes that binary into tenant containers
+- `python_venv`
+  - used by `weasyprint`
+  - installs system packages on Debian/Ubuntu client VPS hosts, creates a dedicated host virtualenv under `/opt/sync360/weasyprint/venv`, installs the pinned Python package there, mounts the whole host root read-only into tenant containers, and injects `WEASYPRINT_BIN` for workspace skills or runtime tasks that need the CLI
+
+Important nuance:
+
+- `weasyprint` is a dependency capability, not an OpenClaw skill. Its runtime capability definition does not add any OpenClaw allowlisted skills; it only exposes a verified CLI surface into the tenant container for future workspace-managed PDF skills.
 
 Important boundaries:
 
@@ -629,8 +643,8 @@ The `activation` field remains product metadata describing what the capability e
 
 Capability verification is layered:
 
-1. host binary exists, is executable, and matches the pinned version
-2. the running tenant container can see the binary via host-side `docker exec`
+1. host dependency surface exists, is executable when applicable, and matches the pinned version
+2. the running tenant container can see that dependency surface via host-side `docker exec`
 3. capability-specific auth artifacts are present
 4. capability-specific smoke tests succeed
 
@@ -750,7 +764,7 @@ Current behavior:
 
 ### Future skill flow
 
-When adding a new OpenClaw skill that depends on an external host binary, the canonical flow is:
+When adding a new OpenClaw skill that depends on an external host-managed dependency, the canonical flow is:
 
 1. classify it as config-only or host-managed runtime capability
 2. add a catalog entry with pinned version, download URL, checksum, mounts, env, and verification commands
