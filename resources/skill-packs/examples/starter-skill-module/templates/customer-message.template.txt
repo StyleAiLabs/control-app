@@ -1,0 +1,3 @@
+Hello {{customer_name}},
+
+Thank you for reaching out. Replace this with the exact plain-text message format the skill requires.

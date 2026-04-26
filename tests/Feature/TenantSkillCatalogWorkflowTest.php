@@ -103,8 +103,13 @@ class TenantSkillCatalogWorkflowTest extends TestCase
 
     public function test_custom_skill_authoring_prompt_requires_explicit_tool_contracts(): void
     {
-        $prompt = File::get(base_path('resources/skill-packs/CUSTOM_SKILL_AUTHORING_PROMPT.md'));
+        $prompt = File::get(base_path('resources/skill-packs/SYNC360-SKILL-FRAMEWORK.md'));
 
+        $this->assertStringContainsString('Sync360 External Skill Module Framework And Authoring Prompt', $prompt);
+        $this->assertStringContainsString('## 5. Scripts, Templates, And Module-Local Libraries', $prompt);
+        $this->assertStringContainsString('helper scripts that the agent is expected to run should live under `scripts/`', $prompt);
+        $this->assertStringContainsString('module-local libraries do not magically become platform capabilities', $prompt);
+        $this->assertStringContainsString('if the module needs Sync360 to install or verify a binary, renderer, browser, auth mount, or provider runtime outside the pack, it also needs a runtime-capability contract', $prompt);
         $this->assertStringContainsString('Required tool-contract rules', $prompt);
         $this->assertStringContainsString('Every required side effect must name the exact tool or command family', $prompt);
         $this->assertStringContainsString('Do not substitute internal job ids for operator-facing references when the provider id is needed for exact follow-up', $prompt);
@@ -112,7 +117,24 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $this->assertStringContainsString('Telegram normal sends must not include poll-only or unrelated fields', $prompt);
         $this->assertStringContainsString('Do not invent `gog` flags', $prompt);
         $this->assertStringContainsString('Do not use workspace patch/file-edit tools as a substitute for an external side effect', $prompt);
+        $this->assertStringContainsString('If the skill depends on a module-local script or helper library, name the exact script path or helper entrypoint', $prompt);
         $this->assertStringContainsString('Do not use public web browsing or `web_search` unless the owner explicitly asks', $prompt);
+        $this->assertStringContainsString('starter pack: `resources/skill-packs/examples/starter-skill-module/`', $prompt);
+        $this->assertStringContainsString('handoff checklist: `resources/skill-packs/SYNC360-DEV-AGENT-HANDOFF-CHECKLIST.md`', $prompt);
+    }
+
+    public function test_external_skill_starter_pack_and_handoff_checklist_exist(): void
+    {
+        $this->assertFileExists(base_path('resources/skill-packs/examples/starter-skill-module/README.md'));
+        $this->assertFileExists(base_path('resources/skill-packs/examples/starter-skill-module/manifest.template.json'));
+        $this->assertFileExists(base_path('resources/skill-packs/examples/starter-skill-module/SKILL.template.md'));
+        $this->assertFileExists(base_path('resources/skill-packs/examples/starter-skill-module/agent-instructions.template.md'));
+        $this->assertFileExists(base_path('resources/skill-packs/examples/starter-skill-module/RELEASE_NOTES.template.md'));
+        $this->assertFileExists(base_path('resources/skill-packs/examples/starter-skill-module/docs/OPERATIONS.template.md'));
+        $this->assertFileExists(base_path('resources/skill-packs/examples/starter-skill-module/docs/DEPENDENCIES.template.md'));
+        $this->assertFileExists(base_path('resources/skill-packs/examples/starter-skill-module/scripts/example-helper.template.sh'));
+        $this->assertFileExists(base_path('resources/skill-packs/examples/starter-skill-module/templates/customer-message.template.txt'));
+        $this->assertFileExists(base_path('resources/skill-packs/SYNC360-DEV-AGENT-HANDOFF-CHECKLIST.md'));
     }
 
     public function test_scan_command_surfaces_invalid_manifest_instead_of_silently_skipping(): void

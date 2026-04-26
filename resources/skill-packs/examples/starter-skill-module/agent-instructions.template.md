@@ -1,0 +1,1 @@
+- replace-me-skill-id: narrow trigger description here -> read `skills/replace-me-skill-id/SKILL.md` and follow it exactly. Do not use your default behavior.

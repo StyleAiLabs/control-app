@@ -14,7 +14,8 @@ Usage:
 
 Checks whether changes under implementation paths are accompanied by
 required canonical doc updates, frontend design-system updates when needed,
-and a descriptive release-notes entry.
+and a descriptive release-notes entry. Also checks the canonical external
+skill framework file when its rules change.
 EOF
 }
 
@@ -101,6 +102,10 @@ code_prefixes=(
   "resources/css/"
 )
 
+governance_files=(
+  "resources/skill-packs/SYNC360-SKILL-FRAMEWORK.md"
+)
+
 required_docs=(
   "artifacts/MEMORY.md"
   "artifacts/ARCHITECTURE.md"
@@ -121,6 +126,7 @@ optional_docs=(
 )
 
 code_changed=()
+governance_changed=()
 frontend_changed=()
 required_docs_changed=()
 frontend_required_docs_changed=()
@@ -130,6 +136,13 @@ for file in "${changed_files[@]}"; do
   for prefix in "${code_prefixes[@]}"; do
     if [[ "$file" == "$prefix"* ]]; then
       code_changed+=("$file")
+      break
+    fi
+  done
+
+  for governance in "${governance_files[@]}"; do
+    if [[ "$file" == "$governance" ]]; then
+      governance_changed+=("$file")
       break
     fi
   done
@@ -163,8 +176,8 @@ for file in "${changed_files[@]}"; do
   done
 done
 
-if [[ ${#code_changed[@]} -eq 0 ]]; then
-  echo "docs-check: no implementation changes in app/, routes/, config/, resources/views/, or resources/css/."
+if [[ ${#code_changed[@]} -eq 0 && ${#governance_changed[@]} -eq 0 ]]; then
+  echo "docs-check: no implementation or skill-framework changes detected."
   exit 0
 fi
 
@@ -231,7 +244,12 @@ done < <("${release_notes_diff_cmd[@]}" -- artifacts/RELEASE_NOTES.md)
 
 if [[ ${#missing_docs[@]} -eq 0 && ${#missing_frontend_docs[@]} -eq 0 && "$release_notes_has_descriptive_addition" == "true" ]]; then
   echo "docs-check: passed."
-  echo "  code changes: ${#code_changed[@]}"
+  if [[ ${#code_changed[@]} -gt 0 ]]; then
+    echo "  code changes: ${#code_changed[@]}"
+  fi
+  if [[ ${#governance_changed[@]} -gt 0 ]]; then
+    echo "  skill-framework changes: ${governance_changed[*]}"
+  fi
   echo "  required docs updated: ${required_docs[*]}"
   if [[ ${#frontend_changed[@]} -gt 0 ]]; then
     echo "  frontend presentation changes: ${#frontend_changed[@]}"
@@ -245,14 +263,25 @@ fi
 
 echo "docs-check: failed."
 echo
-echo "Detected changes under implementation paths:"
-for file in "${code_changed[@]:0:12}"; do
-  echo "  - $file"
-done
-if [[ ${#code_changed[@]} -gt 12 ]]; then
-  echo "  - ...and $(( ${#code_changed[@]} - 12 )) more"
+if [[ ${#code_changed[@]} -gt 0 ]]; then
+  echo "Detected changes under implementation paths:"
+  for file in "${code_changed[@]:0:12}"; do
+    echo "  - $file"
+  done
+  if [[ ${#code_changed[@]} -gt 12 ]]; then
+    echo "  - ...and $(( ${#code_changed[@]} - 12 )) more"
+  fi
+  echo
 fi
-echo
+
+if [[ ${#governance_changed[@]} -gt 0 ]]; then
+  echo "Detected changes to the canonical external skill framework:"
+  for file in "${governance_changed[@]}"; do
+    echo "  - $file"
+  done
+  echo
+fi
+
 if [[ ${#missing_docs[@]} -gt 0 ]]; then
   echo "Missing required canonical doc updates:"
   for doc in "${missing_docs[@]}"; do
@@ -289,6 +318,11 @@ echo
 echo "Optional when repo entrypoint/setup/operator guidance changed:"
 for doc in "${optional_docs[@]}"; do
   echo "  - $doc"
+done
+echo
+echo "Governance-triggering files:"
+for file in "${governance_files[@]}"; do
+  echo "  - $file"
 done
 echo
 echo "Manual check commands:"

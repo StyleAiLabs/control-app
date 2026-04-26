@@ -43,6 +43,42 @@ class CanonicalDocsHookTest extends TestCase
         }
     }
 
+    public function test_docs_check_requires_canonical_docs_when_skill_framework_rules_change(): void
+    {
+        $repoPath = sys_get_temp_dir().'/canonical-docs-skill-framework-'.bin2hex(random_bytes(6));
+
+        @mkdir($repoPath.'/scripts', 0777, true);
+        @mkdir($repoPath.'/resources/skill-packs', 0777, true);
+        @mkdir($repoPath.'/artifacts', 0777, true);
+
+        copy(dirname(__DIR__, 2).'/scripts/check-canonical-docs.sh', $repoPath.'/scripts/check-canonical-docs.sh');
+
+        file_put_contents($repoPath.'/resources/skill-packs/SYNC360-SKILL-FRAMEWORK.md', "original skill framework\n");
+        file_put_contents($repoPath.'/artifacts/MEMORY.md', "memory\n");
+        file_put_contents($repoPath.'/artifacts/ARCHITECTURE.md', "architecture\n");
+        file_put_contents($repoPath.'/artifacts/RELEASE_NOTES.md', "release notes\n");
+
+        try {
+            $this->runProcess(['git', 'init', '-q'], $repoPath);
+            $this->runProcess(['git', 'config', 'user.name', 'Test User'], $repoPath);
+            $this->runProcess(['git', 'config', 'user.email', 'test@example.com'], $repoPath);
+            $this->runProcess(['git', 'add', '.'], $repoPath);
+            $this->runProcess(['git', 'commit', '-qm', 'init'], $repoPath);
+
+            file_put_contents($repoPath.'/resources/skill-packs/SYNC360-SKILL-FRAMEWORK.md', "updated skill framework rule\n");
+
+            $result = $this->runProcess(['bash', './scripts/check-canonical-docs.sh', '--worktree'], $repoPath, expectSuccess: false);
+            $combinedOutput = $result->getOutput().$result->getErrorOutput();
+
+            $this->assertSame(1, $result->getExitCode());
+            $this->assertStringContainsString('Detected changes to the canonical external skill framework:', $combinedOutput);
+            $this->assertStringContainsString('Missing required canonical doc updates:', $combinedOutput);
+            $this->assertStringContainsString('resources/skill-packs/SYNC360-SKILL-FRAMEWORK.md', $combinedOutput);
+        } finally {
+            $this->deleteDirectory($repoPath);
+        }
+    }
+
     private function runProcess(array $command, string $cwd, bool $expectSuccess = true): Process
     {
         $process = new Process($command, $cwd, timeout: 20);

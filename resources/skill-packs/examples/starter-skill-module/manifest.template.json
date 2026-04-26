@@ -1,0 +1,20 @@
+{
+  "skill_id": "replace-me-skill-id",
+  "version": "0.1.0",
+  "label": "Replace Me Skill",
+  "description": "One-sentence business-purpose summary.",
+  "category": "operations",
+  "onboarding_role": "hidden",
+  "runtime_type": "sync360_workspace",
+  "production_ready": false,
+  "openclaw_skill_ids": [
+    "replace-me-skill-id"
+  ],
+  "default_agent_skill_ids": [
+    "replace-me-skill-id"
+  ],
+  "applicable_industries": [],
+  "analytics": {
+    "enabled": false
+  }
+}

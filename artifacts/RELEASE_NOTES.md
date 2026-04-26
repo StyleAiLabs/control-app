@@ -7,6 +7,39 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-26 — Improvement: External Skill Starter Pack And Dev-Agent Handoff Checklist
+
+Date: 2026-04-26
+Status: Implemented
+
+### Overview
+
+Added a reusable starter pack and a structured handoff checklist so remote teams can build Sync360-compatible custom modules outside this repo with less guesswork and a cleaner delivery contract.
+
+### What Changed
+
+- added a nested starter pack under `resources/skill-packs/examples/starter-skill-module/` containing template files for `manifest.json`, `SKILL.md`, `agent-instructions.md`, `RELEASE_NOTES.md`, dependency docs, operations docs, helper scripts, and plain-text templates
+- kept the starter pack nested under `examples/` so top-level skill catalog scans ignore it by default and do not mistake it for a publishable repo skill
+- added `resources/skill-packs/SYNC360-DEV-AGENT-HANDOFF-CHECKLIST.md` as the delivery gate for remote teams and dev agents
+- updated the canonical skill framework so remote contributors are expected to use the framework, the starter pack, and the handoff checklist together
+
+## 2026-04-26 — Improvement: Unified External Skill Module Framework And Authoring Standard
+
+Date: 2026-04-26
+Status: Implemented
+
+### Overview
+
+Consolidated the external skill-module framework and authoring guidance into one canonical document so future packs can be designed against a consistent package, runtime, activation, and verification standard before they are brought into the catalog.
+
+### What Changed
+
+- expanded `resources/skill-packs/SYNC360-SKILL-FRAMEWORK.md` into the canonical external skill framework and authoring standard
+- defined the platform classification model for `sync360_workspace`, `openclaw_native`, and `runtime_capability` skills in the same file contributors will use for authoring
+- documented the two-layer behavior-vs-execution rule, making clear that instructions alone are not proof of live runtime capability
+- formalized expectations for package layout, manifest contracts, dependency declarations, activation alignment, side-effect truthfulness, operator support docs, rollout stages, and verification coverage
+- added explicit standards for module-local `scripts/`, reusable templates, and vendored helper libraries so external skills can carry deterministic helpers without blurring the line between a workspace skill and a real runtime capability
+
 ## 2026-04-26 — Feature: Tenant Runtime Model And API Key Overrides In Agent Runtime
 
 Date: 2026-04-26

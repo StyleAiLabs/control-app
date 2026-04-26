@@ -1,6 +1,445 @@
-# Sync360 Custom Skill Authoring / Contract Prompt
+# Sync360 External Skill Module Framework And Authoring Prompt
 
-Use this prompt when creating or updating a Sync360 custom skill pack. It defines the platform criteria for repo layout, runtime behavior, analytics, tracking, privacy, and verification.
+This is the canonical framework for Sync360-compatible skill modules.
+
+Use it when:
+
+- building a new skill module outside this repo
+- reviewing whether a third-party skill can join the Sync360 catalog
+- deciding whether a skill is instructions-only or needs a real runtime capability
+- authoring or updating the pack contents for a Sync360 skill
+
+This file now serves two roles:
+
+- framework/spec for how skills fit the Sync360 ecosystem
+- copy-pasteable authoring prompt for generating the actual pack contents
+
+Companion artifacts:
+
+- starter pack: `resources/skill-packs/examples/starter-skill-module/`
+- handoff checklist: `resources/skill-packs/SYNC360-DEV-AGENT-HANDOFF-CHECKLIST.md`
+
+## 1. Design Goal
+
+A Sync360-compatible skill module must behave like a platform module, not just a prompt bundle.
+
+That means it must be:
+
+- packageable
+- catalogable
+- assignable to tenants
+- materializable into the OpenClaw workspace
+- verifiable in the live runtime
+- supportable by operators
+- safe to roll out across many tenants
+
+If any of those are missing, the skill is not yet ready for Sync360 production use.
+
+## 2. Skill Compatibility Model
+
+Every candidate skill must be classified into exactly one primary runtime model.
+
+### `sync360_workspace`
+
+Use this when the skill is primarily instructions, workflow, templates, module-local scripts, and file-local guidance that Sync360 materializes into:
+
+`.openclaw/workspace/skills/<skill-id>/`
+
+This model is appropriate when:
+
+- the behavior can run with tools already available in the tenant runtime
+- no new host binary, container mount, system dependency, or managed auth surface is required
+- the skill mainly teaches the agent how to do a workflow reliably
+
+### `openclaw_native`
+
+Use this when the skill is provided by OpenClaw itself or another runtime-managed source outside Sync360 workspace materialization.
+
+### `runtime_capability`
+
+Use this when the skill depends on an external binary, mounted toolchain, host-managed auth/config, or other dependency that must exist outside the plain skill folder.
+
+This model is appropriate when:
+
+- the skill needs a real executable renderer, generator, browser, or service client
+- the dependency must be installed, mounted, and verified by Sync360
+- the skill is not reliable if it only exists as instructions
+
+Examples:
+
+- `gog`
+- a future PDF rendering toolchain
+- a CRM module that needs a real provider SDK, auth mount, or managed integration surface beyond local helper files
+
+## 3. Two-Layer Rule: Behavior vs Execution
+
+Sync360 treats skill behavior and execution capability as separate contracts.
+
+### Layer A: Behavior Contract
+
+Defined by the skill pack:
+
+- what the skill is for
+- when it should activate
+- what workflow it follows
+- what outputs it should produce
+- what side effects are required
+
+### Layer B: Execution Contract
+
+Defined by the runtime capability surface:
+
+- which tools, binaries, or libraries actually exist
+- what auth/config is available
+- how Sync360 verifies live readiness
+- whether the tenant runtime can really perform the promised action
+
+Important rule:
+
+- a skill being present on disk is not proof that the runtime can perform the action
+- a skill being assigned in the catalog is not proof that the runtime has activated it
+- a customer-facing workflow is only production-ready when both the behavior contract and execution contract are satisfied
+
+## 4. Required Package Layout
+
+Every external skill module must ship in a normalized pack layout:
+
+```text
+<skill-id>/
+  manifest.json
+  SKILL.md
+  agent-instructions.md
+  RELEASE_NOTES.md
+  docs/
+  scripts/
+  templates/
+  assets/
+  examples/
+  vendor/
+```
+
+Rules:
+
+- `manifest.json` is required
+- `SKILL.md` is required
+- `agent-instructions.md` is required
+- `RELEASE_NOTES.md` is required
+- optional richer guidance belongs under `docs/`
+- reusable templates and examples should be explicit rather than embedded as long prose inside `SKILL.md`
+- helper scripts that the agent is expected to run should live under `scripts/`
+- module-local libraries, packaged helpers, or vendored runtime assets that are part of the skill pack should live under a clearly named folder such as `vendor/`, `lib/`, or another explicit module-local root
+- do not nest `skills/<skill-id>/` inside the pack
+
+Inside this repo, the canonical location is:
+
+`resources/skill-packs/<skill-id>/`
+
+External repos should preserve the same root-level structure so Sync360 import remains deterministic.
+
+## 5. Scripts, Templates, And Module-Local Libraries
+
+Sync360 skill modules may include executable helpers and local supporting code when that makes the workflow more reliable.
+
+Allowed examples:
+
+- `scripts/*.sh` wrappers for deterministic command assembly
+- `scripts/*.js` or `scripts/*.php` helpers for payload shaping or structured export
+- module-local templates for email, document, CRM note, or PDF source generation
+- vendored helper libraries or SDK fragments that are intentionally shipped with the module
+
+Rules:
+
+- scripts must be intentional, documented, and directly tied to the skill workflow
+- `SKILL.md` must say when to call the script, what inputs it needs, what output/success looks like, and what to do on failure
+- if a script depends on a runtime that may not exist in all tenants, that dependency must be declared explicitly
+- module-local libraries do not magically become platform capabilities; if the workflow still depends on a system binary, renderer, browser, auth mount, or provider runtime outside the pack, that remains a `runtime_capability` concern
+- local helper code may shape content, files, or requests, but it must not bypass Sync360’s approved external side-effect surfaces
+- credentials must not be embedded in scripts, templates, vendored libraries, or examples
+- if a module ships vendored code, operator docs must say what it is, why it is included, and how it is expected to run in tenant environments
+
+Practical rule of thumb:
+
+- if the module can carry the helper with it and run using runtimes already guaranteed in the tenant environment, it can stay a workspace skill
+- if the module needs Sync360 to install or verify a binary, renderer, browser, auth mount, or provider runtime outside the pack, it also needs a runtime-capability contract
+
+## 6. Manifest Standard
+
+Every skill pack must declare a stable manifest contract.
+
+Minimum required fields:
+
+- `skill_id`
+- `version`
+- `label`
+- `description`
+- `category`
+- `runtime_type`
+- `production_ready`
+- `openclaw_skill_ids`
+- `default_agent_skill_ids`
+- `applicable_industries`
+- `analytics`
+
+Additional framework rules:
+
+- `skill_id` must be lowercase kebab-case and stable forever
+- `version` must increment for any material behavior, metadata, docs, operator-facing contract, script contract, or dependency-contract change
+- `runtime_type` must describe the actual operating model, not aspiration
+- `openclaw_skill_ids` and `default_agent_skill_ids` must align exactly with the real activation path
+- if the skill depends on another runtime capability, that dependency must be declared explicitly in the pack contract and supporting docs
+
+## 7. Runtime Dependency Declaration
+
+External skills must clearly state whether they are:
+
+- instructions-only
+- instructions plus existing runtime tools
+- dependent on a required runtime capability
+
+For every dependency, define:
+
+- dependency name
+- dependency type: native skill, mounted binary, library/toolchain, managed auth, external integration, or module-local helper
+- whether Sync360 provides it today
+- what verification proves it is ready
+- what the skill must do if it is missing
+
+If the dependency is required for business completion, the skill must fail closed rather than silently degrade into imaginary success.
+
+## 8. Activation Contract
+
+Every skill module must be activation-safe in the live runtime.
+
+That means:
+
+- materialization path is deterministic
+- allowlist ids match the real skill id
+- `agent-instructions.md` points to the exact materialized `skills/<skill-id>/SKILL.md`
+- Sync360 can verify the skill through the live runtime skill surface
+- trigger delivery can be blocked if the required skill is not truly active
+
+Activation checklist:
+
+- `skill_id`
+- materialized folder name
+- `openclaw_skill_ids`
+- `default_agent_skill_ids`
+- `agent-instructions.md` pointer
+- runtime verification output
+
+All of those must align exactly.
+
+## 9. Workflow Contract Standard
+
+`SKILL.md` must define an operationally complete workflow.
+
+Every workflow needs:
+
+- activation conditions
+- ordered steps
+- branch rules
+- idempotency key(s)
+- source-of-truth ids from the triggering system
+- required side effects
+- success criteria
+- failure criteria
+- final reporting contract
+
+Required side effects must never be implied vaguely.
+
+Do not write:
+
+- "notify the team"
+- "log it"
+- "follow up with the customer"
+- "create the document"
+
+unless the skill also specifies:
+
+- the exact tool or command family
+- minimum payload fields
+- validation signal
+- failure handling
+- privacy limits
+- dedupe key
+
+## 10. Execution Truthfulness Rules
+
+A Sync360-compatible skill must be evidence-based.
+
+Rules:
+
+- required actions must be executed in the current run when the workflow branch requires them
+- future-intent language is invalid for required runtime actions
+- the final summary must reflect actual tool/command outcomes
+- required side effects must report explicit states such as `succeeded`, `skipped_with_reason`, and `failed_with_error`
+
+The runtime must never claim `sent`, `drafted`, `uploaded`, `logged`, `created`, or `synced` without matching execution evidence in the same run.
+
+## 11. Customer-Facing Messaging Standard
+
+If a skill sends customer-facing text, it must define the copy contract explicitly.
+
+Required rules:
+
+- tone source must be named
+- formatting must be named
+- forbidden formatting artifacts must be named
+- send vs draft behavior must be named
+
+Default Sync360 standard for plain-text business messaging:
+
+- follow the tenant onboarding tone and workspace voice sources
+- use concise, plain language
+- prefer one paragraph unless the business workflow needs another format
+- forbid literal escape sequences such as `\n`, `\r`, and `\t`
+- default to clean ASCII-safe copy
+- avoid decorative special characters, emoji, markdown, smart quotes, and ornamental formatting unless exact business text requires them
+
+## 12. Analytics And Privacy Standard
+
+If the skill emits analytics, it must use the Sync360 analytics contract.
+
+Requirements:
+
+- emit only after authoritative success
+- use the Sync360 helper rather than direct DB writes
+- keep `skill_key` and `skill_version` aligned with the manifest
+- store minimal customer data
+- prefer masked contact references
+- avoid raw private transcripts unless absolutely necessary
+
+Operational logs, drafts, notifications, and intent are not proof of conversion unless the business outcome rules say they are.
+
+## 13. Operator Support Standard
+
+Every external skill must be supportable by an operator who did not author it.
+
+That means the skill pack should make clear:
+
+- what the skill does
+- what it depends on
+- what healthy looks like
+- what common failures look like
+- what evidence proves success
+- what evidence proves the runtime is missing a dependency
+- what should trigger human follow-up
+
+Recommended docs under `docs/`:
+
+- `OPERATIONS.md`
+- `DEPENDENCIES.md`
+- `EXAMPLES.md`
+- `TESTING.md`
+
+Keep them concise and practical.
+
+## 14. Rollout Standard
+
+Every skill module must be safe to publish and roll out.
+
+Required rollout lifecycle:
+
+1. package validation
+2. catalog scan/import
+3. publish a version
+4. assign to a tenant
+5. apply to materialize runtime files
+6. verify live activation
+7. verify a real workflow transcript
+8. roll out intentionally to broader tenants
+
+Rules:
+
+- publishing a catalog version is not the same as live tenant adoption
+- existing tenant assignments are version-pinned until rollout updates them
+- if a changed skill affects runtime behavior, version bump is mandatory
+- release notes must tell operators why the rollout matters
+
+## 15. Verification Standard
+
+Every external skill must ship with a minimum verification plan.
+
+Baseline verification:
+
+- manifest scan passes
+- import passes
+- release notes include the current version
+- materialization path is correct
+- no nested `skills/<skill-id>/skills/<skill-id>/`
+- runtime id alignment is exact
+- live runtime verification sees the skill or dependency when expected
+
+Behavior verification:
+
+- at least one happy-path regression
+- at least one missing-dependency or fail-closed regression when relevant
+- proof that required side effects were executed, not only summarized
+- proof that source-of-truth ids are preserved through follow-up actions
+
+Messaging verification:
+
+- customer-facing copy matches the declared tone source
+- literal escape sequences are absent
+- formatting rules are respected
+
+Runtime-capability verification:
+
+- host-level install or readiness proof
+- container/runtime visibility proof
+- one real end-to-end smoke path using the actual dependency
+
+## 16. Decision Tree For New Skills
+
+Use this decision tree before authoring:
+
+1. Is the skill mostly instructions, templates, and local helpers?
+   - yes -> start with `sync360_workspace`
+2. Does it require a real binary, renderer, browser, auth surface, system library stack, or mounted toolchain outside the pack?
+   - yes -> define a `runtime_capability` plan too
+3. Is the capability already provided by OpenClaw outside Sync360 workspace materialization?
+   - yes -> use `openclaw_native`
+4. Can Sync360 verify live readiness before delivery?
+   - if no, the skill is not ready for production automation
+5. Can operators understand rollout, failure modes, and support expectations?
+   - if no, the module is not ready for catalog publication
+
+## 17. External Skill Acceptance Checklist
+
+Before an externally developed skill joins Sync360, confirm all of these:
+
+- package structure matches the framework
+- manifest contract is complete
+- runtime model is correctly classified
+- dependencies are explicit
+- activation ids are aligned
+- workflow contracts are operationally complete
+- side effects are verifiable
+- customer-facing copy rules are explicit where applicable
+- analytics/privacy rules are satisfied
+- operator docs exist where needed
+- scan/import succeeds
+- live runtime activation can be verified
+- regression coverage exists for the core workflow
+- release notes explain the current version clearly
+
+If any item is missing, the skill should be treated as draft or internal-only rather than production-ready.
+
+## 18. Remote Team Starter And Handoff
+
+When a remote team is building modules outside this repo, give them all three of these:
+
+1. this framework
+2. the starter pack in `resources/skill-packs/examples/starter-skill-module/`
+3. the delivery checklist in `resources/skill-packs/SYNC360-DEV-AGENT-HANDOFF-CHECKLIST.md`
+
+The framework explains the rules.
+The starter pack gives them the folder and file skeleton.
+The handoff checklist tells them exactly what evidence and answers must come back with the module.
+
+## 19. Authoring Prompt
+
+Use the prompt below when creating or updating a Sync360 custom skill pack. It defines the platform criteria for repo layout, runtime behavior, analytics, tracking, privacy, and verification.
 
 ```text
 You are creating a Sync360 custom skill pack for the OpenClaw tenant runtime.
@@ -14,6 +453,9 @@ Required source layout:
 - The pack root must contain `agent-instructions.md`.
 - The pack root must contain `RELEASE_NOTES.md`.
 - Optional supporting guidance belongs under `docs/`.
+- Optional helper scripts belong under `scripts/`.
+- Optional reusable templates/assets/examples should live under explicit top-level folders such as `templates/`, `assets/`, or `examples/`.
+- Optional module-local libraries or vendored helper code should live under an explicit folder such as `vendor/` or `lib/`, and the skill must document what they are for.
 - Do not create a nested `skills/<skill-id>/` folder inside the pack. Sync360 already materializes the pack into the runtime `skills/<skill-id>/` folder.
 
 Required `manifest.json` fields:
@@ -64,6 +506,7 @@ Runtime activation rules:
 - Do not rely on `AGENTS.md` or `agent-instructions.md` alone to make the skill usable. Those files are discovery hints. The skill must still be valid when Sync360 verifies runtime eligibility independently.
 - Assume Sync360 may fail closed when a trigger requires this skill but the live runtime has not verified it yet. Write trigger descriptions, command contracts, and required side effects so the runtime can safely withhold delivery until the skill is truly active.
 - If the skill depends on another runtime-managed capability or native skill, say so explicitly in the manifest/runtime contract instead of implying it only in prose.
+- If the skill ships module-local scripts, templates, or helper libraries, document whether they run entirely within the existing tenant runtime or whether they still depend on an external runtime capability. Do not present local helper code as proof that an external binary, provider SDK, browser, renderer, or auth surface exists.
 
 Required analytics invocation pattern:
 - The skill must use the workspace exec tool.
@@ -109,6 +552,8 @@ Required tool-contract rules:
 - For `gog` commands, use only command shapes already proven in Sync360 runtime guidance or tell the agent to inspect the exact service help before running the action.
 - Do not invent `gog` flags. If a command fails because of unsupported flags, the skill must capture the exact error, inspect help once, and report the supported syntax or failure instead of retrying with guessed flags.
 - Do not use workspace patch/file-edit tools as a substitute for an external side effect. If a skill promises Google Drive, CRM, calendar, Telegram, or another external action, success requires the corresponding external tool/command to confirm that action.
+- If the skill depends on a module-local script or helper library, name the exact script path or helper entrypoint and define its success/failure contract the same way you would for any other required tool.
+- Do not hide critical behavior in opaque helper code. `SKILL.md` must still explain what the helper does, what data it touches, and how the agent validates the outcome.
 - Internal workflow triggers should use tenant workspace files and event payloads as source material. Do not use public web browsing or `web_search` unless the owner explicitly asks for external research or the skill defines a verified research step.
 - If the skill uses provider ids from incoming events, the final contract must preserve those ids exactly through follow-up actions, references, notifications, analytics, and logs whenever they are the safest handle for reopening the same record later.
 - Required side effects must be branch-complete. Do not leave a branch in a state where the agent can classify, summarize, or log the work while the required customer-facing action remains unexecuted.
@@ -193,6 +638,7 @@ Verification checklist:
 - Duplicate `event_id` does not create duplicate conversion records.
 - Required non-analytics side effects are tested or manually verified from runtime transcripts, including proof that the agent used the intended tool/command and inspected success output.
 - A regression transcript or test covers at least one failure path for each required side effect where practical.
+- If the skill includes module-local scripts or helper libraries, verify at least one path showing the agent used the intended module-local entrypoint and still respected the declared side-effect/output contract.
 - For customer-facing messaging skills, verify at least one transcript or regression path proving the sent/drafted body does not contain literal escape sequences, matches the intended tone source, and respects any plain-text/ASCII formatting rule the skill declares.
 - Tenant dashboard shows successful conversions and estimated time saved.
 - Admin Skill Analytics shows the skill and tenant rollups.
