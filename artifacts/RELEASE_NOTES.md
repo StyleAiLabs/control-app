@@ -7,6 +7,22 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-27 — Revert: Remove WeasyPrint Host-Managed Runtime Capability
+
+Date: 2026-04-27
+Status: Implemented
+
+### Overview
+
+Reverted the newly added `weasyprint` runtime capability after live rollout testing showed that mounting a host-created Python virtualenv into the OpenClaw tenant container is not a stable v1 capability model.
+
+### What Changed
+
+- reverted the `python_venv` runtime-capability implementation and removed the `weasyprint` capability definition from `config/sync360.php`
+- returned Sync360 to the simpler `gog`-only host-managed capability surface
+- documented the live failure mode: the host install itself succeeded, but the tenant container resolved a different Python minor version and failed to import `weasyprint` from the mounted venv
+- kept the external skill framework, handoff checklist, and starter module kit introduced in the prior commit
+
 ## 2026-04-26 — Improvement: External Skill Starter Pack And Dev-Agent Handoff Checklist
 
 Date: 2026-04-26
