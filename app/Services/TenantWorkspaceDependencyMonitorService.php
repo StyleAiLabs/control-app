@@ -17,6 +17,7 @@ class TenantWorkspaceDependencyMonitorService
         private readonly TenantWorkspaceDependencyHealthService $health,
         private readonly TenantGoogleWorkspaceSmokeTestService $smokeTests,
         private readonly TelegramSender $telegram,
+        private readonly ExpiredTrialAccessPolicy $expiredTrialAccess,
     ) {
     }
 
@@ -310,10 +311,7 @@ class TenantWorkspaceDependencyMonitorService
 
     private function canSendTelegram(Tenant $tenant): bool
     {
-        $config = is_array($tenant->channel_config) ? $tenant->channel_config : [];
-
-        return trim((string) ($config['telegram_bot_token'] ?? '')) !== ''
-            && trim((string) ($config['telegram_default_chat_id'] ?? '')) !== '';
+        return $this->expiredTrialAccess->canSendOperationalAlerts($tenant);
     }
 
     private function telegramChatId(Tenant $tenant): string

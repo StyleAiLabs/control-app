@@ -18,6 +18,7 @@ use App\Services\TenantProfileSyncService;
 use App\Services\TenantSkillRolloutWorkspaceResyncService;
 use App\Services\TenantGoogleWorkspaceSmokeTestService;
 use App\Services\TenantWorkspaceDependencyMonitorService;
+use App\Services\ExpiredTrialAccessPolicy;
 use App\Services\TrialNotificationEmailService;
 use App\Jobs\ProcessTenantInboxTriage;
 use Illuminate\Foundation\Inspiring;
@@ -211,6 +212,8 @@ $trackScheduledCommand(
 Artisan::command('sync360:check-trial-expiry', function () {
     /** @var LiteLlmTenantKeyService $litellm */
     $litellm = app(LiteLlmTenantKeyService::class);
+    /** @var ExpiredTrialAccessPolicy $expiredTrialAccess */
+    $expiredTrialAccess = app(ExpiredTrialAccessPolicy::class);
 
     /** @var TrialNotificationEmailService $mailer */
     $mailer = app(TrialNotificationEmailService::class);
@@ -252,7 +255,9 @@ Artisan::command('sync360:check-trial-expiry', function () {
             if ($budgetExpired || $timeExpired) {
                 // 3. Expire the tenant
                 $tenant->forceFill(['trial_status' => TrialStatus::Expired])->save();
-                $litellm->suspendTenant($tenant);
+                if ($expiredTrialAccess->shouldSuspendLiteLlmOnExpiry($tenant)) {
+                    $litellm->suspendTenant($tenant);
+                }
                 $expired++;
 
                 if (! $tenant->trial_expired_notified_at) {

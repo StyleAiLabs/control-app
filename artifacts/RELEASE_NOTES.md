@@ -7,6 +7,25 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-27 — Feature: Enforce Expired Trials In Runtime With Admin Overrides
+
+Date: 2026-04-27
+Status: Implemented
+
+### Overview
+
+Moved expired-trial behavior from mostly dashboard copy into real runtime enforcement, while giving admins per-tenant override controls for inbox polling, customer-facing runtime replies, and LiteLLM key activity.
+
+### What Changed
+
+- added explicit tenant-level expired-trial override flags for inbox polling, runtime replies, and LiteLLM key activity
+- centralized expired-trial decisions in a shared policy service instead of scattering trial checks across runtime code
+- blocked inbox polling and customer-facing runtime messaging by default for expired tenants unless the matching override is enabled
+- changed trial-expiry handling so LiteLLM keys are suspended only when the tenant does not have the expired-trial LiteLLM override enabled
+- added an explicit LiteLLM restore path so admins can re-enable an expired tenant key without extending the whole trial
+- added tenant overview controls for saving expired-trial overrides and immediately restoring or re-suspending the LiteLLM key when that specific toggle changes
+- preserved operational Telegram dependency alerts even when expired tenants remain paused for customer-facing runtime work
+
 ## 2026-04-27 — Fix: Wire aPDF Runtime Env And Align PDF Skill Contracts
 
 Date: 2026-04-27

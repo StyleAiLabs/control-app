@@ -86,6 +86,38 @@ class LiteLlmTenantKeyServiceTest extends TestCase
             && $request['keys'] === ['sk-tenant-acme']);
     }
 
+    public function test_restore_tenant_restores_saved_budget_and_duration_after_suspend(): void
+    {
+        config()->set('services.litellm.base_url', 'https://litellm.stylesoftware.co.nz');
+        config()->set('services.litellm.master_key', 'litellm-master');
+
+        Http::fake([
+            'https://litellm.stylesoftware.co.nz/key/update' => Http::response(['ok' => true], 200),
+        ]);
+
+        $tenant = $this->tenant();
+        $tenant->forceFill([
+            'litellm_virtual_key' => 'sk-tenant-acme',
+            'litellm_plan_name' => 'trial',
+            'litellm_max_budget' => 0,
+            'litellm_budget_duration' => null,
+            'litellm_default_max_budget' => 12,
+            'litellm_default_budget_duration' => 'monthly',
+        ])->save();
+
+        app(LiteLlmTenantKeyService::class)->restoreTenant($tenant);
+
+        $tenant->refresh();
+
+        $this->assertSame('12.00', $tenant->litellm_max_budget);
+        $this->assertSame('monthly', $tenant->litellm_budget_duration);
+
+        Http::assertSent(fn ($request) => $request->url() === 'https://litellm.stylesoftware.co.nz/key/update'
+            && $request['key'] === 'sk-tenant-acme'
+            && (float) $request['max_budget'] === 12.0
+            && $request['budget_duration'] === 'monthly');
+    }
+
     public function test_ensure_tenant_key_rejects_generation_outside_provisioning(): void
     {
         config()->set('services.litellm.base_url', 'https://litellm.stylesoftware.co.nz');

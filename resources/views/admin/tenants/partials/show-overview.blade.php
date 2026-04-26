@@ -177,3 +177,62 @@
         </div>
     </div>
 </x-ui.panel>
+
+<x-ui.panel title="Expired-trial Runtime Overrides" description="Admin controls for keeping selected runtime paths active after a trial expires.">
+    <div class="note" style="margin-bottom:14px;">
+        Customer-facing AI work pauses by default when a trial expires. Operational Telegram health alerts stay enabled when Telegram is configured.
+    </div>
+
+    <form method="POST" action="{{ route('admin.tenants.trial-overrides.update', $tenant) }}" class="sync-poc-stack" style="gap: 16px;">
+        @csrf
+        @method('PATCH')
+        <input type="hidden" name="return_tab" value="overview">
+
+        <label class="sync-poc-subpanel" style="display:flex; gap:12px; align-items:flex-start;">
+            <input type="checkbox" name="allow_polling_when_trial_expired" value="1" @checked($tenant->allow_polling_when_trial_expired) style="margin-top: 4px;">
+            <span>
+                <strong style="display:block;">Allow inbox polling</strong>
+                <span class="type-note">Keep Gmail inbox triage polling eligible even while the trial is expired.</span>
+            </span>
+        </label>
+
+        <label class="sync-poc-subpanel" style="display:flex; gap:12px; align-items:flex-start;">
+            <input type="checkbox" name="allow_runtime_replies_when_trial_expired" value="1" @checked($tenant->allow_runtime_replies_when_trial_expired) style="margin-top: 4px;">
+            <span>
+                <strong style="display:block;">Allow runtime replies</strong>
+                <span class="type-note">Permit customer-facing runtime work and assistant replies while expired.</span>
+            </span>
+        </label>
+
+        <label class="sync-poc-subpanel" style="display:flex; gap:12px; align-items:flex-start;">
+            <input type="checkbox" name="allow_litellm_when_trial_expired" value="1" @checked($tenant->allow_litellm_when_trial_expired) style="margin-top: 4px;">
+            <span>
+                <strong style="display:block;">Keep LiteLLM key active</strong>
+                <span class="type-note">When enabled for an expired tenant, Sync360 restores the tenant LiteLLM virtual key immediately.</span>
+            </span>
+        </label>
+
+        <div class="sync-poc-detail-grid">
+            <div class="sync-poc-field">
+                <span class="sync-poc-field__label">Inbox Polling</span>
+                <strong class="sync-poc-field__value">{{ $tenant->allow_polling_when_trial_expired ? 'allowed while expired' : 'paused on expiry' }}</strong>
+            </div>
+            <div class="sync-poc-field">
+                <span class="sync-poc-field__label">Runtime Replies</span>
+                <strong class="sync-poc-field__value">{{ $tenant->allow_runtime_replies_when_trial_expired ? 'allowed while expired' : 'paused on expiry' }}</strong>
+            </div>
+            <div class="sync-poc-field">
+                <span class="sync-poc-field__label">LiteLLM Key</span>
+                <strong class="sync-poc-field__value">{{ $tenant->allow_litellm_when_trial_expired ? 'kept active' : 'suspended on expiry' }}</strong>
+            </div>
+            <div class="sync-poc-field">
+                <span class="sync-poc-field__label">Ops Alerts</span>
+                <strong class="sync-poc-field__value">still allowed when Telegram is configured</strong>
+            </div>
+        </div>
+
+        <div>
+            <x-ui.button type="submit" size="sm" variant="secondary">Save Expired-trial Overrides</x-ui.button>
+        </div>
+    </form>
+</x-ui.panel>

@@ -66,7 +66,9 @@ class LiteLlmTenantKeyService
             'litellm_key_alias' => $alias,
             'litellm_plan_name' => $planName,
             'litellm_max_budget' => $budget,
+            'litellm_default_max_budget' => $budget,
             'litellm_budget_duration' => $budgetDuration,
+            'litellm_default_budget_duration' => $budgetDuration,
             'litellm_last_synced_at' => now(),
         ])->save();
 
@@ -88,7 +90,9 @@ class LiteLlmTenantKeyService
             'litellm_key_alias' => null,
             'litellm_plan_name' => null,
             'litellm_max_budget' => null,
+            'litellm_default_max_budget' => null,
             'litellm_budget_duration' => null,
+            'litellm_default_budget_duration' => null,
             'litellm_last_synced_at' => now(),
         ])->save();
     }
@@ -113,7 +117,9 @@ class LiteLlmTenantKeyService
         $tenant->forceFill([
             'litellm_plan_name' => $planName,
             'litellm_max_budget' => $budget,
+            'litellm_default_max_budget' => $budget,
             'litellm_budget_duration' => $budgetDuration,
+            'litellm_default_budget_duration' => $budgetDuration,
             'litellm_last_synced_at' => now(),
         ])->save();
     }
@@ -133,6 +139,35 @@ class LiteLlmTenantKeyService
         $tenant->forceFill([
             'litellm_max_budget' => 0,
             'litellm_budget_duration' => null,
+            'litellm_last_synced_at' => now(),
+        ])->save();
+    }
+
+    public function restoreTenant(Tenant $tenant): void
+    {
+        if (! $tenant->litellm_virtual_key) {
+            throw new RuntimeException(sprintf('Tenant [%s] does not have a LiteLLM key to restore.', $tenant->tenant_id));
+        }
+
+        $budget = $tenant->savedLiteLlmBudgetTarget();
+        $budgetDuration = $tenant->savedLiteLlmBudgetDuration()
+            ?? (string) config('sync360.litellm.default_budget_duration', 'monthly');
+
+        if ($budget <= 0.0) {
+            $budget = $this->budgetForPlan((string) ($tenant->litellm_plan_name ?: config('sync360.litellm.default_plan_name', 'trial')));
+        }
+
+        $this->request('post', '/key/update', [
+            'key' => $tenant->litellm_virtual_key,
+            'max_budget' => $budget,
+            'budget_duration' => $budgetDuration,
+        ]);
+
+        $tenant->forceFill([
+            'litellm_max_budget' => $budget,
+            'litellm_default_max_budget' => $budget,
+            'litellm_budget_duration' => $budgetDuration,
+            'litellm_default_budget_duration' => $budgetDuration,
             'litellm_last_synced_at' => now(),
         ])->save();
     }

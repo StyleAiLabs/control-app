@@ -13,11 +13,19 @@ class TenantWorkspaceMessenger
         private readonly TenantRuntimeService $runtime,
         private readonly Filesystem $files,
         private readonly TenantRuntimeSkillActivationService $runtimeSkillActivation,
+        private readonly ExpiredTrialAccessPolicy $expiredTrialAccess,
     ) {
     }
 
     public function send(Tenant $tenant, string $channel, string $from, string $message, array $requiredSkillIds = []): string
     {
+        if (! $this->expiredTrialAccess->canSendCustomerFacingRuntimeWork($tenant)) {
+            throw new RuntimeException(
+                'Customer-facing runtime work is paused because this tenant trial has expired. '
+                .'Enable the expired-trial runtime reply override in admin to resume replies.'
+            );
+        }
+
         $this->runtimeSkillActivation->ensureRequiredSkillsReady($tenant, $requiredSkillIds);
 
         $hookPath = '/'.ltrim((string) config('sync360.workspace_gateway.agent_hook_path', '/hooks/agent'), '/');

@@ -543,4 +543,160 @@ class AdminTenantOperationsTest extends TestCase
 
         Carbon::setTestNow();
     }
+
+    public function test_admin_can_update_expired_trial_runtime_overrides_from_tenant_overview(): void
+    {
+        $admin = User::query()->create([
+            'name' => 'Debug Admin',
+            'email' => 'admin@example.com',
+            'password' => 'super-secret',
+            'is_admin' => true,
+        ]);
+
+        $user = User::query()->create([
+            'name' => 'Customer User',
+            'email' => 'customer@example.com',
+            'password' => 'super-secret',
+            'is_admin' => false,
+        ]);
+
+        $tenant = Tenant::query()->create([
+            'tenant_id' => 'tenant_trial_override_01',
+            'slug' => 'expired-override-controls',
+            'business_name' => 'Expired Override Controls',
+            'industry' => 'Retail',
+            'skill_pack' => 'Client Support',
+            'user_id' => $user->id,
+            'server_id' => Server::query()->firstOrFail()->id,
+            'trial_status' => TrialStatus::Expired,
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'allow_polling_when_trial_expired' => false,
+            'allow_runtime_replies_when_trial_expired' => false,
+            'allow_litellm_when_trial_expired' => false,
+        ]);
+
+        $liteLlmKeys = Mockery::mock(LiteLlmTenantKeyService::class);
+        $liteLlmKeys->shouldNotReceive('restoreTenant');
+        $liteLlmKeys->shouldNotReceive('suspendTenant');
+        $this->instance(LiteLlmTenantKeyService::class, $liteLlmKeys);
+
+        $this->actingAs($admin);
+
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'overview']))
+            ->assertOk()
+            ->assertSee('Expired-trial Runtime Overrides')
+            ->assertSee('Allow inbox polling')
+            ->assertSee('Allow runtime replies')
+            ->assertSee('Keep LiteLLM key active');
+
+        $this->patch(route('admin.tenants.trial-overrides.update', $tenant), [
+            'return_tab' => 'overview',
+            'allow_polling_when_trial_expired' => '1',
+            'allow_runtime_replies_when_trial_expired' => '1',
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'overview']))
+            ->assertSessionHas('status', 'Expired-trial runtime overrides updated.');
+
+        $tenant->refresh();
+
+        $this->assertTrue($tenant->allow_polling_when_trial_expired);
+        $this->assertTrue($tenant->allow_runtime_replies_when_trial_expired);
+        $this->assertFalse($tenant->allow_litellm_when_trial_expired);
+    }
+
+    public function test_admin_enabling_litellm_override_for_expired_trial_restores_the_virtual_key_immediately(): void
+    {
+        $admin = User::query()->create([
+            'name' => 'Debug Admin',
+            'email' => 'admin@example.com',
+            'password' => 'super-secret',
+            'is_admin' => true,
+        ]);
+
+        $user = User::query()->create([
+            'name' => 'Customer User',
+            'email' => 'customer@example.com',
+            'password' => 'super-secret',
+            'is_admin' => false,
+        ]);
+
+        $tenant = Tenant::query()->create([
+            'tenant_id' => 'tenant_trial_override_02',
+            'slug' => 'expired-override-litellm-on',
+            'business_name' => 'Expired Override LiteLLM On',
+            'industry' => 'Retail',
+            'skill_pack' => 'Client Support',
+            'user_id' => $user->id,
+            'server_id' => Server::query()->firstOrFail()->id,
+            'trial_status' => TrialStatus::Expired,
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'litellm_virtual_key' => 'sk-tenant-expired',
+            'allow_litellm_when_trial_expired' => false,
+        ]);
+
+        $liteLlmKeys = Mockery::mock(LiteLlmTenantKeyService::class);
+        $liteLlmKeys->shouldReceive('restoreTenant')
+            ->once()
+            ->withArgs(fn (Tenant $updatedTenant): bool => $updatedTenant->is($tenant));
+        $liteLlmKeys->shouldNotReceive('suspendTenant');
+        $this->instance(LiteLlmTenantKeyService::class, $liteLlmKeys);
+
+        $this->actingAs($admin);
+
+        $this->patch(route('admin.tenants.trial-overrides.update', $tenant), [
+            'return_tab' => 'overview',
+            'allow_litellm_when_trial_expired' => '1',
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'overview']));
+
+        $tenant->refresh();
+
+        $this->assertTrue($tenant->allow_litellm_when_trial_expired);
+    }
+
+    public function test_admin_disabling_litellm_override_for_expired_trial_suspends_the_virtual_key_immediately(): void
+    {
+        $admin = User::query()->create([
+            'name' => 'Debug Admin',
+            'email' => 'admin@example.com',
+            'password' => 'super-secret',
+            'is_admin' => true,
+        ]);
+
+        $user = User::query()->create([
+            'name' => 'Customer User',
+            'email' => 'customer@example.com',
+            'password' => 'super-secret',
+            'is_admin' => false,
+        ]);
+
+        $tenant = Tenant::query()->create([
+            'tenant_id' => 'tenant_trial_override_03',
+            'slug' => 'expired-override-litellm-off',
+            'business_name' => 'Expired Override LiteLLM Off',
+            'industry' => 'Retail',
+            'skill_pack' => 'Client Support',
+            'user_id' => $user->id,
+            'server_id' => Server::query()->firstOrFail()->id,
+            'trial_status' => TrialStatus::Expired,
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'litellm_virtual_key' => 'sk-tenant-expired',
+            'allow_litellm_when_trial_expired' => true,
+        ]);
+
+        $liteLlmKeys = Mockery::mock(LiteLlmTenantKeyService::class);
+        $liteLlmKeys->shouldReceive('suspendTenant')
+            ->once()
+            ->withArgs(fn (Tenant $updatedTenant): bool => $updatedTenant->is($tenant));
+        $liteLlmKeys->shouldNotReceive('restoreTenant');
+        $this->instance(LiteLlmTenantKeyService::class, $liteLlmKeys);
+
+        $this->actingAs($admin);
+
+        $this->patch(route('admin.tenants.trial-overrides.update', $tenant), [
+            'return_tab' => 'overview',
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'overview']));
+
+        $tenant->refresh();
+
+        $this->assertFalse($tenant->allow_litellm_when_trial_expired);
+    }
 }

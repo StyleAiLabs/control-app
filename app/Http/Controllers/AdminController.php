@@ -18,6 +18,7 @@ use App\Models\TenantGoogleCredential;
 use App\Models\TenantSkillAssignment;
 use App\Models\User;
 use App\Services\ControlAppDeploymentService;
+use App\Services\ExpiredTrialAccessPolicy;
 use App\Services\SkillCatalogService;
 use App\Services\SystemHealthService;
 use App\Services\LiteLlmTenantKeyService;
@@ -79,6 +80,7 @@ class AdminController extends Controller
         private readonly SystemHealthService $systemHealth,
         private readonly TenantWorkspaceDependencyHealthService $dependencyHealth,
         private readonly LiteLlmTenantKeyService $liteLlmTenantKeys,
+        private readonly ExpiredTrialAccessPolicy $expiredTrialAccess,
     ) {}
 
     public function index(): View
@@ -230,6 +232,12 @@ class AdminController extends Controller
             'skillChangeHistory' => $runtimeCustomizationAvailable ? $this->skillChangeHistoryFor($tenant) : [],
             'tenantAnalytics' => $this->skillAnalytics->tenantSummary($tenant),
             'inboxMonitorSummary' => $this->inboxMonitorSummary($tenant),
+            'expiredTrialOverrideSummary' => [
+                'polling_allowed' => $tenant->allow_polling_when_trial_expired,
+                'runtime_replies_allowed' => $tenant->allow_runtime_replies_when_trial_expired,
+                'litellm_allowed' => $tenant->allow_litellm_when_trial_expired,
+                'litellm_suspends_on_expiry' => $this->expiredTrialAccess->shouldSuspendLiteLlmOnExpiry($tenant),
+            ],
         ]);
     }
 
@@ -300,6 +308,39 @@ class AdminController extends Controller
             $freshTenant,
             'overview',
             $statusMessage,
+        );
+    }
+
+    public function updateExpiredTrialOverrides(Request $request, Tenant $tenant): RedirectResponse
+    {
+        $tenant->refresh();
+
+        $allowPolling = $request->boolean('allow_polling_when_trial_expired');
+        $allowRuntimeReplies = $request->boolean('allow_runtime_replies_when_trial_expired');
+        $allowLiteLlm = $request->boolean('allow_litellm_when_trial_expired');
+        $previousAllowLiteLlm = (bool) $tenant->allow_litellm_when_trial_expired;
+
+        $tenant->forceFill([
+            'allow_polling_when_trial_expired' => $allowPolling,
+            'allow_runtime_replies_when_trial_expired' => $allowRuntimeReplies,
+            'allow_litellm_when_trial_expired' => $allowLiteLlm,
+        ])->save();
+
+        if ($tenant->isTrialExpired() && $tenant->litellm_virtual_key) {
+            if (! $previousAllowLiteLlm && $allowLiteLlm) {
+                $this->liteLlmTenantKeys->restoreTenant($tenant->fresh());
+            }
+
+            if ($previousAllowLiteLlm && ! $allowLiteLlm) {
+                $this->liteLlmTenantKeys->suspendTenant($tenant->fresh());
+            }
+        }
+
+        return $this->redirectToTenantShow(
+            $request,
+            $tenant->fresh(),
+            'overview',
+            'Expired-trial runtime overrides updated.',
         );
     }
 

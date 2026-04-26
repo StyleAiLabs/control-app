@@ -135,6 +135,41 @@ class WorkspaceDependencyMonitorCommandTest extends TestCase
         $this->assertNull($credential?->expiry_warning_1day_sent_at);
     }
 
+    public function test_monitor_command_still_sends_operational_alerts_for_expired_trials(): void
+    {
+        config()->set('services.google.oauth_app_mode', 'testing');
+
+        $tenant = $this->makeTenant([
+            'trial_status' => TrialStatus::Expired,
+            'channel' => 'telegram',
+            'channel_config' => [
+                'telegram_bot_token' => 'telegram-token',
+                'telegram_default_chat_id' => '12345',
+            ],
+        ]);
+        $tenant->googleCredential()->create([
+            'status' => TenantGoogleCredential::STATUS_CONNECTED,
+            'runtime_sync_status' => TenantGoogleCredential::RUNTIME_SYNC_VERIFIED,
+            'google_email' => 'owner@example.com',
+            'refresh_token' => 'refresh-token',
+            'connected_at' => now()->subDays(6)->subHours(12),
+            'last_verified_at' => now(),
+        ]);
+
+        $smokeTests = Mockery::mock(TenantGoogleWorkspaceSmokeTestService::class);
+        $smokeTests->shouldReceive('run')->once()->andReturn([
+            'container_smoke_passed' => true,
+        ]);
+        $this->instance(TenantGoogleWorkspaceSmokeTestService::class, $smokeTests);
+
+        $telegram = Mockery::mock(TelegramSender::class);
+        $telegram->shouldReceive('send')->once();
+        $this->instance(TelegramSender::class, $telegram);
+
+        $this->artisan('sync360:monitor-workspace-dependencies '.$tenant->slug)
+            ->assertExitCode(0);
+    }
+
     /**
      * @param  array<string, mixed>  $overrides
      */

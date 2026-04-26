@@ -48,7 +48,9 @@ class Tenant extends Model
         'litellm_key_alias',
         'litellm_plan_name',
         'litellm_max_budget',
+        'litellm_default_max_budget',
         'litellm_budget_duration',
+        'litellm_default_budget_duration',
         'litellm_last_synced_at',
         'trial_ends_at',
         'litellm_spend',
@@ -56,6 +58,9 @@ class Tenant extends Model
         'trial_80pct_notified_at',
         'trial_3day_notified_at',
         'trial_expired_notified_at',
+        'allow_polling_when_trial_expired',
+        'allow_runtime_replies_when_trial_expired',
+        'allow_litellm_when_trial_expired',
     ];
 
     protected function casts(): array
@@ -71,6 +76,7 @@ class Tenant extends Model
             'last_health_check_at' => 'datetime',
             'litellm_virtual_key' => 'encrypted',
             'litellm_max_budget' => 'decimal:2',
+            'litellm_default_max_budget' => 'decimal:2',
             'litellm_last_synced_at' => 'datetime',
             'trial_ends_at' => 'datetime',
             'litellm_spend' => 'decimal:6',
@@ -78,6 +84,9 @@ class Tenant extends Model
             'trial_80pct_notified_at' => 'datetime',
             'trial_3day_notified_at' => 'datetime',
             'trial_expired_notified_at' => 'datetime',
+            'allow_polling_when_trial_expired' => 'boolean',
+            'allow_runtime_replies_when_trial_expired' => 'boolean',
+            'allow_litellm_when_trial_expired' => 'boolean',
         ];
     }
 
@@ -254,5 +263,33 @@ class Tenant extends Model
         $maxBudget = max(0.0, (float) ($this->litellm_max_budget ?? 0.0));
 
         return round(max($spend, $maxBudget) + $topUpAmount, 2);
+    }
+
+    public function savedLiteLlmBudgetTarget(): float
+    {
+        $saved = (float) ($this->litellm_default_max_budget ?? 0);
+
+        if ($saved > 0.0) {
+            return $saved;
+        }
+
+        return max(0.0, (float) ($this->litellm_max_budget ?? 0));
+    }
+
+    public function savedLiteLlmBudgetDuration(): ?string
+    {
+        $saved = is_string($this->litellm_default_budget_duration)
+            ? trim($this->litellm_default_budget_duration)
+            : '';
+
+        if ($saved !== '') {
+            return $saved;
+        }
+
+        $current = is_string($this->litellm_budget_duration)
+            ? trim($this->litellm_budget_duration)
+            : '';
+
+        return $current !== '' ? $current : null;
     }
 }

@@ -79,6 +79,7 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/deploy/control-app', [AdminController::class, 'triggerControlAppDeploy'])->name('deploy.control-app');
         Route::post('/jobs/{tenant}/retry', [AdminController::class, 'retry'])->name('retry');
         Route::post('/tenants/{tenant}/trial/extend', [AdminController::class, 'extendTrial'])->name('tenants.trial.extend');
+        Route::patch('/tenants/{tenant}/trial-overrides', [AdminController::class, 'updateExpiredTrialOverrides'])->name('tenants.trial-overrides.update');
         Route::post('/tenants/{tenant}/health-check', [AdminController::class, 'healthCheck'])->name('tenants.health-check');
         Route::post('/tenants/{tenant}/resync-agent', [AdminController::class, 'resyncAgent'])->name('tenants.resync-agent');
         Route::post('/tenants/{tenant}/runtime/bootstrap', [AdminController::class, 'bootstrapRuntimeHost'])->name('tenants.runtime.bootstrap');

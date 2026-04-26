@@ -32,6 +32,13 @@ class InboxTriagePollingTest extends TestCase
         Queue::fake();
 
         $eligible = $this->seedInboxTenant('eligible-shop');
+        $this->seedInboxTenant('expired-shop', tenantOverrides: [
+            'trial_status' => TrialStatus::Expired,
+        ]);
+        $overridden = $this->seedInboxTenant('expired-override-shop', tenantOverrides: [
+            'trial_status' => TrialStatus::Expired,
+            'allow_polling_when_trial_expired' => true,
+        ]);
         $this->seedInboxTenant('broken-google', googleVerified: false);
         $backoff = $this->seedInboxTenant('backoff-shop');
         TenantInboxMonitorState::query()->create([
@@ -43,10 +50,11 @@ class InboxTriagePollingTest extends TestCase
 
         $this->artisan('sync360:poll-inbox-triage')
             ->assertExitCode(0)
-            ->expectsOutputToContain('Queued inbox triage polling for 1 eligible tenants.');
+            ->expectsOutputToContain('Queued inbox triage polling for 2 eligible tenants.');
 
-        Queue::assertPushed(ProcessTenantInboxTriage::class, 1);
+        Queue::assertPushed(ProcessTenantInboxTriage::class, 2);
         Queue::assertPushed(ProcessTenantInboxTriage::class, fn (ProcessTenantInboxTriage $job): bool => $job->tenantId === $eligible->id);
+        Queue::assertPushed(ProcessTenantInboxTriage::class, fn (ProcessTenantInboxTriage $job): bool => $job->tenantId === $overridden->id);
     }
 
     public function test_poll_tenant_sends_neutral_business_plausible_event_without_persisting_body(): void
@@ -409,7 +417,10 @@ class InboxTriagePollingTest extends TestCase
         $this->assertTrue($state->backoff_until->isFuture());
     }
 
-    private function seedInboxTenant(string $slug, bool $googleVerified = true): Tenant
+    /**
+     * @param  array<string, mixed>  $tenantOverrides
+     */
+    private function seedInboxTenant(string $slug, bool $googleVerified = true, array $tenantOverrides = []): Tenant
     {
         $owner = User::query()->create([
             'name' => $slug.' Owner',
@@ -417,7 +428,7 @@ class InboxTriagePollingTest extends TestCase
             'password' => 'secret',
         ]);
         $server = Server::query()->firstOrFail();
-        $tenant = Tenant::query()->create([
+        $tenant = Tenant::query()->create(array_merge([
             'tenant_id' => 'tenant-'.$slug,
             'slug' => $slug,
             'business_name' => ucfirst(str_replace('-', ' ', $slug)),
@@ -435,7 +446,7 @@ class InboxTriagePollingTest extends TestCase
             'runtime_path' => '/srv/sync360/runtime/tenants/'.$slug,
             'server_id' => $server->id,
             'user_id' => $owner->id,
-        ]);
+        ], $tenantOverrides));
 
         TenantGoogleCredential::query()->create([
             'tenant_id' => $tenant->id,
