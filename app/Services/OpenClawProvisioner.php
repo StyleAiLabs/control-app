@@ -49,13 +49,17 @@ class OpenClawProvisioner implements TenantProvisioner
         $workspaceUrl = $this->runtime->workspaceUrl($tenant, $assignedPort);
         $gatewayToken = Str::random(40);
         $liteLlmKey = $this->liteLlmKeys->ensureTenantKey($tenant);
+        $runtimeCredentials = $this->runtimeCapabilities->resolveRuntimeCredentials(
+            $tenant->fresh(['agentCustomization']),
+            fallbackApiKey: $liteLlmKey['key'],
+        );
 
         $localRuntimePath = $this->runtime->prepareRuntime($tenant, $provisioningJob, $assignedPort, [
             'PROVISIONING_DRIVER' => 'openclaw',
             'OPENCLAW_GATEWAY_PORT' => (string) config('sync360.openclaw.gateway_port', 18789),
             'OPENCLAW_GATEWAY_TOKEN' => $gatewayToken,
-            'OPENAI_API_KEY' => $liteLlmKey['key'],
-            'OPENAI_BASE_URL' => $liteLlmKey['base_url'],
+            'OPENAI_API_KEY' => $runtimeCredentials['api_key'],
+            'OPENAI_BASE_URL' => $runtimeCredentials['base_url'],
         ], [
             'provisioning_driver' => 'openclaw',
             'openclaw' => [
@@ -68,7 +72,7 @@ class OpenClawProvisioner implements TenantProvisioner
                 'plan_name' => $liteLlmKey['plan_name'],
                 'max_budget' => $liteLlmKey['max_budget'],
                 'budget_duration' => $liteLlmKey['budget_duration'],
-                'base_url' => $liteLlmKey['base_url'],
+                'base_url' => $runtimeCredentials['base_url'],
             ],
         ]);
         $remoteRuntimePath = $this->runtime->remoteRuntimePath($tenant);
@@ -77,7 +81,7 @@ class OpenClawProvisioner implements TenantProvisioner
         $projectName = $this->runtime->projectName($tenant);
 
         $this->writeOpenClawConfig($localRuntimePath, $tenant, $assignedPort, $gatewayToken);
-        $this->writeComposeFile($tenant, $localRuntimePath, $remoteRuntimePath, $assignedPort, $gatewayToken, $liteLlmKey['key'], $liteLlmKey['base_url']);
+        $this->writeComposeFile($tenant, $localRuntimePath, $remoteRuntimePath, $assignedPort, $gatewayToken, $runtimeCredentials['api_key'], $runtimeCredentials['base_url']);
         $caddyConfig = $this->shouldManageCaddy($tenant)
             ? $this->writeCaddyConfig($tenant, $localRuntimePath, $assignedPort)
             : null;

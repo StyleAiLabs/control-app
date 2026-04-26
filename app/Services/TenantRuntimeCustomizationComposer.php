@@ -129,7 +129,19 @@ class TenantRuntimeCustomizationComposer
         $removedSkillIds = array_values(array_diff($previousAssignedSkills, $currentAssignedSkillIds));
 
         if (is_string($agentDefaults['model'] ?? null) && trim((string) $agentDefaults['model']) !== '') {
-            $config['agents']['defaults']['model'] = trim((string) $agentDefaults['model']);
+            $model = trim((string) $agentDefaults['model']);
+            $config['agents']['defaults']['model'] = $model;
+            $config['models'] = is_array($config['models'] ?? null) ? $config['models'] : [];
+            $config['models']['providers'] = is_array($config['models']['providers'] ?? null) ? $config['models']['providers'] : [];
+            $config['models']['providers']['openai'] = is_array($config['models']['providers']['openai'] ?? null)
+                ? $config['models']['providers']['openai']
+                : [];
+            $config['models']['providers']['openai']['models'] = [
+                [
+                    'id' => $model,
+                    'name' => $model,
+                ],
+            ];
         }
 
         foreach ($currentAssignedSkillIds as $skillId) {

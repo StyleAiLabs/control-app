@@ -145,6 +145,12 @@ class TenantRuntimeService
             .(string) config('sync360.openclaw.compose_filename', 'compose.yaml');
     }
 
+    public function remoteEnvPath(Tenant $tenant): string
+    {
+        return rtrim($tenant->runtime_path ?: $this->remoteRuntimePath($tenant), DIRECTORY_SEPARATOR)
+            .DIRECTORY_SEPARATOR.'.env';
+    }
+
     public function localOpenClawConfigPath(Tenant $tenant): string
     {
         return $this->localRuntimePath($tenant)

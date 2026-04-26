@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Contracts\DockerComposeRunner;
 use App\Models\Server;
 use App\Models\Tenant;
+use App\Models\TenantAgentCustomization;
 use Illuminate\Filesystem\Filesystem;
 use RuntimeException;
 use Symfony\Component\Process\Exception\ProcessFailedException;
@@ -167,21 +168,15 @@ class TenantRuntimeCapabilityService
         $runtimeEnvironment = $this->parseRuntimeEnvFile($tenant);
         $openClawConfig = $this->parseLocalOpenClawConfig($tenant);
         $gatewayToken = (string) ($runtimeEnvironment['OPENCLAW_GATEWAY_TOKEN'] ?? data_get($openClawConfig, 'gateway.auth.token', ''));
-        $liteLlmKey = (string) $tenant->litellm_virtual_key;
-        $liteLlmBaseUrl = rtrim((string) config('services.litellm.base_url', ''), '/')
-            ?: (string) ($runtimeEnvironment['OPENAI_BASE_URL'] ?? '');
-
-        if ($liteLlmKey === '') {
-            throw new RuntimeException('The tenant LiteLLM virtual key is missing, so compose regeneration cannot safely preserve runtime credentials.');
-        }
+        $credentials = $this->resolveRuntimeCredentials($tenant, runtimeEnvironment: $runtimeEnvironment);
 
         $updatedContents = $this->renderCompose(
             $tenant,
             $tenant->runtime_path ?: $this->runtime->remoteRuntimePath($tenant),
             (int) $tenant->assigned_port,
             $gatewayToken,
-            $liteLlmKey,
-            $liteLlmBaseUrl,
+            $credentials['api_key'],
+            $credentials['base_url'],
             $capabilityIds,
         );
         $existingContents = $this->files->get($localComposePath);
@@ -195,6 +190,37 @@ class TenantRuntimeCapabilityService
             'changed' => $changed,
             'contents' => $updatedContents,
             'remote_compose_file' => $this->runtime->remoteComposePath($tenant),
+        ];
+    }
+
+    /**
+     * @return array{changed:bool, contents:string, remote_env_file:string}
+     */
+    public function syncLocalRuntimeEnvCredentials(Tenant $tenant, ?TenantAgentCustomization $customization = null): array
+    {
+        $envPath = $this->runtime->localEnvPath($tenant);
+
+        if (! $this->files->exists($envPath)) {
+            throw new RuntimeException('The tenant runtime env file does not exist yet, so runtime credentials cannot be applied.');
+        }
+
+        $runtimeEnvironment = $this->parseRuntimeEnvFile($tenant);
+        $credentials = $this->resolveRuntimeCredentials($tenant, $customization, $runtimeEnvironment);
+        $runtimeEnvironment['OPENAI_API_KEY'] = $credentials['api_key'];
+        $runtimeEnvironment['OPENAI_BASE_URL'] = $credentials['base_url'];
+
+        $updatedContents = $this->renderEnvFile($runtimeEnvironment);
+        $existingContents = $this->files->get($envPath);
+        $changed = $updatedContents !== $existingContents;
+
+        if ($changed) {
+            $this->files->put($envPath, $updatedContents);
+        }
+
+        return [
+            'changed' => $changed,
+            'contents' => $updatedContents,
+            'remote_env_file' => $this->runtime->remoteEnvPath($tenant),
         ];
     }
 
@@ -378,6 +404,33 @@ class TenantRuntimeCapabilityService
     }
 
     /**
+     * @return array{api_key:string, base_url:string}
+     */
+    public function resolveRuntimeCredentials(Tenant $tenant, ?TenantAgentCustomization $customization = null, ?array $runtimeEnvironment = null, ?string $fallbackApiKey = null): array
+    {
+        $tenant->loadMissing('agentCustomization');
+        $customization ??= $tenant->agentCustomization;
+
+        $override = is_string($customization?->runtime_api_key_override) ? trim((string) $customization->runtime_api_key_override) : '';
+        $apiKey = $override !== '' ? $override : trim((string) ($fallbackApiKey ?: $tenant->litellm_virtual_key));
+        $baseUrl = rtrim((string) config('services.litellm.base_url', ''), '/')
+            ?: trim((string) (($runtimeEnvironment ?? [])['OPENAI_BASE_URL'] ?? ''));
+
+        if ($apiKey === '') {
+            throw new RuntimeException('The tenant runtime API key is missing, so runtime credentials cannot be regenerated safely.');
+        }
+
+        if ($baseUrl === '') {
+            throw new RuntimeException('The runtime base URL is missing, so runtime credentials cannot be regenerated safely.');
+        }
+
+        return [
+            'api_key' => $apiKey,
+            'base_url' => $baseUrl,
+        ];
+    }
+
+    /**
      * @param  array<int, string>|null  $capabilityIds
      * @return list<string>
      */
@@ -484,6 +537,23 @@ class TenantRuntimeCapabilityService
         }
 
         return $values;
+    }
+
+    /**
+     * @param  array<string, string>  $values
+     */
+    private function renderEnvFile(array $values): string
+    {
+        $lines = [];
+
+        foreach ($values as $key => $value) {
+            $escapedValue = str_replace(['\\', '"', "\n"], ['\\\\', '\"', '\n'], (string) $value);
+            $shouldQuote = preg_match('/\s|=/', $escapedValue) === 1;
+
+            $lines[] = sprintf('%s=%s', $key, $shouldQuote ? '"'.$escapedValue.'"' : $escapedValue);
+        }
+
+        return implode(PHP_EOL, $lines).PHP_EOL;
     }
 
     /**

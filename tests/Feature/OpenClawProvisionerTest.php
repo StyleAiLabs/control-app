@@ -10,6 +10,7 @@ use App\Jobs\ProcessTenantProvisioning;
 use App\Models\ProvisioningJob;
 use App\Models\Server;
 use App\Models\Tenant;
+use App\Models\TenantAgentCustomization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -178,6 +179,62 @@ class OpenClawProvisionerTest extends TestCase
         $this->assertSame(ProvisioningJobStatus::Failed, $job->status);
         $this->assertNotNull($job->error_message);
         $this->assertStringContainsString('OpenClaw readiness check failed', $job->error_message);
+    }
+
+    public function test_openclaw_provisioning_honors_tenant_runtime_model_and_api_key_override(): void
+    {
+        config()->set('sync360.provisioning.driver', 'openclaw');
+        config()->set('services.litellm.base_url', 'https://litellm.stylesoftware.co.nz');
+        config()->set('services.litellm.master_key', 'litellm-master');
+        Http::fake([
+            'https://litellm.stylesoftware.co.nz/key/generate' => Http::response(['key' => 'sk-platform-tenant-key'], 200),
+            'https://acme-plumbing.workspace.test/login' => Http::response('login', 200),
+        ]);
+
+        $runner = Mockery::mock(DockerComposeRunner::class);
+        $runner->shouldReceive('isHostPortInUse')->once()->andReturnFalse();
+        $runner->shouldReceive('down')->once()->andReturnNull();
+        $runner->shouldReceive('runCommand')
+            ->once()
+            ->withArgs(function (Server $server, string $command, bool $sudo = false): bool {
+                return $server->name === 'test-vps'
+                    && $command === "docker rm -f 'sync360-acme-plumbing' >/dev/null 2>&1 || true"
+                    && $sudo === false;
+            })
+            ->andReturnNull();
+        $runner->shouldReceive('syncRuntime')->once()->andReturnNull();
+        $runner->shouldReceive('putFile')->once()->andReturnNull();
+        $runner->shouldReceive('runCommand')->once()->withArgs(fn (Server $server, string $command, bool $sudo): bool => $server->name === 'test-vps' && $command === 'systemctl reload caddy' && $sudo === true)->andReturnNull();
+        $runner->shouldReceive('up')->once()->andReturnNull();
+        $runner->shouldReceive('waitForHttpReady')->once()->andReturnNull();
+        $runner->shouldReceive('removeFile')->once()->andReturnNull();
+        $runner->shouldReceive('isRunning')->never();
+        $runner->shouldReceive('start')->never();
+        $runner->shouldReceive('stop')->never();
+
+        $this->instance(DockerComposeRunner::class, $runner);
+
+        [, $tenant, $job] = $this->seedTenantAndJob();
+
+        TenantAgentCustomization::query()->create([
+            'tenant_id' => $tenant->id,
+            'prompt_overrides_json' => [],
+            'agent_defaults_json' => ['model' => 'claude-sonnet-4-6'],
+            'runtime_api_key_override' => 'sk-tenant-override',
+            'draft_version' => 1,
+            'draft_updated_by' => $tenant->user_id,
+            'draft_updated_at' => now(),
+        ]);
+
+        ProcessTenantProvisioning::dispatchSync($tenant->id, $job->id);
+
+        $localRuntimePath = $this->testProvisioningBase.'/runtime/acme-plumbing';
+
+        $this->assertStringContainsString('OPENAI_API_KEY=sk-tenant-override', (string) file_get_contents($localRuntimePath.'/.env'));
+        $this->assertStringContainsString('OPENAI_API_KEY: "sk-tenant-override"', (string) file_get_contents($localRuntimePath.'/compose.yaml'));
+        $this->assertStringContainsString('"model": "claude-sonnet-4-6"', (string) file_get_contents($localRuntimePath.'/config/openclaw.json'));
+        $this->assertStringContainsString('"id": "claude-sonnet-4-6"', (string) file_get_contents($localRuntimePath.'/config/openclaw.json'));
+        $this->assertStringContainsString('"name": "claude-sonnet-4-6"', (string) file_get_contents($localRuntimePath.'/config/openclaw.json'));
     }
 
     public function test_public_workspace_failure_marks_tenant_and_job_as_failed(): void

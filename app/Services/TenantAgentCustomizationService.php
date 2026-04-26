@@ -20,6 +20,7 @@ class TenantAgentCustomizationService
         private readonly Filesystem $files,
         private readonly DockerComposeRunner $dockerCompose,
         private readonly TenantRuntimeService $runtime,
+        private readonly TenantRuntimeCapabilityService $runtimeCapabilities,
         private readonly TenantSkillAssignmentService $skillAssignments,
         private readonly TenantSkillAnalyticsRuntimeService $skillAnalyticsRuntime,
         private readonly TenantRuntimeSkillActivationService $runtimeSkillActivation,
@@ -39,6 +40,7 @@ class TenantAgentCustomizationService
             $customization->forceFill([
                 'prompt_overrides_json' => $payload['prompt_overrides'],
                 'agent_defaults_json' => $payload['agent_defaults'],
+                'runtime_api_key_override' => $payload['runtime_api_key_override'] ?? null,
                 'draft_version' => ((int) $customization->draft_version) + 1,
                 'draft_updated_by' => $actor->id,
                 'draft_updated_at' => now(),
@@ -111,6 +113,11 @@ class TenantAgentCustomizationService
         return array_merge([
             'prompt_overrides' => $promptOverrides,
             'agent_defaults' => $agentDefaults,
+            'runtime_api_key_override' => is_string($input['agent_defaults']['api_key_override'] ?? null)
+                && trim((string) $input['agent_defaults']['api_key_override']) !== ''
+                ? trim((string) $input['agent_defaults']['api_key_override'])
+                : null,
+            'clear_runtime_api_key_override' => (bool) ($input['agent_defaults']['clear_api_key_override'] ?? false),
         ], $this->skillAssignments->normalizedPayload($input));
     }
 
@@ -123,6 +130,7 @@ class TenantAgentCustomizationService
             'prompt_overrides' => is_array($customization->prompt_overrides_json) ? $customization->prompt_overrides_json : [],
             'assigned_skills' => $this->skillAssignments->snapshot($tenant),
             'agent_defaults' => is_array($customization->agent_defaults_json) ? $customization->agent_defaults_json : [],
+            'runtime_api_key_override_enabled' => $customization->hasRuntimeApiKeyOverride(),
         ];
     }
 
@@ -167,14 +175,31 @@ class TenantAgentCustomizationService
                     $composed = $composer->compose($freshTenant, $freshTenant->agentCustomization);
 
                     $runtimeChanged = $composed->contentHash !== $beforeHash;
+                    $credentialsChanged = $lockedCustomization->runtime_api_key_override !== $lockedCustomization->last_applied_runtime_api_key_override;
+                    $composeUpdate = null;
+                    $envUpdate = null;
 
                     if ($runtimeChanged) {
                         $this->materializeWorkspaceFiles($tenant, $composed);
+                    }
+
+                    if ($runtimeChanged || $credentialsChanged) {
                         $skillContractUpdate = $this->runtimeSkillActivation->syncExpectedContract($tenant, $freshTenant->agentCustomization);
                         $configChanged = $this->writeLocalConfig($tenant, $composed->openClawConfig);
-                        $this->syncRemoteArtifacts($tenant, $composed->openClawConfig);
+                        $envUpdate = $this->runtimeCapabilities->syncLocalRuntimeEnvCredentials($freshTenant, $freshTenant->agentCustomization);
+                        $composeUpdate = $this->runtimeCapabilities->syncLocalCompose($freshTenant, ['gog']);
+                        $this->syncRemoteArtifacts(
+                            $tenant,
+                            $composed->openClawConfig,
+                            $envUpdate['contents'],
+                            $composeUpdate['contents'],
+                        );
 
-                        if ($runtimeChanged || $configChanged || $skillContractUpdate['skill_set_changed']) {
+                        if ($runtimeChanged || $configChanged || $composeUpdate['changed'] || $envUpdate['changed'] || $skillContractUpdate['skill_set_changed']) {
+                            $this->runtimeCapabilities->reloadRuntime(
+                                $tenant->fresh(['server']),
+                                recreate: (bool) ($composeUpdate['changed'] || $envUpdate['changed']),
+                            );
                             $this->runtimeSkillActivation->activateExpectedSkills(
                                 $tenant->fresh(['server', 'agentCustomization', 'skillAssignments.catalogVersion']),
                                 recreate: false,
@@ -191,6 +216,7 @@ class TenantAgentCustomizationService
 
                     $lockedCustomization->forceFill([
                         'last_applied_input_snapshot_json' => $snapshot,
+                        'last_applied_runtime_api_key_override' => $lockedCustomization->runtime_api_key_override,
                         'applied_snapshot_hash' => $composed->contentHash,
                         'last_applied_at' => now(),
                         'last_apply_status' => 'applied',
@@ -304,6 +330,7 @@ class TenantAgentCustomizationService
         $customization->forceFill([
             'prompt_overrides_json' => $snapshot['prompt_overrides'] ?? [],
             'agent_defaults_json' => $snapshot['agent_defaults'] ?? [],
+            'runtime_api_key_override' => $customization->last_applied_runtime_api_key_override,
             'draft_version' => ((int) $customization->draft_version) + 1,
             'draft_updated_at' => now(),
         ])->save();
@@ -348,7 +375,7 @@ class TenantAgentCustomizationService
         return $existing !== $contents;
     }
 
-    private function syncRemoteArtifacts(Tenant $tenant, string $configContents): void
+    private function syncRemoteArtifacts(Tenant $tenant, string $configContents, string $envContents, string $composeContents): void
     {
         if (app()->environment('local')) {
             return;
@@ -370,6 +397,18 @@ class TenantAgentCustomizationService
             $tenant->server,
             $this->runtime->remoteOpenClawConfigPath($tenant),
             $configContents,
+        );
+
+        $this->dockerCompose->putFile(
+            $tenant->server,
+            $this->runtime->remoteEnvPath($tenant),
+            $envContents,
+        );
+
+        $this->dockerCompose->putFile(
+            $tenant->server,
+            $this->runtime->remoteComposePath($tenant),
+            $composeContents,
         );
     }
 

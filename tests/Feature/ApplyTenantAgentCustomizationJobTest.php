@@ -17,6 +17,7 @@ use App\Models\TenantAgentCustomization;
 use App\Models\TenantAgentCustomizationApply;
 use App\Models\TenantSkillAssignment;
 use App\Models\User;
+use App\Services\TenantRuntimeSkillActivationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
@@ -26,6 +27,26 @@ use Tests\TestCase;
 class ApplyTenantAgentCustomizationJobTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->mock(TenantRuntimeSkillActivationService::class, function ($mock): void {
+            $mock->shouldReceive('syncExpectedContract')
+                ->andReturn([
+                    'changed' => false,
+                    'skill_set_changed' => false,
+                    'contract' => [
+                        'expected_skill_ids' => ['gog', 'hello-world'],
+                    ],
+                ]);
+            $mock->shouldReceive('activateExpectedSkills')->andReturn([
+                'expected_skill_ids' => ['gog', 'hello-world'],
+                'missing_expected_skill_ids' => [],
+            ]);
+        });
+    }
 
     public function test_apply_job_writes_runtime_artifacts_updates_hash_and_records_audit_row(): void
     {
@@ -103,9 +124,17 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         $this->assertSame(ProvisioningJobStatus::Completed, $provisioningJob->status);
         $this->assertCount(1, $runner->workspaceSyncs);
         $this->assertNotEmpty($runner->putFiles);
+        $this->assertTrue(collect($runner->putFiles)->contains(
+            fn (array $upload): bool => $upload['remotePath'] === '/srv/sync360/runtime/tenants/apply-shop/.env'
+                && str_contains($upload['contents'], 'OPENAI_API_KEY=sk-tenant-acme')
+        ));
+        $this->assertTrue(collect($runner->putFiles)->contains(
+            fn (array $upload): bool => $upload['remotePath'] === '/srv/sync360/runtime/tenants/apply-shop/compose.yaml'
+                && str_contains($upload['contents'], 'OPENAI_API_KEY: "sk-tenant-acme"')
+        ));
         $this->assertTrue(collect($runner->commands)->contains(
             fn (string $command): bool => str_contains($command, 'docker compose')
-                && str_contains($command, 'restart')
+                && (str_contains($command, 'restart') || str_contains($command, 'up -d --force-recreate'))
         ));
 
         $applyLog = TenantAgentCustomizationApply::query()->latest('id')->first();
@@ -171,6 +200,79 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
             'tenant_id' => $tenant->id,
             'action' => TenantAgentCustomizationApply::ACTION_REVERT,
         ]);
+    }
+
+    public function test_revert_job_restores_last_applied_runtime_api_key_override(): void
+    {
+        [$tenant, $customization] = $this->seedTenantAndCustomization();
+
+        $customization->forceFill([
+            'runtime_api_key_override' => 'sk-draft-override',
+            'last_applied_runtime_api_key_override' => 'sk-applied-override',
+            'last_applied_input_snapshot_json' => [
+                'prompt_overrides' => [],
+                'assigned_skills' => [
+                    [
+                        'skill_key' => 'hello-world',
+                        'skill_catalog_version_id' => SkillCatalogVersion::query()->where('skill_key', 'hello-world')->value('id'),
+                        'openclaw_skill_ids' => ['hello-world'],
+                        'default_agent_skill_ids' => ['hello-world'],
+                    ],
+                ],
+                'agent_defaults' => [
+                    'model' => 'gpt-4.1',
+                ],
+                'runtime_api_key_override_enabled' => true,
+            ],
+        ])->save();
+
+        $runner = new class implements DockerComposeRunner
+        {
+            public array $putFiles = [];
+
+            public function syncRuntime(\App\Models\Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
+            public function syncWorkspaceFiles(\App\Models\Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void {}
+            public function httpRequest(\App\Models\Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15, array $headers = []): array { return ['status' => 200, 'body' => '']; }
+            public function putFile(\App\Models\Server $server, string $remotePath, string $contents, bool $sudo = false): void
+            {
+                $this->putFiles[] = compact('remotePath', 'contents');
+            }
+            public function removeFile(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function removeDirectory(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function runCommand(\App\Models\Server $server, string $command, bool $sudo = false): void {}
+            public function up(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function down(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function start(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function stop(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function isRunning(\App\Models\Server $server, string $composeFile, string $projectName): bool { return false; }
+            public function isHostPortInUse(\App\Models\Server $server, int $port): bool { return false; }
+            public function waitForHttpReady(\App\Models\Server $server, string $url, int $timeoutSeconds, int $pollIntervalMs): void {}
+        };
+
+        $this->instance(DockerComposeRunner::class, $runner);
+
+        $provisioningJob = ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Queued,
+            'payload_json' => [
+                'action' => TenantAgentCustomizationApply::ACTION_REVERT,
+            ],
+        ]);
+
+        $job = new ApplyTenantAgentCustomization($tenant->id, $provisioningJob->id, TenantAgentCustomizationApply::ACTION_REVERT);
+        $job->handle(
+            app(\App\Services\TenantAgentCustomizationService::class),
+            app(\App\Services\TenantRuntimeCustomizationComposer::class),
+        );
+
+        $customization->refresh();
+
+        $this->assertSame('sk-applied-override', $customization->runtime_api_key_override);
+        $this->assertTrue(collect($runner->putFiles)->contains(
+            fn (array $upload): bool => $upload['remotePath'] === '/srv/sync360/runtime/tenants/apply-shop/.env'
+                && str_contains($upload['contents'], 'OPENAI_API_KEY=sk-applied-override')
+        ));
     }
 
     public function test_remote_apply_disables_removed_skill_in_config_without_deleting_remote_workspace_skill_folders(): void
@@ -596,8 +698,10 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
             'trial_status' => TrialStatus::Active,
             'provisioning_status' => TenantProvisioningStatus::Ready,
             'agent_status' => 'live',
+            'assigned_port' => 4100,
             'workspace_url' => 'https://apply-shop.workspace.test',
             'runtime_path' => '/srv/sync360/runtime/tenants/apply-shop',
+            'litellm_virtual_key' => 'sk-tenant-acme',
         ]);
 
         BusinessProfile::query()->create([
@@ -649,6 +753,21 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         $runtimeRoot = config('sync360.runtime_root').'/'.$tenant->slug;
         File::ensureDirectoryExists($runtimeRoot.'/config');
         File::ensureDirectoryExists($runtimeRoot.'/.openclaw/workspace');
+        File::put($runtimeRoot.'/.env', implode(PHP_EOL, [
+            'OPENCLAW_GATEWAY_TOKEN=keep-me',
+            'OPENAI_API_KEY=sk-tenant-acme',
+            'OPENAI_BASE_URL=https://litellm.stylesoftware.co.nz',
+            '',
+        ]));
+        File::put($runtimeRoot.'/compose.yaml', implode(PHP_EOL, [
+            'services:',
+            '  openclaw-gateway:',
+            '    image: ghcr.io/openclaw/openclaw:latest',
+            '    environment:',
+            '      OPENAI_API_KEY: "sk-tenant-acme"',
+            '      OPENAI_BASE_URL: "https://litellm.stylesoftware.co.nz"',
+            '',
+        ]));
         File::put($runtimeRoot.'/config/openclaw.json', json_encode([
             'agents' => [
                 'defaults' => [

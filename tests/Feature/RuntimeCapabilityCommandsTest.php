@@ -7,6 +7,7 @@ use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
 use App\Models\Server;
 use App\Models\Tenant;
+use App\Models\TenantAgentCustomization;
 use App\Models\TenantGoogleCredential;
 use App\Models\User;
 use App\Services\TenantGoogleWorkspaceSmokeTestService;
@@ -88,6 +89,51 @@ class RuntimeCapabilityCommandsTest extends TestCase
         $this->assertStringContainsString('OPENAI_API_KEY: "sk-current-db-key"', $compose);
     }
 
+    public function test_runtime_compose_regeneration_prefers_tenant_api_key_override(): void
+    {
+        config()->set('services.litellm.base_url', 'https://litellm.stylesoftware.co.nz');
+
+        $tenant = $this->seedReadyTenant();
+        $tenant->forceFill([
+            'litellm_virtual_key' => 'sk-current-db-key',
+        ])->save();
+
+        TenantAgentCustomization::query()->create([
+            'tenant_id' => $tenant->id,
+            'prompt_overrides_json' => [],
+            'agent_defaults_json' => [],
+            'runtime_api_key_override' => 'sk-tenant-override',
+            'draft_version' => 1,
+            'draft_updated_by' => $tenant->user_id,
+            'draft_updated_at' => now(),
+        ]);
+
+        $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
+        File::ensureDirectoryExists($localRuntimePath.'/config');
+        File::put($localRuntimePath.'/.env', implode(PHP_EOL, [
+            'OPENCLAW_GATEWAY_TOKEN=test-token',
+            'OPENAI_API_KEY=sk-stale-local-env-key',
+            'OPENAI_BASE_URL=https://litellm.stylesoftware.co.nz',
+            '',
+        ]));
+        File::put($localRuntimePath.'/config/openclaw.json', json_encode([
+            'gateway' => [
+                'auth' => [
+                    'mode' => 'token',
+                    'token' => 'test-token',
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+        File::put($localRuntimePath.'/compose.yaml', 'services: {}'.PHP_EOL);
+
+        app(TenantRuntimeCapabilityService::class)->syncLocalCompose($tenant->fresh(['googleCredential', 'agentCustomization']), ['gog']);
+
+        $compose = File::get($localRuntimePath.'/compose.yaml');
+
+        $this->assertStringContainsString('OPENAI_API_KEY: "sk-tenant-override"', $compose);
+        $this->assertStringNotContainsString('sk-current-db-key', $compose);
+    }
+
     public function test_runtime_compose_regeneration_fails_when_tenant_litellm_key_is_missing(): void
     {
         config()->set('services.litellm.base_url', 'https://litellm.stylesoftware.co.nz');
@@ -116,7 +162,7 @@ class RuntimeCapabilityCommandsTest extends TestCase
         File::put($localRuntimePath.'/compose.yaml', 'services: {}'.PHP_EOL);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('The tenant LiteLLM virtual key is missing, so compose regeneration cannot safely preserve runtime credentials.');
+        $this->expectExceptionMessage('The tenant runtime API key is missing, so runtime credentials cannot be regenerated safely.');
 
         app(TenantRuntimeCapabilityService::class)->syncLocalCompose($tenant->fresh(['googleCredential']), ['gog']);
     }

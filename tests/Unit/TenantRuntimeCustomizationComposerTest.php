@@ -137,6 +137,8 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
         $config = json_decode($composed->openClawConfig, true);
 
         $this->assertSame('gpt-4.1', data_get($config, 'agents.defaults.model'));
+        $this->assertSame('gpt-4.1', data_get($config, 'models.providers.openai.models.0.id'));
+        $this->assertSame('gpt-4.1', data_get($config, 'models.providers.openai.models.0.name'));
         $this->assertSame('keep-me', data_get($config, 'gateway.auth.token'));
         $this->assertTrue(data_get($config, 'hooks.enabled'));
         $this->assertNotSame('keep-me', data_get($config, 'hooks.token'));

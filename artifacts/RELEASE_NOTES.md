@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-26 — Feature: Tenant Runtime Model And API Key Overrides In Agent Runtime
+
+Date: 2026-04-26
+Status: Implemented
+
+### Overview
+
+Extended the admin Agent Runtime tab so beta and support tenants can override the runtime default model and the tenant runtime API key through the existing draft/apply workflow, without relying on fragile manual VPS edits.
+
+### What Changed
+
+- added encrypted tenant-scoped runtime API key override storage to `tenant_agent_customizations`
+- kept the existing free-text runtime model override and made it update both the default agent model and the OpenAI provider model registry in generated `openclaw.json`
+- added a masked API key override field plus explicit clear action in the admin Agent Runtime tab
+- updated runtime apply to regenerate and sync `.env`, `compose.yaml`, and `openclaw.json`, then reload the tenant runtime when the model or API key override changes
+- made provisioning and compose regeneration prefer the tenant override key when present, while continuing to inherit the platform LiteLLM base URL
+
 ## 2026-04-26 — Fix: Unify GOG Command Contracts Around README-Backed Shared Guidance
 
 Date: 2026-04-26

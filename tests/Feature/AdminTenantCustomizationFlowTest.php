@@ -104,6 +104,65 @@ class AdminTenantCustomizationFlowTest extends TestCase
         });
     }
 
+    public function test_admin_can_save_tenant_runtime_api_key_override_without_exposing_raw_secret(): void
+    {
+        [$admin, $tenant] = $this->seedAdminAndTenant();
+
+        $this->actingAs($admin);
+
+        $secret = 'sk-tenant-runtime-override';
+
+        $this->patch(route('admin.tenants.agent-customization.update', $tenant), [
+            'return_tab' => 'agent-runtime',
+            'customization_scope' => 'agent-runtime',
+            'agent_defaults' => [
+                'model' => 'claude-sonnet-4-6',
+                'api_key_override' => $secret,
+            ],
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']))
+            ->assertSessionHas('status', 'Saved tenant runtime draft. Runtime has not changed yet.');
+
+        $customization = TenantAgentCustomization::query()->firstOrFail();
+
+        $this->assertSame('claude-sonnet-4-6', data_get($customization->agent_defaults_json, 'model'));
+        $this->assertSame($secret, $customization->runtime_api_key_override);
+        $this->assertNull(data_get($customization->agent_defaults_json, 'api_key_override'));
+
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']))
+            ->assertOk()
+            ->assertSee('Saved override:')
+            ->assertSee('••••••••de')
+            ->assertDontSee($secret);
+    }
+
+    public function test_admin_can_clear_tenant_runtime_api_key_override_from_agent_runtime_scope(): void
+    {
+        [$admin, $tenant] = $this->seedAdminAndTenant();
+
+        TenantAgentCustomization::query()->create([
+            'tenant_id' => $tenant->id,
+            'prompt_overrides_json' => [],
+            'agent_defaults_json' => ['model' => 'gpt-4o'],
+            'runtime_api_key_override' => 'sk-existing-override',
+            'draft_version' => 1,
+            'draft_updated_by' => $admin->id,
+            'draft_updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin);
+
+        $this->patch(route('admin.tenants.agent-customization.update', $tenant), [
+            'return_tab' => 'agent-runtime',
+            'customization_scope' => 'agent-runtime',
+            'agent_defaults' => [
+                'model' => 'gpt-4o',
+                'clear_api_key_override' => '1',
+            ],
+        ])->assertRedirect(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'agent-runtime']));
+
+        $this->assertNull(TenantAgentCustomization::query()->firstOrFail()->runtime_api_key_override);
+    }
+
     public function test_admin_without_apply_permission_cannot_apply_or_revert(): void
     {
         Queue::fake([ApplyTenantAgentCustomization::class]);

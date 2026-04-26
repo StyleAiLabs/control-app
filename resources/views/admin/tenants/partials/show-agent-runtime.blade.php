@@ -28,6 +28,18 @@
                     Model
                     <input type="text" name="agent_defaults[model]" value="{{ $agentDefaults['model'] ?? '' }}" placeholder="gpt-4o">
                 </label>
+                <label style="margin-top: 14px;">
+                    Tenant API Key Override
+                    <input type="password" name="agent_defaults[api_key_override]" value="" placeholder="Leave blank to keep the platform-managed tenant key">
+                </label>
+                <div class="hint" style="margin-top: 8px;">Blank means use the platform-managed tenant LiteLLM key. Filling this field makes the tenant runtime use a tenant-specific key on the next Apply.</div>
+                @if ($agentCustomization?->hasRuntimeApiKeyOverride())
+                    <div class="hint" style="margin-top: 8px;">{{ $agentCustomization->maskedRuntimeApiKeyOverride() }}</div>
+                    <label class="inline" style="margin-top: 10px;">
+                        <input type="checkbox" name="agent_defaults[clear_api_key_override]" value="1">
+                        Clear saved API key override and return to the platform-managed tenant key
+                    </label>
+                @endif
             </section>
 
             <div class="sync-poc-detail-grid sync-poc-detail-grid--wide" style="margin-top: 18px;">

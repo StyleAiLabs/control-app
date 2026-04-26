@@ -99,6 +99,8 @@ Control-plane UI should be:
 
 Admin skill forms should use concrete placeholder examples that match the current catalog reference skill. Use `hello-world` for the built-in custom-skill example rather than historical `appointment-booking` copy.
 
+The admin `Agent Runtime` tab is the home for tenant-scoped runtime model and credential overrides. Runtime model remains a plain text field to match operator flexibility, while sensitive runtime API key overrides must render as an empty password input plus masked saved-state copy and an explicit clear control. Never echo a saved runtime secret back into the form value.
+
 The Skill Catalog status badge must describe publish-gated availability: imported skills without an active published version show `unavailable`, not `assignable`, even if the repo scan/import succeeded.
 
 For skill-version UX, tenant admin cards must distinguish `assigned version` from `latest published` instead of using one badge to imply both. Skill Catalog rollout screens should describe `publish`, `roll out`, and `apply` as separate transitions.

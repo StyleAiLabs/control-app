@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Contracts\DockerComposeRunner;
 use App\Enums\ProvisioningJobStatus;
 use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
@@ -33,6 +34,26 @@ class TenantAgentCustomizationApplyTest extends TestCase
             'job_type' => 'tenant_agent_customization_apply',
             'status' => ProvisioningJobStatus::Queued,
         ]);
+
+        $runner = new class implements DockerComposeRunner
+        {
+            public function syncRuntime(\App\Models\Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
+            public function syncWorkspaceFiles(\App\Models\Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void {}
+            public function httpRequest(\App\Models\Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15, array $headers = []): array { return ['status' => 200, 'body' => '']; }
+            public function putFile(\App\Models\Server $server, string $remotePath, string $contents, bool $sudo = false): void {}
+            public function removeFile(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function removeDirectory(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function runCommand(\App\Models\Server $server, string $command, bool $sudo = false): void {}
+            public function up(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function down(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function start(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function stop(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function isRunning(\App\Models\Server $server, string $composeFile, string $projectName): bool { return false; }
+            public function isHostPortInUse(\App\Models\Server $server, int $port): bool { return false; }
+            public function waitForHttpReady(\App\Models\Server $server, string $url, int $timeoutSeconds, int $pollIntervalMs): void {}
+        };
+
+        $this->instance(DockerComposeRunner::class, $runner);
 
         $this->mock(TenantRuntimeSkillActivationService::class, function ($mock) use ($tenant, $customization): void {
             $mock->shouldReceive('syncExpectedContract')
@@ -97,8 +118,10 @@ class TenantAgentCustomizationApplyTest extends TestCase
             'agent_status' => 'live',
             'trial_status' => TrialStatus::Active,
             'provisioning_status' => TenantProvisioningStatus::Ready,
+            'assigned_port' => 4100,
             'workspace_url' => 'https://apply-shop.workspace.test',
             'runtime_path' => '/srv/sync360/runtime/tenants/apply-shop',
+            'litellm_virtual_key' => 'sk-tenant-acme',
             'server_id' => 1,
             'user_id' => $owner->id,
         ]);
@@ -141,8 +164,24 @@ class TenantAgentCustomizationApplyTest extends TestCase
             'is_enabled' => true,
         ]);
 
-        File::ensureDirectoryExists(config('sync360.runtime_root').'/'.$tenant->slug.'/config');
-        File::put(config('sync360.runtime_root').'/'.$tenant->slug.'/config/openclaw.json', json_encode([
+        $runtimeRoot = config('sync360.runtime_root').'/'.$tenant->slug;
+        File::ensureDirectoryExists($runtimeRoot.'/config');
+        File::put($runtimeRoot.'/.env', implode(PHP_EOL, [
+            'OPENCLAW_GATEWAY_TOKEN=test-token',
+            'OPENAI_API_KEY=sk-tenant-acme',
+            'OPENAI_BASE_URL=https://litellm.stylesoftware.co.nz',
+            '',
+        ]));
+        File::put($runtimeRoot.'/compose.yaml', implode(PHP_EOL, [
+            'services:',
+            '  openclaw-gateway:',
+            '    image: ghcr.io/openclaw/openclaw:latest',
+            '    environment:',
+            '      OPENAI_API_KEY: "sk-tenant-acme"',
+            '      OPENAI_BASE_URL: "https://litellm.stylesoftware.co.nz"',
+            '',
+        ]));
+        File::put($runtimeRoot.'/config/openclaw.json', json_encode([
             'agents' => [
                 'defaults' => [
                     'model' => 'gpt-4o',

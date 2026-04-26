@@ -974,6 +974,8 @@ class AdminController extends Controller
             'assigned_skill_keys.*' => ['string'],
             'agent_defaults' => ['nullable', 'array'],
             'agent_defaults.model' => ['nullable', 'string'],
+            'agent_defaults.api_key_override' => ['nullable', 'string'],
+            'agent_defaults.clear_api_key_override' => ['nullable', 'boolean'],
             'agent_defaults.default_skill_ids' => ['nullable', 'array'],
             'agent_defaults.default_skill_ids.*' => ['string'],
         ])->validate();
@@ -1001,6 +1003,7 @@ class AdminController extends Controller
                 'prompt_overrides' => $existingPromptOverrides,
                 'assigned_skill_keys' => $normalized['assigned_skill_keys'],
                 'agent_defaults' => $agentDefaults,
+                'runtime_api_key_override' => $existingCustomization?->runtime_api_key_override,
             ];
         }
 
@@ -1012,14 +1015,30 @@ class AdminController extends Controller
                 $agentDefaults['model'] = $normalized['agent_defaults']['model'];
             }
 
+            $runtimeApiKeyOverride = $existingCustomization?->runtime_api_key_override;
+
+            if (($normalized['clear_runtime_api_key_override'] ?? false) === true) {
+                $runtimeApiKeyOverride = null;
+            } elseif (is_string($normalized['runtime_api_key_override'] ?? null)) {
+                $runtimeApiKeyOverride = $normalized['runtime_api_key_override'];
+            }
+
             return [
                 'prompt_overrides' => $normalized['prompt_overrides'],
                 'assigned_skill_keys' => $existingAssignedSkillKeys,
                 'agent_defaults' => $agentDefaults,
+                'runtime_api_key_override' => $runtimeApiKeyOverride,
             ];
         }
 
-        return $normalized;
+        return [
+            'prompt_overrides' => $normalized['prompt_overrides'],
+            'assigned_skill_keys' => $normalized['assigned_skill_keys'],
+            'agent_defaults' => $normalized['agent_defaults'],
+            'runtime_api_key_override' => ($normalized['clear_runtime_api_key_override'] ?? false) === true
+                ? null
+                : ($normalized['runtime_api_key_override'] ?? $existingCustomization?->runtime_api_key_override),
+        ];
     }
 
     /**
