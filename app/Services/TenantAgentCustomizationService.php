@@ -176,6 +176,7 @@ class TenantAgentCustomizationService
 
                     $runtimeChanged = $composed->contentHash !== $beforeHash;
                     $credentialsChanged = $lockedCustomization->runtime_api_key_override !== $lockedCustomization->last_applied_runtime_api_key_override;
+                    $modelChanged = $this->modelChanged($snapshot, $lockedCustomization);
                     $composeUpdate = null;
                     $envUpdate = null;
 
@@ -203,7 +204,7 @@ class TenantAgentCustomizationService
                             $this->runtimeSkillActivation->activateExpectedSkills(
                                 $tenant->fresh(['server', 'agentCustomization', 'skillAssignments.catalogVersion']),
                                 recreate: false,
-                                forceSessionRotation: (bool) $skillContractUpdate['skill_set_changed'],
+                                forceSessionRotation: (bool) ($skillContractUpdate['skill_set_changed'] || $modelChanged || $credentialsChanged),
                             );
                         }
                     }
@@ -427,5 +428,20 @@ class TenantAgentCustomizationService
             'bootstrap' => (string) $files->bootstrap_markdown,
             default => '',
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $snapshot
+     */
+    private function modelChanged(array $snapshot, TenantAgentCustomization $customization): bool
+    {
+        $currentModel = is_string(data_get($snapshot, 'agent_defaults.model'))
+            ? trim((string) data_get($snapshot, 'agent_defaults.model'))
+            : '';
+        $previousModel = is_string(data_get($customization->last_applied_input_snapshot_json, 'agent_defaults.model'))
+            ? trim((string) data_get($customization->last_applied_input_snapshot_json, 'agent_defaults.model'))
+            : '';
+
+        return $currentModel !== $previousModel;
     }
 }

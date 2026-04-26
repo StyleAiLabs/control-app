@@ -434,6 +434,103 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         ));
     }
 
+    public function test_apply_rotates_agent_sessions_when_model_override_changes_without_skill_set_change(): void
+    {
+        [$tenant, $customization] = $this->seedTenantAndCustomization();
+        config()->set('sync360.infrastructure.driver', 'ssh');
+
+        $customization->forceFill([
+            'agent_defaults_json' => [
+                'model' => 'claude-sonnet-4-6',
+            ],
+            'last_applied_input_snapshot_json' => [
+                'prompt_overrides' => [],
+                'assigned_skills' => [
+                    [
+                        'skill_key' => 'hello-world',
+                        'skill_catalog_version_id' => SkillCatalogVersion::query()->where('skill_key', 'hello-world')->value('id'),
+                        'openclaw_skill_ids' => ['hello-world'],
+                        'default_agent_skill_ids' => ['hello-world'],
+                    ],
+                ],
+                'agent_defaults' => [
+                    'model' => 'gpt-4o-mini',
+                ],
+            ],
+            'last_applied_runtime_api_key_override' => null,
+        ])->save();
+
+        $this->mock(TenantRuntimeSkillActivationService::class, function ($mock): void {
+            $mock->shouldReceive('syncExpectedContract')
+                ->once()
+                ->andReturn([
+                    'changed' => false,
+                    'skill_set_changed' => false,
+                    'contract' => [
+                        'expected_skill_ids' => ['gog', 'hello-world'],
+                    ],
+                ]);
+            $mock->shouldReceive('activateExpectedSkills')
+                ->once()
+                ->withArgs(function (Tenant $tenant, bool $recreate, bool $forceSessionRotation): bool {
+                    return $tenant->slug === 'apply-shop'
+                        && $recreate === false
+                        && $forceSessionRotation === true;
+                })
+                ->andReturn([
+                    'expected_skill_ids' => ['gog', 'hello-world'],
+                    'missing_expected_skill_ids' => [],
+                ]);
+        });
+
+        $this->mock(\App\Services\TenantSkillAnalyticsRuntimeService::class, function ($mock): void {
+            $mock->shouldReceive('initializeTenant')
+                ->once()
+                ->andReturn([
+                    'initialized' => true,
+                    'skill_count' => 1,
+                ]);
+        });
+
+        $runner = new class implements DockerComposeRunner
+        {
+            public function syncRuntime(\App\Models\Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
+            public function syncWorkspaceFiles(\App\Models\Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void {}
+            public function httpRequest(\App\Models\Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15, array $headers = []): array { return ['status' => 200, 'body' => '']; }
+            public function putFile(\App\Models\Server $server, string $remotePath, string $contents, bool $sudo = false): void {}
+            public function removeFile(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function removeDirectory(\App\Models\Server $server, string $remotePath, bool $sudo = false): void {}
+            public function runCommand(\App\Models\Server $server, string $command, bool $sudo = false): void {}
+            public function up(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function down(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function start(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function stop(\App\Models\Server $server, string $composeFile, string $projectName): void {}
+            public function isRunning(\App\Models\Server $server, string $composeFile, string $projectName): bool { return false; }
+            public function isHostPortInUse(\App\Models\Server $server, int $port): bool { return false; }
+            public function waitForHttpReady(\App\Models\Server $server, string $url, int $timeoutSeconds, int $pollIntervalMs): void {}
+        };
+
+        $this->instance(DockerComposeRunner::class, $runner);
+
+        $provisioningJob = ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Queued,
+            'payload_json' => [
+                'action' => TenantAgentCustomizationApply::ACTION_APPLY,
+            ],
+        ]);
+
+        $job = new ApplyTenantAgentCustomization($tenant->id, $provisioningJob->id, TenantAgentCustomizationApply::ACTION_APPLY);
+        $job->handle(
+            app(\App\Services\TenantAgentCustomizationService::class),
+            app(\App\Services\TenantRuntimeCustomizationComposer::class),
+            app(\App\Services\TenantSkillRolloutWorkspaceResyncService::class),
+        );
+
+        $this->assertSame(ProvisioningJobStatus::Completed, $provisioningJob->fresh()->status);
+    }
+
     public function test_successful_live_skill_rollout_apply_queues_follow_up_workspace_resync(): void
     {
         Queue::fake([ResyncLiveTenantWorkspaceAfterSkillRollout::class]);

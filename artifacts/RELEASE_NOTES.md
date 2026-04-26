@@ -2432,6 +2432,21 @@ Verification:
 - `php artisan test tests/Feature/TenantSkillRuntimeLayoutTest.php`
 - `php artisan test tests/Feature/ResyncLiveTenantWorkspaceAfterSkillRolloutJobTest.php`
 
+## 2026-04-27 - Runtime Override Session Rotation Fix
+
+Date: 2026-04-27
+Branch: `codex/control-app-prod-deploy`
+
+Summary:
+- Fixed stale OpenClaw session state so tenant model/API-key override changes take effect in live runtime behavior
+
+Notable changes:
+- Updated [`app/Services/TenantAgentCustomizationService.php`](/Users/gayanhewage/Projects/openclaw-saas/app/Services/TenantAgentCustomizationService.php) so tenant apply forces OpenClaw agent session rotation when the runtime model changes or the runtime API key override changes, even if the assigned skill set is unchanged
+- Added regression coverage in [`tests/Feature/ApplyTenantAgentCustomizationJobTest.php`](/Users/gayanhewage/Projects/openclaw-saas/tests/Feature/ApplyTenantAgentCustomizationJobTest.php) for model-only override changes
+
+Verification:
+- `php artisan test tests/Feature/ApplyTenantAgentCustomizationJobTest.php`
+
 ## 2026-04-11 - Sync360 Control App MVP
 
 Date: 2026-04-11
