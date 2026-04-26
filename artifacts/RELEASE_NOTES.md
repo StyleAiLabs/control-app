@@ -2413,6 +2413,25 @@ Verification:
 - Automated tests passed
 - Remote client VPS bootstrap and tenant provisioning were validated successfully
 
+## 2026-04-27 - Rollout Auto-Resync Recovery Hardening
+
+Date: 2026-04-27
+Branch: `cdx-hotfix/harden-auto-resync`
+
+Summary:
+- Hardened skill rollout workspace auto-resync so missed follow-up jobs can be recovered automatically
+
+Notable changes:
+- Added [`app/Services/TenantSkillRolloutWorkspaceResyncService`](/Users/gayanhewage/Projects/openclaw-saas/app/Services/TenantSkillRolloutWorkspaceResyncService.php) to centralize rollout auto-resync eligibility and job creation
+- Updated [`app/Jobs/ApplyTenantAgentCustomization.php`](/Users/gayanhewage/Projects/openclaw-saas/app/Jobs/ApplyTenantAgentCustomization.php) to use the shared service for the normal follow-up path
+- Added scheduled backfill command [`sync360:recover-missing-rollout-resyncs`](/Users/gayanhewage/Projects/openclaw-saas/routes/console.php) to recover completed rollout apply jobs that missed their resync row
+- Added regression coverage in [`tests/Feature/ApplyTenantAgentCustomizationJobTest.php`](/Users/gayanhewage/Projects/openclaw-saas/tests/Feature/ApplyTenantAgentCustomizationJobTest.php) and refreshed runtime-layout fixtures in [`tests/Feature/TenantSkillRuntimeLayoutTest.php`](/Users/gayanhewage/Projects/openclaw-saas/tests/Feature/TenantSkillRuntimeLayoutTest.php)
+
+Verification:
+- `php artisan test tests/Feature/ApplyTenantAgentCustomizationJobTest.php`
+- `php artisan test tests/Feature/TenantSkillRuntimeLayoutTest.php`
+- `php artisan test tests/Feature/ResyncLiveTenantWorkspaceAfterSkillRolloutJobTest.php`
+
 ## 2026-04-11 - Sync360 Control App MVP
 
 Date: 2026-04-11

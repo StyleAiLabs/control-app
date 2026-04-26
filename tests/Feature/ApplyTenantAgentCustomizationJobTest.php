@@ -51,6 +51,22 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
     public function test_apply_job_writes_runtime_artifacts_updates_hash_and_records_audit_row(): void
     {
         [$tenant, $customization] = $this->seedTenantAndCustomization();
+        config()->set('sync360.infrastructure.driver', 'ssh');
+        $analyticsDb = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/data/analytics/skill-events.sqlite';
+
+        $this->mock(\App\Services\TenantSkillAnalyticsRuntimeService::class, function ($mock) use ($analyticsDb): void {
+            $mock->shouldReceive('initializeTenant')
+                ->once()
+                ->andReturnUsing(function () use ($analyticsDb): array {
+                    File::ensureDirectoryExists(dirname($analyticsDb));
+                    File::put($analyticsDb, '');
+
+                    return [
+                        'initialized' => true,
+                        'skill_count' => 1,
+                    ];
+                });
+        });
 
         $runner = new class implements DockerComposeRunner
         {
@@ -104,6 +120,7 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         $job->handle(
             app(\App\Services\TenantAgentCustomizationService::class),
             app(\App\Services\TenantRuntimeCustomizationComposer::class),
+            app(\App\Services\TenantSkillRolloutWorkspaceResyncService::class),
         );
 
         $customization->refresh();
@@ -111,7 +128,6 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
 
         $skillPackFile = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skills/hello-world/SKILL.md';
         $identityFile = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/IDENTITY.md';
-        $analyticsDb = config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/data/analytics/skill-events.sqlite';
 
         $this->assertFileExists($skillPackFile);
         $this->assertFileExists($identityFile);
@@ -190,6 +206,7 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         $job->handle(
             app(\App\Services\TenantAgentCustomizationService::class),
             app(\App\Services\TenantRuntimeCustomizationComposer::class),
+            app(\App\Services\TenantSkillRolloutWorkspaceResyncService::class),
         );
 
         $customization->refresh();
@@ -264,6 +281,7 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         $job->handle(
             app(\App\Services\TenantAgentCustomizationService::class),
             app(\App\Services\TenantRuntimeCustomizationComposer::class),
+            app(\App\Services\TenantSkillRolloutWorkspaceResyncService::class),
         );
 
         $customization->refresh();
@@ -349,6 +367,7 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         $job->handle(
             app(\App\Services\TenantAgentCustomizationService::class),
             app(\App\Services\TenantRuntimeCustomizationComposer::class),
+            app(\App\Services\TenantSkillRolloutWorkspaceResyncService::class),
         );
 
         $configUpload = collect($runner->putFiles)
@@ -405,6 +424,7 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         $job->handle(
             app(\App\Services\TenantAgentCustomizationService::class),
             app(\App\Services\TenantRuntimeCustomizationComposer::class),
+            app(\App\Services\TenantSkillRolloutWorkspaceResyncService::class),
         );
 
         $this->assertTrue(collect($runner->commands)->contains(
@@ -458,6 +478,7 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         $job->handle(
             app(\App\Services\TenantAgentCustomizationService::class),
             app(\App\Services\TenantRuntimeCustomizationComposer::class),
+            app(\App\Services\TenantSkillRolloutWorkspaceResyncService::class),
         );
 
         Queue::assertPushed(ResyncLiveTenantWorkspaceAfterSkillRollout::class, function (ResyncLiveTenantWorkspaceAfterSkillRollout $job) use ($tenant, $version): bool {
@@ -465,6 +486,49 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
                 && $job->skillKey === 'hello-world'
                 && $job->skillCatalogVersionId === $version->id
                 && $job->sourceProvisioningJobId > 0;
+        });
+    }
+
+    public function test_recovery_command_backfills_missing_rollout_workspace_resync_jobs(): void
+    {
+        Queue::fake([ResyncLiveTenantWorkspaceAfterSkillRollout::class]);
+
+        [$tenant] = $this->seedTenantAndCustomization();
+        $version = SkillCatalogVersion::query()->where('skill_key', 'hello-world')->firstOrFail();
+        $applyJob = ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Completed,
+            'started_at' => now()->subMinute(),
+            'completed_at' => now()->subSeconds(30),
+            'payload_json' => [
+                'action' => TenantAgentCustomizationApply::ACTION_APPLY,
+                'source' => 'skill_rollout',
+                'skill_key' => 'hello-world',
+                'skill_catalog_version_id' => $version->id,
+            ],
+        ]);
+
+        Artisan::call('sync360:recover-missing-rollout-resyncs', [
+            '--limit' => 10,
+        ]);
+
+        $resyncJob = ProvisioningJob::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('job_type', ResyncLiveTenantWorkspaceAfterSkillRollout::JOB_TYPE)
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($resyncJob);
+        $this->assertSame(ProvisioningJobStatus::Queued, $resyncJob->status);
+        $this->assertSame('skill_rollout_auto_resync', data_get($resyncJob->payload_json, 'source'));
+        $this->assertSame($applyJob->id, data_get($resyncJob->payload_json, 'source_provisioning_job_id'));
+
+        Queue::assertPushed(ResyncLiveTenantWorkspaceAfterSkillRollout::class, function (ResyncLiveTenantWorkspaceAfterSkillRollout $job) use ($tenant, $version, $applyJob): bool {
+            return $job->tenantId === $tenant->id
+                && $job->skillKey === 'hello-world'
+                && $job->skillCatalogVersionId === $version->id
+                && $job->sourceProvisioningJobId === $applyJob->id;
         });
     }
 
@@ -512,6 +576,7 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         $job->handle(
             app(\App\Services\TenantAgentCustomizationService::class),
             app(\App\Services\TenantRuntimeCustomizationComposer::class),
+            app(\App\Services\TenantSkillRolloutWorkspaceResyncService::class),
         );
 
         Queue::assertNothingPushed();
@@ -565,6 +630,7 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         $job->handle(
             app(\App\Services\TenantAgentCustomizationService::class),
             app(\App\Services\TenantRuntimeCustomizationComposer::class),
+            app(\App\Services\TenantSkillRolloutWorkspaceResyncService::class),
         );
 
         Queue::assertNothingPushed();
@@ -620,6 +686,7 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         $job->handle(
             app(\App\Services\TenantAgentCustomizationService::class),
             app(\App\Services\TenantRuntimeCustomizationComposer::class),
+            app(\App\Services\TenantSkillRolloutWorkspaceResyncService::class),
         );
 
         Queue::assertNothingPushed();
@@ -669,6 +736,7 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
             $job->handle(
                 app(\App\Services\TenantAgentCustomizationService::class),
                 app(\App\Services\TenantRuntimeCustomizationComposer::class),
+                app(\App\Services\TenantSkillRolloutWorkspaceResyncService::class),
             );
             $this->fail('Expected analytics initialization failure.');
         } catch (\RuntimeException $exception) {

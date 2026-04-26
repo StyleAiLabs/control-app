@@ -15,6 +15,7 @@ use App\Services\TenantInboxTriagePollingService;
 use App\Services\TenantOnboardingSkillService;
 use App\Services\TenantRuntimeCapabilityService;
 use App\Services\TenantProfileSyncService;
+use App\Services\TenantSkillRolloutWorkspaceResyncService;
 use App\Services\TenantGoogleWorkspaceSmokeTestService;
 use App\Services\TenantWorkspaceDependencyMonitorService;
 use App\Services\TrialNotificationEmailService;
@@ -55,6 +56,24 @@ Artisan::command('sync360:system-health-heartbeat', function () {
 })->purpose('Record scheduler heartbeat and dispatch queue-worker heartbeat probe');
 
 Schedule::command('sync360:system-health-heartbeat')->everyMinute();
+
+Artisan::command('sync360:recover-missing-rollout-resyncs {--limit=100 : Maximum completed rollout apply jobs to inspect}', function () {
+    $recovered = app(TenantSkillRolloutWorkspaceResyncService::class)
+        ->recoverMissingFollowUps((int) $this->option('limit'));
+
+    $this->components->info(sprintf(
+        'Recovered %d missing rollout workspace resync job(s).',
+        $recovered,
+    ));
+})->purpose('Backfill missing live workspace resync jobs after skill rollouts');
+
+$trackScheduledCommand(
+    Schedule::command('sync360:recover-missing-rollout-resyncs --limit=100')
+        ->everyMinute()
+        ->withoutOverlapping(),
+    'rollout-resync-recovery',
+    'Recover missing rollout workspace resync jobs',
+);
 
 Artisan::command('sync360:bootstrap-client-vps {serverSelector? : Server id or name to prepare}', function (?string $serverSelector = null) {
     if (config('sync360.infrastructure.driver') !== 'ssh') {

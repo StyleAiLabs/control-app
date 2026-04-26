@@ -14,6 +14,7 @@ use App\Models\Tenant;
 use App\Models\TenantAgentCustomization;
 use App\Models\TenantAgentCustomizationApply;
 use App\Models\User;
+use App\Services\TenantRuntimeSkillActivationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Tests\TestCase;
@@ -25,6 +26,21 @@ class TenantSkillRuntimeLayoutTest extends TestCase
     public function test_apply_moves_live_skill_assets_to_workspace_skills_root_and_cleans_legacy_skill_packs_directory(): void
     {
         $this->artisan('sync360:skills:import')->assertExitCode(0);
+        config()->set('sync360.infrastructure.driver', 'ssh');
+        $this->mock(TenantRuntimeSkillActivationService::class, function ($mock): void {
+            $mock->shouldReceive('syncExpectedContract')
+                ->andReturn([
+                    'changed' => false,
+                    'skill_set_changed' => false,
+                    'contract' => [
+                        'expected_skill_ids' => ['gog', 'hello-world'],
+                    ],
+                ]);
+            $mock->shouldReceive('activateExpectedSkills')->andReturn([
+                'expected_skill_ids' => ['gog', 'hello-world'],
+                'missing_expected_skill_ids' => [],
+            ]);
+        });
 
         [$tenant, $customization] = $this->seedTenantAndCustomization();
 
@@ -77,6 +93,7 @@ class TenantSkillRuntimeLayoutTest extends TestCase
         $job->handle(
             app(\App\Services\TenantAgentCustomizationService::class),
             app(\App\Services\TenantRuntimeCustomizationComposer::class),
+            app(\App\Services\TenantSkillRolloutWorkspaceResyncService::class),
         );
 
         $this->assertFileDoesNotExist(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace/skill-packs/hello-world/STALE.md');
@@ -108,8 +125,10 @@ class TenantSkillRuntimeLayoutTest extends TestCase
             'trial_status' => TrialStatus::Active,
             'provisioning_status' => TenantProvisioningStatus::Ready,
             'agent_status' => 'live',
+            'assigned_port' => 4101,
             'workspace_url' => 'https://layout-shop.workspace.test',
             'runtime_path' => '/srv/sync360/runtime/tenants/layout-shop',
+            'litellm_virtual_key' => 'sk-layout-acme',
         ]);
 
         BusinessProfile::query()->create([
@@ -140,6 +159,20 @@ class TenantSkillRuntimeLayoutTest extends TestCase
 
         File::ensureDirectoryExists(config('sync360.runtime_root').'/'.$tenant->slug.'/config');
         File::ensureDirectoryExists(config('sync360.runtime_root').'/'.$tenant->slug.'/.openclaw/workspace');
+        File::put(config('sync360.runtime_root').'/'.$tenant->slug.'/.env', implode(PHP_EOL, [
+            'OPENCLAW_GATEWAY_TOKEN=keep-me',
+            'OPENAI_API_KEY=sk-layout-acme',
+            'OPENAI_BASE_URL=https://litellm.layout.test',
+            '',
+        ]));
+        File::put(config('sync360.runtime_root').'/'.$tenant->slug.'/compose.yaml', implode(PHP_EOL, [
+            'services:',
+            '  openclaw-gateway:',
+            '    image: ghcr.io/openclaw/openclaw:latest',
+            '    environment:',
+            '      OPENAI_API_KEY: "sk-layout-acme"',
+            '',
+        ]));
         File::put(config('sync360.runtime_root').'/'.$tenant->slug.'/config/openclaw.json', json_encode([
             'agents' => [
                 'defaults' => [

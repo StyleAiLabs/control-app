@@ -1097,6 +1097,7 @@ Notable current additions:
 - Dependency-health evaluation now treats Google and inbox state as one in-request computation. Inbox health must consume the freshly computed Google health result, not the last persisted Google `health_status`, so reconnect recovery is reflected immediately on customer/admin screens instead of waiting for the next hourly monitor write-back.
 - Published skill rollout now has a fourth execution stage for live workspace-managed tenants: `publish -> rollout assignment update -> apply -> auto-resync`. The post-apply stage is implemented by `ResyncLiveTenantWorkspaceAfterSkillRollout`, which creates its own `ProvisioningJob` row, then calls `TenantProfileSyncService::regenerateAndSyncWorkspaceOnly()` so tenant workspace files are regenerated and synced without using `syncRuntime()` or full reprovisioning.
 - Auto-resync is gated by rollout intent and skill runtime type. The apply job inspects the rollout payload and only queues follow-up resync when `payload_json.source = skill_rollout`, the tenant is already live, and the assigned `SkillCatalogVersion.manifest_json.runtime_type` is `sync360_workspace`.
+- Rollout workspace auto-resync now has a recovery path. `TenantSkillRolloutWorkspaceResyncService` owns the follow-up eligibility check for live `sync360_workspace` skills, `ApplyTenantAgentCustomization` reuses it for the normal happy path, and the scheduled `sync360:recover-missing-rollout-resyncs` command backfills any completed rollout apply jobs that never produced their follow-up resync job row.
 - In remote/SSH mode, analytics import reads the tenant DB from inside the running tenant container with `docker exec` plus Node SQLite. It no longer requires the client VPS host to have a `sqlite3` binary installed.
 - Analytics sync is failure-isolated per tenant: one broken tenant transport should be logged into that tenant's sync-state record and must not prevent other tenants from importing successfully in the same scheduler run.
 - Inbox Triage proactive monitoring is implemented as a Sync360-owned polling trigger, not OpenClaw `hooks.gmail` / Gmail Pub/Sub. It still uses OpenClaw's generic private `/hooks/agent` HTTP ingress to wake the tenant agent; missing Telegram destination context does not block event delivery, and the skill receives `telegram_default_chat_id: null` before deciding the next action.
@@ -1139,6 +1140,7 @@ Start with these files:
 - `app/Services/TenantRuntimeSkillDiscoveryService.php`
 - `app/Services/TenantAgentSyncService.php`
 - `app/Jobs/ResyncLiveTenantWorkspaceAfterSkillRollout.php`
+- `app/Services/TenantSkillRolloutWorkspaceResyncService.php`
 - `app/Services/TenantGatewayService.php`
 - `app/Services/TenantHealthCheckService.php`
 - `app/Services/TenantWorkspaceDependencyHealthService.php`
