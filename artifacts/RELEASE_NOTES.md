@@ -7,24 +7,6 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
-## 2026-04-27 — Feature: Add WeasyPrint As A Host-Managed Runtime Capability
-
-Date: 2026-04-27
-Status: Implemented
-
-### Overview
-
-Added `weasyprint` as a second host-managed runtime capability so Sync360 can expose a verified HTML-to-PDF rendering CLI into tenant runtimes ahead of the future workspace-managed PDF-generation skill.
-
-### What Changed
-
-- added a new `weasyprint` runtime capability definition in `config/sync360.php`
-- extended runtime-capability installs beyond `binary_download` so Sync360 now supports a `python_venv` strategy for pinned Python CLI dependencies
-- defined WeasyPrint host installation under `/opt/sync360/weasyprint/venv`, mounted that directory read-only into tenant containers, and injected `WEASYPRINT_BIN=/opt/sync360/weasyprint/venv/bin/weasyprint`
-- required Debian/Ubuntu system packages for WeasyPrint during VPS bootstrap/runtime-capability repair
-- added host/container verification rules that require both `weasyprint --info` on the VPS host and `"$WEASYPRINT_BIN" --info` inside the tenant container
-- expanded runtime-capability coverage so bootstrap output, compose rendering, targeted repair, and unit install behavior all cover WeasyPrint as a first-class capability
-
 ## 2026-04-26 — Improvement: External Skill Starter Pack And Dev-Agent Handoff Checklist
 
 Date: 2026-04-26

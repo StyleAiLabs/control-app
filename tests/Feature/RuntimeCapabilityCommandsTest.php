@@ -197,15 +197,11 @@ class RuntimeCapabilityCommandsTest extends TestCase
         $runtimeCapabilities = Mockery::mock(TenantRuntimeCapabilityService::class);
         $runtimeCapabilities->shouldReceive('ensureInstalledOnServer')
             ->once()
-            ->andReturn([
-                'gog' => 'installed',
-                'weasyprint' => 'installed',
-            ]);
+            ->andReturn(['gog' => 'installed']);
         $this->instance(TenantRuntimeCapabilityService::class, $runtimeCapabilities);
 
         $this->artisan('sync360:bootstrap-client-vps')
             ->expectsOutputToContain('Runtime capability [gog]')
-            ->expectsOutputToContain('Runtime capability [weasyprint]')
             ->expectsOutputToContain('Client VPS bootstrap completed successfully.')
             ->assertExitCode(0);
     }
@@ -460,75 +456,6 @@ class RuntimeCapabilityCommandsTest extends TestCase
 
         $this->assertSame(TenantGoogleCredential::RUNTIME_SYNC_FAILED, $credential?->runtime_sync_status);
         $this->assertSame('gmail-cli failed: Gmail CLI failed: missing required query argument.', $credential?->last_error);
-    }
-
-    public function test_sync_runtime_capabilities_command_repairs_targeted_tenant_for_weasyprint(): void
-    {
-        config()->set('sync360.infrastructure.driver', 'ssh');
-
-        $tenant = $this->seedReadyTenant();
-
-        $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
-        File::ensureDirectoryExists($localRuntimePath.'/config');
-        File::put($localRuntimePath.'/.env', implode(PHP_EOL, [
-            'OPENCLAW_GATEWAY_TOKEN=test-token',
-            'OPENAI_API_KEY=sk-tenant-acme',
-            'OPENAI_BASE_URL=https://litellm.stylesoftware.co.nz',
-            '',
-        ]));
-        File::put($localRuntimePath.'/config/openclaw.json', json_encode([
-            'agents' => [
-                'defaults' => [
-                    'model' => 'gpt-4o',
-                ],
-            ],
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
-        File::put($localRuntimePath.'/compose.yaml', "services: {}\n");
-
-        $runnerSpy = new class implements DockerComposeRunner
-        {
-            /** @var list<string> */
-            public array $commands = [];
-
-            /** @var array<int, array<string, string>> */
-            public array $putFiles = [];
-
-            public function syncRuntime(Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
-            public function syncWorkspaceFiles(Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void {}
-            public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15, array $headers = []): array { return ['status' => 200, 'body' => '']; }
-            public function putFile(Server $server, string $remotePath, string $contents, bool $sudo = false): void
-            {
-                $this->putFiles[] = ['path' => $remotePath, 'contents' => $contents];
-            }
-            public function removeFile(Server $server, string $remotePath, bool $sudo = false): void {}
-            public function removeDirectory(Server $server, string $remotePath, bool $sudo = false): void {}
-            public function runCommand(Server $server, string $command, bool $sudo = false): void
-            {
-                $this->commands[] = $command;
-            }
-            public function up(Server $server, string $composeFile, string $projectName): void {}
-            public function down(Server $server, string $composeFile, string $projectName): void {}
-            public function start(Server $server, string $composeFile, string $projectName): void {}
-            public function stop(Server $server, string $composeFile, string $projectName): void {}
-            public function isRunning(Server $server, string $composeFile, string $projectName): bool { return false; }
-            public function isHostPortInUse(Server $server, int $port): bool { return false; }
-            public function waitForHttpReady(Server $server, string $url, int $timeoutSeconds, int $pollIntervalMs): void {}
-        };
-
-        $this->instance(DockerComposeRunner::class, $runnerSpy);
-
-        $this->artisan('sync360:sync-runtime-capabilities '.$tenant->slug.' weasyprint')
-            ->expectsOutputToContain('Runtime capability sync finished. Completed: 1. Failed: 0.')
-            ->assertExitCode(0);
-
-        $compose = File::get($localRuntimePath.'/compose.yaml');
-
-        $this->assertStringContainsString('source: "/opt/sync360/weasyprint"', $compose);
-        $this->assertStringContainsString('target: "/opt/sync360/weasyprint"', $compose);
-        $this->assertStringContainsString('WEASYPRINT_BIN: "/opt/sync360/weasyprint/venv/bin/weasyprint"', $compose);
-        $this->assertNotEmpty($runnerSpy->putFiles);
-        $this->assertTrue(collect($runnerSpy->putFiles)->contains(fn (array $file): bool => $file['path'] === '/srv/sync360/runtime/tenants/acme-plumbing/compose.yaml'));
-        $this->assertTrue(collect($runnerSpy->commands)->contains(fn (string $command): bool => str_contains($command, 'docker exec') && str_contains($command, 'WEASYPRINT_BIN') && str_contains($command, '--info')));
     }
 
     public function test_google_workspace_smoke_command_reports_cli_suite_stages(): void

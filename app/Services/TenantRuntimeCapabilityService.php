@@ -14,9 +14,6 @@ use Throwable;
 
 class TenantRuntimeCapabilityService
 {
-    private const INSTALL_STRATEGY_BINARY_DOWNLOAD = 'binary_download';
-    private const INSTALL_STRATEGY_PYTHON_VENV = 'python_venv';
-
     public function __construct(
         private readonly Filesystem $files,
         private readonly TenantRuntimeService $runtime,
@@ -580,21 +577,15 @@ class TenantRuntimeCapabilityService
      */
     private function ensureHostInstallPrerequisites(Server $server, array $definition): void
     {
-        $strategy = (string) ($definition['install_strategy'] ?? 'unknown');
+        if (($definition['install_strategy'] ?? null) !== 'binary_download') {
+            throw new RuntimeException(sprintf('Unsupported install strategy [%s].', (string) ($definition['install_strategy'] ?? 'unknown')));
+        }
 
-        match ($strategy) {
-            self::INSTALL_STRATEGY_BINARY_DOWNLOAD => $this->dockerCompose->runCommand(
-                $server,
-                'command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1 || (apt-get update && apt-get install -y curl tar)',
-                sudo: true,
-            ),
-            self::INSTALL_STRATEGY_PYTHON_VENV => $this->dockerCompose->runCommand(
-                $server,
-                $this->aptInstallCommand($definition['system_packages'] ?? []),
-                sudo: true,
-            ),
-            default => throw new RuntimeException(sprintf('Unsupported install strategy [%s].', $strategy)),
-        };
+        $this->dockerCompose->runCommand(
+            $server,
+            'command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1 || (apt-get update && apt-get install -y curl tar)',
+            sudo: true,
+        );
     }
 
     /**
@@ -602,13 +593,23 @@ class TenantRuntimeCapabilityService
      */
     private function installCommand(array $definition): string
     {
-        $strategy = (string) ($definition['install_strategy'] ?? 'unknown');
+        $downloadUrl = (string) ($definition['download_url'] ?? '');
+        $sha256 = (string) ($definition['sha256'] ?? '');
+        $archiveBinaryPath = (string) ($definition['archive_binary_path'] ?? '');
+        $installPath = (string) ($definition['host_install_path'] ?? '');
 
-        return match ($strategy) {
-            self::INSTALL_STRATEGY_BINARY_DOWNLOAD => $this->binaryDownloadInstallCommand($definition),
-            self::INSTALL_STRATEGY_PYTHON_VENV => $this->pythonVenvInstallCommand($definition),
-            default => throw new RuntimeException(sprintf('Unsupported install strategy [%s].', $strategy)),
-        };
+        if ($downloadUrl === '' || $sha256 === '' || $archiveBinaryPath === '' || $installPath === '') {
+            throw new RuntimeException('Runtime capability install metadata is incomplete.');
+        }
+
+        return sprintf(
+            'set -eu; tmpdir=$(mktemp -d); trap %s EXIT; archive="$tmpdir/capability.tar.gz"; curl -fsSL %s -o "$archive"; printf "%%s  %%s\n" %s "$archive" | sha256sum -c - >/dev/null; tar -xzf "$archive" -C "$tmpdir"; install -m 0755 "$tmpdir"/%s %s',
+            escapeshellarg('rm -rf "$tmpdir"'),
+            escapeshellarg($downloadUrl),
+            escapeshellarg($sha256),
+            escapeshellarg($archiveBinaryPath),
+            escapeshellarg($installPath),
+        );
     }
 
     /**
@@ -682,80 +683,12 @@ class TenantRuntimeCapabilityService
     private function interpolateCommand(string $command, array $definition): string
     {
         return str_replace(
-            ['{{path}}', '{{version}}', '{{host_root}}', '{{venv_path}}', '{{python_package}}'],
+            ['{{path}}', '{{version}}'],
             [
                 escapeshellarg((string) ($definition['host_install_path'] ?? '')),
                 escapeshellarg((string) ($definition['version'] ?? '')),
-                escapeshellarg((string) ($definition['host_root'] ?? '')),
-                escapeshellarg((string) ($definition['venv_path'] ?? '')),
-                escapeshellarg((string) ($definition['python_package'] ?? '')),
             ],
             $command,
-        );
-    }
-
-    /**
-     * @param  mixed  $packages
-     */
-    private function aptInstallCommand(mixed $packages): string
-    {
-        $packageList = array_values(array_unique(array_filter(array_map(
-            static fn (mixed $package): ?string => is_string($package) && trim($package) !== '' ? trim($package) : null,
-            is_array($packages) ? $packages : [],
-        ))));
-
-        if ($packageList === []) {
-            throw new RuntimeException('Runtime capability install metadata is incomplete.');
-        }
-
-        return sprintf(
-            'apt-get update && apt-get install -y %s',
-            implode(' ', array_map(static fn (string $package): string => escapeshellarg($package), $packageList)),
-        );
-    }
-
-    /**
-     * @param  array<string, mixed>  $definition
-     */
-    private function binaryDownloadInstallCommand(array $definition): string
-    {
-        $downloadUrl = (string) ($definition['download_url'] ?? '');
-        $sha256 = (string) ($definition['sha256'] ?? '');
-        $archiveBinaryPath = (string) ($definition['archive_binary_path'] ?? '');
-        $installPath = (string) ($definition['host_install_path'] ?? '');
-
-        if ($downloadUrl === '' || $sha256 === '' || $archiveBinaryPath === '' || $installPath === '') {
-            throw new RuntimeException('Runtime capability install metadata is incomplete.');
-        }
-
-        return sprintf(
-            'set -eu; tmpdir=$(mktemp -d); trap %s EXIT; archive="$tmpdir/capability.tar.gz"; curl -fsSL %s -o "$archive"; printf "%%s  %%s\n" %s "$archive" | sha256sum -c - >/dev/null; tar -xzf "$archive" -C "$tmpdir"; install -m 0755 "$tmpdir"/%s %s',
-            escapeshellarg('rm -rf "$tmpdir"'),
-            escapeshellarg($downloadUrl),
-            escapeshellarg($sha256),
-            escapeshellarg($archiveBinaryPath),
-            escapeshellarg($installPath),
-        );
-    }
-
-    /**
-     * @param  array<string, mixed>  $definition
-     */
-    private function pythonVenvInstallCommand(array $definition): string
-    {
-        $hostRoot = (string) ($definition['host_root'] ?? '');
-        $venvPath = (string) ($definition['venv_path'] ?? '');
-        $pythonPackage = (string) ($definition['python_package'] ?? '');
-
-        if ($hostRoot === '' || $venvPath === '' || $pythonPackage === '') {
-            throw new RuntimeException('Runtime capability install metadata is incomplete.');
-        }
-
-        return sprintf(
-            'set -eu; root=%1$s; venv=%2$s; package=%3$s; mkdir -p "$root"; if [ ! -x "$venv/bin/python3" ]; then python3 -m venv "$venv"; fi; "$venv/bin/pip" install --upgrade pip setuptools wheel; "$venv/bin/pip" install --upgrade "$package"',
-            escapeshellarg($hostRoot),
-            escapeshellarg($venvPath),
-            escapeshellarg($pythonPackage),
         );
     }
 
