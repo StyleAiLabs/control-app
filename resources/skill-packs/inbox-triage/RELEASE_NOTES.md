@@ -1,5 +1,10 @@
 # Inbox Triage — Release Notes
 
+## 1.6.3
+- corrected the Gmail direct-reply contract to use the smallest proven `gog gmail send --reply-to-message-id ... --subject ... --body ...` shape without `--thread-id`
+- aligned the skill's Gmail, Drive, and Sheets command instructions to the shared Sync360 GOG contract layer derived from the upstream `gogcli` README
+- clarified that future `gog` command updates should be made in the shared contract layer first and then propagated through generated tenant guidance and skill text
+
 ## 1.6.2
 - tightened the basic-enquiry reply copy rules so Gmail auto-replies follow the tenant tone chosen during onboarding
 - required plain-text single-paragraph reply bodies by default, forbade literal escape sequences such as `\n`, `\r`, and `\t`, and discouraged decorative special characters or markdown in customer-facing replies

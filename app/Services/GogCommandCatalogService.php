@@ -11,6 +11,61 @@ class GogCommandCatalogService
     /**
      * @return array<string, mixed>
      */
+    public function commandContracts(): array
+    {
+        return [
+            'gmail' => [
+                'search' => [
+                    'shape' => 'gog --json gmail search "in:inbox newer_than:30d" --max 5',
+                    'note' => 'Use Gmail search to inspect recent inbox state. Sync360 inbox polling owns de-dupe and delivery.',
+                ],
+                'get' => [
+                    'shape' => 'gog gmail get <gmail_message_id>',
+                    'note' => 'Use the exact Gmail message id when reopening a lead or triage event.',
+                ],
+                'direct_reply' => [
+                    'shape' => 'gog gmail send --reply-to-message-id <gmail_message_id> --subject "<subject>" --body "<plain-text-body>"',
+                    'allowed_optional_flags' => ['--reply-all', '--quote'],
+                    'forbidden_combinations' => ['Do not combine `--reply-to-message-id` with `--thread-id` in the standard Inbox Triage reply flow.'],
+                    'note' => 'The upstream README shows broader compose examples, but Sync360 uses the smallest proven direct-reply shape first.',
+                ],
+                'draft_reply' => [
+                    'shape' => 'gog gmail drafts create --reply-to-message-id <gmail_message_id> --subject "<subject>" --body "<plain-text-body>"',
+                    'allowed_optional_flags' => ['--quote'],
+                    'note' => 'Use draft-only flow only when the owner explicitly asks for a draft.',
+                ],
+            ],
+            'drive' => [
+                'search' => [
+                    'shape' => 'gog drive search "<query>" --max 10',
+                    'note' => 'Use direct search or `gog --json drive ls --max 10` for lightweight Drive lookup.',
+                ],
+                'upload' => [
+                    'shape' => 'gog drive upload <localPath>',
+                    'forbidden_flags' => ['--share', '--parent', '--replace', '--name', '--json'],
+                    'note' => 'Use the plain upload shape unless a shared contract explicitly requires something broader.',
+                ],
+            ],
+            'sheets' => [
+                'metadata' => [
+                    'shape' => 'gog sheets metadata <spreadsheetId>',
+                ],
+                'get' => [
+                    'shape' => "gog sheets get <spreadsheetId> 'Qualified Leads!A:L'",
+                ],
+                'update' => [
+                    'shape' => "gog sheets update <spreadsheetId> 'Qualified Leads!A1:L1' '<header-pipe-row>'",
+                ],
+                'append' => [
+                    'shape' => "gog sheets append <spreadsheetId> 'Qualified Leads!A:L' '<pipe-delimited-row>'",
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function definition(): array
     {
         $definition = config('sync360.runtime_capabilities.gog', []);
@@ -165,6 +220,12 @@ class GogCommandCatalogService
     public function toolGuidanceLines(TenantGoogleCredential $credential): array
     {
         $googleEmail = $credential->google_email ?: 'the connected Google account';
+        $contracts = $this->commandContracts();
+        $gmailReply = $contracts['gmail']['direct_reply']['shape'];
+        $gmailDraft = $contracts['gmail']['draft_reply']['shape'];
+        $driveUpload = $contracts['drive']['upload']['shape'];
+        $sheetAppend = $contracts['sheets']['append']['shape'];
+        $sheetUpdate = $contracts['sheets']['update']['shape'];
 
         return [
             '- Google Workspace is connected for owner account '.$googleEmail.'.',
@@ -181,11 +242,15 @@ class GogCommandCatalogService
             '- Calendar create/reminder flow: use the native create path with the calendar id as the positional argument, `--summary` for the title, `--from` / `--to` for times, and optional `--reminder`, for example `gog --json calendar create primary --summary "Check subscription renewal" --from 2026-04-22T09:00:00+12:00 --to 2026-04-22T09:15:00+12:00 --reminder popup:0m --no-input`.',
             '- Do not use unsupported calendar write shapes such as `gog calendar event create`, `--title`, `--start`, `--end`, or `--calendar`; those flags are not accepted by the pinned `gog` calendar create command.',
             '- Drive file lookup: use the native drive path, for example `gog --json drive ls --max 10` or `gog drive search "<query>" --max 10`.',
-            '- Drive upload flow: if a skill asks for a plain upload, use the exact shape `gog drive upload <localPath>` and do not add unverified flags such as `--share`, `--parent`, `--replace`, `--name`, or `--json`.',
+            '- Drive upload flow: if a skill asks for a plain upload, use the exact shape `'.$driveUpload.'` and do not add unverified flags such as `--share`, `--parent`, `--replace`, `--name`, or `--json`.',
             '- Contacts lookup: use the native contacts path, for example `gog --json contacts list --max 10` or inspect `gog contacts --help` for a narrower search/get command.',
             '- For Gmail send/reply/draft, calendar changes, docs, sheets, slides, tasks, people, chat, classroom, forms, apps script, and groups, inspect the exact native `gog` subcommand help first and then run the direct command only when the owner explicitly asks for that action.',
-            '- Verified Gmail write surface: `gog gmail send --reply-to-message-id <gmail_message_id> --subject "<subject>" --body "<plain-text-body>"` supports direct replies, with optional `--thread-id`, `--reply-all`, and `--quote` when the context requires them.',
-            '- Verified Gmail draft surface: `gog gmail drafts create --reply-to-message-id <gmail_message_id> --subject "<subject>" --body "<plain-text-body>"` creates a reply draft without sending it.',
+            '- Verified Gmail direct-reply surface: `'.$gmailReply.'`.',
+            '- In Inbox Triage, do not combine `--reply-to-message-id` with `--thread-id` in the standard direct reply flow.',
+            '- Optional Gmail reply flags are limited to `--reply-all` and `--quote` when the context clearly requires them.',
+            '- Verified Gmail draft surface: `'.$gmailDraft.'` creates a reply draft without sending it.',
+            '- Sheets qualified-lead header update flow: `'.$sheetUpdate.'`.',
+            '- Sheets qualified-lead append flow: `'.$sheetAppend.'`.',
             '- If you are unsure which direct service command to use, inspect `gog --help` first, then inspect the exact service help for the family you need.',
             '- Some allowlisted services may still return insufficient-permission or missing-scope errors because the current Google grant is narrower than the full `gog` surface. Explain that as a scope or permission issue, not as a missing `credentials.json` issue.',
             '- If a `gog` command fails, explain the exact command-level error you observed. Suggest reconnecting only when the command explicitly reports invalid, expired, or unauthorized credentials.',

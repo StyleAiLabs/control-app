@@ -91,6 +91,33 @@ class GogCommandCatalogServiceTest extends TestCase
         $this->assertStringContainsString('When an assigned custom skill gives an exact `gog` command contract, follow that contract exactly and avoid adding extra flags.', $guidance);
         $this->assertStringContainsString('Drive upload flow: if a skill asks for a plain upload, use the exact shape `gog drive upload <localPath>`', $guidance);
         $this->assertStringContainsString('do not add unverified flags such as `--share`, `--parent`, `--replace`, `--name`, or `--json`', $guidance);
+        $this->assertStringContainsString('Verified Gmail direct-reply surface: `gog gmail send --reply-to-message-id <gmail_message_id> --subject "<subject>" --body "<plain-text-body>"`.', $guidance);
+        $this->assertStringContainsString('do not combine `--reply-to-message-id` with `--thread-id` in the standard direct reply flow', strtolower($guidance));
+        $this->assertStringContainsString('Sheets qualified-lead append flow: `gog sheets append <spreadsheetId> \'Qualified Leads!A:L\' \'<pipe-delimited-row>\'`.', $guidance);
+    }
+
+    public function test_command_contracts_expose_minimal_gmail_drive_and_sheets_shapes(): void
+    {
+        /** @var GogCommandCatalogService $service */
+        $service = app(GogCommandCatalogService::class);
+
+        $contracts = $service->commandContracts();
+
+        $this->assertSame(
+            'gog gmail send --reply-to-message-id <gmail_message_id> --subject "<subject>" --body "<plain-text-body>"',
+            $contracts['gmail']['direct_reply']['shape']
+        );
+        $this->assertContains('--reply-all', $contracts['gmail']['direct_reply']['allowed_optional_flags']);
+        $this->assertContains('--quote', $contracts['gmail']['direct_reply']['allowed_optional_flags']);
+        $this->assertContains(
+            'Do not combine `--reply-to-message-id` with `--thread-id` in the standard Inbox Triage reply flow.',
+            $contracts['gmail']['direct_reply']['forbidden_combinations']
+        );
+        $this->assertSame('gog drive upload <localPath>', $contracts['drive']['upload']['shape']);
+        $this->assertSame(
+            "gog sheets append <spreadsheetId> 'Qualified Leads!A:L' '<pipe-delimited-row>'",
+            $contracts['sheets']['append']['shape']
+        );
     }
 
     private function seedTenant(): Tenant

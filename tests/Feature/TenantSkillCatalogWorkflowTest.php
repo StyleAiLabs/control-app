@@ -90,7 +90,9 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $this->assertStringContainsString('do not send a `High-Value Lead Detected` Telegram notification', $skill);
         $this->assertStringContainsString('Do not classify a low-risk basic enquiry as high-value.', $skill);
         $this->assertStringContainsString('## Gmail Reply Contract', $skill);
-        $this->assertStringContainsString('gog gmail send --reply-to-message-id <gmail_message_id> --subject \'<subject>\' --body \'<plain-text-body>\' --thread-id <gmail_thread_id>', $skill);
+        $this->assertStringContainsString('gog gmail send --reply-to-message-id <gmail_message_id> --subject \'<subject>\' --body \'<plain-text-body>\'', $skill);
+        $this->assertStringContainsString('Do not combine `--reply-to-message-id` with `--thread-id` in the standard Inbox Triage reply flow.', $skill);
+        $this->assertStringNotContainsString('gog gmail send --reply-to-message-id <gmail_message_id> --subject \'<subject>\' --body \'<plain-text-body>\' --thread-id <gmail_thread_id>', $skill);
         $this->assertStringContainsString('gog gmail drafts create --reply-to-message-id <gmail_message_id> --subject \'<subject>\' --body \'<plain-text-body>\'', $skill);
         $this->assertStringContainsString('A Google Sheets failure must not change or block the analytics result', $skill);
         $this->assertStringContainsString('"event_id":"inbox-triage-<gmail_message_id>"', $skill);

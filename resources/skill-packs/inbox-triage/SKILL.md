@@ -197,15 +197,15 @@ For low-risk basic enquiries only, use the native verified Gmail write surface b
 Use `gog gmail send` when you are sending the answer now:
 
 ```bash
-gog gmail send --reply-to-message-id <gmail_message_id> --subject '<subject>' --body '<plain-text-body>' --thread-id <gmail_thread_id>
+gog gmail send --reply-to-message-id <gmail_message_id> --subject '<subject>' --body '<plain-text-body>'
 ```
 
 Notes:
 
 - `--reply-to-message-id <gmail_message_id>` is the primary reply anchor.
-- `--thread-id <gmail_thread_id>` should be included when the trigger already provides a Gmail thread id.
 - If the original message has multiple recipients and the business should reply to all, add `--reply-all`.
 - If a quoted reply is useful, add `--quote`.
+- Do not combine `--reply-to-message-id` with `--thread-id` in the standard Inbox Triage reply flow.
 - Do not invent unsupported Gmail write flags.
 
 ### Create a draft instead of sending

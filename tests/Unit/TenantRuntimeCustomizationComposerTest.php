@@ -221,7 +221,8 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
         $this->assertStringContainsString('Do not claim that Inbox Triage will email a clarifying question or follow-up later unless `gog gmail send` or `gog gmail drafts create` already succeeded in the current run.', $composed->workspaceFiles['HEARTBEAT.md']);
         $this->assertStringContainsString('Inbox Triage auto-replies must follow the tenant tone chosen during onboarding, stay concise, and use plain ASCII body text without literal escape sequences such as `\\n`, `\\r`, or `\\t`.', $composed->workspaceFiles['HEARTBEAT.md']);
         $this->assertStringContainsString('Questions about services, opening hours, location coverage, or simple documented support do not qualify for `High-Value Lead Detected` unless the same message also shows clear commercial buying intent.', $composed->workspaceFiles['HEARTBEAT.md']);
-        $this->assertStringContainsString('Verified Gmail write surface: `gog gmail send --reply-to-message-id <gmail_message_id> --subject "<subject>" --body "<plain-text-body>"` supports direct replies', $composed->workspaceFiles['TOOLS.md']);
+        $this->assertStringContainsString('Verified Gmail direct-reply surface: `gog gmail send --reply-to-message-id <gmail_message_id> --subject "<subject>" --body "<plain-text-body>"`.', $composed->workspaceFiles['TOOLS.md']);
+        $this->assertStringContainsString('do not combine `--reply-to-message-id` with `--thread-id` in the standard direct reply flow', strtolower($composed->workspaceFiles['TOOLS.md']));
         $this->assertStringContainsString('Verified Gmail draft surface: `gog gmail drafts create --reply-to-message-id <gmail_message_id> --subject "<subject>" --body "<plain-text-body>"` creates a reply draft without sending it.', $composed->workspaceFiles['TOOLS.md']);
     }
 

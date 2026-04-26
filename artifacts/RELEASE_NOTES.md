@@ -7,6 +7,22 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-26 — Fix: Unify GOG Command Contracts Around README-Backed Shared Guidance
+
+Date: 2026-04-26
+Status: Implemented
+
+### Overview
+
+Replaced the drifting mix of hand-authored `gog` snippets across Inbox Triage and generated runtime guidance with one shared Sync360 command-contract layer derived from the upstream `gogcli` README and narrowed by live runtime evidence where needed.
+
+### What Changed
+
+- added an explicit shared GOG contract map inside the Sync360 GOG guidance service for Inbox-Triage-relevant Gmail, Drive, and Sheets flows
+- corrected the Inbox Triage direct Gmail reply contract to the smallest proven shape: `gog gmail send --reply-to-message-id <gmail_message_id> --subject "<subject>" --body "<plain-text-body>"`, without `--thread-id`
+- updated generated tenant `TOOLS.md` guidance to mirror the same shared Gmail direct-reply, draft, Drive upload, and Sheets append/update contracts
+- tightened feature and unit tests so the skill file, generated runtime guidance, and shared GOG guidance cannot silently drift back to conflicting command shapes
+
 ## 2026-04-26 — Improvement: Inbox Triage Replies Now Follow Onboarding Tone And Plain-Text Formatting
 
 Date: 2026-04-26
