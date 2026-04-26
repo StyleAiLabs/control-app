@@ -1,5 +1,10 @@
 # Inbox Triage — Release Notes
 
+## 1.7.0
+- Added explicit routing from Telegram follow-up to the **pdf-generation** skill when the owner replies with `Generate a quote`, `Send a quote`, `Quote this`, or similar keywords.
+- The agent now extracts the Lead ref, fetches the email, and invokes `skills/pdf-generation/SKILL.md` with `document_type: quote` and the Gmail message ID as `source_reference`.
+- Updated `outcome.suggested_action` analytics values to include `pdf-generation` as a valid routing target.
+
 ## 1.6.3
 - corrected the Gmail direct-reply contract to use the smallest proven `gog gmail send --reply-to-message-id ... --subject ... --body ...` shape without `--thread-id`
 - aligned the skill's Gmail, Drive, and Sheets command instructions to the shared Sync360 GOG contract layer derived from the upstream `gogcli` README

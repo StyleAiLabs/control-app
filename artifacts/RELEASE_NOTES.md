@@ -7,6 +7,24 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-27 — Fix: Wire aPDF Runtime Env And Align PDF Skill Contracts
+
+Date: 2026-04-27
+Status: Implemented
+
+### Overview
+
+Completed the control-plane/runtime wiring needed for the new `pdf-generation` skill by provisioning `APDF_API_KEY` into tenant runtimes, removed the leaked local test secret, and aligned the Inbox Triage/PDF skill docs so agents use one consistent handoff and analytics contract.
+
+### What Changed
+
+- added `services.apdf` config and injected `APDF_API_KEY` into tenant runtime `.env` and `compose.yaml` during OpenClaw provisioning and later runtime env/compose regeneration
+- added regression coverage proving tenant runtime files now include the managed aPDF key
+- removed the hardcoded aPDF bearer token from the local API test helper and switched it to environment-variable input
+- updated `inbox-triage` analytics examples to use `pdf-generation` consistently for quote/PDF routing
+- clarified the `pdf-generation` starter-template rendering contract so agents must expand `{{#if}}` and `{{#each}}` blocks into plain HTML before calling aPDF.io
+- updated the PDF skill manifest/dependency docs to describe the runtime-env key contract instead of tenant-local config wording
+
 ## 2026-04-27 — Revert: Remove WeasyPrint Host-Managed Runtime Capability
 
 Date: 2026-04-27

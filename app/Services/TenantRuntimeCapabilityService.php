@@ -209,6 +209,10 @@ class TenantRuntimeCapabilityService
         $runtimeEnvironment['OPENAI_API_KEY'] = $credentials['api_key'];
         $runtimeEnvironment['OPENAI_BASE_URL'] = $credentials['base_url'];
 
+        foreach ($this->managedRuntimeEnvironment() as $key => $value) {
+            $runtimeEnvironment[$key] = $value;
+        }
+
         $updatedContents = $this->renderEnvFile($runtimeEnvironment);
         $existingContents = $this->files->get($envPath);
         $changed = $updatedContents !== $existingContents;
@@ -288,7 +292,7 @@ class TenantRuntimeCapabilityService
             'XDG_CONFIG_HOME' => $this->yamlQuote($this->runtime->containerGogConfigHome()),
             'GOG_KEYRING_BACKEND' => $this->yamlQuote('file'),
             'GOG_KEYRING_PASSWORD' => $this->yamlQuote($this->runtime->googleKeyringPassword($tenant)),
-        ], $this->capabilityEnvironmentEntries($tenant, $capabilityIds));
+        ], $this->managedRuntimeEnvironmentYaml(), $this->capabilityEnvironmentEntries($tenant, $capabilityIds));
 
         $environmentLines = array_map(
             static fn (string $key, string $value): string => sprintf('      %s: %s', $key, $value),
@@ -472,6 +476,35 @@ class TenantRuntimeCapabilityService
             foreach ($this->gogCommands->runtimeEnvironmentFor($tenant) as $key => $value) {
                 $entries[$key] = $this->yamlQuote($value);
             }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function managedRuntimeEnvironment(): array
+    {
+        $entries = [];
+        $apdfKey = trim((string) config('services.apdf.key', ''));
+
+        if ($apdfKey !== '') {
+            $entries['APDF_API_KEY'] = $apdfKey;
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function managedRuntimeEnvironmentYaml(): array
+    {
+        $entries = [];
+
+        foreach ($this->managedRuntimeEnvironment() as $key => $value) {
+            $entries[$key] = $this->yamlQuote($value);
         }
 
         return $entries;

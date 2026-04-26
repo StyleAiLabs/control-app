@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="author" content="{{business_name}}">
+  <title>Site Report — {{report_reference}}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 2cm;
+      @bottom-center {
+        content: "Page " counter(page) " of " counter(pages);
+        font-size: 9pt;
+        color: #888;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.5;
+      color: #222;
+    }
+    .document-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 24pt;
+      padding-bottom: 12pt;
+      border-bottom: 2pt solid #0f3460;
+    }
+    .business-info h1 {
+      font-size: 18pt;
+      color: #0f3460;
+      margin-bottom: 4pt;
+    }
+    .business-info p {
+      font-size: 9pt;
+      color: #555;
+      line-height: 1.4;
+    }
+    .report-title { text-align: right; }
+    .report-title h2 {
+      font-size: 22pt;
+      color: #0f3460;
+      letter-spacing: 1pt;
+      margin-bottom: 8pt;
+    }
+    .report-meta { font-size: 9pt; color: #555; }
+    .report-meta strong { color: #222; }
+
+    .site-details {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20pt;
+      gap: 16pt;
+    }
+    .detail-block {
+      flex: 1;
+      padding: 10pt;
+      background: #f0f4f8;
+      border-radius: 4pt;
+    }
+    .detail-block h3 {
+      font-size: 9pt;
+      text-transform: uppercase;
+      letter-spacing: 1pt;
+      color: #0f3460;
+      margin-bottom: 6pt;
+      border-bottom: 1pt solid #ddd;
+      padding-bottom: 4pt;
+    }
+    .detail-block p { font-size: 10pt; line-height: 1.5; }
+
+    .section {
+      margin-bottom: 20pt;
+      page-break-inside: avoid;
+    }
+    .section h3 {
+      font-size: 12pt;
+      color: #0f3460;
+      margin-bottom: 8pt;
+      padding-bottom: 4pt;
+      border-bottom: 1pt solid #e0e0e0;
+    }
+    .section p { margin-bottom: 8pt; }
+
+    .findings-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 16pt;
+      page-break-inside: avoid;
+    }
+    .findings-table thead th {
+      background: #0f3460;
+      color: #fff;
+      font-size: 9pt;
+      text-transform: uppercase;
+      letter-spacing: 0.5pt;
+      padding: 8pt 10pt;
+      text-align: left;
+    }
+    .findings-table tbody td {
+      padding: 8pt 10pt;
+      border-bottom: 1pt solid #e5e5e5;
+      font-size: 10pt;
+      vertical-align: top;
+    }
+    .findings-table tbody tr:nth-child(even) { background: #f9f9fb; }
+
+    .priority-high {
+      color: #c0392b;
+      font-weight: bold;
+    }
+    .priority-medium {
+      color: #e67e22;
+      font-weight: bold;
+    }
+    .priority-low {
+      color: #27ae60;
+    }
+
+    .recommendations {
+      padding: 12pt;
+      background: #f5f5fa;
+      border-left: 3pt solid #0f3460;
+      border-radius: 4pt;
+      margin-bottom: 20pt;
+    }
+    .recommendations h3 {
+      font-size: 11pt;
+      color: #0f3460;
+      margin-bottom: 8pt;
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .recommendations ol {
+      padding-left: 20pt;
+      font-size: 10pt;
+      line-height: 1.6;
+    }
+
+    .sign-off {
+      margin-top: 30pt;
+      display: flex;
+      justify-content: space-between;
+    }
+    .signature-block { width: 45%; }
+    .signature-line {
+      border-top: 1pt solid #222;
+      margin-top: 40pt;
+      padding-top: 4pt;
+      font-size: 9pt;
+      color: #555;
+    }
+    .disclaimer {
+      margin-top: 24pt;
+      padding-top: 12pt;
+      border-top: 1pt solid #ddd;
+      font-size: 8.5pt;
+      color: #888;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="document-header">
+    <div class="business-info">
+      <h1>{{business_name}}</h1>
+      <p>
+        {{business_address}}<br>
+        Phone: {{business_phone}}<br>
+        Email: {{business_email}}<br>
+        Trade Licence: {{trade_licence}}
+      </p>
+    </div>
+    <div class="report-title">
+      <h2>SITE REPORT</h2>
+      <p class="report-meta">
+        <strong>Ref:</strong> {{report_reference}}<br>
+        <strong>Date:</strong> {{report_date}}<br>
+        <strong>Inspector:</strong> {{inspector_name}}
+      </p>
+    </div>
+  </div>
+
+  <div class="site-details">
+    <div class="detail-block">
+      <h3>Site Address</h3>
+      <p>{{site_address}}</p>
+    </div>
+    <div class="detail-block">
+      <h3>Client</h3>
+      <p>{{customer_name}}<br>{{customer_company}}</p>
+    </div>
+    <div class="detail-block">
+      <h3>Visit Details</h3>
+      <p>Type: {{visit_type}}<br>Duration: {{visit_duration}}</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>Purpose of Visit</h3>
+    <p>{{visit_purpose}}</p>
+  </div>
+
+  <div class="section">
+    <h3>Findings</h3>
+    <table class="findings-table">
+      <thead>
+        <tr>
+          <th>Area / Item</th>
+          <th>Finding</th>
+          <th>Priority</th>
+          <th>Action Required</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Repeat for each finding -->
+        <tr>
+          <td>{{finding_area}}</td>
+          <td>{{finding_description}}</td>
+          <td class="priority-{{finding_priority}}">{{finding_priority}}</td>
+          <td>{{finding_action}}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="recommendations">
+    <h3>Recommendations</h3>
+    <ol>
+      <!-- Repeat for each recommendation -->
+      <li>{{recommendation}}</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h3>Additional Notes</h3>
+    <p>{{additional_notes}}</p>
+  </div>
+
+  <div class="sign-off">
+    <div class="signature-block">
+      <div class="signature-line">Inspector: {{inspector_name}}</div>
+    </div>
+    <div class="signature-block">
+      <div class="signature-line">Date: {{report_date}}</div>
+    </div>
+  </div>
+
+  <div class="disclaimer">
+    <p>
+      This report documents findings from a visual inspection only and is based on conditions
+      observed at the time of the visit. It does not constitute a full engineering assessment.
+      Recommendations should be reviewed by the appropriate qualified professional before work proceeds.
+    </p>
+  </div>
+
+</body>
+</html>

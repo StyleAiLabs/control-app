@@ -228,6 +228,67 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
         $this->assertStringContainsString('Verified Gmail draft surface: `gog gmail drafts create --reply-to-message-id <gmail_message_id> --subject "<subject>" --body "<plain-text-body>"` creates a reply draft without sending it.', $composed->workspaceFiles['TOOLS.md']);
     }
 
+    public function test_skill_pack_guidance_uses_pdf_generation_action_and_explains_template_control_blocks(): void
+    {
+        $tenant = $this->seedTenant();
+        $this->artisan('sync360:skills:import', ['--skill' => 'inbox-triage'])->assertExitCode(0);
+        $this->artisan('sync360:skills:import', ['--skill' => 'pdf-generation'])->assertExitCode(0);
+        $inboxVersion = SkillCatalogVersion::query()->where('skill_key', 'inbox-triage')->firstOrFail();
+        $pdfVersion = SkillCatalogVersion::query()->where('skill_key', 'pdf-generation')->firstOrFail();
+
+        BusinessProfile::query()->create([
+            'tenant_id' => $tenant->id,
+            'business_name' => 'Acme Plumbing',
+            'industry' => 'Home Services',
+            'description' => 'Fast local plumbing support.',
+        ]);
+
+        BusinessProfileFiles::query()->create([
+            'tenant_id' => $tenant->id,
+            'identity_markdown' => "# Identity\n\nBase identity",
+            'soul_markdown' => "# Soul\n\nBase soul",
+            'user_markdown' => "# User\n\nBase user",
+            'bootstrap_markdown' => "# Bootstrap\n\nBase bootstrap",
+            'generated_at' => now(),
+        ]);
+
+        TenantSkillAssignment::query()->create([
+            'tenant_id' => $tenant->id,
+            'skill_catalog_version_id' => $inboxVersion->id,
+            'skill_key' => 'inbox-triage',
+            'assigned_by' => $tenant->user_id,
+            'assigned_at' => now(),
+            'is_enabled' => true,
+        ]);
+
+        TenantSkillAssignment::query()->create([
+            'tenant_id' => $tenant->id,
+            'skill_catalog_version_id' => $pdfVersion->id,
+            'skill_key' => 'pdf-generation',
+            'assigned_by' => $tenant->user_id,
+            'assigned_at' => now(),
+            'is_enabled' => true,
+        ]);
+
+        File::ensureDirectoryExists(dirname($this->runtimeConfigPath($tenant)));
+        File::put($this->runtimeConfigPath($tenant), json_encode(['agents' => ['defaults' => []]], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+
+        $composed = app(TenantRuntimeCustomizationComposer::class)->compose($tenant->fresh([
+            'businessProfile',
+            'businessProfileFiles',
+            'googleCredential',
+            'agentCustomization',
+            'skillAssignments.catalogVersion',
+        ]));
+
+        $this->assertStringContainsString('"suggested_action":"pdf-generation"', $composed->skillFiles['skills/inbox-triage/SKILL.md']);
+        $this->assertStringContainsString('"suggested_action": "<pdf-generation|google-calendar-booking|human-review|follow-up>"', $composed->skillFiles['skills/inbox-triage/SKILL.md']);
+        $this->assertStringContainsString('Render the template control blocks yourself before calling aPDF.io.', $composed->skillFiles['skills/pdf-generation/SKILL.md']);
+        $this->assertStringContainsString('`{{#if field}}...{{/if}}` includes the enclosed HTML only when the field has a non-empty value', $composed->skillFiles['skills/pdf-generation/SKILL.md']);
+        $this->assertStringContainsString('`{{#each line_items}}...{{/each}}` repeats the enclosed row once per item', $composed->skillFiles['skills/pdf-generation/SKILL.md']);
+        $this->assertStringContainsString('The final HTML sent to aPDF.io must not contain raw `{{` template tags.', $composed->skillFiles['skills/pdf-generation/SKILL.md']);
+    }
+
     public function test_it_flags_base_drift_for_replace_overrides(): void
     {
         $tenant = $this->seedTenant();

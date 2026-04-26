@@ -49,6 +49,11 @@ return [
         'master_key' => env('LITELLM_MASTER_KEY'),
     ],
 
+    'apdf' => [
+        'base_url' => env('APDF_BASE_URL', 'https://apdf.io/api'),
+        'key' => env('APDF_API_KEY'),
+    ],
+
     'jina' => [
         'base_url' => env('JINA_BASE_URL', 'https://r.jina.ai'),
         'api_key'  => env('JINA_API_KEY', ''),

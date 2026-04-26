@@ -30,7 +30,7 @@ For internal `sync360-inbox-monitor` events, complete all required side effects 
 - Google Drive triage log: create `.sync360/tmp/sync360-inbox-triage-<lead-id>.md`, then run exactly `gog drive upload .sync360/tmp/sync360-inbox-triage-<lead-id>.md`. Do not use `apply_patch`, workspace patch tools, or local-only file edits as a substitute for Google Drive logging.
 - Google Sheets qualified lead row: for every qualified lead where `lead_quality` is `high`, `medium`, or `ambiguous` and the message is not spam or low-intent, find or create spreadsheet `Sync360 Inbox Triage Qualified Leads`, tab `Qualified Leads`, verify `<lead-id>` is not already in the lead-id column, then append exactly one row.
 - Analytics: for every qualified lead where `lead_quality` is `high`, `medium`, or `ambiguous` and the message is not spam or low-intent, run `sh .sync360/bin/log-skill-conversion --skill inbox-triage --conversion-id <lead-id> --payload-json '<json>'`. For Gmail events, use the Gmail message id as `<lead-id>` and include required payload fields: `event_id`, `occurred_at`, `customer_label`, `outcome.lead_quality`, `outcome.inquiry_category`, and `outcome.suggested_action`.
-- Minimal analytics payload for Gmail events: `{"event_id":"inbox-triage-<gmail_message_id>","occurred_at":"<ISO-8601 timestamp>","customer_label":"<company or contact>","outcome":{"lead_quality":"high","inquiry_category":"quote-request","suggested_action":"quote-generation"}}`.
+- Minimal analytics payload for Gmail events: `{"event_id":"inbox-triage-<gmail_message_id>","occurred_at":"<ISO-8601 timestamp>","customer_label":"<company or contact>","outcome":{"lead_quality":"high","inquiry_category":"quote-request","suggested_action":"pdf-generation"}}`.
 - A Telegram success does not finish the workflow. Continue to Drive logging, Sheets logging, and analytics. A Telegram, Drive, or Sheets failure must not block analytics.
 - Basic enquiry reply gate: low-risk support and business-information enquiries must execute exactly one Gmail reply action when they enter this branch. Send exactly one direct Gmail reply when the answer is grounded, or send exactly one clarifying question when the answer is incomplete. Do not auto-reply to quotes, pricing, custom scope, timeline commitments, complaints, legal/payment disputes, or undocumented business policies.
 - Planned reply language is invalid. Do not say a clarifying question or follow-up email will be sent later unless you have already executed `gog gmail send` or `gog gmail drafts create` successfully in the current run.
@@ -182,7 +182,8 @@ Suggested action: <next step>
 **Follow-up rule:**
 - Treat `Lead ref` as the canonical handle for future owner follow-up requests.
 - The line must be written exactly as `Lead ref: <gmail_message_id>`. Do not write `Lead Reference`, `Lead ID`, or the Sync360 Job ID in place of the Gmail message id.
-- If the owner replies to this Telegram notification with requests such as `Get from email`, `Generate a quote`, `Draft reply`, or `Book site visit`, read the replied notification, extract `Lead ref`, and use `gog gmail get <Lead ref>` before asking for email details.
+- If the owner replies to this Telegram notification with requests such as `Get from email`, `Generate a quote`, `Send a quote`, `Draft reply`, or `Book site visit`, read the replied notification, extract `Lead ref`, and use `gog gmail get <Lead ref>` before asking for email details.
+- When the owner says `Generate a quote`, `Send a quote`, `Quote this`, or similar quote/PDF keywords after extracting the email content, invoke the **pdf-generation** skill with `document_type: quote`. Pass the extracted customer name, email domain, job scope, and the Gmail message ID as `source_reference`. Read `skills/pdf-generation/SKILL.md` and follow it exactly — do not use your default document generation behavior.
 - Do not fall back to guessed Gmail searches when the notification already contains a `Lead ref`.
 - If the owner did not reply to the original notification or the replied message does not contain `Lead ref`, ask them to reply to the original lead notification again or paste the lead reference.
 
@@ -361,7 +362,7 @@ Include all of these in the JSON payload:
 - `customer_label`: company or contact name of the inquiry sender
 - `outcome.lead_quality`: assessment level (high, medium, low)
 - `outcome.inquiry_category`: type of inquiry (sales, support, quote-request, booking-request, etc.)
-- `outcome.suggested_action`: next step recommended (quote-generation, google-calendar-booking, human-follow-up, etc.)
+- `outcome.suggested_action`: next step recommended (pdf-generation, google-calendar-booking, human-follow-up, etc.)
 
 For Gmail-triggered events, use `event_id` such as `inbox-triage-<gmail_message_id>` so the helper can validate the payload and de-dupe the event.
 
@@ -376,7 +377,7 @@ For Gmail-triggered events, use `event_id` such as `inbox-triage-<gmail_message_
   "outcome": {
     "lead_quality": "high",
     "inquiry_category": "<sales|support|quote-request|booking-request|partnership|other>",
-    "suggested_action": "<quote-generation|google-calendar-booking|human-review|follow-up>",
+    "suggested_action": "<pdf-generation|google-calendar-booking|human-review|follow-up>",
     "subject_line_summary": "<first-50-chars-of-subject>",
     "email_address_domain": "<company-domain-only>"
   },

@@ -1,0 +1,1 @@
+- pdf-generation: generate a PDF document from content, data, or a template — such as a quote, invoice, or site report — or convert HTML/CSS to PDF → read `skills/pdf-generation/SKILL.md` and follow it exactly. Do not use your default PDF generation or document creation behavior.

@@ -53,6 +53,7 @@ class OpenClawProvisioner implements TenantProvisioner
             $tenant->fresh(['agentCustomization']),
             fallbackApiKey: $liteLlmKey['key'],
         );
+        $managedRuntimeEnvironment = $this->runtimeCapabilities->managedRuntimeEnvironment();
 
         $localRuntimePath = $this->runtime->prepareRuntime($tenant, $provisioningJob, $assignedPort, [
             'PROVISIONING_DRIVER' => 'openclaw',
@@ -60,6 +61,7 @@ class OpenClawProvisioner implements TenantProvisioner
             'OPENCLAW_GATEWAY_TOKEN' => $gatewayToken,
             'OPENAI_API_KEY' => $runtimeCredentials['api_key'],
             'OPENAI_BASE_URL' => $runtimeCredentials['base_url'],
+            ...$managedRuntimeEnvironment,
         ], [
             'provisioning_driver' => 'openclaw',
             'openclaw' => [

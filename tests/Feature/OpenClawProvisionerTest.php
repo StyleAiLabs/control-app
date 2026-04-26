@@ -27,6 +27,7 @@ class OpenClawProvisionerTest extends TestCase
         config()->set('sync360.provisioning.driver', 'openclaw');
         config()->set('services.litellm.base_url', 'https://litellm.stylesoftware.co.nz');
         config()->set('services.litellm.master_key', 'litellm-master');
+        config()->set('services.apdf.key', 'apdf-platform-key');
         Http::fake([
             'https://litellm.stylesoftware.co.nz/key/generate' => Http::response(['key' => 'sk-tenant-acme'], 200),
             'https://acme-plumbing.workspace.test/login' => Http::response('login', 200),
@@ -109,6 +110,7 @@ class OpenClawProvisionerTest extends TestCase
         $this->assertStringContainsString('PROVISIONING_DRIVER=openclaw', (string) file_get_contents($localRuntimePath.'/.env'));
         $this->assertStringContainsString('OPENAI_API_KEY=sk-tenant-acme', (string) file_get_contents($localRuntimePath.'/.env'));
         $this->assertStringContainsString('OPENAI_BASE_URL=https://litellm.stylesoftware.co.nz', (string) file_get_contents($localRuntimePath.'/.env'));
+        $this->assertStringContainsString('APDF_API_KEY=apdf-platform-key', (string) file_get_contents($localRuntimePath.'/.env'));
         $this->assertStringContainsString('"mode": "local"', (string) file_get_contents($localRuntimePath.'/config/openclaw.json'));
         $this->assertStringContainsString('"skills"', (string) file_get_contents($localRuntimePath.'/config/openclaw.json'));
         $this->assertStringContainsString('"gog"', (string) file_get_contents($localRuntimePath.'/config/openclaw.json'));
@@ -121,6 +123,7 @@ class OpenClawProvisionerTest extends TestCase
         $this->assertStringContainsString('read_only: true', (string) file_get_contents($localRuntimePath.'/compose.yaml'));
         $this->assertStringContainsString('OPENAI_API_KEY: "sk-tenant-acme"', (string) file_get_contents($localRuntimePath.'/compose.yaml'));
         $this->assertStringContainsString('OPENAI_BASE_URL: "https://litellm.stylesoftware.co.nz"', (string) file_get_contents($localRuntimePath.'/compose.yaml'));
+        $this->assertStringContainsString('APDF_API_KEY: "apdf-platform-key"', (string) file_get_contents($localRuntimePath.'/compose.yaml'));
 
         Http::assertSent(fn ($request) => $request->url() === 'https://litellm.stylesoftware.co.nz/key/generate'
             && $request->hasHeader('Authorization', 'Bearer litellm-master')

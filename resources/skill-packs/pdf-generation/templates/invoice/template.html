@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="author" content="{{business_name}}">
+  <title>Invoice — {{invoice_number}}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 2cm;
+      @bottom-center {
+        content: "Page " counter(page) " of " counter(pages);
+        font-size: 9pt;
+        color: #888;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.5;
+      color: #222;
+    }
+    .document-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 24pt;
+      padding-bottom: 12pt;
+      border-bottom: 2pt solid #16213e;
+    }
+    .business-info h1 {
+      font-size: 18pt;
+      color: #16213e;
+      margin-bottom: 4pt;
+    }
+    .business-info p {
+      font-size: 9pt;
+      color: #555;
+      line-height: 1.4;
+    }
+    .invoice-title { text-align: right; }
+    .invoice-title h2 {
+      font-size: 28pt;
+      color: #16213e;
+      letter-spacing: 2pt;
+      margin-bottom: 8pt;
+    }
+    .invoice-meta { font-size: 9pt; color: #555; }
+    .invoice-meta strong { color: #222; }
+    .status-badge {
+      display: inline-block;
+      padding: 3pt 10pt;
+      border-radius: 3pt;
+      font-size: 8pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.5pt;
+      margin-top: 6pt;
+    }
+    .status-due { background: #fff3cd; color: #856404; }
+    .status-paid { background: #d4edda; color: #155724; }
+    .status-overdue { background: #f8d7da; color: #721c24; }
+    .parties {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20pt;
+    }
+    .party { width: 48%; }
+    .party h3 {
+      font-size: 9pt;
+      text-transform: uppercase;
+      letter-spacing: 1pt;
+      color: #888;
+      margin-bottom: 6pt;
+      border-bottom: 1pt solid #ddd;
+      padding-bottom: 4pt;
+    }
+    .party p { font-size: 10pt; line-height: 1.5; }
+    .job-reference {
+      margin-bottom: 16pt;
+      padding: 8pt 12pt;
+      background: #f0f4f8;
+      border-left: 3pt solid #16213e;
+    }
+    .job-reference p { font-size: 9.5pt; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 16pt;
+      page-break-inside: avoid;
+    }
+    thead th {
+      background: #16213e;
+      color: #fff;
+      font-size: 9pt;
+      text-transform: uppercase;
+      letter-spacing: 0.5pt;
+      padding: 8pt 10pt;
+      text-align: left;
+    }
+    thead th:last-child,
+    thead th:nth-child(3),
+    thead th:nth-child(4) { text-align: right; }
+    tbody td {
+      padding: 8pt 10pt;
+      border-bottom: 1pt solid #e5e5e5;
+      font-size: 10pt;
+    }
+    tbody td:last-child,
+    tbody td:nth-child(3),
+    tbody td:nth-child(4) { text-align: right; }
+    tbody tr:nth-child(even) { background: #f9f9fb; }
+    .totals { width: 50%; margin-left: auto; margin-bottom: 24pt; }
+    .totals table { margin-bottom: 0; }
+    .totals td { padding: 6pt 10pt; border-bottom: none; }
+    .totals td:first-child { text-align: right; color: #555; }
+    .totals td:last-child { text-align: right; font-weight: bold; }
+    .totals tr.total-row { border-top: 2pt solid #16213e; }
+    .totals tr.total-row td { font-size: 12pt; padding-top: 10pt; color: #16213e; }
+    .payment-details {
+      margin-top: 20pt;
+      padding: 12pt;
+      background: #f5f5fa;
+      border-radius: 4pt;
+    }
+    .payment-details h3 { font-size: 10pt; color: #16213e; margin-bottom: 6pt; }
+    .payment-details p { font-size: 9pt; color: #555; line-height: 1.6; }
+    .terms {
+      margin-top: 16pt;
+      padding-top: 12pt;
+      border-top: 1pt solid #ddd;
+    }
+    .terms p { font-size: 8.5pt; color: #888; line-height: 1.5; }
+  </style>
+</head>
+<body>
+
+  <div class="document-header">
+    <div class="business-info">
+      <h1>{{business_name}}</h1>
+      <p>
+        {{business_address}}<br>
+        Phone: {{business_phone}}<br>
+        Email: {{business_email}}<br>
+        GST #: {{gst_number}}<br>
+        Trade Licence: {{trade_licence}}
+      </p>
+    </div>
+    <div class="invoice-title">
+      <h2>INVOICE</h2>
+      <p class="invoice-meta">
+        <strong>Invoice #:</strong> {{invoice_number}}<br>
+        <strong>Date:</strong> {{date_issued}}<br>
+        <strong>Due:</strong> {{due_date}}<br>
+        <strong>Quote Ref:</strong> {{quote_reference}}
+      </p>
+      <span class="status-badge status-{{status}}">{{status}}</span>
+    </div>
+  </div>
+
+  <div class="parties">
+    <div class="party">
+      <h3>Bill To</h3>
+      <p>{{customer_name}}<br>{{customer_company}}<br>{{customer_address}}</p>
+    </div>
+    <div class="party">
+      <h3>Job Site</h3>
+      <p>{{job_address}}</p>
+    </div>
+  </div>
+
+  <div class="job-reference">
+    <p><strong>Job Reference:</strong> {{job_reference}}</p>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th></tr>
+    </thead>
+    <tbody>
+      <!-- Repeat for each line item -->
+      <tr><td>{{item_description}}</td><td>{{item_qty}}</td><td>${{item_rate}}</td><td>${{item_amount}}</td></tr>
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <table>
+      <tr><td>Subtotal</td><td>${{subtotal}}</td></tr>
+      <tr><td>GST (15%)</td><td>${{gst_amount}}</td></tr>
+      <tr class="total-row"><td>Total (NZD)</td><td>${{total_incl_gst}}</td></tr>
+    </table>
+  </div>
+
+  <div class="payment-details">
+    <h3>Payment Details</h3>
+    <p>
+      {{payment_terms}}<br>
+      Bank: {{bank_account}}<br>
+      Reference: {{bank_reference}}
+    </p>
+  </div>
+
+  <div class="terms">
+    <p>
+      Thank you for your business. Payment is due by {{due_date}}.
+      Late payments may incur additional charges as per our terms of trade.
+      For queries regarding this invoice, contact us at {{business_email}} or {{business_phone}}.
+    </p>
+  </div>
+
+</body>
+</html>

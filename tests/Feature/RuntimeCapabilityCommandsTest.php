@@ -26,6 +26,7 @@ class RuntimeCapabilityCommandsTest extends TestCase
     public function test_runtime_compose_regeneration_uses_tenant_litellm_key_over_stale_local_env(): void
     {
         config()->set('services.litellm.base_url', 'https://litellm.stylesoftware.co.nz');
+        config()->set('services.apdf.key', 'apdf-platform-key');
 
         $tenant = $this->seedReadyTenant();
         $tenant->forceFill([
@@ -58,6 +59,35 @@ class RuntimeCapabilityCommandsTest extends TestCase
         $this->assertStringNotContainsString('sk-stale-local-env-key', $compose);
         $this->assertStringContainsString('OPENAI_BASE_URL: "https://litellm.stylesoftware.co.nz"', $compose);
         $this->assertStringNotContainsString('https://stale-litellm.example', $compose);
+        $this->assertStringContainsString('APDF_API_KEY: "apdf-platform-key"', $compose);
+    }
+
+    public function test_runtime_env_regeneration_includes_platform_apdf_api_key(): void
+    {
+        config()->set('services.litellm.base_url', 'https://litellm.stylesoftware.co.nz');
+        config()->set('services.apdf.key', 'apdf-platform-key');
+
+        $tenant = $this->seedReadyTenant();
+        $tenant->forceFill([
+            'litellm_virtual_key' => 'sk-current-db-key',
+        ])->save();
+
+        $localRuntimePath = config('sync360.runtime_root').'/'.$tenant->slug;
+        File::ensureDirectoryExists($localRuntimePath.'/config');
+        File::put($localRuntimePath.'/.env', implode(PHP_EOL, [
+            'OPENCLAW_GATEWAY_TOKEN=test-token',
+            'OPENAI_API_KEY=sk-stale-local-env-key',
+            'OPENAI_BASE_URL=https://stale-litellm.example',
+            '',
+        ]));
+
+        app(TenantRuntimeCapabilityService::class)->syncLocalRuntimeEnvCredentials($tenant->fresh(['agentCustomization']));
+
+        $env = File::get($localRuntimePath.'/.env');
+
+        $this->assertStringContainsString('OPENAI_API_KEY=sk-current-db-key', $env);
+        $this->assertStringContainsString('OPENAI_BASE_URL=https://litellm.stylesoftware.co.nz', $env);
+        $this->assertStringContainsString('APDF_API_KEY=apdf-platform-key', $env);
     }
 
     public function test_runtime_compose_regeneration_falls_back_to_gateway_token_from_openclaw_config_when_env_is_missing(): void
