@@ -10,7 +10,7 @@ It currently covers the full control-plane loop:
 - guided onboarding with visible progress, draft-safe state refresh, optional Google Workspace connect, live Google verification status, and go-live sync
 - Google Workspace onboarding now uses calmer live-access wording in Step 6 so customers can tell the difference between connected, checking, ready, and needs-attention states without being pushed toward reconnect too early
 - the Channel step now always shows an explicit `Continue To Google Workspace` button in the Step 5 channel navigation itself, so customers can move from Step 5 to Step 6 even when channel setup is already connected or they want to come back later
-- Business Profile sync with in-page progress/completion feedback for live assistant resyncs, including async logo upload and a machine-readable `BUSINESS_PROFILE.json` workspace contract for custom skills
+- Business Profile sync with in-page progress/completion feedback for live assistant resyncs, including a compact inline async logo control and a machine-readable `BUSINESS_PROFILE.json` workspace contract for custom skills
 - tenant workspace tool guidance via generated `TOOLS.md`, including default-account behavior, native direct `gog` CLI usage, and guardrails against hallucinated reconnect or `credentials.json` advice
 - tenant runtime config now explicitly enables the bundled `gog` skill in `openclaw.json` so connected Google Workspace tooling is actually available to the agent
 - host-managed runtime capability installs for external tenant dependencies such as `gog`, using pinned VPS binaries plus read-only tenant bind mounts

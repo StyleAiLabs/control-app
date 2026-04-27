@@ -7,6 +7,21 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-28 — Improvement: Streamline Customer Profile Logo Control
+
+Date: 2026-04-28
+Status: Implemented
+
+### Overview
+
+Refined the customer `/profile` logo uploader so it behaves like a supporting business-profile field instead of a separate feature block.
+
+### What Changed
+
+- replaced the larger orange nested logo section with a calmer inline control inside `Identity and positioning`
+- kept the async no-refresh upload, replace, preview, and remove behavior unchanged
+- tightened the visual hierarchy to a small thumbnail, one metadata line, compact actions, and a quieter inline status/error strip
+- aligned the canonical design-system and architecture docs with the slimmer field-level pattern
 ## 2026-04-27 — Feature: Async Business Logo Upload And Shared Business Profile Skill Contract
 
 Date: 2026-04-27

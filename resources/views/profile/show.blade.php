@@ -139,62 +139,58 @@
                         </div>
 
                         <div class="field-single">
-                            <div class="note" id="profile-logo-card" style="padding:14px 16px;">
-                                <div style="display:flex; flex-wrap:wrap; gap:14px; align-items:center;">
-                                    <div style="flex:0 0 84px;">
-                                        <div style="width:84px; height:84px; border:1px solid rgba(28, 30, 38, 0.12); border-radius:16px; background:#fff; display:flex; align-items:center; justify-content:center; overflow:hidden;">
-                                            <img
-                                                id="profile-logo-preview"
-                                                @if ($logoPreviewUrl) src="{{ $logoPreviewUrl }}" @endif
-                                                alt="Business logo preview"
-                                                style="max-width:100%; max-height:100%; object-fit:contain; display:{{ $logo['present'] ? 'block' : 'none' }};"
-                                            >
-                                            <span
-                                                id="profile-logo-placeholder"
-                                                class="hint"
-                                                style="padding:12px; text-align:center; font-size:0.88rem; line-height:1.35; display:{{ $logo['present'] ? 'none' : 'block' }};"
-                                            >
-                                                No logo yet
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div style="flex:1 1 320px; min-width:240px;">
-                                        <div style="display:flex; flex-wrap:wrap; gap:10px 14px; align-items:center; justify-content:space-between;">
-                                            <div>
-                                                <strong>Business logo</strong>
-                                                <p class="hint" id="profile-logo-meta" style="margin-top:4px;">
-                                                    @if ($logo['present'])
-                                                        {{ $logoOriginalFilename }}@if ($logoUploadedAt), uploaded {{ $logoUploadedAt }}@endif
-                                                    @else
-                                                        Optional. Used in customer-facing documents and workspace modules.
-                                                    @endif
-                                                </p>
-                                            </div>
-
-                                            <div style="display:flex; flex-wrap:wrap; gap:8px;">
-                                                <input type="file" id="profile-logo-input" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" style="display:none;">
-                                                <x-ui.button type="button" id="profile-logo-upload-button" variant="secondary">
-                                                    {{ $logo['present'] ? 'Replace Logo' : 'Upload Logo' }}
-                                                </x-ui.button>
-                                                <x-ui.button type="button" id="profile-logo-remove-button" variant="secondary" style="{{ $logo['present'] ? '' : 'display:none;' }}">
-                                                    Remove
-                                                </x-ui.button>
-                                            </div>
-                                        </div>
-
-                                        <div class="hint" style="margin-top:8px;">
-                                            PNG, JPG, JPEG, WEBP. Maximum size: 2 MB.
-                                        </div>
-                                    </div>
+                            <div class="customer-profile-logo-control" id="profile-logo-card">
+                                <div class="customer-profile-logo-control__preview">
+                                    <img
+                                        id="profile-logo-preview"
+                                        @if ($logoPreviewUrl) src="{{ $logoPreviewUrl }}" @endif
+                                        alt="Business logo preview"
+                                        class="customer-profile-logo-control__image"
+                                        style="display:{{ $logo['present'] ? 'block' : 'none' }};"
+                                    >
+                                    <span
+                                        id="profile-logo-placeholder"
+                                        class="customer-profile-logo-control__placeholder"
+                                        style="display:{{ $logo['present'] ? 'none' : 'flex' }};"
+                                    >
+                                        No logo
+                                    </span>
                                 </div>
 
-                                <div class="note" id="profile-logo-status" aria-live="polite" style="margin-top:12px;">
-                                    @if ($logo['present'])
-                                        The current logo is ready for workspace sync and custom skill use.
-                                    @else
-                                        Upload a logo any time. Your text profile fields still save separately below.
-                                    @endif
+                                <div class="customer-profile-logo-control__content">
+                                    <div class="customer-profile-logo-control__header">
+                                        <div class="customer-profile-logo-control__copy">
+                                            <strong>Business logo</strong>
+                                            <p class="hint" id="profile-logo-meta">
+                                                @if ($logo['present'])
+                                                    {{ $logoOriginalFilename }}@if ($logoUploadedAt), uploaded {{ $logoUploadedAt }}@endif
+                                                @else
+                                                    Optional. Used in customer-facing documents and workspace modules.
+                                                @endif
+                                            </p>
+                                        </div>
+
+                                        <div class="customer-profile-logo-control__actions">
+                                            <input type="file" id="profile-logo-input" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" style="display:none;">
+                                            <x-ui.button type="button" id="profile-logo-upload-button" variant="secondary" class="customer-profile-logo-control__button">
+                                                {{ $logo['present'] ? 'Replace Logo' : 'Upload Logo' }}
+                                            </x-ui.button>
+                                            <x-ui.button type="button" id="profile-logo-remove-button" variant="secondary" class="customer-profile-logo-control__button customer-profile-logo-control__button--quiet" style="{{ $logo['present'] ? '' : 'display:none;' }}">
+                                                Remove
+                                            </x-ui.button>
+                                        </div>
+                                    </div>
+
+                                    <div class="customer-profile-logo-control__footer">
+                                        <span class="customer-profile-logo-control__spec">PNG, JPG, JPEG, or WEBP up to 2 MB</span>
+                                        <div class="customer-profile-logo-status" id="profile-logo-status" aria-live="polite">
+                                            @if ($logo['present'])
+                                                The current logo is ready for workspace sync and custom skill use.
+                                            @else
+                                                Upload a logo any time. Your text profile fields still save separately below.
+                                            @endif
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -502,6 +498,141 @@
         </section>
     </div>
 
+    <style>
+        .customer-profile-logo-control {
+            display: grid;
+            grid-template-columns: 84px minmax(0, 1fr);
+            gap: var(--space-4);
+            align-items: start;
+            padding: var(--space-4);
+            border-radius: var(--radius-xl);
+            border: 1px solid rgba(17, 15, 13, 0.09);
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(252, 247, 243, 0.96) 100%);
+            box-shadow: 0 12px 30px rgba(55, 34, 20, 0.04);
+        }
+
+        .customer-profile-logo-control__preview {
+            width: 84px;
+            height: 84px;
+            border-radius: 20px;
+            border: 1px solid rgba(17, 15, 13, 0.1);
+            background:
+                radial-gradient(circle at top, rgba(255, 255, 255, 0.96) 0%, rgba(249, 243, 238, 0.94) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .customer-profile-logo-control__image {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .customer-profile-logo-control__placeholder {
+            width: 100%;
+            height: 100%;
+            padding: var(--space-3);
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: color-mix(in oklch, var(--muted) 88%, white);
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        .customer-profile-logo-control__content {
+            display: grid;
+            gap: var(--space-3);
+            min-width: 0;
+        }
+
+        .customer-profile-logo-control__header {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-3) var(--space-4);
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .customer-profile-logo-control__copy {
+            display: grid;
+            gap: var(--space-1);
+            min-width: 0;
+        }
+
+        .customer-profile-logo-control__copy strong {
+            font-size: 1rem;
+            line-height: 1.3;
+        }
+
+        .customer-profile-logo-control__copy .hint {
+            margin: 0;
+            max-width: 54ch;
+        }
+
+        .customer-profile-logo-control__actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-2);
+            align-items: center;
+        }
+
+        .customer-profile-logo-control__button {
+            min-height: 40px;
+            padding-inline: var(--space-4);
+        }
+
+        .customer-profile-logo-control__button--quiet {
+            opacity: 0.9;
+        }
+
+        .customer-profile-logo-control__footer {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-2);
+            align-items: center;
+        }
+
+        .customer-profile-logo-control__spec {
+            display: inline-flex;
+            align-items: center;
+            color: color-mix(in oklch, var(--muted) 88%, black);
+            font-size: 0.76rem;
+            font-weight: 500;
+            letter-spacing: 0.01em;
+        }
+
+        .customer-profile-logo-status {
+            color: color-mix(in oklch, var(--muted) 84%, black);
+            font-size: 0.76rem;
+            line-height: 1.45;
+        }
+
+        .customer-profile-logo-status.error {
+            color: var(--danger);
+        }
+
+        @media (max-width: 720px) {
+            .customer-profile-logo-control {
+                grid-template-columns: 1fr;
+            }
+
+            .customer-profile-logo-control__preview {
+                width: 72px;
+                height: 72px;
+            }
+
+            .customer-profile-logo-control__header {
+                align-items: start;
+            }
+        }
+    </style>
+
     <script>
         const manualSyncForm = document.getElementById('manual-sync-form');
         const manualSyncButton = document.getElementById('manual-sync-button');
@@ -521,6 +652,15 @@
         const profileLogoDeleteEndpoint = @json(route('profile.logo.delete'));
         const csrfToken = @json(csrf_token());
         let profileLogoState = @json($logo);
+
+        function setLogoStatus(message, tone = 'default') {
+            if (!profileLogoStatus) {
+                return;
+            }
+
+            profileLogoStatus.textContent = message;
+            profileLogoStatus.classList.toggle('error', tone === 'error');
+        }
 
         function beginSyncFeedback(button, labels, note) {
             if (!button || !syncProgressNote) {
@@ -628,8 +768,8 @@
                 }
             }
 
-            if (profileLogoStatus && statusMessage) {
-                profileLogoStatus.textContent = statusMessage;
+            if (statusMessage) {
+                setLogoStatus(statusMessage);
             }
 
             setLogoBusy(false);
@@ -642,9 +782,7 @@
 
             setLogoBusy(true, 'Uploading Logo…');
 
-            if (profileLogoStatus) {
-                profileLogoStatus.textContent = 'Uploading your logo and preparing the shared business profile contract…';
-            }
+            setLogoStatus('Uploading your logo and preparing the shared business profile contract…');
 
             const formData = new FormData();
             formData.append('logo', file);
@@ -670,9 +808,7 @@
                 renderLogoState(payload.logo, payload.message);
             } catch (error) {
                 setLogoBusy(false);
-                if (profileLogoStatus) {
-                    profileLogoStatus.textContent = error?.message || 'Logo upload failed.';
-                }
+                setLogoStatus(error?.message || 'Logo upload failed.', 'error');
             } finally {
                 if (profileLogoInput) {
                     profileLogoInput.value = '';
@@ -683,9 +819,7 @@
         async function removeProfileLogo() {
             setLogoBusy(true, 'Updating Logo…');
 
-            if (profileLogoStatus) {
-                profileLogoStatus.textContent = 'Removing your logo and refreshing the shared business profile contract…';
-            }
+            setLogoStatus('Removing your logo and refreshing the shared business profile contract…');
 
             try {
                 const response = await fetch(profileLogoDeleteEndpoint, {
@@ -706,9 +840,7 @@
                 renderLogoState(payload.logo, payload.message);
             } catch (error) {
                 setLogoBusy(false);
-                if (profileLogoStatus) {
-                    profileLogoStatus.textContent = error?.message || 'Logo removal failed.';
-                }
+                setLogoStatus(error?.message || 'Logo removal failed.', 'error');
             }
         }
 
