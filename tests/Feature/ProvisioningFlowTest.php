@@ -102,7 +102,7 @@ class ProvisioningFlowTest extends TestCase
         $this->assertSame('Runtime folder creation failed.', $job->error_message);
     }
 
-    public function test_provisioning_fails_fast_when_conversation_log_schema_has_drift(): void
+    public function test_provisioning_continues_when_conversation_log_schema_has_drift(): void
     {
         [, $tenant, $job] = $this->seedTenantAndJob();
 
@@ -110,25 +110,14 @@ class ProvisioningFlowTest extends TestCase
             $table->dropColumn('ai_summary');
         });
 
-        $mock = Mockery::mock(TenantProvisioner::class);
-        $mock->shouldNotReceive('provision');
-        $this->instance(TenantProvisioner::class, $mock);
-
-        try {
-            ProcessTenantProvisioning::dispatchSync($tenant->id, $job->id);
-            $this->fail('Provisioning should have failed when conversation_logs schema drift is present.');
-        } catch (RuntimeException $exception) {
-            $this->assertStringContainsString('Conversation log schema drift detected', $exception->getMessage());
-            $this->assertStringContainsString('php artisan migrate', $exception->getMessage());
-            $this->assertStringContainsString('retry tenant provisioning', $exception->getMessage());
-        }
+        ProcessTenantProvisioning::dispatchSync($tenant->id, $job->id);
 
         $tenant->refresh();
         $job->refresh();
 
-        $this->assertSame(TenantProvisioningStatus::Failed, $tenant->provisioning_status);
-        $this->assertSame(ProvisioningJobStatus::Failed, $job->status);
-        $this->assertStringContainsString('Conversation log schema drift detected', (string) $job->error_message);
+        $this->assertSame(TenantProvisioningStatus::Ready, $tenant->provisioning_status);
+        $this->assertSame(ProvisioningJobStatus::Completed, $job->status);
+        $this->assertNull($job->error_message);
     }
 
     public function test_provisioning_success_sends_workspace_ready_email_and_scrubs_stored_password(): void

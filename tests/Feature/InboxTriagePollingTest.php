@@ -88,7 +88,7 @@ class InboxTriagePollingTest extends TestCase
                 ],
                 'body' => 'Submitted from the website contact form. We need a quote for a commercial fit-out next month.',
             ]);
-        $messenger->shouldReceive('send')
+        $messenger->shouldReceive('sendOperational')
             ->once()
             ->withArgs(function (Tenant $value, string $channel, string $from, string $message, array $requiredSkillIds): bool {
                 return $value->slug === 'lead-shop'
@@ -150,7 +150,7 @@ class InboxTriagePollingTest extends TestCase
             ],
             'body' => 'Read our update.',
         ]);
-        $messenger->shouldNotReceive('send');
+        $messenger->shouldNotReceive('sendOperational');
 
         $this->instance(TenantInboxGmailRuntimeService::class, $gmail);
         $this->instance(TenantWorkspaceMessenger::class, $messenger);
@@ -190,7 +190,7 @@ class InboxTriagePollingTest extends TestCase
             ],
             'body' => 'Thanks for your message.',
         ]);
-        $messenger->shouldNotReceive('send');
+        $messenger->shouldNotReceive('sendOperational');
 
         $this->instance(TenantInboxGmailRuntimeService::class, $gmail);
         $this->instance(TenantWorkspaceMessenger::class, $messenger);
@@ -230,7 +230,7 @@ class InboxTriagePollingTest extends TestCase
             ],
             'body' => 'Thanks for your message.',
         ]);
-        $messenger->shouldNotReceive('send');
+        $messenger->shouldNotReceive('sendOperational');
 
         $this->instance(TenantInboxGmailRuntimeService::class, $gmail);
         $this->instance(TenantWorkspaceMessenger::class, $messenger);
@@ -270,7 +270,7 @@ class InboxTriagePollingTest extends TestCase
             ],
             'body' => 'Thanks for your message.',
         ]);
-        $messenger->shouldNotReceive('send');
+        $messenger->shouldNotReceive('sendOperational');
 
         $this->instance(TenantInboxGmailRuntimeService::class, $gmail);
         $this->instance(TenantWorkspaceMessenger::class, $messenger);
@@ -283,6 +283,56 @@ class InboxTriagePollingTest extends TestCase
             'gmail_message_id' => 'msg-self-sender-001',
             'status' => TenantInboxMonitorMessage::STATUS_SKIPPED,
             'skip_reason' => 'noise_sender:self',
+        ]);
+    }
+
+    public function test_expired_tenant_with_polling_override_can_still_dispatch_internal_triage_when_runtime_replies_are_paused(): void
+    {
+        $tenant = $this->seedInboxTenant('expired-polling-only-shop', tenantOverrides: [
+            'trial_status' => TrialStatus::Expired,
+            'allow_polling_when_trial_expired' => true,
+            'allow_runtime_replies_when_trial_expired' => false,
+        ]);
+        $gmail = Mockery::mock(TenantInboxGmailRuntimeService::class);
+        $messenger = Mockery::mock(TenantWorkspaceMessenger::class);
+
+        $gmail->shouldReceive('searchRecentInbox')->once()->andReturn([[
+            'id' => 'msg-expired-001',
+            'thread_id' => 'thread-expired-001',
+            'from' => 'Jane Buyer <jane@example.com>',
+            'subject' => 'Need a quote',
+            'labels' => ['INBOX'],
+        ]]);
+        $gmail->shouldReceive('getMessage')->once()->andReturn([
+            'raw' => "id\tmsg-expired-001\nthread_id\tthread-expired-001\nlabel_ids\tINBOX\nfrom\tJane Buyer <jane@example.com>\nsubject\tNeed a quote\n\nPlease quote this project.",
+            'metadata' => [
+                'id' => 'msg-expired-001',
+                'thread_id' => 'thread-expired-001',
+                'label_ids' => 'INBOX',
+                'from' => 'Jane Buyer <jane@example.com>',
+                'subject' => 'Need a quote',
+            ],
+            'body' => 'Please quote this project.',
+        ]);
+        $messenger->shouldReceive('sendOperational')
+            ->once()
+            ->withArgs(fn (Tenant $value, string $channel, string $from, string $message, array $requiredSkillIds): bool => $value->is($tenant)
+                && $channel === TenantInboxTriagePollingService::CHANNEL
+                && $from === TenantInboxTriagePollingService::FROM
+                && $requiredSkillIds === ['inbox-triage']
+                && str_contains($message, '"gmail_message_id": "msg-expired-001"'))
+            ->andReturn('routed');
+
+        $this->instance(TenantInboxGmailRuntimeService::class, $gmail);
+        $this->instance(TenantWorkspaceMessenger::class, $messenger);
+
+        $result = app(TenantInboxTriagePollingService::class)->pollTenant($tenant);
+
+        $this->assertSame(['processed' => 1, 'delivered' => 1, 'skipped' => 0, 'failed' => 0], $result);
+        $this->assertDatabaseHas('tenant_inbox_monitor_messages', [
+            'tenant_id' => $tenant->id,
+            'gmail_message_id' => 'msg-expired-001',
+            'status' => TenantInboxMonitorMessage::STATUS_SENT_TO_AGENT,
         ]);
     }
 
@@ -320,7 +370,7 @@ class InboxTriagePollingTest extends TestCase
             ],
             'body' => 'Please quote this project.',
         ]);
-        $messenger->shouldNotReceive('send');
+        $messenger->shouldNotReceive('sendOperational');
 
         $this->instance(TenantInboxGmailRuntimeService::class, $gmail);
         $this->instance(TenantWorkspaceMessenger::class, $messenger);
@@ -368,7 +418,7 @@ class InboxTriagePollingTest extends TestCase
             ],
             'body' => 'We need a cleaning and maintenance quote for three newly completed sites.',
         ]);
-        $messenger->shouldReceive('send')->once()->withArgs(function (Tenant $value, string $channel, string $from, string $message, array $requiredSkillIds): bool {
+        $messenger->shouldReceive('sendOperational')->once()->withArgs(function (Tenant $value, string $channel, string $from, string $message, array $requiredSkillIds): bool {
             return $value->slug === 'thread-follow-up-shop'
                 && $channel === TenantInboxTriagePollingService::CHANNEL
                 && $from === TenantInboxTriagePollingService::FROM
@@ -421,7 +471,7 @@ class InboxTriagePollingTest extends TestCase
         $reentered = false;
         $nestedResult = null;
 
-        $messenger->shouldReceive('send')
+        $messenger->shouldReceive('sendOperational')
             ->once()
             ->andReturnUsing(function () use (&$nestedResult, &$reentered, $tenant): string {
                 if (! $reentered) {
@@ -488,7 +538,7 @@ class InboxTriagePollingTest extends TestCase
             ],
             'body' => 'Please quote this project.',
         ]);
-        $messenger->shouldReceive('send')->once()->andThrow(new RuntimeException('gateway unavailable'));
+        $messenger->shouldReceive('sendOperational')->once()->andThrow(new RuntimeException('gateway unavailable'));
 
         $this->instance(TenantInboxGmailRuntimeService::class, $gmail);
         $this->instance(TenantWorkspaceMessenger::class, $messenger);
@@ -527,7 +577,7 @@ class InboxTriagePollingTest extends TestCase
             ],
             'body' => 'Please quote this project.',
         ]);
-        $messenger->shouldNotReceive('send');
+        $messenger->shouldNotReceive('sendOperational');
 
         $this->instance(TenantInboxGmailRuntimeService::class, $gmail);
         $this->instance(TenantWorkspaceMessenger::class, $messenger);
@@ -546,7 +596,7 @@ class InboxTriagePollingTest extends TestCase
         $gmail->shouldReceive('searchRecentInbox')
             ->once()
             ->andThrow(new RuntimeException('gog gmail search failed'));
-        $messenger->shouldNotReceive('send');
+        $messenger->shouldNotReceive('sendOperational');
 
         $this->instance(TenantInboxGmailRuntimeService::class, $gmail);
         $this->instance(TenantWorkspaceMessenger::class, $messenger);

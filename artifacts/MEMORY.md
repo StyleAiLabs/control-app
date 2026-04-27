@@ -241,6 +241,8 @@ Verified current code behavior:
 - WhatsApp is not implemented as a live channel integration. The onboarding UI only keeps a disabled "Coming Soon" placeholder.
 - The control plane no longer exposes WhatsApp or Telegram webhook routes.
 - Inbox Triage proactive monitoring is implemented as a Sync360-owned Gmail polling trigger, not OpenClaw native Gmail hooks/PubSub. The trigger is intentionally neutral: it de-dupes and filters obvious non-business noise, then routes business-plausible events to the assigned skill without calling anything high-value or notifying Telegram itself.
+- Expired-trial inbox polling overrides are independent from customer-facing runtime reply overrides. Internal inbox-triage trigger delivery may continue through the private agent hook when polling is allowed, even if direct customer replies remain paused.
+- `ConversationLogSchema` guards are only valid on code paths that actually depend on `conversation_logs`. Tenant provisioning and tenant health checks should not fail just because reporting columns drifted.
 
 Remaining documentation mismatch:
 

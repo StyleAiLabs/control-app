@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Contracts\DockerComposeRunner;
 use App\Models\Tenant;
-use App\Support\ConversationLogSchema;
 
 class TenantHealthCheckService
 {
@@ -31,14 +30,6 @@ class TenantHealthCheckService
 
         if (! filled($tenant->workspace_url)) {
             return $this->markFailed($tenant, 'Tenant workspace URL is missing.', 'missing_workspace_url');
-        }
-
-        if (! ConversationLogSchema::isAvailable()) {
-            return $this->markFailed(
-                $tenant,
-                ConversationLogSchema::driftMessage('rerun `php artisan tenants:health-check`'),
-                'schema_drift',
-            );
         }
 
         $composeFile = rtrim((string) $tenant->runtime_path, DIRECTORY_SEPARATOR)

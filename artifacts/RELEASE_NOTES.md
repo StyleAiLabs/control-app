@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-27 — Fix: Restore Correct Runtime Boundaries For Polling, Provisioning, And Health Checks
+
+Date: 2026-04-27
+Status: Implemented
+
+### Overview
+
+Corrected three regressions from the conversation-log schema drift hardening so expired-trial inbox polling, tenant provisioning, and tenant health checks no longer fail because of unrelated customer-reply policy or reporting-table drift.
+
+### What Changed
+
+- added an operational runtime dispatch path in `TenantWorkspaceMessenger` so Sync360-owned inbox-triage triggers can still wake the tenant agent when inbox polling is allowed on an expired tenant, even if direct customer-facing runtime replies remain paused
+- updated inbox-triage polling to use that operational dispatch path instead of the customer-facing reply gate
+- removed `conversation_logs` schema-drift gating from `ProcessTenantProvisioning` so provisioning continues when reporting columns are missing
+- removed `conversation_logs` schema-drift gating from `TenantHealthCheckService` so runtime readiness reflects container/gateway health instead of control-plane reporting state
+- added focused regression coverage for all three corrected boundaries
+
 ## 2026-04-27 — Fix: Detect Conversation-Log Schema Drift Before Tenant Runtime Work
 
 Date: 2026-04-27

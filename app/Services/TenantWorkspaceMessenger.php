@@ -20,7 +20,24 @@ class TenantWorkspaceMessenger
 
     public function send(Tenant $tenant, string $channel, string $from, string $message, array $requiredSkillIds = []): string
     {
-        if (! $this->expiredTrialAccess->canSendCustomerFacingRuntimeWork($tenant)) {
+        return $this->dispatchAgentWork($tenant, $channel, $from, $message, $requiredSkillIds, enforceCustomerFacingPolicy: true);
+    }
+
+    public function sendOperational(Tenant $tenant, string $channel, string $from, string $message, array $requiredSkillIds = []): string
+    {
+        return $this->dispatchAgentWork($tenant, $channel, $from, $message, $requiredSkillIds, enforceCustomerFacingPolicy: false);
+    }
+
+    private function dispatchAgentWork(
+        Tenant $tenant,
+        string $channel,
+        string $from,
+        string $message,
+        array $requiredSkillIds,
+        bool $enforceCustomerFacingPolicy,
+    ): string
+    {
+        if ($enforceCustomerFacingPolicy && ! $this->expiredTrialAccess->canSendCustomerFacingRuntimeWork($tenant)) {
             throw new RuntimeException(
                 'Customer-facing runtime work is paused because this tenant trial has expired. '
                 .'Enable the expired-trial runtime reply override in admin to resume replies.'

@@ -186,7 +186,7 @@ class TenantInboxTriagePollingService
 
             $record->refresh();
 
-            $this->messenger->send(
+            $this->messenger->sendOperational(
                 $tenant,
                 self::CHANNEL,
                 self::FROM,

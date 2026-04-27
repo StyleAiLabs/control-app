@@ -104,7 +104,7 @@ class TenantHealthCheckFlowTest extends TestCase
         $this->assertSame('live', $tenant->agent_status);
     }
 
-    public function test_health_check_flags_schema_drift_before_runtime_readiness(): void
+    public function test_health_check_ignores_conversation_log_schema_drift_when_runtime_is_ready(): void
     {
         $tenant = $this->seedTenant();
 
@@ -139,14 +139,12 @@ class TenantHealthCheckFlowTest extends TestCase
 
         $tenant->refresh();
 
-        $this->assertFalse($result['healthy']);
-        $this->assertSame('failed', $result['status']);
-        $this->assertSame('schema_drift', $result['workspace_state']);
-        $this->assertStringContainsString('Conversation log schema drift detected', $result['message']);
-        $this->assertStringContainsString('php artisan migrate', $result['message']);
-        $this->assertStringContainsString('rerun `php artisan tenants:health-check`', $result['message']);
-        $this->assertSame('failed', $tenant->last_health_check_status);
-        $this->assertSame('failed', $tenant->agent_status);
+        $this->assertTrue($result['healthy']);
+        $this->assertSame('healthy', $result['status']);
+        $this->assertSame('running', $result['workspace_state']);
+        $this->assertSame('Workspace readiness check passed.', $result['message']);
+        $this->assertSame('healthy', $tenant->last_health_check_status);
+        $this->assertSame('live', $tenant->agent_status);
     }
 
     private function seedTenant(): Tenant
