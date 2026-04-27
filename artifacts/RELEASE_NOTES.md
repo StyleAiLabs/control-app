@@ -2484,6 +2484,23 @@ Verification:
 - `php artisan test tests/Unit/TenantAgentSyncServiceTest.php tests/Feature/TrialExpiryCommandTest.php tests/Feature/AdminTenantOperationsTest.php`
 - `php artisan test tests/Unit/TenantWorkspaceMessengerTest.php tests/Feature/InboxTriagePollingTest.php tests/Feature/LiteLlmTenantKeyServiceTest.php tests/Feature/WorkspaceDependencyMonitorCommandTest.php`
 
+## 2026-04-27 - Admin Paused Agent Status Fix
+
+Date: 2026-04-27
+Branch: `codex/control-app-prod-deploy`
+
+Summary:
+- Fixed admin tenant status surfaces so expired tenants with blocked runtime replies show `paused` instead of misleading `live`
+
+Notable changes:
+- updated [`app/Http/Controllers/AdminController.php`](/Users/gayanhewage/Projects/openclaw-saas/app/Http/Controllers/AdminController.php) to derive admin-facing agent state from expired-trial runtime access policy instead of raw `agent_status`
+- updated [`resources/views/admin/tenants.blade.php`](/Users/gayanhewage/Projects/openclaw-saas/resources/views/admin/tenants.blade.php) so tenant list badges and `ready for customer traffic` summary counts treat paused expired tenants as paused, not live
+- updated [`resources/views/admin/tenant-show.blade.php`](/Users/gayanhewage/Projects/openclaw-saas/resources/views/admin/tenant-show.blade.php) so the Overview status strip shows `Agent = paused` while leaving `Workspace = running` available as a separate runtime-health signal
+- added regression coverage in [`tests/Feature/AdminTenantOperationsTest.php`](/Users/gayanhewage/Projects/openclaw-saas/tests/Feature/AdminTenantOperationsTest.php)
+
+Verification:
+- `php artisan test tests/Feature/AdminTenantOperationsTest.php`
+
 ## 2026-04-11 - Sync360 Control App MVP
 
 Date: 2026-04-11

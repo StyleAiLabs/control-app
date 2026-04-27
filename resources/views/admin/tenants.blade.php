@@ -1,20 +1,22 @@
 <x-layouts.app title="Admin Tenants">
     @php
         $totalTenants = $tenants->count();
-        $readyNowCount = $tenants->filter(function ($tenant) use ($workspaceStates): bool {
+        $readyNowCount = $tenants->filter(function ($tenant) use ($workspaceStates, $agentStates): bool {
             $workspaceState = $workspaceStates[$tenant->id] ?? 'unknown';
+            $agentState = $agentStates[$tenant->id] ?? ['value' => 'offline'];
 
             return $tenant->provisioning_status->value === 'ready'
-                && $tenant->agent_status === 'live'
+                && ($agentState['value'] ?? 'offline') === 'live'
                 && $workspaceState === 'running';
         })->count();
-        $attentionCount = $tenants->filter(function ($tenant) use ($workspaceStates, $googleStates): bool {
+        $attentionCount = $tenants->filter(function ($tenant) use ($workspaceStates, $googleStates, $agentStates): bool {
             $workspaceState = $workspaceStates[$tenant->id] ?? 'unknown';
+            $agentState = $agentStates[$tenant->id] ?? ['value' => 'offline'];
             $googleState = $googleStates[$tenant->id] ?? [];
             $trialUrgency = $tenant->isTrialExpired() ? 'expired' : $tenant->trialUrgency();
 
             return $tenant->provisioning_status->value === 'failed'
-                || in_array($tenant->agent_status, ['failed', 'offline'], true)
+                || in_array($agentState['value'] ?? 'offline', ['paused', 'failed', 'offline'], true)
                 || $tenant->last_health_check_status === 'failed'
                 || in_array($workspaceState, ['failed', 'stopped', 'unknown'], true)
                 || in_array($googleState['connection_badge'] ?? 'pending', ['failed', 'error'], true)
@@ -79,7 +81,8 @@
                     @php
                         $workspaceState = $workspaceStates[$tenant->id] ?? 'unknown';
                         $googleState = $googleStates[$tenant->id] ?? null;
-                        $agentStatus = $tenant->agent_status === 'live' ? 'live' : ($tenant->agent_status === 'failed' ? 'failed' : 'pending');
+                        $agentState = $agentStates[$tenant->id] ?? ['status' => 'offline', 'value' => 'offline'];
+                        $agentStatus = $agentState['status'];
                         $healthStatus = $tenant->last_health_check_status === 'healthy' ? 'healthy' : ($tenant->last_health_check_status === 'failed' ? 'failed' : 'unchecked');
                         $workspaceBadgeStatus = $workspaceState === 'running' ? 'running' : ($workspaceState === 'stopped' ? 'stopped' : ($workspaceState === 'unknown' ? 'unchecked' : 'failed'));
                         $workspaceLabel = str_replace('_', ' ', $workspaceState);
@@ -170,7 +173,7 @@
                         </td>
                         <td>
                             <x-ui.badge :status="$agentStatus">
-                                {{ $tenant->agent_status ?? 'offline' }}
+                                {{ $agentState['value'] }}
                             </x-ui.badge>
                         </td>
                         <td>

@@ -4,11 +4,8 @@
         $canManageWorkspace = ! in_array($workspaceState, ['not_provisioned', 'missing_config'], true);
         $googleCredential = $tenant->googleCredential;
         $googleConnected = $googleCredential?->isConnected() ?? false;
-        $agentSummaryStatus = match ($tenant->agent_status) {
-            'live' => 'live',
-            'failed' => 'failed',
-            default => 'offline',
-        };
+        $agentState = is_array($agentState ?? null) ? $agentState : ['status' => 'offline', 'value' => 'offline'];
+        $agentSummaryStatus = $agentState['status'];
         $healthSummaryStatus = match ($tenant->last_health_check_status) {
             'healthy' => 'healthy',
             'failed' => 'failed',
@@ -116,7 +113,7 @@
             [
                 'label' => 'Agent',
                 'status' => $agentSummaryStatus,
-                'value' => $tenant->agent_status ?? 'offline',
+                'value' => $agentState['value'],
             ],
             [
                 'label' => 'Health',

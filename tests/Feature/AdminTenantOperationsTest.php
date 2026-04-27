@@ -632,6 +632,51 @@ class AdminTenantOperationsTest extends TestCase
         $this->assertFalse($tenant->allow_litellm_when_trial_expired);
     }
 
+    public function test_admin_pages_show_paused_agent_for_expired_tenant_when_runtime_replies_are_blocked(): void
+    {
+        $admin = User::query()->create([
+            'name' => 'Debug Admin',
+            'email' => 'admin@example.com',
+            'password' => 'super-secret',
+            'is_admin' => true,
+        ]);
+
+        $user = User::query()->create([
+            'name' => 'Customer User',
+            'email' => 'customer@example.com',
+            'password' => 'super-secret',
+            'is_admin' => false,
+        ]);
+
+        $tenant = Tenant::query()->create([
+            'tenant_id' => 'tenant_trial_override_01_paused',
+            'slug' => 'expired-paused-agent',
+            'business_name' => 'Expired Paused Agent',
+            'industry' => 'Retail',
+            'skill_pack' => 'Client Support',
+            'user_id' => $user->id,
+            'server_id' => Server::query()->firstOrFail()->id,
+            'trial_status' => TrialStatus::Expired,
+            'provisioning_status' => TenantProvisioningStatus::Ready,
+            'agent_status' => 'live',
+            'workspace_url' => 'https://expired-paused-agent.workspace.test',
+            'allow_runtime_replies_when_trial_expired' => false,
+        ]);
+
+        $this->actingAs($admin);
+
+        $this->get('/admin/tenants')
+            ->assertOk()
+            ->assertSee('Expired Paused Agent')
+            ->assertSee('paused');
+
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'overview']))
+            ->assertOk()
+            ->assertSee('Agent')
+            ->assertSee('paused')
+            ->assertDontSee('>live<', false);
+    }
+
     public function test_admin_enabling_litellm_override_for_expired_trial_restores_the_virtual_key_immediately(): void
     {
         $admin = User::query()->create([

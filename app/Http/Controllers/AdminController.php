@@ -129,6 +129,7 @@ class AdminController extends Controller
             ->get();
 
         $workspaceStates = [];
+        $agentStates = [];
         $googleSyncJobs = ProvisioningJob::query()
             ->whereIn('tenant_id', $tenants->pluck('id'))
             ->where('job_type', ProcessInitialGoogleWorkspaceSync::JOB_TYPE)
@@ -140,12 +141,14 @@ class AdminController extends Controller
 
         foreach ($tenants as $tenant) {
             $workspaceStates[$tenant->id] = $this->workspaceStateFor($tenant);
+            $agentStates[$tenant->id] = $this->adminAgentStateFor($tenant);
             $googleStates[$tenant->id] = $this->googleStateFor($tenant, $googleSyncJobs->get($tenant->id));
         }
 
         return view('admin.tenants', [
             'tenants' => $tenants,
             'workspaceStates' => $workspaceStates,
+            'agentStates' => $agentStates,
             'googleStates' => $googleStates,
         ]);
     }
@@ -215,6 +218,7 @@ class AdminController extends Controller
         return view('admin.tenant-show', [
             'tenant' => $tenant,
             'workspaceState' => $this->workspaceStateFor($tenant),
+            'agentState' => $this->adminAgentStateFor($tenant),
             'latestJob' => $tenant->provisioningJobs->first(),
             'googleSyncJob' => $googleSyncJob,
             'googleState' => $this->googleStateFor($tenant, $googleSyncJob),
@@ -240,6 +244,34 @@ class AdminController extends Controller
                 'litellm_suspends_on_expiry' => $this->expiredTrialAccess->shouldSuspendLiteLlmOnExpiry($tenant),
             ],
         ]);
+    }
+
+    /**
+     * @return array{status:string,value:string}
+     */
+    private function adminAgentStateFor(Tenant $tenant): array
+    {
+        if ($tenant->isTrialExpired() && ! $this->expiredTrialAccess->canSendCustomerFacingRuntimeWork($tenant)) {
+            return [
+                'status' => 'warning',
+                'value' => 'paused',
+            ];
+        }
+
+        return match ($tenant->agent_status) {
+            'live' => [
+                'status' => 'live',
+                'value' => 'live',
+            ],
+            'failed' => [
+                'status' => 'failed',
+                'value' => 'failed',
+            ],
+            default => [
+                'status' => 'offline',
+                'value' => 'offline',
+            ],
+        };
     }
 
     public function jobs(): View
