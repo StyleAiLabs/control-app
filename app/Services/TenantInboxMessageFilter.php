@@ -7,9 +7,10 @@ class TenantInboxMessageFilter
     /**
      * @param  array<string, mixed>  $summary
      * @param  array<string, mixed>  $metadata
+     * @param  string|null  $connectedGoogleEmail
      * @return array{skip:bool, reason:?string, hints:list<string>}
      */
-    public function evaluate(array $summary, array $metadata, string $body): array
+    public function evaluate(array $summary, array $metadata, string $body, ?string $connectedGoogleEmail = null): array
     {
         $labels = $this->labels($summary, $metadata);
         $from = (string) ($metadata['from'] ?? $summary['from'] ?? '');
@@ -28,6 +29,13 @@ class TenantInboxMessageFilter
 
         if (in_array($localPart, ['no-reply', 'noreply', 'donotreply', 'do-not-reply', 'mailer-daemon', 'postmaster'], true)) {
             return ['skip' => true, 'reason' => 'noise_sender:'.$localPart, 'hints' => []];
+        }
+
+        $senderEmail = mb_strtolower($this->emailAddress($from));
+        $connectedEmail = mb_strtolower(trim((string) $connectedGoogleEmail));
+
+        if ($senderEmail !== '' && $connectedEmail !== '' && $senderEmail === $connectedEmail) {
+            return ['skip' => true, 'reason' => 'noise_sender:self', 'hints' => []];
         }
 
         $lowerSubject = mb_strtolower($subject);
@@ -63,8 +71,21 @@ class TenantInboxMessageFilter
      */
     private function labels(array $summary, array $metadata): array
     {
-        $labels = $summary['labels'] ?? $summary['label_ids'] ?? $metadata['label_ids'] ?? [];
+        $labels = array_merge(
+            $this->normalizeLabels($summary['labels'] ?? null),
+            $this->normalizeLabels($summary['label_ids'] ?? null),
+            $this->normalizeLabels($metadata['label_ids'] ?? null),
+        );
 
+        return array_values(array_unique(array_filter($labels, 'is_string')));
+    }
+
+    /**
+     * @param  mixed  $labels
+     * @return list<string>
+     */
+    private function normalizeLabels(mixed $labels): array
+    {
         if (is_string($labels)) {
             $labels = preg_split('/\s*,\s*/', $labels) ?: [];
         }

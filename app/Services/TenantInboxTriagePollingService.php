@@ -160,7 +160,12 @@ class TenantInboxTriagePollingService
 
             $from = (string) ($metadata['from'] ?? $summary['from'] ?? '');
             $subject = (string) ($metadata['subject'] ?? $summary['subject'] ?? '');
-            $filter = $this->filter->evaluate($summary, $metadata, $detail['raw']);
+            $filter = $this->filter->evaluate(
+                $summary,
+                $metadata,
+                $detail['raw'],
+                $tenant->googleCredential?->google_email,
+            );
             $record = $this->messageRecord($tenant, $messageId, $summary, $metadata, $from, $subject);
 
             if ($filter['skip']) {

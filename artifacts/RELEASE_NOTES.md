@@ -2501,6 +2501,22 @@ Notable changes:
 Verification:
 - `php artisan test tests/Feature/AdminTenantOperationsTest.php`
 
+## 2026-04-27 - Inbox Triage Sent Message Filter Hardening
+
+Date: 2026-04-27
+Branch: `codex/control-app-prod-deploy`
+
+Summary:
+- Hardened Gmail inbox-triage polling so tenant outbound Gmail copies are not re-ingested as fresh inbox work
+
+Notable changes:
+- updated [`app/Services/TenantInboxMessageFilter.php`](/Users/gayanhewage/Projects/openclaw-saas/app/Services/TenantInboxMessageFilter.php) to merge search-summary and fetched-message labels before filtering, and to skip messages sent from the tenant's own connected Google Workspace email as a defense-in-depth self-sender guard
+- updated [`app/Services/TenantInboxTriagePollingService.php`](/Users/gayanhewage/Projects/openclaw-saas/app/Services/TenantInboxTriagePollingService.php) to pass the connected Google email into the inbox message filter
+- added regression coverage in [`tests/Feature/InboxTriagePollingTest.php`](/Users/gayanhewage/Projects/openclaw-saas/tests/Feature/InboxTriagePollingTest.php) for incomplete summary labels on `SENT` mail and for self-sent Gmail messages
+
+Verification:
+- `php artisan test tests/Feature/InboxTriagePollingTest.php`
+
 ## 2026-04-11 - Sync360 Control App MVP
 
 Date: 2026-04-11
