@@ -8,6 +8,7 @@ use App\Models\TenantGoogleCredential;
 use App\Models\TenantInboxMonitorMessage;
 use App\Models\TenantInboxMonitorState;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -17,6 +18,7 @@ class TenantInboxTriagePollingService
     public const CHANNEL = 'gmail_inbox_monitor';
     public const FROM = 'sync360-inbox-monitor';
     private const MAX_ATTEMPTS = 3;
+    private const DISPATCH_LEASE_MINUTES = 10;
 
     public function __construct(
         private readonly TenantInboxGmailRuntimeService $gmail,
@@ -178,11 +180,11 @@ class TenantInboxTriagePollingService
                 return 'skipped';
             }
 
-            $record->forceFill([
-                'attempts' => (int) $record->attempts + 1,
-                'last_attempted_at' => now(),
-                'last_error' => null,
-            ])->save();
+            if (! $this->claimDispatch($record)) {
+                return 'skipped';
+            }
+
+            $record->refresh();
 
             $this->messenger->send(
                 $tenant,
@@ -347,14 +349,56 @@ class TenantInboxTriagePollingService
         }
 
         if (in_array($existing->status, [
+            TenantInboxMonitorMessage::STATUS_DISPATCHING,
             TenantInboxMonitorMessage::STATUS_SENT_TO_AGENT,
             TenantInboxMonitorMessage::STATUS_SKIPPED,
         ], true)) {
-            return true;
+            return $existing->status !== TenantInboxMonitorMessage::STATUS_DISPATCHING
+                || ! $this->dispatchLeaseExpired($existing);
         }
 
         return $existing->status === TenantInboxMonitorMessage::STATUS_FAILED
             && (int) $existing->attempts >= self::MAX_ATTEMPTS;
+    }
+
+    private function claimDispatch(TenantInboxMonitorMessage $record): bool
+    {
+        $staleCutoff = now()->subMinutes(self::DISPATCH_LEASE_MINUTES);
+
+        $updated = TenantInboxMonitorMessage::query()
+            ->whereKey($record->id)
+            ->where('attempts', '<', self::MAX_ATTEMPTS)
+            ->where(function ($query) use ($staleCutoff): void {
+                $query->whereIn('status', [
+                    TenantInboxMonitorMessage::STATUS_DETECTED,
+                    TenantInboxMonitorMessage::STATUS_FAILED,
+                ])->orWhere(function ($dispatchingQuery) use ($staleCutoff): void {
+                    $dispatchingQuery
+                        ->where('status', TenantInboxMonitorMessage::STATUS_DISPATCHING)
+                        ->where(function ($leaseQuery) use ($staleCutoff): void {
+                            $leaseQuery->whereNull('last_attempted_at')
+                                ->orWhere('last_attempted_at', '<=', $staleCutoff);
+                        });
+                });
+            })
+            ->update([
+                'status' => TenantInboxMonitorMessage::STATUS_DISPATCHING,
+                'attempts' => DB::raw('attempts + 1'),
+                'last_attempted_at' => now(),
+                'last_error' => null,
+                'updated_at' => now(),
+            ]);
+
+        return $updated === 1;
+    }
+
+    private function dispatchLeaseExpired(TenantInboxMonitorMessage $record): bool
+    {
+        if (! $record->last_attempted_at) {
+            return true;
+        }
+
+        return $record->last_attempted_at->lte(now()->subMinutes(self::DISPATCH_LEASE_MINUTES));
     }
 
     /**

@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-27 — Fix: Make Inbox-Triage Polling Idempotent Per Gmail Message
+
+Date: 2026-04-27
+Status: Implemented
+
+### Overview
+
+Closed a polling race where the same inbound Gmail message could wake the tenant agent more than once if two pollers or repeated fetches overlapped before the dispatch result was persisted.
+
+### What Changed
+
+- changed inbox-triage polling so `tenant_inbox_monitor_messages` is the dispatch-ownership boundary, not only an after-the-fact audit record
+- added a transient `dispatching` monitor status that is claimed atomically before Sync360 calls the tenant workspace hook
+- treated in-flight `dispatching` rows as duplicates for a short lease window so concurrent pollers skip the same Gmail message instead of sending it twice
+- preserved retry behavior by allowing stale or failed dispatch attempts to be reclaimed up to the existing max-attempts cap
+- added focused regression coverage proving a re-entrant poll cannot trigger a second agent run for the same Gmail message while the first send is still in flight
+
 ## 2026-04-27 — Feature: Enforce Expired Trials In Runtime With Admin Overrides
 
 Date: 2026-04-27

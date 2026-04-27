@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class TenantInboxMonitorMessage extends Model
 {
     public const STATUS_DETECTED = 'detected';
+    public const STATUS_DISPATCHING = 'dispatching';
     public const STATUS_SENT_TO_AGENT = 'sent_to_agent';
     public const STATUS_SKIPPED = 'skipped';
     public const STATUS_FAILED = 'failed';

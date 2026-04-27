@@ -390,6 +390,71 @@ class InboxTriagePollingTest extends TestCase
         ]);
     }
 
+    public function test_reentrant_poll_does_not_dispatch_the_same_message_twice_while_first_send_is_in_flight(): void
+    {
+        $tenant = $this->seedInboxTenant('reentrant-race-shop');
+        $gmail = Mockery::mock(TenantInboxGmailRuntimeService::class);
+        $messenger = Mockery::mock(TenantWorkspaceMessenger::class);
+
+        $summary = [
+            'id' => 'msg-race-001',
+            'thread_id' => 'thread-race-001',
+            'from' => 'Jane Buyer <jane@example.com>',
+            'subject' => 'Quote needed',
+            'labels' => ['INBOX'],
+        ];
+        $detail = [
+            'raw' => "id\tmsg-race-001\nthread_id\tthread-race-001\nlabel_ids\tINBOX\nfrom\tJane Buyer <jane@example.com>\nsubject\tQuote needed\n\nPlease quote this project.",
+            'metadata' => [
+                'id' => 'msg-race-001',
+                'thread_id' => 'thread-race-001',
+                'label_ids' => 'INBOX',
+                'from' => 'Jane Buyer <jane@example.com>',
+                'subject' => 'Quote needed',
+            ],
+            'body' => 'Please quote this project.',
+        ];
+
+        $gmail->shouldReceive('searchRecentInbox')->twice()->andReturn([$summary]);
+        $gmail->shouldReceive('getMessage')->twice()->andReturn($detail);
+
+        $reentered = false;
+        $nestedResult = null;
+
+        $messenger->shouldReceive('send')
+            ->once()
+            ->andReturnUsing(function () use (&$nestedResult, &$reentered, $tenant): string {
+                if (! $reentered) {
+                    $reentered = true;
+                    $service = app(TenantInboxTriagePollingService::class);
+                    $nestedResult = $service->pollTenant($tenant->fresh());
+                }
+
+                return 'routed';
+            });
+
+        $this->instance(TenantInboxGmailRuntimeService::class, $gmail);
+        $this->instance(TenantWorkspaceMessenger::class, $messenger);
+
+        $service = app(TenantInboxTriagePollingService::class);
+
+        $result = $service->pollTenant($tenant);
+
+        $this->assertSame(['processed' => 1, 'delivered' => 1, 'skipped' => 0, 'failed' => 0], $result);
+        $this->assertSame([
+            'processed' => 1,
+            'delivered' => 0,
+            'skipped' => 1,
+            'failed' => 0,
+        ], $nestedResult);
+        $this->assertDatabaseHas('tenant_inbox_monitor_messages', [
+            'tenant_id' => $tenant->id,
+            'gmail_message_id' => 'msg-race-001',
+            'status' => TenantInboxMonitorMessage::STATUS_SENT_TO_AGENT,
+            'attempts' => 1,
+        ]);
+    }
+
     public function test_gateway_failures_increment_attempts_and_stop_after_cap(): void
     {
         $tenant = $this->seedInboxTenant('retry-shop');
