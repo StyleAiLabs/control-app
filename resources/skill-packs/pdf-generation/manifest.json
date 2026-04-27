@@ -4,6 +4,7 @@
     "label": "PDF Generation (by Sync360)",
     "description": "Generate professional PDF documents from HTML/CSS content using the aPDF.io API, file them to Google Drive, and optionally deliver via Gmail.",
     "category": "operations",
+    "onboarding_role": "core",
     "runtime_type": "sync360_workspace",
     "production_ready": true,
     "openclaw_skill_ids": [
@@ -12,7 +13,11 @@
     "default_agent_skill_ids": [
         "pdf-generation"
     ],
-    "applicable_industries": ["trades", "construction", "field-services"],
+    "applicable_industries": [
+        "trades",
+        "construction",
+        "field-services"
+    ],
     "api_dependencies": [
         {
             "name": "apdf",

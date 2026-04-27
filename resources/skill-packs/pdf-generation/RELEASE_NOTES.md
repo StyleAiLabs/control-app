@@ -1,4 +1,7 @@
 # PDF Generation — Release Notes
+## 2.0.1
+
+- PDF generation updated as core module
 
 ## 2.0.0
 
