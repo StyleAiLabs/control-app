@@ -80,8 +80,9 @@ class TenantAgentSyncService
             if (app()->environment('local')) {
                 Log::info('[GoLive] Local dev mode — skipping remote sync for tenant '.$tenant->slug);
             } else {
-                /* Sync ONLY the .openclaw/workspace/ markdown files — never touch compose.yaml
-                   or config/openclaw.json which hold provisioned credentials (LiteLLM key,
+                /* Sync ONLY the .openclaw/workspace/ artifacts — generated markdown, JSON,
+                   skill files, and tenant-scoped assets — never touch compose.yaml or
+                   config/openclaw.json which hold provisioned credentials (LiteLLM key,
                    gateway token). Using syncRuntime() here previously overwrote those files
                    with stale local copies and broke LiteLLM authentication. */
                 $localWorkspacePath  = $workspacePath;

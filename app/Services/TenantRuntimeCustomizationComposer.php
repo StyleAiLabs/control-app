@@ -8,8 +8,10 @@ use App\Models\Tenant;
 use App\Models\TenantAgentCustomization;
 use App\Models\TenantGoogleCredential;
 use App\Models\TenantSkillAssignment;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 class TenantRuntimeCustomizationComposer
@@ -243,6 +245,7 @@ class TenantRuntimeCustomizationComposer
         };
         $enabledAssignments = $this->enabledAssignments($tenant);
         $moduleLines = $this->moduleLines($enabledAssignments);
+        $businessProfileArtifact = $this->buildBusinessProfileArtifact($tenant, $profile, $profileFiles, $enabledAssignments);
 
         return array_merge([
             'IDENTITY.md' => $this->normalizeMarkdown($profileFiles->identity_markdown),
@@ -251,9 +254,10 @@ class TenantRuntimeCustomizationComposer
             'BOOTSTRAP.md' => $this->normalizeMarkdown($profileFiles->bootstrap_markdown),
             'AGENTS.md' => $this->normalizeMarkdown($this->buildAgentsMarkdown($enabledAssignments)),
             'TOOLS.md' => $this->normalizeMarkdown($this->buildToolsMarkdown($googleCredential)),
-            'PROFILE.md' => $this->normalizeMarkdown($this->buildProfileMarkdown($tenant, $profile, $services, $moduleLines, $channelLabel, $googleCredential)),
+            'BUSINESS_PROFILE.json' => $this->buildBusinessProfileJson($businessProfileArtifact['payload']),
+            'PROFILE.md' => $this->normalizeMarkdown($this->buildProfileMarkdown($tenant, $profile, $services, $moduleLines, $channelLabel, $googleCredential, $businessProfileArtifact['payload']['logo'])),
             'HEARTBEAT.md' => $this->normalizeMarkdown($this->buildHeartbeatMarkdown($tenant, $profile, $moduleLines, $channelLabel, $googleCredential)),
-        ], $this->analyticsHelperFiles($enabledAssignments));
+        ], $businessProfileArtifact['workspace_files'], $this->analyticsHelperFiles($enabledAssignments));
     }
 
     private function contentHash(array $workspaceFiles, array $skillFiles, string $openClawConfig): string
@@ -496,6 +500,7 @@ class TenantRuntimeCustomizationComposer
     /**
      * @param  array<int, string>  $services
      * @param  array<int, string>  $moduleLines
+     * @param  array{present:bool,path:?string,mime_type:?string,original_filename:?string,size_bytes:?int,uploaded_at:?string}  $logo
      */
     private function buildProfileMarkdown(
         Tenant $tenant,
@@ -504,6 +509,7 @@ class TenantRuntimeCustomizationComposer
         array $moduleLines,
         string $channelLabel,
         ?TenantGoogleCredential $googleCredential,
+        array $logo,
     ): string {
         $serviceLines = $services === []
             ? ['- No services have been confirmed yet.']
@@ -519,6 +525,7 @@ class TenantRuntimeCustomizationComposer
             '- Website: '.($profile->website_url ?: 'Not provided'),
             '- Channel: '.$channelLabel,
             '- Communication Style: '.($tenant->tone ?: $profile->tone_hint ?: 'Not provided'),
+            '- Logo Asset: '.($logo['present'] ? ($logo['path'] ?: 'Present') : 'Not provided'),
             '',
             '## Description',
             $profile->description ?: 'A full business description has not been provided yet.',
@@ -699,5 +706,131 @@ class TenantRuntimeCustomizationComposer
         }
 
         return $this->gogCommands->ownerAccessLines($googleCredential);
+    }
+
+    /**
+     * @param  Collection<int, TenantSkillAssignment>  $enabledAssignments
+     * @return array{payload: array<string, mixed>, workspace_files: array<string, string>}
+     */
+    private function buildBusinessProfileArtifact(
+        Tenant $tenant,
+        BusinessProfile $profile,
+        BusinessProfileFiles $profileFiles,
+        Collection $enabledAssignments,
+    ): array {
+        $logo = $this->logoPayload($profileFiles);
+        $workspaceFiles = [];
+
+        if (($logo['present'] ?? false) === true && is_string($logo['storage_path'] ?? null)) {
+            $storagePath = trim((string) $logo['storage_path']);
+
+            if ($storagePath !== '' && Storage::disk('local')->exists($storagePath) && is_string($logo['path'] ?? null)) {
+                $workspaceFiles[$logo['path']] = Storage::disk('local')->get($storagePath);
+            }
+        }
+
+        $payload = [
+            'business_name' => $profile->business_name ?: $tenant->business_name,
+            'trading_name' => $profile->trading_name,
+            'industry' => $profile->industry ?: $tenant->industry,
+            'description' => $profile->description,
+            'tagline' => $profile->tagline,
+            'website_url' => $profile->website_url,
+            'contact_email' => $profile->contact_email,
+            'contact_phone' => $profile->contact_phone,
+            'contact_mobile' => $profile->contact_mobile,
+            'physical_address' => $profile->physical_address,
+            'postal_address' => $profile->postal_address,
+            'city' => $profile->city,
+            'country' => $profile->country,
+            'tax_number' => $profile->tax_number,
+            'company_reg_number' => $profile->company_reg_number,
+            'owner_name' => $profile->owner_name,
+            'owner_email' => $profile->owner_email,
+            'owner_phone' => $profile->owner_phone,
+            'business_hours' => is_array($profile->business_hours) ? array_values($profile->business_hours) : [],
+            'after_hours_policy' => $profile->after_hours_policy,
+            'primary_language' => $profile->primary_language,
+            'services' => $this->stringList($profile->services),
+            'faqs' => $this->stringList($profile->faqs),
+            'target_customers' => $profile->target_customers,
+            'pricing_notes' => $profile->pricing_notes,
+            'tone' => $tenant->tone ?: $profile->tone_hint,
+            'enabled_modules' => $this->enabledModulePayloads($enabledAssignments),
+            'logo' => Arr::except($logo, ['storage_path']),
+            'profile_completeness' => $profile->profile_completeness,
+            'last_synced_to_agent' => $profile->last_synced_to_agent?->toIso8601String(),
+            'generated_at' => $profileFiles->generated_at?->toIso8601String(),
+            'updated_at' => $profile->updated_at?->toIso8601String(),
+        ];
+
+        return [
+            'payload' => $payload,
+            'workspace_files' => $workspaceFiles,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function buildBusinessProfileJson(array $payload): string
+    {
+        $encoded = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+
+        if ($encoded === false) {
+            throw new RuntimeException('Unable to encode BUSINESS_PROFILE.json.');
+        }
+
+        return $encoded.PHP_EOL;
+    }
+
+    /**
+     * @return array{present:bool,path:?string,mime_type:?string,original_filename:?string,size_bytes:?int,uploaded_at:?string,storage_path:?string}
+     */
+    private function logoPayload(BusinessProfileFiles $profileFiles): array
+    {
+        $storagePath = is_string($profileFiles->logo_storage_path) ? trim($profileFiles->logo_storage_path) : '';
+        $present = $storagePath !== '' && Storage::disk('local')->exists($storagePath);
+        $extension = strtolower(pathinfo($storagePath, PATHINFO_EXTENSION));
+
+        return [
+            'present' => $present,
+            'path' => $present ? 'business-assets/logo.'.($extension !== '' ? $extension : 'png') : null,
+            'mime_type' => $present ? $profileFiles->logo_mime_type : null,
+            'original_filename' => $present ? $profileFiles->logo_original_filename : null,
+            'size_bytes' => $present ? $profileFiles->logo_size_bytes : null,
+            'uploaded_at' => $present ? $profileFiles->logo_uploaded_at?->toIso8601String() : null,
+            'storage_path' => $present ? $storagePath : null,
+        ];
+    }
+
+    /**
+     * @param  Collection<int, TenantSkillAssignment>  $assignments
+     * @return array<int, array{skill_key:string,label:string,description:?string,onboarding_role:?string,runtime_type:string}>
+     */
+    private function enabledModulePayloads(Collection $assignments): array
+    {
+        $payload = [];
+
+        foreach ($assignments as $assignment) {
+            $item = $assignment->catalogVersion?->item;
+            $skill = $this->skillRegistry->skillDefinitionForAssignment($assignment);
+
+            $payload[] = [
+                'skill_key' => $assignment->skill_key,
+                'label' => is_string($item?->label) && trim($item->label) !== ''
+                    ? trim($item->label)
+                    : (string) ($skill['label'] ?? $assignment->skill_key),
+                'description' => is_string($item?->description) && trim($item->description) !== ''
+                    ? trim($item->description)
+                    : (is_string($skill['description'] ?? null) && trim((string) $skill['description']) !== '' ? trim((string) $skill['description']) : null),
+                'onboarding_role' => is_string($item?->onboarding_role) && trim($item->onboarding_role) !== ''
+                    ? trim($item->onboarding_role)
+                    : null,
+                'runtime_type' => (string) ($skill['runtime_type'] ?? TenantSkillRegistryService::RUNTIME_TYPE_SYNC360_WORKSPACE),
+            ];
+        }
+
+        return $payload;
     }
 }

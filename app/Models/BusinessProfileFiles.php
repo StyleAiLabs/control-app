@@ -21,6 +21,11 @@ class BusinessProfileFiles extends Model
         'bootstrap_markdown',
         'profile_markdown',
         'heartbeat_markdown',
+        'logo_storage_path',
+        'logo_original_filename',
+        'logo_mime_type',
+        'logo_size_bytes',
+        'logo_uploaded_at',
         'generated_at',
         'synced_at',
     ];
@@ -28,6 +33,8 @@ class BusinessProfileFiles extends Model
     protected function casts(): array
     {
         return [
+            'logo_size_bytes' => 'integer',
+            'logo_uploaded_at' => 'datetime',
             'generated_at' => 'datetime',
             'synced_at' => 'datetime',
         ];

@@ -17,6 +17,23 @@ When the owner or another skill needs a professional PDF document — such as a 
 
 This skill can be invoked directly by the owner or handed off from another skill (e.g. inbox-triage may hand off when the owner replies "Generate a quote" to a Telegram lead notification).
 
+## Workspace Business Profile Contract
+
+Before asking the owner to repeat basic company details, read `.openclaw/workspace/BUSINESS_PROFILE.json`. This is the canonical machine-readable business profile contract that Sync360 materializes for workspace-managed custom skills.
+
+Use it as the default source for:
+- business identity (`business_name`, `trading_name`, `tagline`, `industry`, `description`)
+- GST / tax / company-registration details
+- contact details and addresses
+- operating hours and after-hours policy
+- services, FAQs, target customers, and pricing notes
+- tenant tone and enabled modules
+- optional logo metadata under `logo`
+
+When `logo.present` is `true`, the logo file will be available at the workspace-relative path in `logo.path` (for example `business-assets/logo.png`). Use that local workspace asset directly when branding a customer-facing PDF. For customer-facing business documents such as quotes, invoices, and site reports, treat logo usage as the default contract when a logo is available. Do not fetch remote logo URLs.
+
+Use `PROFILE.md` as a human-readable summary when needed, but treat `BUSINESS_PROFILE.json` as the canonical structured source.
+
 ## Runtime References
 
 ### aPDF.io API dependency (required)
@@ -98,12 +115,15 @@ Build the HTML document following these rules:
 5. **Forbidden**: external resources (CDN stylesheets, remote images, web fonts via URL). All styling must be inline via `<style>` blocks.
 6. **Required metadata**: `<title>` tag matching the document title, `<meta name="author">` with business name.
 
+If `BUSINESS_PROFILE.json` includes `logo.present = true`, embed the local workspace logo file referenced by `logo.path` in the document header unless the owner explicitly asks for a text-only document. If no logo is present, continue without branding rather than failing the workflow.
+
 If using a starter template from `skills/pdf-generation/templates/<type>/`:
 - Read `template.html` from the template folder.
 - Render the template control blocks yourself before calling aPDF.io.
 - Replace `{{field}}` placeholders with the collected scalar values.
 - `{{#if field}}...{{/if}}` includes the enclosed HTML only when the field has a non-empty value; otherwise remove the whole block cleanly.
 - `{{#each line_items}}...{{/each}}` repeats the enclosed row once per item. Inside that block, replace `{{this.description}}`, `{{this.qty}}`, `{{this.rate}}`, and similar fields from the current item.
+- When `BUSINESS_PROFILE.json` exposes `logo.present = true`, pass the logo into the template fields and keep the header logo block in the final rendered HTML.
 - The final HTML sent to aPDF.io must not contain raw `{{` template tags.
 - The template CSS is already inline in the `<style>` block.
 

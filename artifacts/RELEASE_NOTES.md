@@ -7,6 +7,24 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-27 — Feature: Async Business Logo Upload And Shared Business Profile Skill Contract
+
+Date: 2026-04-27
+Status: Implemented
+
+### Overview
+
+Added a no-refresh business-logo upload flow to the customer profile page and expanded the tenant workspace contract so custom skills can read structured business details from one canonical machine-readable source.
+
+### What Changed
+
+- added authenticated `GET /profile/logo`, `POST /profile/logo`, and `DELETE /profile/logo` endpoints for tenant-scoped logo preview, upload, replace, and removal
+- stored logo metadata on `business_profile_files` and kept the binary in tenant-scoped private storage instead of the database or public disk
+- extended tenant workspace composition to emit `BUSINESS_PROFILE.json` as the canonical custom-skill contract for business identity, GST/tax, contact details, hours, pricing notes, enabled modules, tone, and optional logo metadata
+- materialized an optional `business-assets/logo.<ext>` workspace asset whenever a tenant logo is present
+- updated the live profile/logo sync path so already-live tenants push those changes through the existing workspace-only `goLive()` flow, without using full runtime sync
+- updated the `pdf-generation` skill docs and release metadata so it reads `BUSINESS_PROFILE.json` as the canonical structured source and uses the local workspace logo asset when available
+
 ## 2026-04-27 — Refresh: Customer Profile Design-System Surface
 
 Date: 2026-04-27

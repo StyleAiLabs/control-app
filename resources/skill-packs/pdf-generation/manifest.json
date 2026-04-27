@@ -1,6 +1,6 @@
 {
     "skill_id": "pdf-generation",
-    "version": "2.0.0",
+    "version": "2.0.3",
     "label": "PDF Generation (by Sync360)",
     "description": "Generate professional PDF documents from HTML/CSS content using the aPDF.io API, file them to Google Drive, and optionally deliver via Gmail.",
     "category": "operations",

@@ -38,6 +38,9 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/conversations', [ConversationsController::class, 'index'])->name('conversations.index');
         Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+        Route::get('/profile/logo', [ProfileController::class, 'showLogo'])->name('profile.logo.show');
+        Route::post('/profile/logo', [ProfileController::class, 'uploadLogo'])->name('profile.logo.upload');
+        Route::delete('/profile/logo', [ProfileController::class, 'deleteLogo'])->name('profile.logo.delete');
         Route::post('/profile/sync-agent', [ProfileController::class, 'syncAgent'])->name('profile.sync-agent');
         Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding.show');
         Route::get('/onboarding/state', [OnboardingController::class, 'state'])->name('onboarding.state');

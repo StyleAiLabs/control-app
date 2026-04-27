@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\TenantRuntimeCustomizationComposer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class TenantRuntimeCustomizationComposerTest extends TestCase
@@ -287,6 +288,75 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
         $this->assertStringContainsString('`{{#if field}}...{{/if}}` includes the enclosed HTML only when the field has a non-empty value', $composed->skillFiles['skills/pdf-generation/SKILL.md']);
         $this->assertStringContainsString('`{{#each line_items}}...{{/each}}` repeats the enclosed row once per item', $composed->skillFiles['skills/pdf-generation/SKILL.md']);
         $this->assertStringContainsString('The final HTML sent to aPDF.io must not contain raw `{{` template tags.', $composed->skillFiles['skills/pdf-generation/SKILL.md']);
+    }
+
+    public function test_it_emits_business_profile_json_and_logo_asset_for_custom_skills(): void
+    {
+        $tenant = $this->seedTenant();
+        $this->artisan('sync360:skills:import', ['--skill' => 'pdf-generation'])->assertExitCode(0);
+        $pdfVersion = SkillCatalogVersion::query()->where('skill_key', 'pdf-generation')->firstOrFail();
+        $logoStoragePath = 'tenant-business-profile-assets/'.$tenant->tenant_id.'/logo.png';
+        Storage::disk('local')->delete($logoStoragePath);
+
+        BusinessProfile::query()->create([
+            'tenant_id' => $tenant->id,
+            'business_name' => 'Acme Plumbing',
+            'trading_name' => 'Acme',
+            'industry' => 'Home Services',
+            'description' => 'Fast local plumbing support.',
+            'contact_email' => 'support@acme.test',
+            'contact_phone' => '+64 21 555 0101',
+            'tax_number' => 'GST-123',
+            'services' => ['Emergency plumbing', 'Maintenance'],
+            'faqs' => ['Do you do callouts?'],
+            'pricing_notes' => 'Quote before work starts.',
+        ]);
+
+        Storage::disk('local')->put($logoStoragePath, 'logo-bytes');
+
+        BusinessProfileFiles::query()->create([
+            'tenant_id' => $tenant->id,
+            'identity_markdown' => "# Identity\n\nBase identity",
+            'soul_markdown' => "# Soul\n\nBase soul",
+            'user_markdown' => "# User\n\nBase user",
+            'bootstrap_markdown' => "# Bootstrap\n\nBase bootstrap",
+            'logo_storage_path' => $logoStoragePath,
+            'logo_original_filename' => 'acme-logo.png',
+            'logo_mime_type' => 'image/png',
+            'logo_size_bytes' => 10,
+            'logo_uploaded_at' => now(),
+            'generated_at' => now(),
+        ]);
+
+        TenantSkillAssignment::query()->create([
+            'tenant_id' => $tenant->id,
+            'skill_catalog_version_id' => $pdfVersion->id,
+            'skill_key' => 'pdf-generation',
+            'assigned_by' => $tenant->user_id,
+            'assigned_at' => now(),
+            'is_enabled' => true,
+        ]);
+
+        File::ensureDirectoryExists(dirname($this->runtimeConfigPath($tenant)));
+        File::put($this->runtimeConfigPath($tenant), json_encode(['agents' => ['defaults' => []]], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+
+        $composed = app(TenantRuntimeCustomizationComposer::class)->compose($tenant->fresh([
+            'businessProfile',
+            'businessProfileFiles',
+            'googleCredential',
+            'agentCustomization',
+            'skillAssignments.catalogVersion.item',
+        ]));
+
+        $this->assertArrayHasKey('BUSINESS_PROFILE.json', $composed->workspaceFiles);
+        $this->assertArrayHasKey('business-assets/logo.png', $composed->workspaceFiles);
+        $this->assertSame('logo-bytes', $composed->workspaceFiles['business-assets/logo.png']);
+        $this->assertStringContainsString('"business_name": "Acme Plumbing"', $composed->workspaceFiles['BUSINESS_PROFILE.json']);
+        $this->assertStringContainsString('"trading_name": "Acme"', $composed->workspaceFiles['BUSINESS_PROFILE.json']);
+        $this->assertStringContainsString('"tax_number": "GST-123"', $composed->workspaceFiles['BUSINESS_PROFILE.json']);
+        $this->assertStringContainsString('"path": "business-assets/logo.png"', $composed->workspaceFiles['BUSINESS_PROFILE.json']);
+        $this->assertStringContainsString('"enabled_modules"', $composed->workspaceFiles['BUSINESS_PROFILE.json']);
+        $this->assertStringContainsString('- Logo Asset: business-assets/logo.png', $composed->workspaceFiles['PROFILE.md']);
     }
 
     public function test_it_flags_base_drift_for_replace_overrides(): void

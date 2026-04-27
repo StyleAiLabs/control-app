@@ -1,4 +1,16 @@
 # PDF Generation — Release Notes
+## 2.0.3
+
+- Tightened the PDF-generation contract so customer-facing business documents must use the tenant business logo from `BUSINESS_PROFILE.json` whenever `logo.present` is true, unless the owner explicitly requests a text-only document.
+- Updated the shipped quote, invoice, and site-report starter templates to include an optional header logo block via `business_logo_path`.
+- Clarified the template guide so `business_logo_path` is part of the expected document data when a workspace logo is available.
+
+## 2.0.2
+
+- Added an explicit workspace business-profile contract for custom-skill consumption via `.openclaw/workspace/BUSINESS_PROFILE.json`.
+- Documented that PDF generation should read company identity, GST/tax, contact details, and optional logo metadata from `BUSINESS_PROFILE.json` before falling back to `PROFILE.md`.
+- Clarified that when `logo.present` is true, the local workspace asset at `logo.path` should be used directly for PDF branding instead of remote image URLs.
+
 ## 2.0.1
 
 - PDF generation updated as core module

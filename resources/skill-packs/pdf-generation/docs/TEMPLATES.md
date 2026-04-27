@@ -2,6 +2,21 @@
 
 This guide documents the starter templates shipped with the PDF Generation skill and provides guidance on building custom HTML for aPDF.io rendering.
 
+## Business Profile Input Contract
+
+Sync360 now materializes `.openclaw/workspace/BUSINESS_PROFILE.json` for workspace-managed custom skills. Treat it as the canonical structured source for customer-facing business details before falling back to `PROFILE.md`.
+
+Relevant fields include:
+- `business_name`, `trading_name`, `tagline`, `industry`, `description`
+- `contact_email`, `contact_phone`, `contact_mobile`
+- `physical_address`, `postal_address`, `city`, `country`
+- `tax_number`, `company_reg_number`
+- `business_hours`, `after_hours_policy`
+- `services`, `faqs`, `target_customers`, `pricing_notes`
+- `logo.present` and `logo.path`
+
+When `logo.present` is true, the referenced workspace asset path (for example `business-assets/logo.png`) is the default source for branded headers in generated PDFs. For customer-facing business documents, include the logo in the header unless the owner explicitly asks for a text-only output.
+
 ## Shipped Templates
 
 All templates live under `skills/pdf-generation/templates/<type>/` and use a small Handlebars-style syntax that the agent must render into plain HTML before calling aPDF.io.
@@ -27,6 +42,7 @@ A professional NZ trades quote with:
 **Required data fields:**
 | Field | Example |
 |-------|---------|
+| `business_logo_path` | `"business-assets/logo.png"` (optional but expected when `logo.present` is true) |
 | `business_name` | `"Smith Electrical Ltd"` |
 | `business_address` | `"42 High Street, Christchurch 8011"` |
 | `business_phone` | `"03 555 1234"` |
@@ -63,6 +79,7 @@ A professional NZ trades invoice with:
 **Additional fields beyond quote:**
 | Field | Example |
 |-------|---------|
+| `business_logo_path` | `"business-assets/logo.png"` (optional but expected when `logo.present` is true) |
 | `invoice_number` | `"INV-2026-089"` |
 | `due_date` | `"11 May 2026"` |
 | `status` | `"due"`, `"paid"`, or `"overdue"` |
@@ -89,6 +106,7 @@ A professional site visit / inspection report with:
 **Required data fields:**
 | Field | Example |
 |-------|---------|
+| `business_logo_path` | `"business-assets/logo.png"` (optional but expected when `logo.present` is true) |
 | `report_reference` | `"SR-2026-012"` |
 | `report_date` | `"27 April 2026"` |
 | `inspector_name` | `"Mike Smith"` |
@@ -163,7 +181,7 @@ h2, h3 { page-break-after: avoid; }
 | Trap | Fix |
 |------|-----|
 | Missing fonts | Use web-safe: Arial, Helvetica, Georgia, Times New Roman |
-| Absolute image paths | Use relative paths or inline base64 |
+| Absolute image paths | Use relative workspace paths such as `business-assets/logo.png` or inline base64 |
 | No page size set | Always set `@page { size: A4; }` |
 | Large images | Compress or resize before embedding |
 | External resources | Inline everything — no CDN links |

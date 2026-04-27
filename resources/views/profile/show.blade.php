@@ -10,6 +10,9 @@
         $inboxHealth = $dependencyHealth['inbox_monitor'] ?? [];
         $dependencyAlert = $dependencyHealth['customer_alerts'][0] ?? null;
         $dependencyCta = $dependencyHealth['primary_cta'] ?? null;
+        $logoPreviewUrl = $logo['preview_url'] ?? null;
+        $logoOriginalFilename = $logo['original_filename'] ?? null;
+        $logoUploadedAt = $logo['uploaded_at'] ?? null ? \Illuminate\Support\Carbon::parse($logo['uploaded_at'])->diffForHumans() : null;
         $googleBadgeStatus = match (true) {
             ($googleHealth['requires_reconnect'] ?? false) => 'error',
             in_array($googleHealth['health_status'] ?? null, ['expiring_soon', 'degraded'], true) => 'warning',
@@ -133,6 +136,67 @@
                         <div class="customer-profile-section__header">
                             <h3 class="customer-profile-section__title">Identity and positioning</h3>
                             <p class="customer-profile-section__note">Keep the business basics clear so the assistant introduces the company correctly every time.</p>
+                        </div>
+
+                        <div class="field-single">
+                            <div class="note" id="profile-logo-card" style="padding:14px 16px;">
+                                <div style="display:flex; flex-wrap:wrap; gap:14px; align-items:center;">
+                                    <div style="flex:0 0 84px;">
+                                        <div style="width:84px; height:84px; border:1px solid rgba(28, 30, 38, 0.12); border-radius:16px; background:#fff; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+                                            <img
+                                                id="profile-logo-preview"
+                                                @if ($logoPreviewUrl) src="{{ $logoPreviewUrl }}" @endif
+                                                alt="Business logo preview"
+                                                style="max-width:100%; max-height:100%; object-fit:contain; display:{{ $logo['present'] ? 'block' : 'none' }};"
+                                            >
+                                            <span
+                                                id="profile-logo-placeholder"
+                                                class="hint"
+                                                style="padding:12px; text-align:center; font-size:0.88rem; line-height:1.35; display:{{ $logo['present'] ? 'none' : 'block' }};"
+                                            >
+                                                No logo yet
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div style="flex:1 1 320px; min-width:240px;">
+                                        <div style="display:flex; flex-wrap:wrap; gap:10px 14px; align-items:center; justify-content:space-between;">
+                                            <div>
+                                                <strong>Business logo</strong>
+                                                <p class="hint" id="profile-logo-meta" style="margin-top:4px;">
+                                                    @if ($logo['present'])
+                                                        {{ $logoOriginalFilename }}@if ($logoUploadedAt), uploaded {{ $logoUploadedAt }}@endif
+                                                    @else
+                                                        Optional. Used in customer-facing documents and workspace modules.
+                                                    @endif
+                                                </p>
+                                            </div>
+
+                                            <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                                                <input type="file" id="profile-logo-input" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" style="display:none;">
+                                                <x-ui.button type="button" id="profile-logo-upload-button" variant="secondary">
+                                                    {{ $logo['present'] ? 'Replace Logo' : 'Upload Logo' }}
+                                                </x-ui.button>
+                                                <x-ui.button type="button" id="profile-logo-remove-button" variant="secondary" style="{{ $logo['present'] ? '' : 'display:none;' }}">
+                                                    Remove
+                                                </x-ui.button>
+                                            </div>
+                                        </div>
+
+                                        <div class="hint" style="margin-top:8px;">
+                                            PNG, JPG, JPEG, WEBP. Maximum size: 2 MB.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="note" id="profile-logo-status" aria-live="polite" style="margin-top:12px;">
+                                    @if ($logo['present'])
+                                        The current logo is ready for workspace sync and custom skill use.
+                                    @else
+                                        Upload a logo any time. Your text profile fields still save separately below.
+                                    @endif
+                                </div>
+                            </div>
                         </div>
 
                         <div class="field-grid">
@@ -446,6 +510,17 @@
         const syncProgressIdle = document.getElementById('sync-progress-idle');
         const syncCompleteNote = document.getElementById('sync-complete-note');
         const syncProgressNote = document.getElementById('sync-progress-note');
+        const profileLogoInput = document.getElementById('profile-logo-input');
+        const profileLogoUploadButton = document.getElementById('profile-logo-upload-button');
+        const profileLogoRemoveButton = document.getElementById('profile-logo-remove-button');
+        const profileLogoPreview = document.getElementById('profile-logo-preview');
+        const profileLogoPlaceholder = document.getElementById('profile-logo-placeholder');
+        const profileLogoStatus = document.getElementById('profile-logo-status');
+        const profileLogoMeta = document.getElementById('profile-logo-meta');
+        const profileLogoEndpoint = @json(route('profile.logo.upload'));
+        const profileLogoDeleteEndpoint = @json(route('profile.logo.delete'));
+        const csrfToken = @json(csrf_token());
+        let profileLogoState = @json($logo);
 
         function beginSyncFeedback(button, labels, note) {
             if (!button || !syncProgressNote) {
@@ -502,6 +577,152 @@
             saveProfileButton.disabled = true;
             saveProfileButton.dataset.originalLabel = saveProfileButton.dataset.originalLabel || saveProfileButton.textContent;
             saveProfileButton.textContent = 'Saving Profile…';
+        });
+
+        function setLogoBusy(isBusy, uploadLabel = null) {
+            if (profileLogoUploadButton) {
+                profileLogoUploadButton.disabled = isBusy;
+                if (uploadLabel) {
+                    profileLogoUploadButton.textContent = uploadLabel;
+                } else {
+                    profileLogoUploadButton.textContent = profileLogoState.present ? 'Replace Logo' : 'Upload Logo';
+                }
+            }
+
+            if (profileLogoRemoveButton) {
+                profileLogoRemoveButton.disabled = isBusy;
+            }
+        }
+
+        function renderLogoState(logo, statusMessage = null) {
+            profileLogoState = logo || { present: false };
+
+            if (profileLogoPreview) {
+                if (profileLogoState.present && profileLogoState.preview_url) {
+                    profileLogoPreview.src = profileLogoState.preview_url;
+                    profileLogoPreview.style.display = 'block';
+                } else {
+                    profileLogoPreview.removeAttribute('src');
+                    profileLogoPreview.style.display = 'none';
+                }
+            }
+
+            if (profileLogoPlaceholder) {
+                profileLogoPlaceholder.style.display = profileLogoState.present ? 'none' : 'block';
+            }
+
+            if (profileLogoRemoveButton) {
+                profileLogoRemoveButton.style.display = profileLogoState.present ? '' : 'none';
+            }
+
+            if (profileLogoMeta) {
+                if (profileLogoState.present && profileLogoState.original_filename) {
+                    const uploadedAt = profileLogoState.uploaded_at
+                        ? new Date(profileLogoState.uploaded_at).toLocaleString()
+                        : null;
+                    profileLogoMeta.textContent = uploadedAt
+                        ? `${profileLogoState.original_filename}, uploaded ${uploadedAt}`
+                        : profileLogoState.original_filename;
+                } else {
+                    profileLogoMeta.textContent = 'Optional. Used in customer-facing documents and workspace modules.';
+                }
+            }
+
+            if (profileLogoStatus && statusMessage) {
+                profileLogoStatus.textContent = statusMessage;
+            }
+
+            setLogoBusy(false);
+        }
+
+        async function uploadProfileLogo(file) {
+            if (!file) {
+                return;
+            }
+
+            setLogoBusy(true, 'Uploading Logo…');
+
+            if (profileLogoStatus) {
+                profileLogoStatus.textContent = 'Uploading your logo and preparing the shared business profile contract…';
+            }
+
+            const formData = new FormData();
+            formData.append('logo', file);
+
+            try {
+                const response = await fetch(profileLogoEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: formData,
+                });
+
+                const payload = await response.json();
+
+                if (!response.ok) {
+                    const validationMessage = payload?.errors?.logo?.[0] || payload?.message || 'Logo upload failed.';
+                    throw new Error(validationMessage);
+                }
+
+                renderLogoState(payload.logo, payload.message);
+            } catch (error) {
+                setLogoBusy(false);
+                if (profileLogoStatus) {
+                    profileLogoStatus.textContent = error?.message || 'Logo upload failed.';
+                }
+            } finally {
+                if (profileLogoInput) {
+                    profileLogoInput.value = '';
+                }
+            }
+        }
+
+        async function removeProfileLogo() {
+            setLogoBusy(true, 'Updating Logo…');
+
+            if (profileLogoStatus) {
+                profileLogoStatus.textContent = 'Removing your logo and refreshing the shared business profile contract…';
+            }
+
+            try {
+                const response = await fetch(profileLogoDeleteEndpoint, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+
+                const payload = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(payload?.message || 'Logo removal failed.');
+                }
+
+                renderLogoState(payload.logo, payload.message);
+            } catch (error) {
+                setLogoBusy(false);
+                if (profileLogoStatus) {
+                    profileLogoStatus.textContent = error?.message || 'Logo removal failed.';
+                }
+            }
+        }
+
+        profileLogoUploadButton?.addEventListener('click', () => {
+            profileLogoInput?.click();
+        });
+
+        profileLogoInput?.addEventListener('change', (event) => {
+            const file = event.target?.files?.[0];
+            uploadProfileLogo(file);
+        });
+
+        profileLogoRemoveButton?.addEventListener('click', () => {
+            removeProfileLogo();
         });
     </script>
 </x-layouts.app>

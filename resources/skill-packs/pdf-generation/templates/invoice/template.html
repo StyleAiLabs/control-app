@@ -25,9 +25,22 @@
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
+      gap: 18pt;
       margin-bottom: 24pt;
       padding-bottom: 12pt;
       border-bottom: 2pt solid #16213e;
+    }
+    .brand-block {
+      display: flex;
+      align-items: flex-start;
+      gap: 14pt;
+      flex: 1;
+    }
+    .brand-logo {
+      max-width: 92pt;
+      max-height: 92pt;
+      object-fit: contain;
+      flex: 0 0 auto;
     }
     .business-info h1 {
       font-size: 18pt;
@@ -137,15 +150,18 @@
 <body>
 
   <div class="document-header">
-    <div class="business-info">
-      <h1>{{business_name}}</h1>
-      <p>
-        {{business_address}}<br>
-        Phone: {{business_phone}}<br>
-        Email: {{business_email}}<br>
-        GST #: {{gst_number}}<br>
-        Trade Licence: {{trade_licence}}
-      </p>
+    <div class="brand-block">
+      {{#if business_logo_path}}<img class="brand-logo" src="{{business_logo_path}}" alt="{{business_name}} logo">{{/if}}
+      <div class="business-info">
+        <h1>{{business_name}}</h1>
+        <p>
+          {{business_address}}<br>
+          Phone: {{business_phone}}<br>
+          Email: {{business_email}}<br>
+          GST #: {{gst_number}}<br>
+          Trade Licence: {{trade_licence}}
+        </p>
+      </div>
     </div>
     <div class="invoice-title">
       <h2>INVOICE</h2>

@@ -36,7 +36,7 @@ class SshDockerComposeRunner implements DockerComposeRunner
             $this->shellQuote($remoteWorkspacePath),
         ));
 
-        /* Copy ONLY the workspace markdown files — never touches compose.yaml or
+        /* Copy ONLY workspace artifacts — never touches compose.yaml or
            config/openclaw.json so provisioning credentials are always preserved. */
         $this->runScp($server, $localWorkspacePath, $remoteWorkspacePath);
     }
