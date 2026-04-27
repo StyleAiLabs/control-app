@@ -2517,6 +2517,23 @@ Notable changes:
 Verification:
 - `php artisan test tests/Feature/InboxTriagePollingTest.php`
 
+## 2026-04-27 - Customer Dashboard Analytics Window And KPI Expansion
+
+Date: 2026-04-27
+Branch: `codex/control-app-prod-deploy`
+
+Summary:
+- Added dashboard-wide analytics window filters and restored customer-facing estimated impact KPIs
+
+Notable changes:
+- updated [`app/Http/Controllers/DashboardController.php`](/Users/gayanhewage/Projects/openclaw-saas/app/Http/Controllers/DashboardController.php) to support a shared customer analytics window (`7d`, `30d`, `90d`, `ytd`) across performance, top skills, and inbox stats
+- updated [`app/Services/TenantSkillAnalyticsReportService.php`](/Users/gayanhewage/Projects/openclaw-saas/app/Services/TenantSkillAnalyticsReportService.php) so tenant analytics can be computed from an explicit period start instead of only a fixed trailing-day count
+- updated [`resources/views/dashboard.blade.php`](/Users/gayanhewage/Projects/openclaw-saas/resources/views/dashboard.blade.php) to add the analytics window switcher plus always-visible `Estimated Time Saved` and `Estimated ROI` KPI cards in `Performance Overview`
+- added regression coverage in [`tests/Feature/DashboardFlowTest.php`](/Users/gayanhewage/Projects/openclaw-saas/tests/Feature/DashboardFlowTest.php) for the new filter behavior and KPI visibility
+
+Verification:
+- `php artisan test tests/Feature/DashboardFlowTest.php`
+
 ## 2026-04-11 - Sync360 Control App MVP
 
 Date: 2026-04-11

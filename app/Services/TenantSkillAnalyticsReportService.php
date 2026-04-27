@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Tenant;
 use App\Models\TenantSkillConversionEvent;
+use Illuminate\Support\Carbon;
 
 class TenantSkillAnalyticsReportService
 {
@@ -12,7 +13,18 @@ class TenantSkillAnalyticsReportService
      */
     public function tenantSummary(Tenant $tenant, int $days = 30): array
     {
-        $from = now()->subDays(max(1, $days));
+        return $this->tenantSummaryForPeriod(
+            $tenant,
+            now()->subDays(max(1, $days)),
+            $days,
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function tenantSummaryForPeriod(Tenant $tenant, Carbon $from, ?int $windowDays = null): array
+    {
         $query = TenantSkillConversionEvent::query()
             ->where('tenant_id', $tenant->id)
             ->where('occurred_at', '>=', $from);
@@ -47,7 +59,7 @@ class TenantSkillAnalyticsReportService
         $estimatedValue = $aggregate?->estimated_value !== null ? round((float) $aggregate->estimated_value, 2) : null;
 
         return [
-            'window_days' => $days,
+            'window_days' => $windowDays,
             'conversions' => $conversions,
             'estimated_human_minutes' => $humanMinutes,
             'estimated_agent_minutes' => $agentMinutes,

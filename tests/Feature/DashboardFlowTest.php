@@ -107,9 +107,15 @@ class DashboardFlowTest extends TestCase
             ->assertSee('Live')
             ->assertSee('Open Sync360 Workspace')
             ->assertSee('Open Profile')
+            ->assertSee('Last 7 days')
+            ->assertSee('Last 30 days')
+            ->assertSee('Last 90 days')
+            ->assertSee('Year to date')
             ->assertSee('Performance Overview')
             ->assertSee('Trial Runway')
             ->assertSee('Top Skills')
+            ->assertSee('Estimated Time Saved')
+            ->assertSee('Estimated ROI')
             ->assertSee('Assistant')
             ->assertSee('Workspace')
             ->assertSee('Trial')
@@ -239,9 +245,99 @@ class DashboardFlowTest extends TestCase
             ->assertSee('Inbox Performance')
             ->assertSee('Watching your inbox')
             ->assertSee('Last checked 6 minutes ago')
-            ->assertSee('2 qualified leads in the last 7 days')
+            ->assertSee('2 qualified leads in last 30 days')
             ->assertDontSee('Reconnect Google Workspace')
             ->assertDontSee('We’re having trouble checking your inbox right now.');
+    }
+
+    public function test_dashboard_window_filter_updates_analytics_stats(): void
+    {
+        [$user, $tenant] = $this->seedTenant();
+
+        $this->makeInboxTriageEligible($tenant);
+
+        TenantInboxMonitorState::query()->create([
+            'tenant_id' => $tenant->id,
+            'enabled' => true,
+            'status' => TenantInboxMonitorState::STATUS_IDLE,
+            'last_checked_at' => now()->subMinutes(5),
+        ]);
+
+        TenantSkillConversionEvent::query()->create([
+            'tenant_id' => $tenant->id,
+            'event_id' => 'dashboard-window-recent',
+            'skill_key' => 'inbox-triage',
+            'skill_version' => '1.5.8',
+            'event_type' => 'conversion_succeeded',
+            'conversion_type' => 'lead_qualified',
+            'conversion_id' => 'window-recent',
+            'occurred_at' => now()->subDays(2),
+            'customer_label' => 'Acme Plumbing',
+            'human_effort_minutes' => 30,
+            'agent_effort_minutes' => 5,
+            'net_minutes_saved' => 25,
+            'estimated_value_amount' => 250,
+            'outcome_json' => ['lead_quality' => 'high'],
+        ]);
+
+        TenantSkillConversionEvent::query()->create([
+            'tenant_id' => $tenant->id,
+            'event_id' => 'dashboard-window-older',
+            'skill_key' => 'inbox-triage',
+            'skill_version' => '1.5.8',
+            'event_type' => 'conversion_succeeded',
+            'conversion_type' => 'lead_qualified',
+            'conversion_id' => 'window-older',
+            'occurred_at' => now()->subDays(40),
+            'customer_label' => 'Acme Plumbing',
+            'human_effort_minutes' => 45,
+            'agent_effort_minutes' => 9,
+            'net_minutes_saved' => 36,
+            'estimated_value_amount' => 360,
+            'outcome_json' => ['lead_quality' => 'medium'],
+        ]);
+
+        TenantInboxMonitorMessage::query()->create([
+            'tenant_id' => $tenant->id,
+            'gmail_message_id' => 'reviewed-recent',
+            'gmail_thread_id' => 'thread-recent',
+            'sender_domain' => 'example.com',
+            'subject_preview' => 'Recent enquiry',
+            'subject_hash' => hash('sha256', 'Recent enquiry'),
+            'status' => TenantInboxMonitorMessage::STATUS_SENT_TO_AGENT,
+            'detected_at' => now()->subDays(1),
+            'delivered_to_agent_at' => now()->subDays(1),
+        ]);
+
+        TenantInboxMonitorMessage::query()->create([
+            'tenant_id' => $tenant->id,
+            'gmail_message_id' => 'reviewed-older',
+            'gmail_thread_id' => 'thread-older',
+            'sender_domain' => 'example.org',
+            'subject_preview' => 'Older enquiry',
+            'subject_hash' => hash('sha256', 'Older enquiry'),
+            'status' => TenantInboxMonitorMessage::STATUS_SENT_TO_AGENT,
+            'detected_at' => now()->subDays(40),
+            'delivered_to_agent_at' => now()->subDays(40),
+        ]);
+
+        $this->actingAs($user);
+
+        $this->get('/dashboard?window=7d')
+            ->assertOk()
+            ->assertSee('Reviewed work and successful outcomes in Last 7 days.')
+            ->assertSee('1 reviewed items and 1 successful outcomes in last 7 days.')
+            ->assertSee('25 min')
+            ->assertSee('6.0x')
+            ->assertSee('1 qualified lead in last 7 days')
+            ->assertDontSee('2 reviewed items and 2 successful outcomes');
+
+        $this->get('/dashboard?window=90d')
+            ->assertOk()
+            ->assertSee('Reviewed work and successful outcomes in Last 90 days.')
+            ->assertSee('2 reviewed items and 2 successful outcomes in last 90 days.')
+            ->assertSee('1h 1m')
+            ->assertSee('2 qualified leads in last 90 days');
     }
 
     public function test_dashboard_shows_setup_incomplete_when_google_workspace_is_not_verified(): void
@@ -313,7 +409,7 @@ class DashboardFlowTest extends TestCase
             ->assertSee('Inbox')
             ->assertSee('Needs attention')
             ->assertSee('We’re having trouble checking your inbox right now.')
-            ->assertSee('1 recent inbox item reviewed')
+            ->assertSee('1 inbox item reviewed in last 30 days')
             ->assertSee('Open setup');
     }
 
@@ -379,8 +475,8 @@ class DashboardFlowTest extends TestCase
 
         $this->get('/dashboard')
             ->assertOk()
-            ->assertSee('2 recent inbox items reviewed')
-            ->assertDontSee('qualified leads in the last 7 days');
+            ->assertSee('2 inbox items reviewed in last 30 days')
+            ->assertDontSee('qualified leads in last 30 days');
     }
 
     public function test_dashboard_shows_soft_telegram_note_without_downgrading_healthy_status(): void

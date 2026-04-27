@@ -63,10 +63,15 @@ class DashboardController extends Controller
         $workspaceState    = $this->workspaceState($tenant);
         $agentContent      = $this->agentContent($tenant);
         $trialData         = $this->trialData($tenant);
-        $impactSummary     = $this->skillAnalytics->tenantSummary($tenant);
+        $analyticsWindow   = $this->analyticsWindow($request);
+        $impactSummary     = $this->skillAnalytics->tenantSummaryForPeriod(
+            $tenant,
+            $analyticsWindow['start'],
+            $analyticsWindow['days'],
+        );
         $dependencyHealth  = $this->dependencyHealth->evaluate($tenant);
-        $inboxOverview     = $this->inboxOverview($tenant, $dependencyHealth);
-        $performanceSeries = $this->performanceSeries($tenant);
+        $inboxOverview     = $this->inboxOverview($tenant, $dependencyHealth, $analyticsWindow);
+        $performanceSeries = $this->performanceSeries($tenant, $analyticsWindow);
 
         // Inject workspace alert into the sidebar bell via request attributes
         // (the View composer in AppServiceProvider merges this in)
@@ -111,6 +116,8 @@ class DashboardController extends Controller
             'trialContent'        => $this->trialContent($tenant->trial_status),
             'provisioningContent' => $this->provisioningContent($tenant->provisioning_status),
             'trialData'           => $trialData,
+            'analyticsWindow'     => $analyticsWindow,
+            'analyticsWindowOptions' => $this->analyticsWindowOptions(),
             'workspaceState'      => $workspaceState,
             'impactSummary'       => $impactSummary,
             'inboxOverview'       => $inboxOverview,
@@ -348,7 +355,7 @@ class DashboardController extends Controller
     /**
      * @return array<string, mixed>|null
      */
-    private function inboxOverview(Tenant $tenant, array $dependencyHealth): ?array
+    private function inboxOverview(Tenant $tenant, array $dependencyHealth, array $analyticsWindow): ?array
     {
         $assignment = $tenant->skillAssignments
             ->first(fn ($item) => $item->skill_key === TenantInboxTriagePollingService::SKILL_KEY && $item->is_enabled);
@@ -392,7 +399,7 @@ class DashboardController extends Controller
             'status_label' => $statusLabel,
             'status_note' => $statusNote,
             'secondary_note' => $secondaryNote,
-            'value_line' => $this->inboxValueLine($tenant),
+            'value_line' => $this->inboxValueLine($tenant, $analyticsWindow),
             'cta' => $cta,
         ];
     }
@@ -515,10 +522,10 @@ class DashboardController extends Controller
     /**
      * @return array<string,mixed>
      */
-    private function performanceSeries(Tenant $tenant, int $days = 30): array
+    private function performanceSeries(Tenant $tenant, array $analyticsWindow): array
     {
-        $days = max(7, $days);
-        $start = now()->startOfDay()->subDays($days - 1);
+        $start = $analyticsWindow['start']->copy()->startOfDay();
+        $days = max(1, $start->diffInDays(now()->startOfDay()) + 1);
         $dates = collect(range(0, $days - 1))
             ->map(fn (int $offset): Carbon => $start->copy()->addDays($offset));
 
@@ -563,6 +570,7 @@ class DashboardController extends Controller
             'reviewed_total' => $reviewed,
             'outcomes_total' => $outcomes,
             'window_days' => $days,
+            'window_label' => $analyticsWindow['label'],
             'has_data' => $reviewed > 0 || $outcomes > 0,
         ];
     }
@@ -607,7 +615,7 @@ class DashboardController extends Controller
             ->map(fn ($skill): array => [
                 'label' => Str::headline((string) $skill->skill_key),
                 'value' => (int) ($skill->conversions ?? 0),
-                'note' => (int) ($skill->net_minutes_saved ?? 0).' min saved',
+                'note' => $this->formatMinutes((int) ($skill->net_minutes_saved ?? 0)).' saved',
             ])
             ->all();
 
@@ -649,6 +657,7 @@ class DashboardController extends Controller
             'cta' => $inboxOverview['cta'] ?? null,
             'reviewed_total' => $performanceSeries['reviewed_total'],
             'outcomes_total' => $performanceSeries['outcomes_total'],
+            'window_label' => $performanceSeries['window_label'],
         ];
     }
 
@@ -676,9 +685,10 @@ class DashboardController extends Controller
         ];
     }
 
-    private function inboxValueLine(Tenant $tenant): string
+    private function inboxValueLine(Tenant $tenant, array $analyticsWindow): string
     {
-        $from = now()->subDays(7);
+        $from = $analyticsWindow['start'];
+        $windowLabel = $analyticsWindow['label'];
 
         $qualifiedLeadCount = TenantSkillConversionEvent::query()
             ->where('tenant_id', $tenant->id)
@@ -688,9 +698,10 @@ class DashboardController extends Controller
 
         if ($qualifiedLeadCount > 0) {
             return sprintf(
-                '%d qualified lead%s in the last 7 days',
+                '%d qualified lead%s in %s',
                 $qualifiedLeadCount,
-                $qualifiedLeadCount === 1 ? '' : 's'
+                $qualifiedLeadCount === 1 ? '' : 's',
+                strtolower($windowLabel),
             );
         }
 
@@ -705,13 +716,75 @@ class DashboardController extends Controller
 
         if ($reviewedCount > 0) {
             return sprintf(
-                '%d recent inbox item%s reviewed',
+                '%d inbox item%s reviewed in %s',
                 $reviewedCount,
-                $reviewedCount === 1 ? '' : 's'
+                $reviewedCount === 1 ? '' : 's',
+                strtolower($windowLabel),
             );
         }
 
         return 'Your inbox overview will appear here as new enquiries are reviewed.';
+    }
+
+    /**
+     * @return array{key:string,label:string,start:Carbon,days:?int}
+     */
+    private function analyticsWindow(Request $request): array
+    {
+        $selected = $request->string('window')->trim()->toString();
+
+        return $this->analyticsWindowOptions()[$selected] ?? $this->analyticsWindowOptions()['30d'];
+    }
+
+    /**
+     * @return array<string, array{key:string,label:string,start:Carbon,days:?int}>
+     */
+    private function analyticsWindowOptions(): array
+    {
+        $today = now()->startOfDay();
+
+        return [
+            '7d' => [
+                'key' => '7d',
+                'label' => 'Last 7 days',
+                'start' => $today->copy()->subDays(6),
+                'days' => 7,
+            ],
+            '30d' => [
+                'key' => '30d',
+                'label' => 'Last 30 days',
+                'start' => $today->copy()->subDays(29),
+                'days' => 30,
+            ],
+            '90d' => [
+                'key' => '90d',
+                'label' => 'Last 90 days',
+                'start' => $today->copy()->subDays(89),
+                'days' => 90,
+            ],
+            'ytd' => [
+                'key' => 'ytd',
+                'label' => 'Year to date',
+                'start' => $today->copy()->startOfYear(),
+                'days' => null,
+            ],
+        ];
+    }
+
+    private function formatMinutes(int $minutes): string
+    {
+        if ($minutes >= 60) {
+            $hours = intdiv($minutes, 60);
+            $remainder = $minutes % 60;
+
+            if ($remainder === 0) {
+                return sprintf('%dh', $hours);
+            }
+
+            return sprintf('%dh %dm', $hours, $remainder);
+        }
+
+        return sprintf('%d min', $minutes);
     }
 
     private function telegramDefaultChatId(Tenant $tenant): ?string

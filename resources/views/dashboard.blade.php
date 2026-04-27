@@ -43,12 +43,46 @@
 
         <x-ui.health-rail :items="$healthRail" />
 
+        <div class="sync-dashboard-inline-actions sync-dashboard-window-switcher" aria-label="Dashboard analytics window">
+            @foreach ($analyticsWindowOptions as $option)
+                <x-ui.button
+                    :href="route('dashboard', ['window' => $option['key']])"
+                    :variant="$analyticsWindow['key'] === $option['key'] ? 'primary' : 'secondary'"
+                    size="sm"
+                >
+                    {{ $option['label'] }}
+                </x-ui.button>
+            @endforeach
+        </div>
+
         <section class="customer-dashboard-grid customer-dashboard-grid--top-analytics">
-            <x-ui.chart-panel title="Performance Overview" description="Reviewed work and successful outcomes over the last 30 days.">
+            <x-ui.chart-panel title="Performance Overview" :description="'Reviewed work and successful outcomes in '.$analyticsWindow['label'].'.'">
+                <div class="sync-dashboard-kpi-row">
+                    <div class="sync-dashboard-kpi">
+                        <span class="sync-dashboard-kpi__label">Reviewed</span>
+                        <span class="sync-dashboard-kpi__value">{{ $performanceSeries['reviewed_total'] }}</span>
+                        <span class="sync-dashboard-kpi__note">Inbox items reviewed in {{ strtolower($analyticsWindow['label']) }}.</span>
+                    </div>
+                    <div class="sync-dashboard-kpi">
+                        <span class="sync-dashboard-kpi__label">Successful Outcomes</span>
+                        <span class="sync-dashboard-kpi__value">{{ $impactSummary['conversions'] }}</span>
+                        <span class="sync-dashboard-kpi__note">Tracked conversions recorded in {{ strtolower($analyticsWindow['label']) }}.</span>
+                    </div>
+                    <div class="sync-dashboard-kpi">
+                        <span class="sync-dashboard-kpi__label">Estimated Time Saved</span>
+                        <span class="sync-dashboard-kpi__value">{{ $impactSummary['estimated_net_minutes'] >= 60 ? sprintf('%dh %dm', intdiv($impactSummary['estimated_net_minutes'], 60), $impactSummary['estimated_net_minutes'] % 60) : $impactSummary['estimated_net_minutes'].' min' }}</span>
+                        <span class="sync-dashboard-kpi__note">Based on estimated human vs assistant effort.</span>
+                    </div>
+                    <div class="sync-dashboard-kpi">
+                        <span class="sync-dashboard-kpi__label">Estimated ROI</span>
+                        <span class="sync-dashboard-kpi__value">{{ $impactSummary['estimated_roi_ratio'] !== null ? number_format((float) $impactSummary['estimated_roi_ratio'], 1).'x' : '—' }}</span>
+                        <span class="sync-dashboard-kpi__note">Efficiency ratio from estimated human and assistant effort.</span>
+                    </div>
+                </div>
                 @if ($performanceSeries['has_data'])
                     <div class="customer-dashboard-panel-stack">
                         <p class="customer-dashboard-summary-line">
-                            {{ $performanceSeries['reviewed_total'] }} reviewed items and {{ $performanceSeries['outcomes_total'] }} successful outcomes in the last {{ $performanceSeries['window_days'] }} days.
+                            {{ $performanceSeries['reviewed_total'] }} reviewed items and {{ $performanceSeries['outcomes_total'] }} successful outcomes in {{ strtolower($analyticsWindow['label']) }}.
                         </p>
                         <x-ui.bar-chart
                             :items="$performanceSeries['items']"
@@ -70,7 +104,7 @@
         </section>
 
         <section class="customer-dashboard-grid customer-dashboard-grid--balanced">
-            <x-ui.chart-panel title="Top Skills" description="The skills creating the most saved time and successful outcomes.">
+            <x-ui.chart-panel title="Top Skills" :description="'The skills creating the most saved time and successful outcomes in '.$analyticsWindow['label'].'.'">
                 <div id="skill-outcomes">
                     @if ($topSkillsSeries['has_data'])
                         <x-ui.bar-chart
@@ -87,7 +121,7 @@
                 </div>
             </x-ui.chart-panel>
 
-            <x-ui.chart-panel title="Inbox Performance" description="How inbound work is being triaged and surfaced right now.">
+            <x-ui.chart-panel title="Inbox Performance" :description="'How inbound work is being triaged and surfaced in '.$analyticsWindow['label'].'.'">
                 @if ($inboxPerformance['enabled'])
                     <div class="customer-dashboard-panel-stack">
                         <div class="sync-dashboard-kpi-row">
@@ -97,12 +131,12 @@
                                 <span class="sync-dashboard-kpi__note">{{ $inboxPerformance['status_note'] }}</span>
                             </div>
                             <div class="sync-dashboard-kpi">
-                                <span class="sync-dashboard-kpi__label">Reviewed (30d)</span>
+                                <span class="sync-dashboard-kpi__label">Reviewed</span>
                                 <span class="sync-dashboard-kpi__value">{{ $inboxPerformance['reviewed_total'] }}</span>
-                                <span class="sync-dashboard-kpi__note">Inbox items reviewed in the current window.</span>
+                                <span class="sync-dashboard-kpi__note">Inbox items reviewed in {{ strtolower($inboxPerformance['window_label']) }}.</span>
                             </div>
                             <div class="sync-dashboard-kpi">
-                                <span class="sync-dashboard-kpi__label">Outcomes (30d)</span>
+                                <span class="sync-dashboard-kpi__label">Outcomes</span>
                                 <span class="sync-dashboard-kpi__value">{{ $inboxPerformance['outcomes_total'] }}</span>
                                 <span class="sync-dashboard-kpi__note">{{ $inboxPerformance['value_line'] }}</span>
                             </div>
