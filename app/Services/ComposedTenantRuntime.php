@@ -25,12 +25,41 @@ class ComposedTenantRuntime
     public function diagnosticPayload(): array
     {
         return [
-            'workspace_files' => $this->workspaceFiles,
+            'workspace_files' => $this->diagnosticWorkspaceFiles(),
             'skill_files' => array_keys($this->skillFiles),
             'openclaw_config' => $this->openClawConfig,
             'base_drifted' => $this->baseDrifted,
             'workspace_file_manifest' => $this->workspaceFileManifest,
             'content_hash' => $this->contentHash,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function diagnosticWorkspaceFiles(): array
+    {
+        $payload = [];
+
+        foreach ($this->workspaceFiles as $path => $contents) {
+            if ($this->isValidUtf8($contents)) {
+                $payload[$path] = $contents;
+
+                continue;
+            }
+
+            $payload[$path] = [
+                'kind' => 'binary',
+                'size_bytes' => strlen($contents),
+                'sha256' => hash('sha256', $contents),
+            ];
+        }
+
+        return $payload;
+    }
+
+    private function isValidUtf8(string $contents): bool
+    {
+        return preg_match('//u', $contents) === 1;
     }
 }

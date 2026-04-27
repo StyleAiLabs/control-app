@@ -7,6 +7,21 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-28 — Fix: Prevent Skill Rollout Apply Failures On Binary Workspace Assets
+
+Date: 2026-04-28
+Status: Implemented
+
+### Overview
+
+Fixed a rollout/apply regression where tenant runtime apply jobs could fail while recording the composed output audit row if the workspace contained binary business assets such as uploaded logos.
+
+### What Changed
+
+- changed composed runtime diagnostic payloads so text workspace files are still stored for audit/preview, but binary workspace files are summarized as metadata instead of raw bytes
+- prevented `tenant_agent_customization_applies.composed_output_json` from tripping malformed UTF-8 JSON errors during tenant apply and skill rollout flows
+- added regression coverage proving an apply job succeeds and records binary logo diagnostics safely
+
 ## 2026-04-28 — Improvement: Multi-Website Workspace Content Flow
 
 Date: 2026-04-28

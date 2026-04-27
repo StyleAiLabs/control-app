@@ -22,6 +22,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ApplyTenantAgentCustomizationJobTest extends TestCase
@@ -159,6 +160,46 @@ class ApplyTenantAgentCustomizationJobTest extends TestCase
         $this->assertSame(TenantAgentCustomizationApply::ACTION_APPLY, $applyLog->action);
         $this->assertSame(TenantAgentCustomizationApply::STATUS_APPLIED, $applyLog->status);
         $this->assertSame($customization->applied_snapshot_hash, $applyLog->after_output_hash);
+    }
+
+    public function test_apply_job_records_binary_workspace_assets_without_json_encoding_failure(): void
+    {
+        [$tenant] = $this->seedTenantAndCustomization();
+
+        $logoPath = 'tenant-business-profile-assets/'.$tenant->tenant_id.'/logo.png';
+        Storage::disk('local')->put($logoPath, "\x89PNG\x0D\x0A\x1A\x0A\x00\x80binary-logo");
+
+        $tenant->businessProfileFiles()->firstOrFail()->forceFill([
+            'logo_storage_path' => $logoPath,
+            'logo_original_filename' => 'logo.png',
+            'logo_mime_type' => 'image/png',
+            'logo_size_bytes' => Storage::disk('local')->size($logoPath),
+            'logo_uploaded_at' => now(),
+        ])->save();
+
+        $provisioningJob = ProvisioningJob::query()->create([
+            'tenant_id' => $tenant->id,
+            'job_type' => ApplyTenantAgentCustomization::JOB_TYPE,
+            'status' => ProvisioningJobStatus::Queued,
+            'payload_json' => [
+                'action' => TenantAgentCustomizationApply::ACTION_APPLY,
+            ],
+        ]);
+
+        $job = new ApplyTenantAgentCustomization($tenant->id, $provisioningJob->id, TenantAgentCustomizationApply::ACTION_APPLY);
+        $job->handle(
+            app(\App\Services\TenantAgentCustomizationService::class),
+            app(\App\Services\TenantRuntimeCustomizationComposer::class),
+            app(\App\Services\TenantSkillRolloutWorkspaceResyncService::class),
+        );
+
+        $applyLog = TenantAgentCustomizationApply::query()->latest('id')->firstOrFail();
+        $logoDiagnostic = $applyLog->composed_output_json['workspace_files']['business-assets/logo.png'] ?? null;
+
+        $this->assertSame(TenantAgentCustomizationApply::STATUS_APPLIED, $applyLog->status);
+        $this->assertIsArray($logoDiagnostic);
+        $this->assertSame('binary', $logoDiagnostic['kind'] ?? null);
+        $this->assertSame(hash('sha256', "\x89PNG\x0D\x0A\x1A\x0A\x00\x80binary-logo"), $logoDiagnostic['sha256'] ?? null);
     }
 
     public function test_revert_job_restores_last_applied_input_snapshot_before_composing(): void
