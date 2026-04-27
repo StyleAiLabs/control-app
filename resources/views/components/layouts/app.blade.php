@@ -258,7 +258,12 @@
         .sidebar-logout-btn { width: 100%; }
 
         /* ── Main content ── */
-        .content { padding: 32px; }
+        .content {
+            padding: 32px;
+            min-width: 0;
+            width: 100%;
+            max-width: 100%;
+        }
         .topbar {
             display: flex;
             justify-content: space-between;
@@ -509,10 +514,11 @@
             resize: vertical;
         }
         input:focus-visible, select:focus-visible, textarea:focus-visible {
-            outline: 2px solid var(--accent);
-            outline-offset: 2px;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.14);
+            outline: none;
+            border-color: color-mix(in oklch, var(--accent) 72%, white);
+            box-shadow:
+                0 0 0 1px color-mix(in oklch, var(--accent) 58%, white),
+                0 0 0 4px rgba(255, 107, 53, 0.09);
             background: white;
         }
         .button:focus-visible, button:focus-visible {

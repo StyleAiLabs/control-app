@@ -732,6 +732,235 @@
         justify-content: flex-end;
     }
 
+    .customer-profile-shell {
+        display: grid;
+        gap: 1.2rem;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    .customer-profile-hero {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 1rem 1.25rem;
+        align-items: end;
+    }
+
+    .customer-profile-hero__copy {
+        display: grid;
+        gap: 0.45rem;
+        max-width: 64ch;
+    }
+
+    .customer-profile-hero__copy h2 {
+        margin: 0;
+    }
+
+    .customer-profile-hero__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+        align-items: center;
+    }
+
+    .customer-profile-rail {
+        margin-top: -0.1rem;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .customer-profile-layout {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: minmax(0, 1.7fr) minmax(19rem, 0.92fr);
+        align-items: start;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .customer-profile-layout > * {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .customer-profile-main,
+    .customer-profile-sidebar,
+    .customer-profile-sidebar > .sync-poc-card,
+    .customer-profile-main.sync-poc-card {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    .customer-profile-main > .dui-card-body {
+        gap: 1.25rem;
+        min-width: 0;
+    }
+
+    .customer-profile-form {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .customer-profile-section {
+        display: grid;
+        gap: 0.9rem;
+        padding: 1rem 1.05rem;
+        border: 1px solid color-mix(in oklch, var(--color-base-content) 8%, transparent);
+        border-radius: 1rem;
+        background: color-mix(in oklch, var(--color-base-100) 94%, white);
+    }
+
+    .customer-profile-section__header {
+        display: grid;
+        gap: 0.22rem;
+        max-width: 52ch;
+    }
+
+    .customer-profile-section__title {
+        color: var(--color-base-content);
+        font-size: 0.98rem;
+        font-weight: 800;
+        margin: 0;
+    }
+
+    .customer-profile-section__note {
+        color: color-mix(in oklch, var(--color-base-content) 60%, transparent);
+        font-size: 0.82rem;
+        line-height: 1.45;
+        margin: 0;
+    }
+
+    .customer-profile-form-footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.85rem;
+        align-items: center;
+        padding: 1rem 0 0.1rem;
+        border-top: 1px solid color-mix(in oklch, var(--color-base-content) 8%, transparent);
+        flex-wrap: wrap;
+    }
+
+    .customer-profile-form-footer__copy {
+        display: grid;
+        gap: 0.18rem;
+        min-width: 0;
+        max-width: 46ch;
+    }
+
+    .customer-profile-form-footer__copy strong {
+        color: var(--color-base-content);
+        font-size: 0.9rem;
+        font-weight: 800;
+    }
+
+    .customer-profile-form-footer__copy span {
+        color: color-mix(in oklch, var(--color-base-content) 60%, transparent);
+        font-size: 0.82rem;
+        line-height: 1.45;
+    }
+
+    .customer-profile-sidebar {
+        display: grid;
+        gap: 1rem;
+        position: sticky;
+        top: 1rem;
+        min-width: 0;
+    }
+
+    .customer-profile-alert .dui-card-body {
+        gap: 0.85rem;
+        min-width: 0;
+    }
+
+    .customer-profile-status-list {
+        display: grid;
+        gap: 0.7rem;
+    }
+
+    .customer-profile-status-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.85rem;
+        align-items: start;
+        padding-bottom: 0.7rem;
+        border-bottom: 1px solid color-mix(in oklch, var(--color-base-content) 8%, transparent);
+    }
+
+    .customer-profile-status-row:last-child {
+        padding-bottom: 0;
+        border-bottom: 0;
+    }
+
+    .customer-profile-status-row__label {
+        color: color-mix(in oklch, var(--color-base-content) 56%, transparent);
+        font-size: 0.76rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        line-height: 1.25;
+        text-transform: uppercase;
+    }
+
+    .customer-profile-status-row__value {
+        color: var(--color-base-content);
+        font-size: 0.84rem;
+        font-weight: 700;
+        line-height: 1.35;
+        text-align: right;
+        max-width: 18ch;
+    }
+
+    .customer-profile-sync-summary {
+        display: grid;
+        gap: 0.55rem;
+        min-width: 0;
+    }
+
+    .customer-profile-sync-summary__title {
+        display: flex;
+        align-items: start;
+        gap: 0.55rem;
+        min-width: 0;
+    }
+
+    .customer-profile-sync-summary__title strong {
+        color: var(--color-base-content);
+        display: block;
+        font-size: 0.84rem;
+        font-weight: 800;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
+    }
+
+    .customer-profile-sync-summary__note {
+        color: color-mix(in oklch, var(--color-base-content) 62%, transparent);
+        font-size: 0.84rem;
+        line-height: 1.5;
+        margin: 0;
+    }
+
+    .customer-profile-helper-list {
+        display: grid;
+        gap: 0.7rem;
+        margin: 0;
+        padding-left: 1.1rem;
+        color: color-mix(in oklch, var(--color-base-content) 66%, transparent);
+        font-size: 0.86rem;
+        line-height: 1.55;
+    }
+
+    .customer-profile-sidebar__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+    }
+
+    .customer-profile-sidebar .dui-btn {
+        max-width: 100%;
+    }
+
     .customer-dashboard-shell {
         display: grid;
         gap: 1.2rem;
@@ -1922,6 +2151,10 @@
 
         .customer-dashboard-hero__actions,
         .customer-dashboard-hero__actions .dui-btn,
+        .customer-profile-hero__actions,
+        .customer-profile-hero__actions .dui-btn,
+        .customer-profile-sidebar__actions,
+        .customer-profile-sidebar__actions .dui-btn,
         .sync-dashboard-runway__actions,
         .sync-dashboard-runway__actions .dui-btn {
             width: 100%;
@@ -1963,6 +2196,14 @@
         .customer-dashboard-grid,
         .customer-dashboard-grid--balanced {
             grid-template-columns: 1fr;
+        }
+
+        .customer-profile-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .customer-profile-sidebar {
+            position: static;
         }
 
         .wizard-steps-bar {

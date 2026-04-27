@@ -17,6 +17,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Mockery;
 use Tests\TestCase;
 
 class ProfileFlowTest extends TestCase
@@ -212,7 +213,40 @@ class ProfileFlowTest extends TestCase
             public function waitForHttpReady(Server $server, string $url, int $timeoutSeconds, int $pollIntervalMs): void {}
         };
 
+        $runtimeSkillActivation = Mockery::mock(\App\Services\TenantRuntimeSkillActivationService::class);
+        $runtimeSkillActivation->shouldReceive('syncExpectedContract')
+            ->once()
+            ->andReturn([
+                'changed' => false,
+                'skill_set_changed' => false,
+                'contract' => [
+                    'expected_skill_ids' => ['inbox-triage'],
+                    'skill_set_hash' => 'test-hash',
+                ],
+            ]);
+        $runtimeSkillActivation->shouldReceive('verifyRuntimeSkills')
+            ->once()
+            ->andReturn([
+                'ready' => true,
+                'contract' => [
+                    'expected_skill_ids' => ['inbox-triage'],
+                    'verified_skill_ids' => ['inbox-triage'],
+                    'skill_set_hash' => 'test-hash',
+                    'verified_skill_set_hash' => 'test-hash',
+                    'last_verified_at' => now()->toIso8601String(),
+                    'last_verification_error' => null,
+                ],
+                'workspace_state' => 'running',
+                'refreshed_at' => now()->toDateTimeString(),
+                'skills' => ['inbox-triage'],
+                'raw_output' => '',
+                'missing_expected_skill_ids' => [],
+                'missing_required_skill_ids' => [],
+                'error' => null,
+            ]);
+
         $this->instance(DockerComposeRunner::class, $runnerSpy);
+        $this->instance(\App\Services\TenantRuntimeSkillActivationService::class, $runtimeSkillActivation);
         $this->actingAs($user);
 
         $this->patch('/profile', [

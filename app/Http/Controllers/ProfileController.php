@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BusinessProfile;
 use App\Models\Tenant;
 use App\Services\TenantProfileSyncService;
+use App\Services\TenantWorkspaceDependencyHealthService;
 use App\Enums\TenantProvisioningStatus;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -16,6 +17,7 @@ class ProfileController extends Controller
     public function __construct(
         private readonly TenantProfileSyncService $profileSync,
         private readonly \App\Services\TenantOnboardingSkillService $onboardingSkills,
+        private readonly TenantWorkspaceDependencyHealthService $dependencyHealth,
     ) {
     }
 
@@ -31,6 +33,7 @@ class ProfileController extends Controller
             'tenant' => $tenant,
             'profile' => $tenant->businessProfile,
             'canSync' => $this->canSync($tenant),
+            'dependencyHealth' => $this->dependencyHealth->evaluate($tenant),
         ]);
     }
 

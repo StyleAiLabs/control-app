@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-27 — Refresh: Customer Profile Design-System Surface
+
+Date: 2026-04-27
+Status: Implemented
+
+### Overview
+
+Refreshed the customer `/profile` page to match the newer Sync360 design-system direction so it feels like a guided “keep my assistant accurate” surface instead of a long settings dump.
+
+### What Changed
+
+- replaced the older raw `topbar` + two-panel layout with a tighter hero, Sync360 health rail, grouped business-detail sections, and a sticky sync-status sidebar
+- reorganized the form into clearer customer-facing groups: `Identity and positioning`, `Services and operating hours`, `Contact and location`, and `Ownership and commercial notes`
+- kept live-sync progress affordances and manual sync behavior, but made them fit the new design-system wrappers and right-rail hierarchy
+- added dependency-health awareness to the profile surface so Google Workspace / inbox-monitor problems appear as a focused sidebar action card and compact sync-status rows instead of scattered warning prose
+- updated profile-page feature coverage so the live-assistant auto-sync test stubs the newer runtime-skill verification boundary and the dependency-alert sidebar remains explicitly covered
+
 ## 2026-04-27 — Fix: Restore Correct Runtime Boundaries For Polling, Provisioning, And Health Checks
 
 Date: 2026-04-27
