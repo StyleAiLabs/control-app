@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Tenant;
+use App\Support\ConversationLogSchema;
 use Illuminate\Filesystem\Filesystem;
 use RuntimeException;
 
@@ -23,6 +24,12 @@ class TenantWorkspaceMessenger
             throw new RuntimeException(
                 'Customer-facing runtime work is paused because this tenant trial has expired. '
                 .'Enable the expired-trial runtime reply override in admin to resume replies.'
+            );
+        }
+
+        if (! ConversationLogSchema::isAvailable()) {
+            throw new RuntimeException(
+                ConversationLogSchema::driftMessage('rerun the blocked runtime action')
             );
         }
 

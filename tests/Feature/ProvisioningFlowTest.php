@@ -18,6 +18,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Schema;
 use Mockery;
 use RuntimeException;
 use Tests\TestCase;
@@ -99,6 +100,35 @@ class ProvisioningFlowTest extends TestCase
         $this->assertSame(TenantProvisioningStatus::Failed, $tenant->provisioning_status);
         $this->assertSame(ProvisioningJobStatus::Failed, $job->status);
         $this->assertSame('Runtime folder creation failed.', $job->error_message);
+    }
+
+    public function test_provisioning_fails_fast_when_conversation_log_schema_has_drift(): void
+    {
+        [, $tenant, $job] = $this->seedTenantAndJob();
+
+        Schema::table('conversation_logs', function ($table): void {
+            $table->dropColumn('ai_summary');
+        });
+
+        $mock = Mockery::mock(TenantProvisioner::class);
+        $mock->shouldNotReceive('provision');
+        $this->instance(TenantProvisioner::class, $mock);
+
+        try {
+            ProcessTenantProvisioning::dispatchSync($tenant->id, $job->id);
+            $this->fail('Provisioning should have failed when conversation_logs schema drift is present.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('Conversation log schema drift detected', $exception->getMessage());
+            $this->assertStringContainsString('php artisan migrate', $exception->getMessage());
+            $this->assertStringContainsString('retry tenant provisioning', $exception->getMessage());
+        }
+
+        $tenant->refresh();
+        $job->refresh();
+
+        $this->assertSame(TenantProvisioningStatus::Failed, $tenant->provisioning_status);
+        $this->assertSame(ProvisioningJobStatus::Failed, $job->status);
+        $this->assertStringContainsString('Conversation log schema drift detected', (string) $job->error_message);
     }
 
     public function test_provisioning_success_sends_workspace_ready_email_and_scrubs_stored_password(): void

@@ -9,9 +9,11 @@ use App\Models\ProvisioningJob;
 use App\Models\Tenant;
 use App\Services\TenantAgentSyncService;
 use App\Services\WorkspaceReadyEmailService;
+use App\Support\ConversationLogSchema;
 use App\Support\GoogleWorkspaceFeature;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use RuntimeException;
 use Throwable;
 
 class ProcessTenantProvisioning implements ShouldQueue
@@ -43,6 +45,12 @@ class ProcessTenantProvisioning implements ShouldQueue
         $provisioningJob = ProvisioningJob::query()->findOrFail($this->provisioningJobId);
 
         try {
+            if (! ConversationLogSchema::isAvailable()) {
+                throw new RuntimeException(
+                    ConversationLogSchema::driftMessage('retry tenant provisioning')
+                );
+            }
+
             $provisioner->provision($tenant, $provisioningJob);
             $agentSync->syncSavedChannelIfReady(
                 $tenant->fresh(GoogleWorkspaceFeature::tenantRelations(['server']))

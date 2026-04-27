@@ -6,6 +6,7 @@ use App\Models\ConversationLog;
 use App\Models\Tenant;
 use App\Services\ConversationSummaryService;
 use App\Services\WorkspaceSessionLogReader;
+use App\Support\ConversationLogSchema;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
@@ -28,6 +29,14 @@ class SyncConversationReplies extends Command
         WorkspaceSessionLogReader $reader,
         ConversationSummaryService $summariser,
     ): int {
+        if (! ConversationLogSchema::isAvailable()) {
+            $this->components->error(
+                ConversationLogSchema::driftMessage('rerun `php artisan sync360:sync-replies`')
+            );
+
+            return self::FAILURE;
+        }
+
         $tenantArg = $this->argument('tenant');
 
         $query = Tenant::query()

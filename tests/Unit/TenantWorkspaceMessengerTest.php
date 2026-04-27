@@ -12,6 +12,7 @@ use App\Services\TenantRuntimeSkillActivationService;
 use App\Services\TenantWorkspaceMessenger;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -118,6 +119,30 @@ class TenantWorkspaceMessengerTest extends TestCase
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Customer-facing runtime work is paused because this tenant trial has expired. Enable the expired-trial runtime reply override in admin to resume replies.');
+
+        app(TenantWorkspaceMessenger::class)->send(
+            $tenant,
+            'gmail_inbox_monitor',
+            'sync360-inbox-monitor',
+            'Internal Gmail inbox event.',
+        );
+    }
+
+    public function test_it_blocks_runtime_work_when_conversation_log_schema_has_drift(): void
+    {
+        $tenant = $this->seedTenant();
+
+        Schema::table('conversation_logs', function ($table): void {
+            $table->dropColumn('ai_summary');
+        });
+
+        $activation = \Mockery::mock(TenantRuntimeSkillActivationService::class);
+        $activation->shouldNotReceive('ensureRequiredSkillsReady');
+        $this->instance(TenantRuntimeSkillActivationService::class, $activation);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Conversation log schema drift detected');
+        $this->expectExceptionMessage('php artisan migrate');
 
         app(TenantWorkspaceMessenger::class)->send(
             $tenant,

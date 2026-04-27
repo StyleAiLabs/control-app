@@ -7,6 +7,24 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-27 — Fix: Detect Conversation-Log Schema Drift Before Tenant Runtime Work
+
+Date: 2026-04-27
+Status: Implemented
+
+### Overview
+
+Added fail-closed schema checks for the control-plane `conversation_logs` table so tenant provisioning, tenant health, reply sync, and runtime wakeups do not continue when required conversation-log columns are missing.
+
+### What Changed
+
+- added a shared conversation-log schema guard that validates required `conversation_logs` columns, including `session_id` and `ai_summary`
+- blocked `ProcessTenantProvisioning` before runtime work starts when schema drift is present, and surfaced a concrete remediation path to run `php artisan migrate` and retry provisioning
+- updated `TenantHealthCheckService` to flag affected tenants with a `schema_drift` workspace state instead of reporting healthy runtime readiness
+- fail-closed `TenantWorkspaceMessenger` so customer-facing runtime wakeups and inbox-triggered agent runs cannot proceed against a drifted conversation-log schema
+- made `sync360:sync-replies` exit with failure and a migration remediation message instead of silently running against an incompatible table shape
+- added focused regression coverage for provisioning, tenant health checks, runtime wakeups, and the conversation-sync command under schema-drift conditions
+
 ## 2026-04-27 — Fix: Make Inbox-Triage Polling Idempotent Per Gmail Message
 
 Date: 2026-04-27
