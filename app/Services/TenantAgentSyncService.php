@@ -37,7 +37,7 @@ class TenantAgentSyncService
 
     public function goLive(Tenant $tenant): void
     {
-        $tenant->loadMissing(GoogleWorkspaceFeature::tenantRelations(['server', 'businessProfile', 'businessProfileFiles']));
+        $tenant->loadMissing(GoogleWorkspaceFeature::tenantRelations(['server', 'businessProfile', 'businessProfileFiles', 'workspaceContentItems']));
 
         $profile = $tenant->businessProfile;
         $profileFiles = $tenant->businessProfileFiles;

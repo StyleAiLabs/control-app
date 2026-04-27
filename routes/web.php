@@ -12,6 +12,7 @@ use App\Http\Controllers\LandingController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TenantSetupController;
+use App\Http\Controllers\WorkspaceContentController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [LandingController::class, 'show'])->name('landing');
@@ -42,6 +43,14 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/profile/logo', [ProfileController::class, 'uploadLogo'])->name('profile.logo.upload');
         Route::delete('/profile/logo', [ProfileController::class, 'deleteLogo'])->name('profile.logo.delete');
         Route::post('/profile/sync-agent', [ProfileController::class, 'syncAgent'])->name('profile.sync-agent');
+        Route::get('/workspace-content', [WorkspaceContentController::class, 'show'])->name('workspace-content.show');
+        Route::patch('/workspace-content/text', [WorkspaceContentController::class, 'updateText'])->name('workspace-content.text.update');
+        Route::post('/workspace-content/documents', [WorkspaceContentController::class, 'uploadDocument'])->name('workspace-content.documents.upload');
+        Route::delete('/workspace-content/documents/{item}', [WorkspaceContentController::class, 'deleteDocument'])->name('workspace-content.documents.delete');
+        Route::post('/workspace-content/website/import', [WorkspaceContentController::class, 'importWebsite'])->name('workspace-content.website.import');
+        Route::post('/workspace-content/website/{item}/publish', [WorkspaceContentController::class, 'publishWebsite'])->name('workspace-content.website.publish');
+        Route::delete('/workspace-content/website/{item}', [WorkspaceContentController::class, 'deleteWebsite'])->name('workspace-content.website.delete');
+        Route::post('/workspace-content/sync-agent', [WorkspaceContentController::class, 'syncAgent'])->name('workspace-content.sync-agent');
         Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding.show');
         Route::get('/onboarding/state', [OnboardingController::class, 'state'])->name('onboarding.state');
         Route::post('/onboarding/extract-business', [OnboardingController::class, 'extractBusiness'])->name('onboarding.extract-business');

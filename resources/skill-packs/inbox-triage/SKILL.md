@@ -16,7 +16,7 @@ When a customer inquiry is delivered from Gmail, use this skill to categorize th
 
 Sync360 may deliver polled Gmail messages as internal inbox events from `sync360-inbox-monitor`. Treat those events as neutral triggers only. The trigger has not classified the email as high-value; you must decide the category, lead quality, and next action from this skill's instructions and the email context.
 
-When handling an internal inbox event, use the email metadata/body and tenant workspace files as the source of truth. Do not use `web_search`, public web browsing, or public website research unless the owner explicitly asks you to research the sender or company.
+When handling an internal inbox event, use the email metadata/body and tenant workspace files as the source of truth. Start with `.openclaw/workspace/BUSINESS_PROFILE.json` for core company facts, then read `.openclaw/workspace/WORKSPACE_CONTENT_INDEX.json` and the referenced `knowledge/*` files for pricing, policies, rate sheets, and website content. Do not use `web_search`, public web browsing, or public website research unless the owner explicitly asks you to research the sender or company.
 
 ## Critical Runtime Contracts
 
@@ -68,6 +68,8 @@ Use this branch only for low-risk support and business-information enquiries. Th
 1. Read the exact Gmail message first with `gog gmail get <gmail_message_id>` when a Gmail message id is available.
 2. Classify the enquiry as `basic-info`, `basic-support`, or non-basic.
 3. Gather the answer only from:
+   - `BUSINESS_PROFILE.json`, `WORKSPACE_CONTENT_INDEX.json`
+   - the referenced `knowledge/*` files when the content index points to pricing, policy, service, or website details
    - `PROFILE.md`, `IDENTITY.md`, `SOUL.md`, `USER.md`, `BOOTSTRAP.md`
    - assigned skill files when relevant
    - the exact Gmail message and thread context

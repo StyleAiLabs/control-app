@@ -2,6 +2,9 @@
 
 This document describes the current as-built architecture of the Sync360 Control App based on the repo code.
 
+**2026-04-28 Customer workspace-content hub:** Sync360 now has a dedicated customer `Workspace Content` surface for assistant-facing supporting knowledge that does not belong in the core `BusinessProfile`. Tenants can save curated text blocks, upload supported documents (`pdf`, `docx`, `xlsx`, `csv`, `txt`, `md`), and manually refresh website snapshots that remain in `needs_review` until explicitly published. Published items live in `tenant_workspace_content_items`, are normalized in the control plane, and materialize into `.openclaw/workspace/WORKSPACE_CONTENT_INDEX.json` plus `knowledge/*` files. Live changes still use the existing workspace-only `goLive()` sync path and must not trigger full runtime sync.
+**2026-04-28 Workspace-content multi-website website-review flow:** `Website content` is no longer a single hard-coded `website-main` snapshot. The control plane now supports up to five tenant website sources, keyed by normalized URL and slugged into distinct `knowledge/website/<slug>.md` artifacts. The customer website saved earlier in onboarding/profile is treated as the seeded default source in the `Workspace Content` UI until the customer explicitly imports a reviewed snapshot for it. The page renders websites as a full-width section separate from the core two-column editor so multi-site review, publish, and removal actions do not compress the rest of the workspace-content flow.
+**2026-04-28 Workspace-content customer-surface refinement:** the `Workspace Content` Blade surface now leans on the shared customer-page design-system patterns in `resources/css/app.css` instead of a large page-local style block. The page presents content status through the shared health rail plus inline status band, keeps customer copy focused on business outcomes rather than workspace internals, and intentionally hides machine-facing details such as `knowledge/*` file paths from the customer UI even though those artifacts are still generated underneath.
 **2026-04-27 aPDF runtime env wiring and PDF skill contract cleanup:** the new workspace-managed `pdf-generation` skill now depends on a platform-managed `APDF_API_KEY` delivered through the tenant runtime environment, not through skill-pack-local secrets or tenant-authored config files. Provisioning and later runtime credential/compose regeneration both inject `APDF_API_KEY` into tenant `.env` and `compose.yaml` when the control plane has it configured. The `inbox-triage` quote-follow-up path now points at `pdf-generation` consistently in both handoff instructions and analytics examples, and the `pdf-generation` template contract now explicitly defines how agents must expand `{{#if}}` and `{{#each}}` control blocks before submitting HTML to aPDF.io.
 **2026-04-27 Customer business-profile workspace contract:** Sync360 now materializes a machine-readable `.openclaw/workspace/BUSINESS_PROFILE.json` artifact for workspace-managed custom skills. The contract is generated directly from `BusinessProfile`, `BusinessProfileFiles`, tenant tone, and enabled module assignments, and includes business identity, GST/tax, contact details, addresses, hours, FAQs, pricing notes, enabled modules, and optional logo metadata. When the customer uploads a logo on `/profile`, Sync360 stores the binary in tenant-scoped private storage, records the metadata on `business_profile_files`, and materializes an optional `business-assets/logo.<ext>` workspace asset during the existing workspace-only sync path.
 **2026-04-27 Expired-trial runtime enforcement with admin overrides:** Sync360 no longer treats trial expiry as dashboard-only presentation. A dedicated expired-trial policy layer now gates inbox polling, customer-facing runtime messaging, and LiteLLM suspension behavior. The tenant record stores three explicit override booleans (`allow_polling_when_trial_expired`, `allow_runtime_replies_when_trial_expired`, `allow_litellm_when_trial_expired`) plus saved LiteLLM restore metadata so admin can selectively keep specific runtime paths alive for support/beta tenants without extending the entire trial. Dependency-monitor Telegram incident/reminder alerts stay outside that customer-facing pause gate and continue to send when Telegram is configured.
@@ -235,6 +238,19 @@ Key concerns:
 - services, FAQs, target customers, pricing notes
 - last sync timestamp into the tenant agent
 
+### `TenantWorkspaceContentItem`
+
+Stores customer-managed assistant knowledge beyond the core business profile.
+
+Key concerns:
+
+- source type: `text_block`, `document`, `website_snapshot`
+- published-vs-draft review state for website refreshes
+- normalized markdown content for workspace materialization
+- optional structured JSON payloads for tabular imports such as rate sheets
+- private storage path for uploaded originals
+- workspace-relative materialization paths under `knowledge/*`
+
 ### `ConversationLog`
 
 Stores owner-visible conversation history synced back from tenant runtimes.
@@ -448,6 +464,8 @@ When Google verification succeeds, Sync360 now also clears the known stale Gmail
 `TenantProfileSyncService` is used for later profile/admin regeneration and resync work, not the main onboarding controller flow.
 
 The Business Profile page is part of that later resync surface. When the tenant is already live, saving `/profile` regenerates assistant files, runs the same workspace-file-only live sync path, and shows in-page progress plus a completion message after redirect. `POST /profile/sync-agent` remains the manual retry path for pushing regenerated workspace files without changing the form first. The page also has authenticated `GET/POST/DELETE /profile/logo` endpoints for async logo preview/upload/removal; live-logo changes reuse the same workspace-only sync boundary without invoking full runtime sync.
+
+The new `Workspace Content` page is a sibling customer-maintenance surface. It does not regenerate the core prompt files by default. Instead, it stores supporting knowledge in `tenant_workspace_content_items` and uses the same workspace-file-only live sync boundary to push the resulting `WORKSPACE_CONTENT_INDEX.json` and `knowledge/*` artifacts when the tenant is already live.
 
 `TOOLS.md` is now part of that workspace artifact set. The control plane uses it for environment-specific tool guidance, including how the tenant agent should use exec plus the preconfigured direct `gog` CLI for owner Gmail, Calendar, Drive, Contacts, Sheets, Docs, Slides, Tasks, People, Chat, Classroom, Forms, Apps Script, and Groups requests.
 
@@ -941,6 +959,14 @@ Authenticated customer routes:
 - `/profile`
 - `PATCH /profile`
 - `POST /profile/sync-agent`
+- `/workspace-content`
+- `PATCH /workspace-content/text`
+- `POST /workspace-content/documents`
+- `DELETE /workspace-content/documents/{item}`
+- `POST /workspace-content/website/import`
+- `POST /workspace-content/website/{item}/publish`
+- `DELETE /workspace-content/website/{item}`
+- `POST /workspace-content/sync-agent`
 - `/onboarding`
 - `/onboarding/state`
 - `POST /onboarding/extract-business`

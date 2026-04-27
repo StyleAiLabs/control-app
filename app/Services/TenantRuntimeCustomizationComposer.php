@@ -8,6 +8,7 @@ use App\Models\Tenant;
 use App\Models\TenantAgentCustomization;
 use App\Models\TenantGoogleCredential;
 use App\Models\TenantSkillAssignment;
+use App\Models\TenantWorkspaceContentItem;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Filesystem\Filesystem;
@@ -27,7 +28,7 @@ class TenantRuntimeCustomizationComposer
 
     public function compose(Tenant $tenant, ?TenantAgentCustomization $customization = null, ?array $baseConfig = null): ComposedTenantRuntime
     {
-        $tenant->loadMissing(['businessProfile', 'businessProfileFiles', 'googleCredential', 'agentCustomization', 'skillAssignments.catalogVersion']);
+        $tenant->loadMissing(['businessProfile', 'businessProfileFiles', 'googleCredential', 'agentCustomization', 'skillAssignments.catalogVersion', 'workspaceContentItems']);
 
         $profile = $tenant->businessProfile;
         $profileFiles = $tenant->businessProfileFiles;
@@ -246,6 +247,7 @@ class TenantRuntimeCustomizationComposer
         $enabledAssignments = $this->enabledAssignments($tenant);
         $moduleLines = $this->moduleLines($enabledAssignments);
         $businessProfileArtifact = $this->buildBusinessProfileArtifact($tenant, $profile, $profileFiles, $enabledAssignments);
+        $workspaceContentArtifact = $this->buildWorkspaceContentArtifact($tenant);
 
         return array_merge([
             'IDENTITY.md' => $this->normalizeMarkdown($profileFiles->identity_markdown),
@@ -255,9 +257,11 @@ class TenantRuntimeCustomizationComposer
             'AGENTS.md' => $this->normalizeMarkdown($this->buildAgentsMarkdown($enabledAssignments)),
             'TOOLS.md' => $this->normalizeMarkdown($this->buildToolsMarkdown($googleCredential)),
             'BUSINESS_PROFILE.json' => $this->buildBusinessProfileJson($businessProfileArtifact['payload']),
-            'PROFILE.md' => $this->normalizeMarkdown($this->buildProfileMarkdown($tenant, $profile, $services, $moduleLines, $channelLabel, $googleCredential, $businessProfileArtifact['payload']['logo'])),
-            'HEARTBEAT.md' => $this->normalizeMarkdown($this->buildHeartbeatMarkdown($tenant, $profile, $moduleLines, $channelLabel, $googleCredential)),
-        ], $businessProfileArtifact['workspace_files'], $this->analyticsHelperFiles($enabledAssignments));
+            'WORKSPACE_CONTENT_INDEX.json' => $this->buildWorkspaceContentJson($workspaceContentArtifact['payload']),
+            'knowledge/README.md' => $this->normalizeMarkdown($this->buildWorkspaceContentReadme($workspaceContentArtifact['payload'])),
+            'PROFILE.md' => $this->normalizeMarkdown($this->buildProfileMarkdown($tenant, $profile, $services, $moduleLines, $channelLabel, $googleCredential, $businessProfileArtifact['payload']['logo'], $workspaceContentArtifact['payload'])),
+            'HEARTBEAT.md' => $this->normalizeMarkdown($this->buildHeartbeatMarkdown($tenant, $profile, $moduleLines, $channelLabel, $googleCredential, $workspaceContentArtifact['payload'])),
+        ], $businessProfileArtifact['workspace_files'], $workspaceContentArtifact['workspace_files'], $this->analyticsHelperFiles($enabledAssignments));
     }
 
     private function contentHash(array $workspaceFiles, array $skillFiles, string $openClawConfig): string
@@ -501,6 +505,7 @@ class TenantRuntimeCustomizationComposer
      * @param  array<int, string>  $services
      * @param  array<int, string>  $moduleLines
      * @param  array{present:bool,path:?string,mime_type:?string,original_filename:?string,size_bytes:?int,uploaded_at:?string}  $logo
+     * @param  array<int, array<string, mixed>>  $workspaceContentItems
      */
     private function buildProfileMarkdown(
         Tenant $tenant,
@@ -510,6 +515,7 @@ class TenantRuntimeCustomizationComposer
         string $channelLabel,
         ?TenantGoogleCredential $googleCredential,
         array $logo,
+        array $workspaceContentItems,
     ): string {
         $serviceLines = $services === []
             ? ['- No services have been confirmed yet.']
@@ -555,6 +561,16 @@ class TenantRuntimeCustomizationComposer
             '## Owner Workspace Access',
             ...$this->ownerWorkspaceAccessLines($googleCredential),
             '',
+            '## Workspace Content',
+            ...(count($workspaceContentItems) > 0
+                ? array_map(static fn (array $item): string => sprintf(
+                    '- %s (%s): %s',
+                    (string) ($item['title'] ?? 'Untitled'),
+                    str_replace('_', ' ', (string) ($item['source_type'] ?? 'content')),
+                    (string) ($item['workspace_path'] ?? 'Not materialized')
+                ), $workspaceContentItems)
+                : ['- No additional workspace content has been published yet.']),
+            '',
             '## Notes',
             '- Pricing Notes: '.($profile->pricing_notes ?: 'Share tailored pricing guidance only when enough information is available.'),
             '- Target Customers: '.($profile->target_customers ?: 'Not provided'),
@@ -566,6 +582,7 @@ class TenantRuntimeCustomizationComposer
 
     /**
      * @param  array<int, string>  $moduleLines
+     * @param  array<int, array<string, mixed>>  $workspaceContentItems
      */
     private function buildHeartbeatMarkdown(
         Tenant $tenant,
@@ -573,6 +590,7 @@ class TenantRuntimeCustomizationComposer
         array $moduleLines,
         string $channelLabel,
         ?TenantGoogleCredential $googleCredential,
+        array $workspaceContentItems,
     ): string {
         $rules = [
             '- Represent '.($profile->business_name ?: $tenant->business_name).' clearly and accurately.',
@@ -603,6 +621,11 @@ class TenantRuntimeCustomizationComposer
             $rules[] = '- Never auto-reply from Inbox Triage with invented pricing, timelines, policy promises, legal/payment positions, or bespoke commitments.';
         } else {
             $rules[] = '- If the owner asks for Google Workspace help before Google Workspace is connected, explain that the workspace connection still needs to be completed in Sync360.';
+        }
+
+        if ($workspaceContentItems !== []) {
+            $rules[] = '- Before answering business-information emails, read `BUSINESS_PROFILE.json` for core company facts, then read `WORKSPACE_CONTENT_INDEX.json` and the referenced `knowledge/*` files for pricing, policies, service boundaries, rate sheets, and website details.';
+            $rules[] = '- Treat the published workspace content files as the approved customer-facing knowledge snapshot. Do not guess beyond those files.';
         }
 
         if (filled($profile->after_hours_policy)) {
@@ -651,6 +674,11 @@ class TenantRuntimeCustomizationComposer
     {
         $lines = [
             '# Tools',
+            '',
+            '## Workspace Content Files',
+            '- `BUSINESS_PROFILE.json` is the canonical machine-readable source for core business identity, contact, and GST/tax details.',
+            '- `WORKSPACE_CONTENT_INDEX.json` lists the additional published workspace content available to the assistant.',
+            '- Read the specific `knowledge/*` files referenced in that index before answering detailed questions about pricing, policies, rate sheets, or website information.',
             '',
             '## Workspace Exec',
             '- Use the workspace exec tool whenever you need to inspect or operate against runtime-local tooling.',
@@ -785,6 +813,54 @@ class TenantRuntimeCustomizationComposer
     }
 
     /**
+     * @param  array<int, array<string, mixed>>  $payload
+     */
+    private function buildWorkspaceContentJson(array $payload): string
+    {
+        $encoded = json_encode([
+            'generated_at' => now()->toIso8601String(),
+            'items' => $payload,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+
+        if ($encoded === false) {
+            throw new RuntimeException('Unable to encode WORKSPACE_CONTENT_INDEX.json.');
+        }
+
+        return $encoded.PHP_EOL;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $payload
+     */
+    private function buildWorkspaceContentReadme(array $payload): string
+    {
+        $lines = [
+            '# Workspace Content',
+            '',
+            'This directory contains additional published business knowledge the assistant can use when answering customer questions.',
+            '- Use `BUSINESS_PROFILE.json` first for core company details.',
+            '- Use `WORKSPACE_CONTENT_INDEX.json` to discover supporting knowledge files.',
+            '- Use the referenced `knowledge/*` files for pricing, policies, rate sheets, and website-specific details.',
+            '',
+            '## Published Items',
+        ];
+
+        if ($payload === []) {
+            $lines[] = '- No additional workspace content has been published yet.';
+        } else {
+            foreach ($payload as $item) {
+                $lines[] = sprintf(
+                    '- %s: %s',
+                    (string) ($item['title'] ?? 'Untitled'),
+                    (string) ($item['workspace_path'] ?? 'Not materialized')
+                );
+            }
+        }
+
+        return implode(PHP_EOL, $lines).PHP_EOL;
+    }
+
+    /**
      * @return array{present:bool,path:?string,mime_type:?string,original_filename:?string,size_bytes:?int,uploaded_at:?string,storage_path:?string}
      */
     private function logoPayload(BusinessProfileFiles $profileFiles): array
@@ -802,6 +878,97 @@ class TenantRuntimeCustomizationComposer
             'uploaded_at' => $present ? $profileFiles->logo_uploaded_at?->toIso8601String() : null,
             'storage_path' => $present ? $storagePath : null,
         ];
+    }
+
+    /**
+     * @return array{payload: array<int, array<string, mixed>>, workspace_files: array<string, string>}
+     */
+    private function buildWorkspaceContentArtifact(Tenant $tenant): array
+    {
+        $workspaceFiles = [];
+        $payload = [];
+
+        foreach ($tenant->workspaceContentItems as $item) {
+            if (! $item instanceof TenantWorkspaceContentItem || $item->status !== TenantWorkspaceContentItem::STATUS_ACTIVE) {
+                continue;
+            }
+
+            $workspacePath = is_string($item->workspace_path) ? trim($item->workspace_path) : '';
+            $structuredDataPath = is_string($item->structured_data_workspace_path) ? trim($item->structured_data_workspace_path) : '';
+
+            if ($workspacePath !== '' && is_string($item->content_markdown) && trim($item->content_markdown) !== '') {
+                $workspaceFiles[$workspacePath] = $this->normalizeMarkdown($item->content_markdown);
+            }
+
+            if ($structuredDataPath !== '' && is_array($item->content_json)) {
+                $encoded = json_encode($item->content_json, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+
+                if ($encoded === false) {
+                    throw new RuntimeException('Unable to encode structured workspace content JSON.');
+                }
+
+                $workspaceFiles[$structuredDataPath] = $encoded.PHP_EOL;
+            }
+
+            $topics = $this->workspaceContentTopics($item);
+            $payload[] = [
+                'id' => $item->id,
+                'source_type' => $item->source_type,
+                'title' => $item->title,
+                'slug' => $item->slug,
+                'summary' => $item->summary,
+                'workspace_path' => $workspacePath !== '' ? $workspacePath : null,
+                'structured_data_workspace_path' => $structuredDataPath !== '' ? $structuredDataPath : null,
+                'topics' => $topics,
+                'contains_pricing' => in_array('pricing', $topics, true),
+                'contains_policy' => in_array('policy', $topics, true),
+                'contains_services' => in_array('services', $topics, true),
+                'last_imported_at' => $item->last_imported_at?->toIso8601String(),
+                'last_published_at' => $item->last_published_at?->toIso8601String(),
+                'source_url' => $item->source_url,
+            ];
+        }
+
+        return [
+            'payload' => $payload,
+            'workspace_files' => $workspaceFiles,
+        ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function workspaceContentTopics(TenantWorkspaceContentItem $item): array
+    {
+        $haystack = strtolower(implode(' ', array_filter([
+            $item->slug,
+            $item->title,
+            $item->summary,
+            $item->workspace_path,
+        ])));
+        $topics = [];
+
+        if (str_contains($haystack, 'price') || str_contains($haystack, 'rate') || str_contains($haystack, 'pricing')) {
+            $topics[] = 'pricing';
+        }
+
+        if (str_contains($haystack, 'policy') || str_contains($haystack, 'warranty') || str_contains($haystack, 'payment')) {
+            $topics[] = 'policy';
+        }
+
+        if (str_contains($haystack, 'service') || str_contains($haystack, 'coverage') || str_contains($haystack, 'boundary')) {
+            $topics[] = 'services';
+        }
+
+        if (str_contains($haystack, 'faq') || str_contains($haystack, 'question')) {
+            $topics[] = 'faq';
+        }
+
+        if ($item->source_type === TenantWorkspaceContentItem::SOURCE_TYPE_WEBSITE_SNAPSHOT && ! in_array('website', $topics, true)) {
+            $topics[] = 'website';
+        }
+
+        return array_values(array_unique($topics));
     }
 
     /**

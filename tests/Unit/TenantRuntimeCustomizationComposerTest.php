@@ -11,6 +11,7 @@ use App\Models\SkillCatalogVersion;
 use App\Models\Tenant;
 use App\Models\TenantAgentCustomization;
 use App\Models\TenantSkillAssignment;
+use App\Models\TenantWorkspaceContentItem;
 use App\Models\User;
 use App\Services\TenantRuntimeCustomizationComposer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -288,6 +289,89 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
         $this->assertStringContainsString('`{{#if field}}...{{/if}}` includes the enclosed HTML only when the field has a non-empty value', $composed->skillFiles['skills/pdf-generation/SKILL.md']);
         $this->assertStringContainsString('`{{#each line_items}}...{{/each}}` repeats the enclosed row once per item', $composed->skillFiles['skills/pdf-generation/SKILL.md']);
         $this->assertStringContainsString('The final HTML sent to aPDF.io must not contain raw `{{` template tags.', $composed->skillFiles['skills/pdf-generation/SKILL.md']);
+    }
+
+    public function test_it_emits_workspace_content_index_and_knowledge_files(): void
+    {
+        $tenant = $this->seedTenant();
+
+        BusinessProfile::query()->create([
+            'tenant_id' => $tenant->id,
+            'business_name' => 'Acme Plumbing',
+            'trading_name' => 'Acme',
+            'industry' => 'Home Services',
+            'description' => 'Fast local plumbing support.',
+            'tax_number' => 'GST-123',
+            'services' => ['Emergency plumbing'],
+        ]);
+
+        BusinessProfileFiles::query()->create([
+            'tenant_id' => $tenant->id,
+            'identity_markdown' => "# Identity\n\nBase identity",
+            'soul_markdown' => "# Soul\n\nBase soul",
+            'user_markdown' => "# User\n\nBase user",
+            'bootstrap_markdown' => "# Bootstrap\n\nBase bootstrap",
+            'generated_at' => now(),
+        ]);
+
+        TenantWorkspaceContentItem::query()->create([
+            'tenant_id' => $tenant->id,
+            'source_type' => TenantWorkspaceContentItem::SOURCE_TYPE_TEXT_BLOCK,
+            'slug' => 'pricing-guidance',
+            'title' => 'Pricing guidance',
+            'status' => TenantWorkspaceContentItem::STATUS_ACTIVE,
+            'summary' => 'Pinned pricing notes for callouts.',
+            'content_markdown' => "# Pricing guidance\n\nCallouts start from $120.",
+            'workspace_path' => 'knowledge/text/pricing-guidance.md',
+            'source_hash' => hash('sha256', 'pricing'),
+            'last_imported_at' => now(),
+            'last_published_at' => now(),
+        ]);
+
+        TenantWorkspaceContentItem::query()->create([
+            'tenant_id' => $tenant->id,
+            'source_type' => TenantWorkspaceContentItem::SOURCE_TYPE_DOCUMENT,
+            'slug' => 'rate-sheet',
+            'title' => 'Rate sheet',
+            'status' => TenantWorkspaceContentItem::STATUS_ACTIVE,
+            'summary' => 'Imported rate sheet.',
+            'content_markdown' => "# Rate sheet\n\n| Service | Price |\n| --- | --- |\n| Callout | 120 |",
+            'content_json' => [
+                'columns' => ['Service', 'Price'],
+                'rows' => [['Service' => 'Callout', 'Price' => '120']],
+            ],
+            'workspace_path' => 'knowledge/documents/rate-sheet.md',
+            'structured_data_workspace_path' => 'knowledge/data/rate-sheet.json',
+            'source_hash' => hash('sha256', 'rate-sheet'),
+            'last_imported_at' => now(),
+            'last_published_at' => now(),
+        ]);
+
+        File::ensureDirectoryExists(dirname($this->runtimeConfigPath($tenant)));
+        File::put($this->runtimeConfigPath($tenant), json_encode(['agents' => ['defaults' => []]], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+
+        $composed = app(TenantRuntimeCustomizationComposer::class)->compose($tenant->fresh([
+            'businessProfile',
+            'businessProfileFiles',
+            'workspaceContentItems',
+            'googleCredential',
+            'agentCustomization',
+            'skillAssignments.catalogVersion.item',
+        ]));
+
+        $this->assertArrayHasKey('WORKSPACE_CONTENT_INDEX.json', $composed->workspaceFiles);
+        $this->assertArrayHasKey('knowledge/README.md', $composed->workspaceFiles);
+        $this->assertArrayHasKey('knowledge/text/pricing-guidance.md', $composed->workspaceFiles);
+        $this->assertArrayHasKey('knowledge/documents/rate-sheet.md', $composed->workspaceFiles);
+        $this->assertArrayHasKey('knowledge/data/rate-sheet.json', $composed->workspaceFiles);
+        $this->assertStringContainsString('"slug": "pricing-guidance"', $composed->workspaceFiles['WORKSPACE_CONTENT_INDEX.json']);
+        $this->assertStringContainsString('"contains_pricing": true', $composed->workspaceFiles['WORKSPACE_CONTENT_INDEX.json']);
+        $this->assertStringContainsString('knowledge/text/pricing-guidance.md', $composed->workspaceFiles['knowledge/README.md']);
+        $this->assertStringContainsString('Callouts start from $120.', $composed->workspaceFiles['knowledge/text/pricing-guidance.md']);
+        $this->assertStringContainsString('"rows"', $composed->workspaceFiles['knowledge/data/rate-sheet.json']);
+        $this->assertStringContainsString('WORKSPACE_CONTENT_INDEX.json', $composed->workspaceFiles['HEARTBEAT.md']);
+        $this->assertStringContainsString('knowledge/*', $composed->workspaceFiles['TOOLS.md']);
+        $this->assertStringContainsString('## Workspace Content', $composed->workspaceFiles['PROFILE.md']);
     }
 
     public function test_it_emits_business_profile_json_and_logo_asset_for_custom_skills(): void

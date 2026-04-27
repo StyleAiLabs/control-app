@@ -113,6 +113,9 @@ return [
         'apply_authorized_user_ids' => array_values(array_filter(array_map('trim', explode(',', (string) env('SYNC360_RUNTIME_CUSTOMIZATION_APPLY_USER_IDS', ''))))),
         'apply_authorized_emails' => array_values(array_filter(array_map('trim', explode(',', (string) env('SYNC360_RUNTIME_CUSTOMIZATION_APPLY_EMAILS', ''))))),
     ],
+    'workspace_content' => [
+        'max_websites' => (int) env('SYNC360_WORKSPACE_CONTENT_MAX_WEBSITES', 5),
+    ],
     'workspace_proxy' => [
         'control_app_upstream' => env('SYNC360_WORKSPACE_CONTROL_APP_UPSTREAM', env('APP_URL', 'http://localhost')),
         'public_readiness_timeout_seconds' => (int) env('SYNC360_WORKSPACE_PUBLIC_READY_TIMEOUT_SECONDS', 120),

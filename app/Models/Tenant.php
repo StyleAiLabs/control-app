@@ -165,6 +165,11 @@ class Tenant extends Model
         return $this->hasMany(TenantInboxMonitorMessage::class);
     }
 
+    public function workspaceContentItems(): HasMany
+    {
+        return $this->hasMany(TenantWorkspaceContentItem::class);
+    }
+
     public function workspaceHost(): string
     {
         $this->loadMissing('server');

@@ -1,5 +1,9 @@
 # Inbox Triage — Release Notes
 
+## 1.7.1
+- Added the new workspace-content contract to the skill guidance so inbox-triage reads `BUSINESS_PROFILE.json` first, then `WORKSPACE_CONTENT_INDEX.json` and the referenced `knowledge/*` files before answering low-risk business-information emails.
+- Clarified that pinned pricing sheets, policy files, rate sheets, and reviewed website snapshots are part of the approved tenant workspace source material for grounded replies.
+
 ## 1.7.0
 - Added explicit routing from Telegram follow-up to the **pdf-generation** skill when the owner replies with `Generate a quote`, `Send a quote`, `Quote this`, or similar keywords.
 - The agent now extracts the Lead ref, fetches the email, and invokes `skills/pdf-generation/SKILL.md` with `document_type: quote` and the Gmail message ID as `source_reference`.

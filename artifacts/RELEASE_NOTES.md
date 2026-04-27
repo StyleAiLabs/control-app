@@ -7,6 +7,59 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-28 — Improvement: Multi-Website Workspace Content Flow
+
+Date: 2026-04-28
+Status: Implemented
+
+### Overview
+
+Expanded the customer `Workspace Content` surface so website knowledge is managed as a calmer full-width multi-site workflow instead of a single hard-coded snapshot card.
+
+### What Changed
+
+- changed website content from a singleton `website-main` draft into distinct URL-scoped website entries, with support for up to five websites per tenant
+- surfaced the website already saved during onboarding/profile as the default seeded website entry in `Workspace Content` so customers do not need to add it again
+- moved `Website content` into its own full-width section below the two-column editor and changed the add-site composer to appear on demand behind a compact `+ Add Website` action
+- added per-website review, publish, refresh, and remove actions while keeping website publishes on the existing workspace-only live sync boundary
+- reduced the workspace-content hero heading scale so it matches the rest of the refreshed customer surfaces more closely
+
+## 2026-04-28 — Improvement: Workspace Content Design-System Refresh
+
+Date: 2026-04-28
+Status: Implemented
+
+### Overview
+
+Refined the customer `Workspace Content` page so it follows the newer Sync360 customer-surface patterns more closely and feels less like a backend content manager.
+
+### What Changed
+
+- replaced the page-local visual treatment with the shared customer-surface language used by the refreshed dashboard and profile pages
+- switched the top status area to the shared health-rail plus inline status pattern for clearer scan hierarchy
+- tightened the quick-answer, document, and website sections into calmer guided panels with lighter expandable rows and better small-screen behavior
+- removed customer-facing technical leakage such as workspace file paths while keeping the underlying `WORKSPACE_CONTENT_INDEX.json` and `knowledge/*` runtime contract unchanged
+- hardened the in-page async rendering helpers by escaping injected content before writing HTML back into the page
+
+## 2026-04-28 — Feature: Customer Workspace Content Hub
+
+Date: 2026-04-28
+Status: Implemented
+
+### Overview
+
+Added a dedicated customer-facing `Workspace Content` page where tenants can manage assistant-facing supporting knowledge separately from core business-profile settings.
+
+### What Changed
+
+- added a new customer `Workspace Content` navigation surface built with the newer daisyUI-backed Sync360 wrappers and a calmer guided layout
+- added tenant-scoped `tenant_workspace_content_items` storage for curated text blocks, uploaded documents, and manually refreshed website snapshots
+- added async in-page flows for quick-answer text saves, document upload/remove/replace, and website import plus review-before-publish
+- normalized uploaded documents into published workspace artifacts, including structured JSON payloads for tabular imports such as rate sheets
+- extended workspace composition to emit `WORKSPACE_CONTENT_INDEX.json`, `knowledge/README.md`, and the referenced `knowledge/text/*`, `knowledge/documents/*`, `knowledge/data/*`, and `knowledge/website/*` files
+- updated generated runtime guidance and the shipped `inbox-triage` skill guidance so low-risk business-information replies can use the new workspace-content contract before asking clarifying questions
+- kept live changes on the existing workspace-only `goLive()` sync boundary without introducing full runtime sync or a separate retrieval service
+
 ## 2026-04-28 — Improvement: Streamline Customer Profile Logo Control
 
 Date: 2026-04-28

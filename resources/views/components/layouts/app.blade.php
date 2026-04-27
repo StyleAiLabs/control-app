@@ -872,6 +872,10 @@
                    class="nav-link {{ request()->routeIs('profile.*') ? 'active' : '' }}">
                     Profile
                 </a>
+                <a href="{{ route('workspace-content.show') }}"
+                   class="nav-link {{ request()->routeIs('workspace-content.*') ? 'active' : '' }}">
+                    Workspace Content
+                </a>
                 <a href="{{ route('tenant.setup') }}"
                    class="nav-link {{ request()->routeIs('tenant.*') ? 'active' : '' }}">
                     Setup
@@ -950,6 +954,10 @@
                 <a href="{{ route('profile.show') }}"
                    class="nav-link {{ request()->routeIs('profile.*') ? 'active' : '' }}">
                     Profile
+                </a>
+                <a href="{{ route('workspace-content.show') }}"
+                   class="nav-link {{ request()->routeIs('workspace-content.*') ? 'active' : '' }}">
+                    Workspace Content
                 </a>
                 <a href="{{ route('tenant.setup') }}"
                    class="nav-link {{ request()->routeIs('tenant.*') ? 'active' : '' }}">
