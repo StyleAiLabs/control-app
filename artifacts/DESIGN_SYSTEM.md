@@ -817,3 +817,15 @@ Admin runtime diagnostics now follow a compact verification-summary pattern:
 - Use warning-colored hint text for mismatch/error details such as missing skills or last verification failure.
 - Preserve raw command output below the summary block as supporting evidence, not as the primary status surface.
 - Runtime diagnostics should stay read-only in presentation. Assignment controls, rollout controls, and verification evidence should remain visually distinct even when they live in the same tab.
+
+## 17. Billing Surfaces
+
+Stripe billing now follows one shared presentation rule across customer and admin surfaces:
+
+- The authenticated customer `Billing` page should reuse the existing customer portal shell and hero language from `Dashboard`, `Profile`, and `Workspace Content`. It is a product-management surface, not an operator console.
+- Customer billing state should be summarized through the existing `health-rail` pattern first: billing status, current plan, usage this cycle, and next cycle date each get one compact card before the deeper plan content.
+- Trial-upgrade presentation should use two balanced plan cards in the same calm panel rhythm as other customer pages. Each card may mix a price headline, one compact interaction-limit badge, a short feature list, and a single primary CTA.
+- Future plan entitlements such as not-yet-live integrations should appear as supportive `Included soon` content inside the plan card. Do not render them as enabled runtime modules or as warning states.
+- Paid customer billing panels should prefer clear commercial summaries like `1 of 300 used this month`, `Past due`, or `Manage Subscription` over backend Stripe vocabulary such as object ids, event names, or raw statuses.
+- Admin tenant overview can show a dedicated `Billing` panel for converted tenants, but it should stay in the same calm detail-grid language as the rest of tenant Overview. Billing metadata belongs in fields and compact badges, not in alarm banners by default.
+- Once a tenant has converted, hide trial-extension and expired-trial override controls on admin Overview rather than showing both billing and trial lifecycle controls together.

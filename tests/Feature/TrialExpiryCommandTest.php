@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\TenantProvisioningStatus;
 use App\Enums\TrialStatus;
+use App\Enums\BillingStatus;
 use App\Models\Server;
 use App\Models\Tenant;
 use App\Models\User;
@@ -88,6 +89,38 @@ class TrialExpiryCommandTest extends TestCase
         $tenant->refresh();
 
         $this->assertSame(TrialStatus::Expired, $tenant->trial_status);
+    }
+
+    public function test_trial_expiry_command_skips_paid_tenants_after_first_activation(): void
+    {
+        $tenant = $this->makeTenant([
+            'trial_ends_at' => now()->subHour(),
+            'billing_status' => BillingStatus::Active,
+            'billing_plan' => 'standard',
+            'billing_started_at' => now()->subMonth(),
+            'billing_first_paid_at' => now()->subMonth(),
+            'billing_cycle_anchor_at' => now()->startOfMonth(),
+            'billing_cycle_ends_at' => now()->endOfMonth(),
+        ]);
+
+        $litellm = Mockery::mock(LiteLlmTenantKeyService::class);
+        $litellm->shouldNotReceive('getKeyInfo');
+        $litellm->shouldNotReceive('suspendTenant');
+        $this->instance(LiteLlmTenantKeyService::class, $litellm);
+
+        $agentSync = Mockery::mock(TenantAgentSyncService::class);
+        $agentSync->shouldNotReceive('syncSavedChannelIfReady');
+        $this->instance(TenantAgentSyncService::class, $agentSync);
+
+        $mailer = Mockery::mock(TrialNotificationEmailService::class);
+        $mailer->shouldNotReceive('sendTrialExpired');
+        $this->instance(TrialNotificationEmailService::class, $mailer);
+
+        $this->artisan('sync360:check-trial-expiry')->assertExitCode(0);
+
+        $tenant->refresh();
+
+        $this->assertSame(TrialStatus::Active, $tenant->trial_status);
     }
 
     /**

@@ -85,7 +85,7 @@ class AppServiceProvider extends ServiceProvider
                 ->evaluate($tenant)['customer_alerts'] ?? [];
 
             // Trial expiry / urgency alert
-            if ($tenant->isTrialExpired()) {
+            if (! $tenant->hasPaidActivation() && $tenant->isTrialExpired()) {
                 $alerts[] = [
                     'type'    => 'error',
                     'icon'    => '🔴',
@@ -93,13 +93,31 @@ class AppServiceProvider extends ServiceProvider
                     'message' => 'Your digital employee has been paused.',
                     'cta'     => ['text' => 'Contact us', 'href' => 'mailto:hello@sync360.co.nz'],
                 ];
-            } elseif ($tenant->trialUrgency() === 'critical') {
+            } elseif (! $tenant->hasPaidActivation() && $tenant->trialUrgency() === 'critical') {
                 $alerts[] = [
                     'type'    => 'warning',
                     'icon'    => '🟡',
                     'title'   => 'Trial ending soon',
                     'message' => $tenant->trialDaysLeft() . ' days left · $' . number_format((float)($tenant->litellm_spend ?? 0), 2) . ' of $' . number_format((float)($tenant->litellm_max_budget ?? 5), 2) . ' used.',
                     'cta'     => ['text' => 'Contact us to upgrade', 'href' => 'mailto:hello@sync360.co.nz'],
+                ];
+            } elseif ($tenant->isBillingPastDue()) {
+                $alerts[] = [
+                    'type' => 'warning',
+                    'icon' => '🟠',
+                    'title' => 'Payment method needs attention',
+                    'message' => $tenant->billing_grace_ends_at
+                        ? 'Service stays active during grace until '.$tenant->billing_grace_ends_at->toFormattedDayDateString().'.'
+                        : 'Service is still active while payment details are updated.',
+                    'cta' => ['text' => 'Open billing', 'href' => route('billing.show')],
+                ];
+            } elseif ($tenant->hasReachedInteractionLimit()) {
+                $alerts[] = [
+                    'type' => 'warning',
+                    'icon' => '🟠',
+                    'title' => 'Monthly interaction limit reached',
+                    'message' => 'Customer-facing runtime is paused until the next billing cycle or a plan upgrade.',
+                    'cta' => ['text' => 'Review billing', 'href' => route('billing.show')],
                 ];
             }
 

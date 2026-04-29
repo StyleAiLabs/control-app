@@ -2635,6 +2635,28 @@ Verification:
 - Automated tests passed
 - Remote client VPS bootstrap and tenant provisioning were validated successfully
 
+## 2026-04-29 - Stripe Billing Foundation And Client Portal Billing Screen
+
+Date: 2026-04-29
+Branch: `codex/control-app-prod-deploy`
+
+Summary:
+- Added the first Stripe billing foundation for Sync360, including a dedicated client-portal Billing screen, billing-aware runtime gating, and tenant-side billing state.
+
+Notable changes:
+- Added Laravel Cashier plus Stripe dependencies in [`composer.json`](/Users/gayanhewage/Projects/openclaw-saas/composer.json), published the package migrations under [`database/migrations/`](/Users/gayanhewage/Projects/openclaw-saas/database/migrations), and enabled `bcmath` in [`Dockerfile`](/Users/gayanhewage/Projects/openclaw-saas/Dockerfile).
+- Added tenant billing fields and usage helpers in [`app/Models/Tenant.php`](/Users/gayanhewage/Projects/openclaw-saas/app/Models/Tenant.php) with the new [`app/Enums/BillingStatus.php`](/Users/gayanhewage/Projects/openclaw-saas/app/Enums/BillingStatus.php) enum and [`database/migrations/2026_04_29_120000_add_billing_fields_to_tenants_table.php`](/Users/gayanhewage/Projects/openclaw-saas/database/migrations/2026_04_29_120000_add_billing_fields_to_tenants_table.php).
+- Added billing plan/config wiring in [`config/sync360.php`](/Users/gayanhewage/Projects/openclaw-saas/config/sync360.php), Stripe credentials in [`config/services.php`](/Users/gayanhewage/Projects/openclaw-saas/config/services.php), and example environment keys in [`.env.example`](/Users/gayanhewage/Projects/openclaw-saas/.env.example) and [`.env.production.example`](/Users/gayanhewage/Projects/openclaw-saas/.env.production.example).
+- Added the dedicated customer Billing screen and sidebar entry through [`app/Http/Controllers/BillingController.php`](/Users/gayanhewage/Projects/openclaw-saas/app/Http/Controllers/BillingController.php), [`resources/views/billing/show.blade.php`](/Users/gayanhewage/Projects/openclaw-saas/resources/views/billing/show.blade.php), [`resources/views/billing/success.blade.php`](/Users/gayanhewage/Projects/openclaw-saas/resources/views/billing/success.blade.php), [`resources/views/components/layouts/app.blade.php`](/Users/gayanhewage/Projects/openclaw-saas/resources/views/components/layouts/app.blade.php), and [`routes/web.php`](/Users/gayanhewage/Projects/openclaw-saas/routes/web.php).
+- Added Stripe webhook / lifecycle plumbing through [`app/Http/Controllers/StripeWebhookController.php`](/Users/gayanhewage/Projects/openclaw-saas/app/Http/Controllers/StripeWebhookController.php), [`app/Services/SubscriptionLifecycleService.php`](/Users/gayanhewage/Projects/openclaw-saas/app/Services/SubscriptionLifecycleService.php), and CSRF exemption wiring in [`bootstrap/app.php`](/Users/gayanhewage/Projects/openclaw-saas/bootstrap/app.php).
+- Replaced the direct runtime gate callers to use [`app/Services/CommercialAccessPolicy.php`](/Users/gayanhewage/Projects/openclaw-saas/app/Services/CommercialAccessPolicy.php), including [`app/Services/TenantWorkspaceMessenger.php`](/Users/gayanhewage/Projects/openclaw-saas/app/Services/TenantWorkspaceMessenger.php), [`app/Services/TenantInboxTriagePollingService.php`](/Users/gayanhewage/Projects/openclaw-saas/app/Services/TenantInboxTriagePollingService.php), [`app/Services/TenantAgentSyncService.php`](/Users/gayanhewage/Projects/openclaw-saas/app/Services/TenantAgentSyncService.php), and the trial-expiry scheduler in [`routes/console.php`](/Users/gayanhewage/Projects/openclaw-saas/routes/console.php).
+- Updated admin billing visibility for paid tenants in [`resources/views/admin/tenant-show.blade.php`](/Users/gayanhewage/Projects/openclaw-saas/resources/views/admin/tenant-show.blade.php), [`resources/views/admin/tenants.blade.php`](/Users/gayanhewage/Projects/openclaw-saas/resources/views/admin/tenants.blade.php), and [`resources/views/admin/tenants/partials/show-overview.blade.php`](/Users/gayanhewage/Projects/openclaw-saas/resources/views/admin/tenants/partials/show-overview.blade.php).
+- Added regression coverage in [`tests/Unit/CommercialAccessPolicyTest.php`](/Users/gayanhewage/Projects/openclaw-saas/tests/Unit/CommercialAccessPolicyTest.php), [`tests/Feature/BillingPageTest.php`](/Users/gayanhewage/Projects/openclaw-saas/tests/Feature/BillingPageTest.php), [`tests/Feature/AdminBillingOverviewTest.php`](/Users/gayanhewage/Projects/openclaw-saas/tests/Feature/AdminBillingOverviewTest.php), and extended [`tests/Feature/TrialExpiryCommandTest.php`](/Users/gayanhewage/Projects/openclaw-saas/tests/Feature/TrialExpiryCommandTest.php).
+
+Verification:
+- `php artisan test tests/Feature/AdminBillingOverviewTest.php tests/Feature/BillingPageTest.php tests/Feature/TrialExpiryCommandTest.php tests/Unit/CommercialAccessPolicyTest.php`
+- `php artisan test tests/Feature/AdminTenantOperationsTest.php tests/Unit/TenantWorkspaceMessengerTest.php tests/Feature/InboxTriagePollingTest.php tests/Unit/TenantAgentSyncServiceTest.php`
+
 ## 2026-04-27 - Rollout Auto-Resync Recovery Hardening
 
 Date: 2026-04-27

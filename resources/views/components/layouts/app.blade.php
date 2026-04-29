@@ -872,6 +872,10 @@
                    class="nav-link {{ request()->routeIs('profile.*') ? 'active' : '' }}">
                     Profile
                 </a>
+                <a href="{{ route('billing.show') }}"
+                   class="nav-link {{ request()->routeIs('billing.*') ? 'active' : '' }}">
+                    Billing
+                </a>
                 <a href="{{ route('workspace-content.show') }}"
                    class="nav-link {{ request()->routeIs('workspace-content.*') ? 'active' : '' }}">
                     Workspace Content
@@ -954,6 +958,10 @@
                 <a href="{{ route('profile.show') }}"
                    class="nav-link {{ request()->routeIs('profile.*') ? 'active' : '' }}">
                     Profile
+                </a>
+                <a href="{{ route('billing.show') }}"
+                   class="nav-link {{ request()->routeIs('billing.*') ? 'active' : '' }}">
+                    Billing
                 </a>
                 <a href="{{ route('workspace-content.show') }}"
                    class="nav-link {{ request()->routeIs('workspace-content.*') ? 'active' : '' }}">

@@ -14,7 +14,7 @@ RUN apt-get update \
         openssh-client \
         rsync \
         sshpass \
-    && docker-php-ext-install pdo_pgsql pdo_sqlite \
+    && docker-php-ext-install bcmath pdo_pgsql pdo_sqlite \
     && pecl install redis \
     && docker-php-ext-enable redis \
     && rm -rf /var/lib/apt/lists/*

@@ -1140,14 +1140,23 @@ Notable current additions:
 - `services.google.client_secret`
 - `services.google.redirect_uri`
 - `services.google.project_id`
+- `services.stripe.key`
+- `services.stripe.secret`
+- `services.stripe.webhook_secret`
 - `skill_catalog.enabled`
 - `skill_catalog.scan_enabled`
 - `skill_catalog.import_enabled`
 - `skill_catalog.rollout_enabled`
+- `billing.enabled`
+- `billing.trial_days`
+- `billing.grace_period_days`
+- `billing.plans.standard`
+- `billing.plans.flex`
 
 ## 11. Constraints and known gaps
 
-- Billing is not implemented.
+- Stripe-backed billing is now implemented at the control-plane level, but should stay feature-flagged until production Stripe keys, price ids, and webhook secrets are configured.
+- Commercial runtime access is now dual-mode. Trial-only tenants still use the expired-trial policy, while converted tenants use billing state plus interaction-limit usage from `tenant_runtime_dispatches`.
 - Secret-management and SSH-key hardening are not complete.
 - DNS automation is external to this repo.
 - Historical release notes and plans still contain webhook-first Telegram narratives and more complete WhatsApp claims than the current implementation.
@@ -1216,6 +1225,11 @@ Start with these files:
 - `app/Services/WorkspaceSessionLogReader.php`
 - `app/Console/Commands/SyncConversationReplies.php`
 - `app/Services/ControlAppDeploymentService.php`
+- `app/Http/Controllers/BillingController.php`
+- `app/Http/Controllers/StripeWebhookController.php`
+- `app/Services/BillingPlanCatalog.php`
+- `app/Services/CommercialAccessPolicy.php`
+- `app/Services/SubscriptionLifecycleService.php`
 
 The most useful models for orientation are:
 

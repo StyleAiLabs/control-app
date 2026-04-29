@@ -12,16 +12,20 @@
             default => 'unchecked',
         };
         $workspaceSummaryLabel = ucfirst(str_replace('_', ' ', $workspaceState));
-        $trialSummaryStatus = $tenant->isTrialExpired()
-            ? 'expired'
-            : match ($tenant->trialUrgency()) {
-                'critical' => 'failed',
-                'warning' => 'warning',
-                default => 'ready',
-            };
-        $trialSummaryLabel = $tenant->isTrialExpired()
-            ? 'Expired'
-            : $tenant->trialDaysLeft().' days left';
+        $trialSummaryStatus = $tenant->hasPaidActivation()
+            ? ($tenant->isBillingActive() ? 'ready' : ($tenant->isBillingPastDue() ? 'warning' : 'failed'))
+            : ($tenant->isTrialExpired()
+                ? 'expired'
+                : match ($tenant->trialUrgency()) {
+                    'critical' => 'failed',
+                    'warning' => 'warning',
+                    default => 'ready',
+                });
+        $trialSummaryLabel = $tenant->hasPaidActivation()
+            ? ($tenant->billing_status?->label() ?? 'Billing')
+            : ($tenant->isTrialExpired()
+                ? 'Expired'
+                : $tenant->trialDaysLeft().' days left');
         $agentCustomization = $tenant->agentCustomization;
         $agentCustomizationAvailable = $agentCustomizationAvailable ?? true;
         $tenantSkillsAvailable = $tenantSkillsAvailable ?? false;

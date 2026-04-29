@@ -177,7 +177,14 @@
                             </x-ui.badge>
                         </td>
                         <td>
-                            @if ($tenant->isTrialExpired())
+                            @if ($tenant->hasPaidActivation())
+                                <x-ui.badge :status="$tenant->isBillingActive() ? 'ready' : ($tenant->isBillingPastDue() ? 'warning' : 'failed')">
+                                    {{ $tenant->billing_status?->label() ?? 'Unknown' }}
+                                </x-ui.badge>
+                                <div class="hint sync-poc-table-note sync-poc-table-note--tight">
+                                    {{ $tenant->billing_plan ? \Illuminate\Support\Str::headline((string) $tenant->billing_plan) : 'Plan pending' }}
+                                </div>
+                            @elseif ($tenant->isTrialExpired())
                                 <x-ui.badge status="expired">expired</x-ui.badge>
                             @else
                                 @php

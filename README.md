@@ -20,6 +20,7 @@ It currently covers the full control-plane loop:
 - admin runtime cost observability backed by imported LiteLLM spend logs plus tenant-runtime dispatch attribution
 - conversation history sync from workspace session logs
 - trial lifecycle tracking and notification emails
+- dedicated client-portal billing screen with Stripe Checkout / Customer Portal entrypoints, billing-aware runtime gating, and plan-based interaction usage tracking
 - local-only super-admin operations and control-plane deploy trigger
 
 ## Docs Map
@@ -71,7 +72,7 @@ If those files conflict with the codebase, the source of truth is:
 4. A queue worker provisions the tenant runtime asynchronously.
 5. The tenant gets a customer-facing workspace URL and a private gateway runtime.
 6. The customer completes onboarding, can optionally connect Google Workspace through Sync360's OAuth flow, and then sees Google move through connected/synced/verified runtime states instead of a single optimistic "ready" label.
-7. The app re-seeds runtime Google auth from DB when needed and tracks conversations, trial state, health status, and admin operations from the control plane.
+7. The app re-seeds runtime Google auth from DB when needed and tracks conversations, trial state, billing state, health status, and admin operations from the control plane.
 8. Delete-and-recreate provisioning remains safe because runtime cleanup removes stale fixed-name tenant containers before reprovisioning.
 
 ## Stack
@@ -338,7 +339,7 @@ Frontend presentation changes under `resources/views/` or `resources/css/` also 
 
 This repo does not treat the following as complete product areas yet:
 
-- billing and subscription automation
+- richer billing automation, including webhook-driven plan transitions and customer self-serve reactivation flows
 - email verification
 - full secret-management hardening
 - automated DNS management

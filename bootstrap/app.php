@@ -32,6 +32,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'local.only' => \App\Http\Middleware\EnsureLocalEnvironment::class,
             'workspace.access' => \App\Http\Middleware\EnsureWorkspaceTenantAccess::class,
         ]);
+
+        $middleware->validateCsrfTokens(except: [
+            'stripe/webhook',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

@@ -76,4 +76,10 @@ return [
         'oauth_app_mode' => env('GOOGLE_OAUTH_APP_MODE', 'live'),
     ],
 
+    'stripe' => [
+        'key' => env('STRIPE_KEY'),
+        'secret' => env('STRIPE_SECRET'),
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+    ],
+
 ];

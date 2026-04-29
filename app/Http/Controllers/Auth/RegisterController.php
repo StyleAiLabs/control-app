@@ -78,7 +78,8 @@ class RegisterController extends Controller
                     'server_id' => $server->id,
                     'trial_status' => TrialStatus::Active,
                     'provisioning_status' => TenantProvisioningStatus::Pending,
-                    'trial_ends_at' => now()->addDays(14),
+                    'trial_ends_at' => now()->addDays((int) config('sync360.billing.trial_days', 7)),
+                    'billing_status' => \App\Enums\BillingStatus::Trialing,
                 ]);
 
                 $provisioningJob = ProvisioningJob::query()->create([

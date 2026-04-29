@@ -25,7 +25,7 @@ class TenantInboxTriagePollingService
         private readonly TenantInboxGmailRuntimeService $gmail,
         private readonly TenantInboxMessageFilter $filter,
         private readonly TenantWorkspaceMessenger $messenger,
-        private readonly ExpiredTrialAccessPolicy $expiredTrialAccess,
+        private readonly CommercialAccessPolicy $commercialAccess,
     ) {
     }
 
@@ -55,7 +55,7 @@ class TenantInboxTriagePollingService
             })
             ->orderBy('id')
             ->get()
-            ->filter(fn (Tenant $tenant): bool => $this->expiredTrialAccess->canPollInbox($tenant))
+            ->filter(fn (Tenant $tenant): bool => $this->commercialAccess->canPollInbox($tenant))
             ->filter(fn (Tenant $tenant): bool => $this->stateAllowsPolling($tenant))
             ->values();
     }
@@ -67,7 +67,7 @@ class TenantInboxTriagePollingService
     {
         $tenant->loadMissing(['server', 'googleCredential', 'inboxMonitorState']);
 
-        if (! $this->expiredTrialAccess->canPollInbox($tenant)) {
+        if (! $this->commercialAccess->canPollInbox($tenant)) {
             return [
                 'processed' => 0,
                 'delivered' => 0,

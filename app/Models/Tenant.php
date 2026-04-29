@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\BillingStatus;
 use App\Enums\TenantProvisioningStatus;
+use App\Enums\TenantRuntimeUsageUseCase;
 use App\Enums\TrialStatus;
 use Illuminate\Support\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -61,6 +63,13 @@ class Tenant extends Model
         'allow_polling_when_trial_expired',
         'allow_runtime_replies_when_trial_expired',
         'allow_litellm_when_trial_expired',
+        'billing_status',
+        'billing_plan',
+        'billing_started_at',
+        'billing_grace_ends_at',
+        'billing_cycle_anchor_at',
+        'billing_cycle_ends_at',
+        'billing_first_paid_at',
     ];
 
     protected function casts(): array
@@ -87,6 +96,12 @@ class Tenant extends Model
             'allow_polling_when_trial_expired' => 'boolean',
             'allow_runtime_replies_when_trial_expired' => 'boolean',
             'allow_litellm_when_trial_expired' => 'boolean',
+            'billing_status' => BillingStatus::class,
+            'billing_started_at' => 'datetime',
+            'billing_grace_ends_at' => 'datetime',
+            'billing_cycle_anchor_at' => 'datetime',
+            'billing_cycle_ends_at' => 'datetime',
+            'billing_first_paid_at' => 'datetime',
         ];
     }
 
@@ -208,8 +223,7 @@ class Tenant extends Model
             return 0;
         }
 
-        // Fall back to created_at + 14 days for tenants pre-dating the trial_ends_at column
-        $endsAt = $this->trial_ends_at ?? $this->created_at->copy()->addDays(14);
+        $endsAt = $this->trialEndsAt();
 
         return max(0, (int) now()->diffInDays($endsAt, absolute: false));
     }
@@ -223,7 +237,7 @@ class Tenant extends Model
 
     public function trialTimePercent(): float
     {
-        $endsAt = $this->trial_ends_at ?? $this->created_at->copy()->addDays(14);
+        $endsAt = $this->trialEndsAt();
         $durationSeconds = max(1, $endsAt->diffInSeconds($this->created_at, absolute: true));
         $elapsedSeconds = min($durationSeconds, max(0, $this->created_at->diffInSeconds(now(), absolute: false)));
 
@@ -243,7 +257,7 @@ class Tenant extends Model
 
     public function extendTrialByDays(int $days = 7): void
     {
-        $baseEndsAt = $this->trial_ends_at ?? $this->created_at->copy()->addDays(14);
+        $baseEndsAt = $this->trialEndsAt();
         $newEndsAt = $baseEndsAt->isFuture()
             ? $baseEndsAt->copy()->addDays($days)
             : now()->addDays($days);
@@ -306,5 +320,93 @@ class Tenant extends Model
             : '';
 
         return $current !== '' ? $current : null;
+    }
+
+    public function trialEndsAt(): Carbon
+    {
+        return $this->trial_ends_at ?? $this->created_at->copy()->addDays((int) config('sync360.billing.trial_days', 7));
+    }
+
+    public function hasPaidActivation(): bool
+    {
+        return $this->billing_first_paid_at !== null;
+    }
+
+    public function isBillingActive(): bool
+    {
+        return $this->billing_status === BillingStatus::Active;
+    }
+
+    public function isBillingPastDue(): bool
+    {
+        return $this->billing_status === BillingStatus::PastDue;
+    }
+
+    public function isBillingSuspended(): bool
+    {
+        return $this->billing_status === BillingStatus::Suspended;
+    }
+
+    public function isBillingCancelled(): bool
+    {
+        return $this->billing_status === BillingStatus::Cancelled;
+    }
+
+    public function currentInteractionLimit(): ?int
+    {
+        $plan = is_string($this->billing_plan) ? trim($this->billing_plan) : '';
+
+        if ($plan === '') {
+            return null;
+        }
+
+        $limit = data_get(config('sync360.billing.plans', []), $plan.'.interaction_limit');
+
+        return is_numeric($limit) && (int) $limit > 0 ? (int) $limit : null;
+    }
+
+    public function currentInteractionUsage(): int
+    {
+        if (! $this->hasPaidActivation()) {
+            return 0;
+        }
+
+        if (! $this->billing_cycle_anchor_at || ! $this->billing_cycle_ends_at) {
+            return 0;
+        }
+
+        $qualifyingUseCases = array_values(array_filter(array_map(
+            static fn (mixed $value): ?string => is_string($value) && trim($value) !== '' ? trim($value) : null,
+            (array) config('sync360.billing.qualifying_use_cases', array_map(
+                static fn (TenantRuntimeUsageUseCase $useCase): string => $useCase->value,
+                [
+                    TenantRuntimeUsageUseCase::TelegramChat,
+                    TenantRuntimeUsageUseCase::InboxTriage,
+                    TenantRuntimeUsageUseCase::OwnerFollowup,
+                    TenantRuntimeUsageUseCase::ManualRuntimeHook,
+                ]
+            ))
+        )));
+
+        if ($qualifyingUseCases === []) {
+            return 0;
+        }
+
+        return $this->runtimeDispatches()
+            ->where('dispatch_status', 'sent')
+            ->whereIn('use_case', $qualifyingUseCases)
+            ->whereBetween('occurred_at', [$this->billing_cycle_anchor_at, $this->billing_cycle_ends_at])
+            ->count();
+    }
+
+    public function hasReachedInteractionLimit(): bool
+    {
+        $limit = $this->currentInteractionLimit();
+
+        if ($limit === null || $limit <= 0) {
+            return false;
+        }
+
+        return $this->currentInteractionUsage() >= $limit;
     }
 }

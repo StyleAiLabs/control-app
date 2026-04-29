@@ -5,12 +5,14 @@ use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\ResetPasswordController;
+use App\Http\Controllers\BillingController;
 use App\Http\Controllers\ConversationsController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GoogleOAuthController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\TenantSetupController;
 use App\Http\Controllers\WorkspaceContentController;
 use Illuminate\Support\Facades\Route;
@@ -29,6 +31,7 @@ Route::middleware('guest')->group(function (): void {
 });
 
 Route::get('/auth/google/callback', [GoogleOAuthController::class, 'callback'])->name('google.callback');
+Route::post('/stripe/webhook', StripeWebhookController::class)->name('stripe.webhook');
 
 Route::middleware('auth')->group(function (): void {
     Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
@@ -43,6 +46,10 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/profile/logo', [ProfileController::class, 'uploadLogo'])->name('profile.logo.upload');
         Route::delete('/profile/logo', [ProfileController::class, 'deleteLogo'])->name('profile.logo.delete');
         Route::post('/profile/sync-agent', [ProfileController::class, 'syncAgent'])->name('profile.sync-agent');
+        Route::get('/billing', [BillingController::class, 'show'])->name('billing.show');
+        Route::post('/billing/checkout', [BillingController::class, 'checkout'])->name('billing.checkout');
+        Route::get('/billing/success', [BillingController::class, 'success'])->name('billing.success');
+        Route::get('/billing/portal', [BillingController::class, 'portal'])->name('billing.portal');
         Route::get('/workspace-content', [WorkspaceContentController::class, 'show'])->name('workspace-content.show');
         Route::patch('/workspace-content/text', [WorkspaceContentController::class, 'updateText'])->name('workspace-content.text.update');
         Route::post('/workspace-content/documents', [WorkspaceContentController::class, 'uploadDocument'])->name('workspace-content.documents.upload');

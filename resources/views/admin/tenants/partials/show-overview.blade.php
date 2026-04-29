@@ -90,13 +90,69 @@
     </x-ui.panel>
 </div>
 
+@if ($tenant->hasPaidActivation())
+    <x-ui.panel title="Billing" description="Paid plan state, billing window, and interaction usage for converted tenants.">
+        <x-slot:actions>
+            <x-ui.badge :status="$tenant->isBillingActive() ? 'ready' : ($tenant->isBillingPastDue() ? 'warning' : 'failed')">
+                {{ $tenant->billing_status?->label() ?? 'Unknown' }}
+            </x-ui.badge>
+            @if ($tenant->billing_plan)
+                <x-ui.badge status="technical" technical>{{ $tenant->billing_plan }}</x-ui.badge>
+            @endif
+        </x-slot:actions>
+
+        <div class="sync-poc-detail-grid">
+            <div class="sync-poc-field">
+                <span class="sync-poc-field__label">Plan</span>
+                <strong class="sync-poc-field__value">{{ $tenant->billing_plan ? \Illuminate\Support\Str::headline((string) $tenant->billing_plan) : 'Not set' }}</strong>
+            </div>
+            <div class="sync-poc-field">
+                <span class="sync-poc-field__label">Billing Status</span>
+                <strong class="sync-poc-field__value">{{ $tenant->billing_status?->label() ?? 'Unknown' }}</strong>
+            </div>
+            <div class="sync-poc-field">
+                <span class="sync-poc-field__label">Cycle Anchor</span>
+                <strong class="sync-poc-field__value">{{ $tenant->billing_cycle_anchor_at?->toDateTimeString() ?? 'Pending' }}</strong>
+            </div>
+            <div class="sync-poc-field">
+                <span class="sync-poc-field__label">Cycle End</span>
+                <strong class="sync-poc-field__value">{{ $tenant->billing_cycle_ends_at?->toDateTimeString() ?? 'Pending' }}</strong>
+            </div>
+            <div class="sync-poc-field">
+                <span class="sync-poc-field__label">Interactions This Cycle</span>
+                <strong class="sync-poc-field__value">
+                    @if ($tenant->currentInteractionLimit())
+                        {{ $tenant->currentInteractionUsage() }} / {{ $tenant->currentInteractionLimit() }}
+                    @else
+                        Not configured
+                    @endif
+                </strong>
+            </div>
+            <div class="sync-poc-field">
+                <span class="sync-poc-field__label">Grace Ends</span>
+                <strong class="sync-poc-field__value">{{ $tenant->billing_grace_ends_at?->toDateTimeString() ?? '—' }}</strong>
+            </div>
+            <div class="sync-poc-field">
+                <span class="sync-poc-field__label">First Paid At</span>
+                <strong class="sync-poc-field__value">{{ $tenant->billing_first_paid_at?->toDateTimeString() ?? '—' }}</strong>
+            </div>
+            <div class="sync-poc-field">
+                <span class="sync-poc-field__label">Stripe Customer</span>
+                <strong class="sync-poc-field__value type-value--technical">{{ $tenant->user?->stripe_id ?? 'Not linked yet' }}</strong>
+            </div>
+        </div>
+    </x-ui.panel>
+@endif
+
 <x-ui.panel title="Trial & AI Usage" description="Trial expiry, cached LiteLLM spend, and notification checkpoints.">
     <x-slot:actions>
-        <form method="POST" action="{{ route('admin.tenants.trial.extend', $tenant) }}" class="inline">
-            @csrf
-            <input type="hidden" name="return_tab" value="overview">
-            <x-ui.button type="submit" size="sm" icon="calendar-plus" variant="secondary">Add 7 Days</x-ui.button>
-        </form>
+        @if (! $tenant->hasPaidActivation())
+            <form method="POST" action="{{ route('admin.tenants.trial.extend', $tenant) }}" class="inline">
+                @csrf
+                <input type="hidden" name="return_tab" value="overview">
+                <x-ui.button type="submit" size="sm" icon="calendar-plus" variant="secondary">Add 7 Days</x-ui.button>
+            </form>
+        @endif
         @if ($tenant->isTrialExpired())
             <x-ui.badge status="expired">trial expired</x-ui.badge>
         @else
@@ -114,7 +170,7 @@
                 'warning'  => 'var(--color-warning)',
                 default    => 'var(--color-success)',
             };
-            $trialEndsAt = $tenant->trial_ends_at ?? $tenant->created_at->copy()->addDays(14);
+            $trialEndsAt = $tenant->trialEndsAt();
             $trialDurationDays = max(1, (int) ceil($tenant->created_at->diffInSeconds($trialEndsAt, absolute: true) / 86400));
             $trialElapsedDays = min($trialDurationDays, max(0, (int) floor($tenant->created_at->diffInSeconds(now(), absolute: false) / 86400)));
         @endphp
@@ -178,15 +234,16 @@
     </div>
 </x-ui.panel>
 
-<x-ui.panel title="Expired-trial Runtime Overrides" description="Admin controls for keeping selected runtime paths active after a trial expires.">
-    <div class="note" style="margin-bottom:14px;">
-        Customer-facing AI work pauses by default when a trial expires. Operational Telegram health alerts stay enabled when Telegram is configured.
-    </div>
+@if (! $tenant->hasPaidActivation())
+    <x-ui.panel title="Expired-trial Runtime Overrides" description="Admin controls for keeping selected runtime paths active after a trial expires.">
+        <div class="note" style="margin-bottom:14px;">
+            Customer-facing AI work pauses by default when a trial expires. Operational Telegram health alerts stay enabled when Telegram is configured.
+        </div>
 
-    <form method="POST" action="{{ route('admin.tenants.trial-overrides.update', $tenant) }}" class="sync-poc-stack" style="gap: 16px;">
-        @csrf
-        @method('PATCH')
-        <input type="hidden" name="return_tab" value="overview">
+        <form method="POST" action="{{ route('admin.tenants.trial-overrides.update', $tenant) }}" class="sync-poc-stack" style="gap: 16px;">
+            @csrf
+            @method('PATCH')
+            <input type="hidden" name="return_tab" value="overview">
 
         <label class="sync-poc-subpanel" style="display:flex; gap:12px; align-items:flex-start;">
             <input type="checkbox" name="allow_polling_when_trial_expired" value="1" @checked($tenant->allow_polling_when_trial_expired) style="margin-top: 4px;">
@@ -231,8 +288,9 @@
             </div>
         </div>
 
-        <div>
-            <x-ui.button type="submit" size="sm" variant="secondary">Save Expired-trial Overrides</x-ui.button>
-        </div>
-    </form>
-</x-ui.panel>
+            <div>
+                <x-ui.button type="submit" size="sm" variant="secondary">Save Expired-trial Overrides</x-ui.button>
+            </div>
+        </form>
+    </x-ui.panel>
+@endif

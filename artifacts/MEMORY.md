@@ -290,6 +290,11 @@ Remaining documentation mismatch:
 - `TenantWorkspaceMessenger` now treats custom-skill delivery as a verified prerequisite. Callers can declare `requiredSkillIds`, and the messenger will refuse to deliver the hook if the required runtime skill still cannot be verified after one self-heal cycle.
 - Inbox Triage Gmail polling now depends on verified `inbox-triage` runtime readiness before a message can be marked `SENT_TO_AGENT`, which closes the platform-wide loophole where future custom skills could be materialized on disk but still absent from the live runtime session registry.
 - OpenClaw VPS builds can render `openclaw skills list --eligible` as a Unicode table even when JSON output is available. Sync360 runtime verification should prefer JSON from `openclaw skills list --json` / `--eligible --json` and only use text parsing as fallback, or it can falsely conclude that no skills are active.
+- Stripe billing is now partially implemented in the control plane. `User` owns Stripe customer/subscription records through Laravel Cashier, while `Tenant` owns the commercial-access state used for runtime enforcement (`billing_status`, `billing_plan`, billing-cycle timestamps, and first-paid marker).
+- The canonical customer subscription surface is now `GET /billing` inside the authenticated portal sidebar. It shows trial upgrade choices, active-plan usage, current billing status, and routes into Stripe Checkout / Customer Portal.
+- Trial-only runtime enforcement has been generalized behind `CommercialAccessPolicy`. Pre-conversion tenants still use `ExpiredTrialAccessPolicy`, but once `billing_first_paid_at` exists, inbox polling, customer-facing runtime work, direct channel enablement, and LiteLLM suspension decisions are driven by billing state and interaction-limit usage instead.
+- Monthly plan usage is derived from qualifying `tenant_runtime_dispatches` inside the current billing window, not from conversion events and not from a mutable counter on `tenants`.
+- Paid tenants should no longer be processed by `sync360:check-trial-expiry`, and admin tenant overview pages should hide trial-extension / expired-trial override controls once a tenant has converted.
 
 ## 8. Current priorities / open work
 

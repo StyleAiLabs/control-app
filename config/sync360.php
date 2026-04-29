@@ -125,6 +125,39 @@ return [
         'agent_hook_path' => env('SYNC360_WORKSPACE_AGENT_HOOK_PATH', '/hooks/agent'),
         'timeout_seconds' => (int) env('SYNC360_WORKSPACE_CHAT_TIMEOUT_SECONDS', 15),
     ],
+    'billing' => [
+        'enabled' => (bool) env('SYNC360_BILLING_ENABLED', false),
+        'trial_days' => (int) env('SYNC360_TRIAL_DAYS', 7),
+        'grace_period_days' => (int) env('SYNC360_BILLING_GRACE_PERIOD_DAYS', 3),
+        'qualifying_use_cases' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('SYNC360_BILLING_QUALIFYING_USE_CASES', 'telegram_chat,inbox_triage,owner_followup,manual_runtime_hook'))
+        ))),
+        'plans' => [
+            'standard' => [
+                'name' => 'Standard',
+                'tagline' => 'For service teams getting started with a live digital employee.',
+                'stripe_price_id' => env('STRIPE_STANDARD_PRICE_ID'),
+                'monthly_price_nzd' => (int) env('SYNC360_STANDARD_PRICE_NZD', 299),
+                'interaction_limit' => (int) env('SYNC360_STANDARD_INTERACTION_LIMIT', 300),
+                'litellm_plan' => env('SYNC360_STANDARD_LITELLM_PLAN', 'starter'),
+                'litellm_budget_ceiling' => (float) env('SYNC360_STANDARD_LITELLM_BUDGET', env('LITELLM_STARTER_MAX_BUDGET', env('LITELLM_DEFAULT_MAX_BUDGET', 25))),
+                'included_skill_keys' => ['inbox-triage', 'pdf-generation'],
+                'future_entitlement_keys' => [],
+            ],
+            'flex' => [
+                'name' => 'Flex',
+                'tagline' => 'For teams that want more automation surface area and room to expand.',
+                'stripe_price_id' => env('STRIPE_FLEX_PRICE_ID'),
+                'monthly_price_nzd' => (int) env('SYNC360_FLEX_PRICE_NZD', 499),
+                'interaction_limit' => (int) env('SYNC360_FLEX_INTERACTION_LIMIT', 500),
+                'litellm_plan' => env('SYNC360_FLEX_LITELLM_PLAN', 'growth'),
+                'litellm_budget_ceiling' => (float) env('SYNC360_FLEX_LITELLM_BUDGET', env('LITELLM_GROWTH_MAX_BUDGET', env('LITELLM_DEFAULT_MAX_BUDGET', 25))),
+                'included_skill_keys' => ['inbox-triage', 'pdf-generation'],
+                'future_entitlement_keys' => ['xero-myob', 'crm-integration'],
+            ],
+        ],
+    ],
     'litellm' => [
         'default_plan_name' => env('LITELLM_DEFAULT_PLAN_NAME', 'trial'),
         'default_budget' => (float) env('LITELLM_DEFAULT_MAX_BUDGET', 25),

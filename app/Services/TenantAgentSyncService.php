@@ -31,7 +31,7 @@ class TenantAgentSyncService
         private readonly TenantSkillAnalyticsRuntimeService $skillAnalyticsRuntime,
         private readonly TenantWorkspaceDependencyHealthService $dependencyHealth,
         private readonly TenantRuntimeSkillActivationService $runtimeSkillActivation,
-        private readonly ExpiredTrialAccessPolicy $expiredTrialAccess,
+        private readonly CommercialAccessPolicy $commercialAccess,
     ) {
     }
 
@@ -139,7 +139,7 @@ class TenantAgentSyncService
     {
         $tenant->loadMissing('server');
 
-        if (! $this->expiredTrialAccess->shouldEnableDirectCustomerChannels($tenant)) {
+        if (! $this->commercialAccess->shouldEnableDirectCustomerChannels($tenant)) {
             $this->removeChannelConfig($tenant);
 
             return;
@@ -295,7 +295,7 @@ class TenantAgentSyncService
             return false;
         }
 
-        if (! $this->expiredTrialAccess->shouldEnableDirectCustomerChannels($tenant)) {
+        if (! $this->commercialAccess->shouldEnableDirectCustomerChannels($tenant)) {
             $this->removeChannelConfig($tenant);
 
             return false;

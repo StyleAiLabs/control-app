@@ -16,7 +16,7 @@ class TenantWorkspaceMessenger
         private readonly TenantRuntimeService $runtime,
         private readonly Filesystem $files,
         private readonly TenantRuntimeSkillActivationService $runtimeSkillActivation,
-        private readonly ExpiredTrialAccessPolicy $expiredTrialAccess,
+        private readonly CommercialAccessPolicy $commercialAccess,
         private readonly TenantRuntimeDispatchRecorder $dispatchRecorder,
     ) {
     }
@@ -66,10 +66,16 @@ class TenantWorkspaceMessenger
         array $attribution = [],
     ): string
     {
-        if ($enforceCustomerFacingPolicy && ! $this->expiredTrialAccess->canSendCustomerFacingRuntimeWork($tenant)) {
+        if ($enforceCustomerFacingPolicy && ! $this->commercialAccess->canSendCustomerFacingRuntimeWork($tenant)) {
+            $reason = $this->commercialAccess->runtimePauseReason($tenant);
+
             throw new RuntimeException(
-                'Customer-facing runtime work is paused because this tenant trial has expired. '
-                .'Enable the expired-trial runtime reply override in admin to resume replies.'
+                match ($reason) {
+                    'interaction_limit_reached' => 'Customer-facing runtime work is paused because this tenant has reached its monthly interaction limit.',
+                    'subscription_suspended' => 'Customer-facing runtime work is paused because this tenant subscription is suspended.',
+                    'subscription_cancelled' => 'Customer-facing runtime work is paused because this tenant subscription is cancelled.',
+                    default => 'Customer-facing runtime work is paused because this tenant trial has expired. Enable the expired-trial runtime reply override in admin to resume replies.',
+                }
             );
         }
 
