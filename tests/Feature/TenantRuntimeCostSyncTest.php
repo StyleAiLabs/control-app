@@ -123,6 +123,82 @@ class TenantRuntimeCostSyncTest extends TestCase
         $this->assertSame(1, TenantRuntimeUsageEvent::query()->where('litellm_call_id', 'call-duplicate-1')->count());
     }
 
+    public function test_runtime_cost_sync_accepts_top_level_array_response_shape(): void
+    {
+        config()->set('services.litellm.base_url', 'https://litellm.stylesoftware.co.nz');
+        config()->set('services.litellm.master_key', 'litellm-master');
+        config()->set('sync360.litellm.cost_sync_lookback_days', 1);
+
+        $tenant = $this->tenant('runtime-cost-array-shape');
+
+        Http::fake([
+            'https://litellm.stylesoftware.co.nz/spend/logs*' => Http::response([
+                [
+                    'request_id' => 'call-array-shape-1',
+                    'api_key_alias' => $tenant->litellm_key_alias,
+                    'model' => 'gpt-4o',
+                    'spend' => 0.0031,
+                    'prompt_tokens' => 300,
+                    'completion_tokens' => 80,
+                    'total_tokens' => 380,
+                    'startTime' => '2026-04-28T08:00:00Z',
+                    'metadata' => [
+                        'tenant_id' => $tenant->tenant_id,
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        Artisan::call('sync360:sync-runtime-costs');
+
+        $row = TenantRuntimeUsageEvent::query()->where('litellm_call_id', 'call-array-shape-1')->sole();
+        $this->assertSame($tenant->id, $row->tenant_id);
+        $this->assertSame('0.003100', $row->cost_amount);
+        $this->assertSame(380, $row->total_tokens);
+    }
+
+    public function test_runtime_cost_sync_fetches_daily_windows_instead_of_one_large_request(): void
+    {
+        config()->set('services.litellm.base_url', 'https://litellm.stylesoftware.co.nz');
+        config()->set('services.litellm.master_key', 'litellm-master');
+        config()->set('sync360.litellm.cost_sync_lookback_days', 3);
+
+        $tenant = $this->tenant('runtime-cost-windowed');
+
+        Http::fake([
+            'https://litellm.stylesoftware.co.nz/spend/logs*' => Http::response([
+                'data' => [
+                    [
+                        'request_id' => 'call-windowed-1',
+                        'api_key_alias' => $tenant->litellm_key_alias,
+                        'model' => 'gpt-4o',
+                        'spend' => 0.0012,
+                        'prompt_tokens' => 120,
+                        'completion_tokens' => 30,
+                        'total_tokens' => 150,
+                        'startTime' => '2026-04-28T08:00:00Z',
+                        'metadata' => [
+                            'tenant_id' => $tenant->tenant_id,
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        Artisan::call('sync360:sync-runtime-costs');
+
+        Http::assertSentCount(3);
+        Http::assertSent(function ($request): bool {
+            $query = [];
+            parse_str(parse_url($request->url(), PHP_URL_QUERY) ?: '', $query);
+
+            return isset($query['start_date'], $query['end_date'])
+                && $query['start_date'] === $query['end_date'];
+        });
+
+        $this->assertSame(1, TenantRuntimeUsageEvent::query()->where('litellm_call_id', 'call-windowed-1')->count());
+    }
+
     private function tenant(string $tenantId): Tenant
     {
         $user = User::query()->create([

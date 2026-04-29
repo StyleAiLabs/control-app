@@ -8,6 +8,7 @@ use App\Models\TenantRuntimeDispatch;
 use App\Models\TenantRuntimeUsageEvent;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use RuntimeException;
 
 class LiteLlmRuntimeCostSyncService
@@ -21,47 +22,48 @@ class LiteLlmRuntimeCostSyncService
      */
     public function sync(): array
     {
-        $rows = $this->fetchSpendLogs();
         $totals = [
             'imported' => 0,
             'matched' => 0,
             'unmatched' => 0,
         ];
 
-        foreach ($rows as $row) {
-            $normalized = $this->normalizeRow($row);
-            $callId = $normalized['litellm_call_id'];
+        foreach ($this->spendLogDates() as $date) {
+            foreach ($this->fetchSpendLogsForDate($date) as $row) {
+                $normalized = $this->normalizeRow($row);
+                $callId = $normalized['litellm_call_id'];
 
-            if ($callId !== null && TenantRuntimeUsageEvent::query()->where('litellm_call_id', $callId)->exists()) {
-                continue;
+                if ($callId !== null && TenantRuntimeUsageEvent::query()->where('litellm_call_id', $callId)->exists()) {
+                    continue;
+                }
+
+                $tenant = $this->resolveTenant($normalized);
+                $dispatch = $tenant ? $this->matchDispatch($tenant, $normalized) : null;
+                $useCase = $dispatch?->use_case ?? TenantRuntimeUsageUseCase::UnknownRuntime;
+                $triggerSource = $dispatch?->trigger_source ?? 'litellm-spend-log';
+
+                TenantRuntimeUsageEvent::query()->create([
+                    'tenant_id' => $tenant?->id,
+                    'tenant_runtime_dispatch_id' => $dispatch?->id,
+                    'use_case' => $useCase->value,
+                    'trigger_source' => $triggerSource,
+                    'effective_model' => $normalized['effective_model'],
+                    'request_count' => 1,
+                    'prompt_tokens' => $normalized['prompt_tokens'],
+                    'completion_tokens' => $normalized['completion_tokens'],
+                    'total_tokens' => $normalized['total_tokens'],
+                    'cost_amount' => $normalized['cost_amount'],
+                    'currency' => $normalized['currency'],
+                    'occurred_at' => $normalized['occurred_at'],
+                    'litellm_call_id' => $normalized['litellm_call_id'],
+                    'litellm_spend_log_id' => $normalized['litellm_spend_log_id'],
+                    'litellm_key_alias' => $normalized['litellm_key_alias'],
+                    'raw_payload_json' => $normalized['raw_payload_json'],
+                ]);
+
+                $totals['imported']++;
+                $totals[$dispatch ? 'matched' : 'unmatched']++;
             }
-
-            $tenant = $this->resolveTenant($normalized);
-            $dispatch = $tenant ? $this->matchDispatch($tenant, $normalized) : null;
-            $useCase = $dispatch?->use_case ?? TenantRuntimeUsageUseCase::UnknownRuntime;
-            $triggerSource = $dispatch?->trigger_source ?? 'litellm-spend-log';
-
-            TenantRuntimeUsageEvent::query()->create([
-                'tenant_id' => $tenant?->id,
-                'tenant_runtime_dispatch_id' => $dispatch?->id,
-                'use_case' => $useCase->value,
-                'trigger_source' => $triggerSource,
-                'effective_model' => $normalized['effective_model'],
-                'request_count' => 1,
-                'prompt_tokens' => $normalized['prompt_tokens'],
-                'completion_tokens' => $normalized['completion_tokens'],
-                'total_tokens' => $normalized['total_tokens'],
-                'cost_amount' => $normalized['cost_amount'],
-                'currency' => $normalized['currency'],
-                'occurred_at' => $normalized['occurred_at'],
-                'litellm_call_id' => $normalized['litellm_call_id'],
-                'litellm_spend_log_id' => $normalized['litellm_spend_log_id'],
-                'litellm_key_alias' => $normalized['litellm_key_alias'],
-                'raw_payload_json' => $normalized['raw_payload_json'],
-            ]);
-
-            $totals['imported']++;
-            $totals[$dispatch ? 'matched' : 'unmatched']++;
         }
 
         return $totals;
@@ -70,7 +72,7 @@ class LiteLlmRuntimeCostSyncService
     /**
      * @return list<array<string, mixed>>
      */
-    private function fetchSpendLogs(): array
+    private function fetchSpendLogsForDate(string $date): array
     {
         $baseUrl = rtrim((string) config('services.litellm.base_url', ''), '/');
         $masterKey = (string) config('services.litellm.master_key', '');
@@ -88,7 +90,8 @@ class LiteLlmRuntimeCostSyncService
             ->acceptJson()
             ->withToken($masterKey)
             ->get('/spend/logs', [
-                'start_date' => now()->subDays((int) config('sync360.litellm.cost_sync_lookback_days', 7))->toDateString(),
+                'start_date' => $date,
+                'end_date' => $date,
             ]);
 
         if ($response->failed()) {
@@ -98,9 +101,24 @@ class LiteLlmRuntimeCostSyncService
             ));
         }
 
-        $rows = data_get($response->json(), 'data', []);
+        $decoded = $response->json();
+        $rows = is_array($decoded) && array_is_list($decoded)
+            ? $decoded
+            : data_get($decoded, 'data', []);
 
         return is_array($rows) ? array_values(array_filter($rows, 'is_array')) : [];
+    }
+
+    /**
+     * @return Collection<int, string>
+     */
+    private function spendLogDates(): Collection
+    {
+        $lookbackDays = max(1, (int) config('sync360.litellm.cost_sync_lookback_days', 7));
+        $today = now()->startOfDay();
+
+        return collect(range($lookbackDays - 1, 0))
+            ->map(fn (int $offset): string => $today->copy()->subDays($offset)->toDateString());
     }
 
     /**

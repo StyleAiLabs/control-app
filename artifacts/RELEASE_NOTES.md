@@ -7,6 +7,21 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-29 — Fix: Harden Runtime Cost Sync For Large LiteLLM Spend Logs
+
+Date: 2026-04-29
+Status: Implemented
+
+### Overview
+
+Fixed the scheduled runtime-cost import so it no longer crashes when LiteLLM returns a very large spend-log payload and so it correctly accepts the live response shape from the LiteLLM endpoint.
+
+### What Changed
+
+- changed `sync360:sync-runtime-costs` to fetch LiteLLM `/spend/logs` in bounded daily windows instead of one full lookback request
+- updated spend-log parsing to accept both top-level JSON arrays and `{ data: [...] }` envelopes
+- added regression coverage for the live top-level array response shape and the new daily-window fetch behavior
+
 ## 2026-04-28 — Feature: Admin Runtime Cost Observability
 
 Date: 2026-04-28
