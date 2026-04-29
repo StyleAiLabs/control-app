@@ -170,6 +170,16 @@ class Tenant extends Model
         return $this->hasMany(TenantWorkspaceContentItem::class);
     }
 
+    public function runtimeDispatches(): HasMany
+    {
+        return $this->hasMany(TenantRuntimeDispatch::class);
+    }
+
+    public function runtimeUsageEvents(): HasMany
+    {
+        return $this->hasMany(TenantRuntimeUsageEvent::class);
+    }
+
     public function workspaceHost(): string
     {
         $this->loadMissing('server');

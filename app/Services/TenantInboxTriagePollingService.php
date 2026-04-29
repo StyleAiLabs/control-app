@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\TenantRuntimeUsageUseCase;
 use App\Enums\TenantProvisioningStatus;
 use App\Models\Tenant;
 use App\Models\TenantGoogleCredential;
@@ -192,6 +193,10 @@ class TenantInboxTriagePollingService
                 self::FROM,
                 $this->triggerMessage($tenant, $summary, $metadata, $detail['body'], $filter['hints']),
                 [self::SKILL_KEY],
+                [
+                    'use_case' => TenantRuntimeUsageUseCase::InboxTriage,
+                    'trigger_source' => 'sync360:poll-inbox-triage',
+                ],
             );
 
             $record->forceFill([

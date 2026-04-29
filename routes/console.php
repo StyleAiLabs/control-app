@@ -6,6 +6,7 @@ use App\Enums\TrialStatus;
 use App\Models\Tenant;
 use App\Models\Server;
 use App\Services\LiteLlmTenantKeyService;
+use App\Services\LiteLlmRuntimeCostSyncService;
 use App\Services\SystemHealthService;
 use App\Services\TenantAgentSyncService;
 use App\Services\TenantSkillAnalyticsRuntimeService;
@@ -420,6 +421,25 @@ $trackScheduledCommand(
     Schedule::command('sync360:poll-inbox-triage')->everyFiveMinutes(),
     'scheduled:sync360:poll-inbox-triage',
     'Inbox Triage Polling',
+);
+
+Artisan::command('sync360:sync-runtime-costs', function () {
+    /** @var LiteLlmRuntimeCostSyncService $runtimeCosts */
+    $runtimeCosts = app(LiteLlmRuntimeCostSyncService::class);
+    $result = $runtimeCosts->sync();
+
+    $this->components->info(sprintf(
+        'Runtime cost sync finished. Imported %d. Matched %d. Unmatched %d.',
+        $result['imported'],
+        $result['matched'],
+        $result['unmatched'],
+    ));
+})->purpose('Import LiteLLM runtime spend logs and reconcile them to tenant runtime dispatches');
+
+$trackScheduledCommand(
+    Schedule::command('sync360:sync-runtime-costs')->everyFifteenMinutes()->withoutOverlapping(),
+    'scheduled:sync360:sync-runtime-costs',
+    'Runtime Cost Sync',
 );
 
 Artisan::command('sync360:monitor-workspace-dependencies {tenantSelector? : Tenant id, tenant_id, or slug. Omit to monitor every connected Google Workspace tenant}', function (?string $tenantSelector = null) {

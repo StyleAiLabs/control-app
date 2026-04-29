@@ -7,6 +7,24 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-28 — Feature: Admin Runtime Cost Observability
+
+Date: 2026-04-28
+Status: Implemented
+
+### Overview
+
+Added an admin-only runtime cost observability layer so tenant-runtime model usage can be analyzed from actual LiteLLM spend data instead of estimates.
+
+### What Changed
+
+- added `tenant_runtime_dispatches` to record Sync360-controlled private gateway wakeups before they are sent, including tenant, use case, trigger source, correlation key, and dispatch outcome
+- added `tenant_runtime_usage_events` to store actual imported LiteLLM `/spend/logs` rows with cost, token counts, effective model, and optional reconciliation back to a dispatch row
+- tagged inbox-triage wakeups as `inbox_triage` and kept unmatched spend visible as `unknown_runtime` instead of silently dropping it
+- added a scheduled `sync360:sync-runtime-costs` command plus system-health coverage for refreshing runtime cost data every 15 minutes
+- added an admin fleet `Cost Observability` page and a tenant `Costs` tab with totals, use-case split, model split, and recent unmatched usage rows
+- kept the deployment boundary unchanged so `goLive()` still syncs workspace files only and does not full-sync the runtime
+
 ## 2026-04-28 — Fix: Prevent Skill Rollout Apply Failures On Binary Workspace Assets
 
 Date: 2026-04-28

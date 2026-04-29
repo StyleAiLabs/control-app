@@ -44,6 +44,10 @@ class SystemHealthService
                 'label' => 'Inbox Triage Polling',
                 'threshold_seconds' => 420,
             ],
+            'scheduled:sync360:sync-runtime-costs' => [
+                'label' => 'Runtime Cost Sync',
+                'threshold_seconds' => 1800,
+            ],
             'scheduled:sync360:monitor-workspace-dependencies' => [
                 'label' => 'Workspace Dependency Monitor',
                 'threshold_seconds' => 4200,

@@ -2,6 +2,7 @@
 
 This document describes the current as-built architecture of the Sync360 Control App based on the repo code.
 
+**2026-04-28 Admin runtime cost observability:** Sync360 now persists tenant-runtime cost attribution in two layers. `tenant_runtime_dispatches` records every Sync360-controlled private-gateway wakeup before the request is sent, including tenant, v1 use case (`telegram_chat`, `inbox_triage`, `owner_followup`, `manual_runtime_hook`, `unknown_runtime`), trigger source, source channel/name, correlation key, best-effort effective model, and dispatch outcome. `tenant_runtime_usage_events` stores actual imported LiteLLM `/spend/logs` usage rows as the source of truth for request counts, token counts, spend, and effective model, optionally linked back to the originating dispatch when reconciliation succeeds. Admin now exposes a fleet `Cost Observability` page plus a tenant `Costs` tab, and a scheduled `sync360:sync-runtime-costs` command refreshes those usage rows every 15 minutes. Unmatched spend rows remain visible as `unknown_runtime` instead of being dropped. This does not change the deployment boundary: `goLive()` still syncs workspace files only and must never full-sync the runtime.
 **2026-04-28 Customer workspace-content hub:** Sync360 now has a dedicated customer `Workspace Content` surface for assistant-facing supporting knowledge that does not belong in the core `BusinessProfile`. Tenants can save curated text blocks, upload supported documents (`pdf`, `docx`, `xlsx`, `csv`, `txt`, `md`), and manually refresh website snapshots that remain in `needs_review` until explicitly published. Published items live in `tenant_workspace_content_items`, are normalized in the control plane, and materialize into `.openclaw/workspace/WORKSPACE_CONTENT_INDEX.json` plus `knowledge/*` files. Live changes still use the existing workspace-only `goLive()` sync path and must not trigger full runtime sync.
 **2026-04-28 Workspace-content multi-website website-review flow:** `Website content` is no longer a single hard-coded `website-main` snapshot. The control plane now supports up to five tenant website sources, keyed by normalized URL and slugged into distinct `knowledge/website/<slug>.md` artifacts. The customer website saved earlier in onboarding/profile is treated as the seeded default source in the `Workspace Content` UI until the customer explicitly imports a reviewed snapshot for it. The page renders websites as a full-width section separate from the core two-column editor so multi-site review, publish, and removal actions do not compress the rest of the workspace-content flow.
 **2026-04-28 Workspace-content customer-surface refinement:** the `Workspace Content` Blade surface now leans on the shared customer-page design-system patterns in `resources/css/app.css` instead of a large page-local style block. The page presents content status through the shared health rail plus inline status band, keeps customer copy focused on business outcomes rather than workspace internals, and intentionally hides machine-facing details such as `knowledge/*` file paths from the customer UI even though those artifacts are still generated underneath.
@@ -191,6 +192,8 @@ Important relationships:
 - belongs to `Server`
 - has many `ProvisioningJob`
 - has many `ConversationLog`
+- has many `TenantRuntimeDispatch`
+- has many `TenantRuntimeUsageEvent`
 - has one `BusinessProfile`
 - has one `BusinessProfileFiles`
 
@@ -218,6 +221,31 @@ Key concerns:
 - start and completion timestamps
 
 ### `SystemHealthSignal`
+
+### `TenantRuntimeDispatch`
+
+Records the control-plane attribution side of a tenant runtime wakeup before Sync360 calls the tenant's private `/hooks/agent` gateway.
+
+Key concerns:
+
+- tenant-scoped dispatch attribution
+- v1 runtime cost use-case classification
+- trigger source and channel/source metadata
+- idempotency-safe request correlation key
+- best-effort effective model snapshot at dispatch time
+- sent vs failed dispatch outcomes and workspace run ids when returned
+
+### `TenantRuntimeUsageEvent`
+
+Stores actual imported LiteLLM usage rows for tenant runtime spend observability.
+
+Key concerns:
+
+- actual prompt/completion/total token counts
+- actual cost amount and currency from LiteLLM spend logs
+- effective model used by the runtime
+- optional reconciliation back to a `TenantRuntimeDispatch`
+- explicit preservation of unmatched rows as `unknown_runtime`
 
 Stores durable app-level operational heartbeat and scheduled-command state.
 

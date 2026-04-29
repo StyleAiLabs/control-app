@@ -28,6 +28,7 @@ use App\Services\TenantDeletionService;
 use App\Services\TenantHealthCheckService;
 use App\Services\TenantProfileSyncService;
 use App\Services\TenantRuntimeCustomizationComposer;
+use App\Services\TenantRuntimeCostReportService;
 use App\Services\TenantRuntimeSkillActivationService;
 use App\Services\TenantSkillAnalyticsReportService;
 use App\Services\TenantSkillAssignmentService;
@@ -58,6 +59,7 @@ class AdminController extends Controller
         'skills',
         'inbox-monitor',
         'analytics',
+        'costs',
         'agent-runtime',
         'support',
     ];
@@ -77,6 +79,7 @@ class AdminController extends Controller
         private readonly SkillCatalogService $skillCatalog,
         private readonly TenantSkillAssignmentService $tenantSkillAssignments,
         private readonly TenantSkillAnalyticsReportService $skillAnalytics,
+        private readonly TenantRuntimeCostReportService $runtimeCostReports,
         private readonly SystemHealthService $systemHealth,
         private readonly TenantWorkspaceDependencyHealthService $dependencyHealth,
         private readonly LiteLlmTenantKeyService $liteLlmTenantKeys,
@@ -160,6 +163,15 @@ class AdminController extends Controller
         ]);
     }
 
+    public function runtimeCostAnalytics(Request $request): View
+    {
+        $window = is_string($request->query('window')) ? $request->query('window') : '30d';
+
+        return view('admin.cost-observability', [
+            'costSummary' => $this->runtimeCostReports->adminSummary($window),
+        ]);
+    }
+
     public function showTenant(Request $request, Tenant $tenant): View
     {
         $relations = [
@@ -236,6 +248,10 @@ class AdminController extends Controller
             'runtimeCustomizationAvailable' => $runtimeCustomizationAvailable,
             'skillChangeHistory' => $runtimeCustomizationAvailable ? $this->skillChangeHistoryFor($tenant) : [],
             'tenantAnalytics' => $this->skillAnalytics->tenantSummary($tenant),
+            'tenantCostSummary' => $this->runtimeCostReports->tenantSummary(
+                $tenant,
+                is_string($request->query('window')) ? $request->query('window') : '30d',
+            ),
             'inboxMonitorSummary' => $this->inboxMonitorSummary($tenant),
             'expiredTrialOverrideSummary' => [
                 'polling_allowed' => $tenant->allow_polling_when_trial_expired,

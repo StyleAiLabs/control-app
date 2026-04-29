@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
+use App\Enums\TenantRuntimeUsageUseCase;
 use App\Models\Tenant;
 use App\Support\ConversationLogSchema;
 use Illuminate\Filesystem\Filesystem;
 use RuntimeException;
+use Throwable;
 
 class TenantWorkspaceMessenger
 {
@@ -15,19 +17,45 @@ class TenantWorkspaceMessenger
         private readonly Filesystem $files,
         private readonly TenantRuntimeSkillActivationService $runtimeSkillActivation,
         private readonly ExpiredTrialAccessPolicy $expiredTrialAccess,
+        private readonly TenantRuntimeDispatchRecorder $dispatchRecorder,
     ) {
     }
 
     public function send(Tenant $tenant, string $channel, string $from, string $message, array $requiredSkillIds = []): string
     {
-        return $this->dispatchAgentWork($tenant, $channel, $from, $message, $requiredSkillIds, enforceCustomerFacingPolicy: true);
+        return $this->dispatchAgentWork(
+            $tenant,
+            $channel,
+            $from,
+            $message,
+            $requiredSkillIds,
+            enforceCustomerFacingPolicy: true,
+            attribution: [
+                'use_case' => TenantRuntimeUsageUseCase::ManualRuntimeHook,
+                'trigger_source' => 'tenant_workspace_messenger.send',
+            ],
+        );
     }
 
-    public function sendOperational(Tenant $tenant, string $channel, string $from, string $message, array $requiredSkillIds = []): string
+    /**
+     * @param  array{use_case?:TenantRuntimeUsageUseCase|string|null,trigger_source?:string|null}|array{}  $attribution
+     */
+    public function sendOperational(Tenant $tenant, string $channel, string $from, string $message, array $requiredSkillIds = [], array $attribution = []): string
     {
-        return $this->dispatchAgentWork($tenant, $channel, $from, $message, $requiredSkillIds, enforceCustomerFacingPolicy: false);
+        return $this->dispatchAgentWork(
+            $tenant,
+            $channel,
+            $from,
+            $message,
+            $requiredSkillIds,
+            enforceCustomerFacingPolicy: false,
+            attribution: $attribution,
+        );
     }
 
+    /**
+     * @param  array{use_case?:TenantRuntimeUsageUseCase|string|null,trigger_source?:string|null}|array{}  $attribution
+     */
     private function dispatchAgentWork(
         Tenant $tenant,
         string $channel,
@@ -35,6 +63,7 @@ class TenantWorkspaceMessenger
         string $message,
         array $requiredSkillIds,
         bool $enforceCustomerFacingPolicy,
+        array $attribution = [],
     ): string
     {
         if ($enforceCustomerFacingPolicy && ! $this->expiredTrialAccess->canSendCustomerFacingRuntimeWork($tenant)) {
@@ -54,29 +83,57 @@ class TenantWorkspaceMessenger
 
         $hookPath = '/'.ltrim((string) config('sync360.workspace_gateway.agent_hook_path', '/hooks/agent'), '/');
         $hookToken = $this->hookToken($tenant);
-
-        $response = $this->gateway->request($tenant, 'POST', $hookPath, [
-            'message' => $message,
-            'name' => $from,
-            'wakeMode' => 'now',
-            'deliver' => false,
-            'idempotencyKey' => $this->idempotencyKey($tenant, $channel, $from, $message),
-            'tenant_id' => $tenant->tenant_id,
+        $idempotencyKey = $this->idempotencyKey($tenant, $channel, $from, $message);
+        $dispatch = $this->dispatchRecorder->recordPending($tenant, [
+            'use_case' => $attribution['use_case'] ?? TenantRuntimeUsageUseCase::ManualRuntimeHook,
+            'trigger_source' => $attribution['trigger_source'] ?? 'tenant_workspace_messenger.send',
             'source_channel' => $channel,
-        ], (int) config('sync360.workspace_gateway.timeout_seconds', 15), [
-            'Authorization' => 'Bearer '.$hookToken,
+            'source_name' => $from,
+            'effective_model' => $this->effectiveModel($tenant),
+            'request_correlation_key' => $idempotencyKey,
+            'occurred_at' => now(),
         ]);
+        $useCase = $attribution['use_case'] ?? TenantRuntimeUsageUseCase::ManualRuntimeHook;
+        $useCaseValue = $useCase instanceof TenantRuntimeUsageUseCase ? $useCase->value : (string) $useCase;
 
-        if ($response['status'] >= 400) {
-            throw new RuntimeException(sprintf(
-                'Private gateway request failed with HTTP %d.',
-                $response['status']
-            ));
+        try {
+            $response = $this->gateway->request($tenant, 'POST', $hookPath, [
+                'message' => $message,
+                'name' => $from,
+                'wakeMode' => 'now',
+                'deliver' => false,
+                'idempotencyKey' => $idempotencyKey,
+                'tenant_id' => $tenant->tenant_id,
+                'source_channel' => $channel,
+                'sync360_attribution' => [
+                    'tenant_id' => $tenant->tenant_id,
+                    'use_case' => $useCaseValue,
+                    'trigger_source' => (string) ($attribution['trigger_source'] ?? 'tenant_workspace_messenger.send'),
+                    'request_correlation_key' => $idempotencyKey,
+                ],
+            ], (int) config('sync360.workspace_gateway.timeout_seconds', 15), [
+                'Authorization' => 'Bearer '.$hookToken,
+            ]);
+
+            if ($response['status'] >= 400) {
+                throw new RuntimeException(sprintf(
+                    'Private gateway request failed with HTTP %d.',
+                    $response['status']
+                ));
+            }
+
+            $decoded = json_decode($response['body'], true);
+            $this->dispatchRecorder->markSent(
+                $dispatch,
+                is_array($decoded) ? (string) (data_get($decoded, 'runId') ?? data_get($decoded, 'data.runId') ?? '') : null,
+            );
+
+            return $this->extractReplyText(is_array($decoded) ? $decoded : null, $response['body']);
+        } catch (Throwable $exception) {
+            $this->dispatchRecorder->markFailed($dispatch, $exception->getMessage());
+
+            throw $exception;
         }
-
-        $decoded = json_decode($response['body'], true);
-
-        return $this->extractReplyText(is_array($decoded) ? $decoded : null, $response['body']);
     }
 
     private function hookToken(Tenant $tenant): string
@@ -106,6 +163,20 @@ class TenantWorkspaceMessenger
             $from,
             $message,
         ]));
+    }
+
+    private function effectiveModel(Tenant $tenant): ?string
+    {
+        $configPath = $this->runtime->localOpenClawConfigPath($tenant);
+        $config = $this->files->exists($configPath)
+            ? json_decode($this->files->get($configPath), true)
+            : [];
+
+        $model = data_get(is_array($config) ? $config : [], 'agents.defaults.model')
+            ?: data_get(is_array($config) ? $config : [], 'models.providers.openai.models.0.id')
+            ?: config('sync360.openclaw.default_agent_model', 'gpt-4o');
+
+        return is_string($model) && trim($model) !== '' ? trim($model) : null;
     }
 
     /**

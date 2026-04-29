@@ -75,6 +75,7 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/users', [AdminController::class, 'users'])->name('users');
         Route::get('/tenants', [AdminController::class, 'tenants'])->name('tenants');
         Route::get('/analytics/skills', [AdminController::class, 'skillAnalytics'])->name('analytics.skills');
+        Route::get('/analytics/costs', [AdminController::class, 'runtimeCostAnalytics'])->name('analytics.costs');
         Route::get('/skills', [AdminController::class, 'skillsCatalog'])->name('skills.index');
         Route::post('/skills/scan', [AdminController::class, 'scanSkillCatalog'])->name('skills.scan');
         Route::post('/skills/import', [AdminController::class, 'importSkillCatalog'])->name('skills.import');

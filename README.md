@@ -17,6 +17,7 @@ It currently covers the full control-plane loop:
 - host-managed runtime capability installs for external tenant dependencies such as `gog`, using pinned VPS binaries plus read-only tenant bind mounts
 - tenant Google runtime auth reseeding now writes a `gog`-compatible encrypted file-keyring token artifact plus token cache files instead of a plaintext stand-in, using RFC3394-compatible AES key wrap so the live Gmail CLI and smoke path validate the same auth contract
 - private gateway access for health checks and runtime integration
+- admin runtime cost observability backed by imported LiteLLM spend logs plus tenant-runtime dispatch attribution
 - conversation history sync from workspace session logs
 - trial lifecycle tracking and notification emails
 - local-only super-admin operations and control-plane deploy trigger
@@ -191,6 +192,7 @@ Scheduled commands are part of the live system. Production must run the `schedul
 - `sync360:sync-replies`
 - `sync360:sync-skill-conversions`
 - `sync360:poll-inbox-triage`
+- `sync360:sync-runtime-costs`
 
 The Admin Overview includes a System Health panel backed by durable app-level heartbeats. It shows whether the scheduler has ticked recently, whether a queue worker handled the lightweight heartbeat job, database queue backlog/failed-job counts when the database queue driver is active, and freshness for the critical scheduled commands above.
 

@@ -4,9 +4,11 @@ namespace Tests\Unit;
 
 use App\Contracts\DockerComposeRunner;
 use App\Enums\TenantProvisioningStatus;
+use App\Enums\TenantRuntimeUsageUseCase;
 use App\Enums\TrialStatus;
 use App\Models\Server;
 use App\Models\Tenant;
+use App\Models\TenantRuntimeDispatch;
 use App\Models\User;
 use App\Services\TenantRuntimeSkillActivationService;
 use App\Services\TenantWorkspaceMessenger;
@@ -105,6 +107,21 @@ class TenantWorkspaceMessengerTest extends TestCase
         $this->assertFalse($runner->request['json']['deliver']);
         $this->assertSame('gmail_inbox_monitor', $runner->request['json']['source_channel']);
         $this->assertStringStartsWith('sync360-', $runner->request['json']['idempotencyKey']);
+
+        $dispatch = TenantRuntimeDispatch::query()->sole();
+        $this->assertSame($tenant->id, $dispatch->tenant_id);
+        $this->assertSame(TenantRuntimeUsageUseCase::ManualRuntimeHook, $dispatch->use_case);
+        $this->assertSame('tenant_workspace_messenger.send', $dispatch->trigger_source);
+        $this->assertSame('gmail_inbox_monitor', $dispatch->source_channel);
+        $this->assertSame('sync360-inbox-monitor', $dispatch->source_name);
+        $this->assertSame('run-123', $dispatch->workspace_run_id);
+        $this->assertSame('sent', $dispatch->dispatch_status);
+        $this->assertSame('sync360-'.hash('sha256', implode("\n", [
+            (string) $tenant->tenant_id,
+            'gmail_inbox_monitor',
+            'sync360-inbox-monitor',
+            'Internal Gmail inbox event.',
+        ])), $dispatch->request_correlation_key);
     }
 
     public function test_it_blocks_customer_facing_runtime_work_for_expired_trials_without_override(): void
@@ -225,6 +242,90 @@ class TenantWorkspaceMessengerTest extends TestCase
         );
 
         $this->assertSame('POST', $runner->request['method']);
+    }
+
+    public function test_it_records_failed_runtime_dispatch_attempts_for_reconciliation(): void
+    {
+        config()->set('sync360.workspace_gateway.agent_hook_path', '/hooks/agent');
+
+        $tenant = $this->seedTenant();
+        File::ensureDirectoryExists(config('sync360.runtime_root').'/'.$tenant->slug.'/config');
+        File::put(config('sync360.runtime_root').'/'.$tenant->slug.'/config/openclaw.json', json_encode([
+            'gateway' => [
+                'auth' => [
+                    'token' => 'private-hook-token',
+                ],
+            ],
+            'hooks' => [
+                'enabled' => true,
+                'token' => 'private-hook-token',
+                'path' => '/hooks',
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+
+        $runner = new class implements DockerComposeRunner
+        {
+            public function syncRuntime(Server $server, string $localRuntimePath, string $remoteRuntimePath): void {}
+
+            public function syncWorkspaceFiles(Server $server, string $localWorkspacePath, string $remoteWorkspacePath): void {}
+
+            public function httpRequest(Server $server, string $method, string $url, ?array $json = null, int $timeoutSeconds = 15, array $headers = []): array
+            {
+                return ['status' => 502, 'body' => '{"ok":false}'];
+            }
+
+            public function putFile(Server $server, string $remotePath, string $contents, bool $sudo = false): void {}
+
+            public function removeFile(Server $server, string $remotePath, bool $sudo = false): void {}
+
+            public function removeDirectory(Server $server, string $remotePath, bool $sudo = false): void {}
+
+            public function runCommand(Server $server, string $command, bool $sudo = false): void {}
+
+            public function up(Server $server, string $composeFile, string $projectName): void {}
+
+            public function down(Server $server, string $composeFile, string $projectName): void {}
+
+            public function start(Server $server, string $composeFile, string $projectName): void {}
+
+            public function stop(Server $server, string $composeFile, string $projectName): void {}
+
+            public function isRunning(Server $server, string $composeFile, string $projectName): bool { return true; }
+
+            public function isHostPortInUse(Server $server, int $port): bool { return false; }
+
+            public function waitForHttpReady(Server $server, string $url, int $timeoutSeconds, int $pollIntervalMs): void {}
+        };
+
+        $this->instance(DockerComposeRunner::class, $runner);
+        $activation = \Mockery::mock(TenantRuntimeSkillActivationService::class);
+        $activation->shouldReceive('ensureRequiredSkillsReady')->once();
+        $this->instance(TenantRuntimeSkillActivationService::class, $activation);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Private gateway request failed with HTTP 502.');
+
+        try {
+            app(TenantWorkspaceMessenger::class)->sendOperational(
+                $tenant,
+                'gmail_inbox_monitor',
+                'sync360-inbox-monitor',
+                'Internal Gmail inbox event.',
+                [],
+                [
+                    'use_case' => TenantRuntimeUsageUseCase::InboxTriage,
+                    'trigger_source' => 'sync360:poll-inbox-triage',
+                ],
+            );
+        } finally {
+            $dispatch = TenantRuntimeDispatch::query()->sole();
+            $this->assertSame(TenantRuntimeUsageUseCase::InboxTriage, $dispatch->use_case);
+            $this->assertSame('sync360:poll-inbox-triage', $dispatch->trigger_source);
+            $this->assertSame('failed', $dispatch->dispatch_status);
+            $this->assertNull($dispatch->workspace_run_id);
+            $this->assertNotNull($dispatch->failed_at);
+            $this->assertStringContainsString('HTTP 502', (string) $dispatch->last_error);
+        }
     }
 
     /**

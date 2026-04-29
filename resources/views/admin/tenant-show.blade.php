@@ -93,6 +93,11 @@
                 'badge_label' => null,
                 'badge_class' => null,
             ],
+            'costs' => [
+                'label' => 'Costs',
+                'badge_label' => null,
+                'badge_class' => null,
+            ],
             'agent-runtime' => [
                 'label' => 'Agent Runtime',
                 'badge_label' => null,
@@ -209,6 +214,10 @@
 
                     @case('analytics')
                         @include('admin.tenants.partials.show-analytics')
+                        @break
+
+                    @case('costs')
+                        @include('admin.tenants.partials.show-costs')
                         @break
 
                     @case('agent-runtime')
