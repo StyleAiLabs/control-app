@@ -11,6 +11,7 @@ use App\Models\TenantInboxMonitorMessage;
 use App\Models\TenantInboxMonitorState;
 use App\Models\TenantSkillConversionEvent;
 use App\Services\LiteLlmTenantKeyService;
+use App\Services\ExpiredTrialInboxPolicySurface;
 use App\Services\TenantAgentSyncService;
 use App\Services\TenantInboxTriagePollingService;
 use App\Services\TenantOnboardingSkillService;
@@ -43,6 +44,7 @@ class DashboardController extends Controller
         private readonly TenantWorkspaceReadinessService $workspaceReadiness,
         private readonly TenantSkillAnalyticsReportService $skillAnalytics,
         private readonly TenantWorkspaceDependencyHealthService $dependencyHealth,
+        private readonly ExpiredTrialInboxPolicySurface $expiredTrialInboxPolicy,
     ) {}
 
     public function index(Request $request): Response|RedirectResponse
@@ -60,9 +62,11 @@ class DashboardController extends Controller
             ]))
             ->firstOrFail();
         $onboardingSummary = $this->onboardingSummary($tenant);
+        $setupWizard       = $this->setupWizard($onboardingSummary);
         $workspaceState    = $this->workspaceState($tenant);
         $agentContent      = $this->agentContent($tenant);
         $trialData         = $this->trialData($tenant);
+        $provisioningContent = $this->provisioningContent($tenant->provisioning_status);
         $analyticsWindow   = $this->analyticsWindow($request);
         $impactSummary     = $this->skillAnalytics->tenantSummaryForPeriod(
             $tenant,
@@ -70,6 +74,7 @@ class DashboardController extends Controller
             $analyticsWindow['days'],
         );
         $dependencyHealth  = $this->dependencyHealth->evaluate($tenant);
+        $expiredTrialCustomerState = $this->expiredTrialInboxPolicy->customerState($tenant);
         $inboxOverview     = $this->inboxOverview($tenant, $dependencyHealth, $analyticsWindow);
         $performanceSeries = $this->performanceSeries($tenant, $analyticsWindow);
 
@@ -107,6 +112,14 @@ class DashboardController extends Controller
             ]]);
         }
 
+        $dashboardSummary = $trialData['is_expired']
+            ? ($expiredTrialCustomerState['state'] === 'active'
+                ? $tenant->business_name.' is still active while expired-trial access remains enabled.'
+                : $tenant->business_name.' is paused until expired-trial access is restored.')
+            : ($setupWizard
+                ? $tenant->business_name.' is '.strtolower($provisioningContent['label']).' and step '.$setupWizard['current_step'].' is next.'
+                : $tenant->business_name.' is '.strtolower($agentContent['label']).' and your latest operating signals are below.');
+
         return response()->view('dashboard', [
             'tenant'              => $tenant,
             'businessProfile'     => $tenant->businessProfile,
@@ -114,19 +127,21 @@ class DashboardController extends Controller
             'agentContent'        => $agentContent,
             'firstName'           => Str::of($request->user()->name)->before(' ')->value() ?: $request->user()->name,
             'trialContent'        => $this->trialContent($tenant->trial_status),
-            'provisioningContent' => $this->provisioningContent($tenant->provisioning_status),
+            'provisioningContent' => $provisioningContent,
             'trialData'           => $trialData,
             'analyticsWindow'     => $analyticsWindow,
             'analyticsWindowOptions' => $this->analyticsWindowOptions(),
             'workspaceState'      => $workspaceState,
             'impactSummary'       => $impactSummary,
             'inboxOverview'       => $inboxOverview,
-            'healthRail'          => $this->healthRail($tenant, $agentContent, $workspaceState, $trialData, $inboxOverview),
+            'healthRail'          => $this->healthRail($tenant, $agentContent, $workspaceState, $trialData, $inboxOverview, $expiredTrialCustomerState),
             'performanceSeries'   => $performanceSeries,
             'runwaySummary'       => $this->runwaySummary($trialData),
             'topSkillsSeries'     => $this->topSkillsSeries($impactSummary),
             'inboxPerformance'    => $this->inboxPerformance($tenant, $inboxOverview, $performanceSeries),
-            'setupWizard'         => $this->setupWizard($onboardingSummary),
+            'setupWizard'         => $setupWizard,
+            'expiredTrialCustomerState' => $expiredTrialCustomerState,
+            'dashboardSummary'    => $dashboardSummary,
         ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, private')
             ->header('Pragma', 'no-cache')
             ->header('Expires', 'Fri, 01 Jan 1990 00:00:00 GMT');
@@ -364,6 +379,21 @@ class DashboardController extends Controller
             return null;
         }
 
+        $expiredTrialCustomerState = $this->expiredTrialInboxPolicy->customerState($tenant);
+
+        if ($expiredTrialCustomerState['state'] === 'paused') {
+            return [
+                'status_label' => 'Paused while expired',
+                'status_note' => 'Inbox monitoring and customer replies are paused while expired-trial access is off.',
+                'secondary_note' => null,
+                'value_line' => 'No inbox reads or replies happen until expired-trial access is fully restored.',
+                'cta' => [
+                    'label' => 'Contact Sync360',
+                    'route' => 'mailto:hello@sync360.co.nz',
+                ],
+            ];
+        }
+
         $googleHealth = is_array($dependencyHealth['google_workspace'] ?? null) ? $dependencyHealth['google_workspace'] : [];
         $inboxHealth = is_array($dependencyHealth['inbox_monitor'] ?? null) ? $dependencyHealth['inbox_monitor'] : [];
         $cta = isset($dependencyHealth['primary_cta']) && is_array($dependencyHealth['primary_cta'])
@@ -417,9 +447,10 @@ class DashboardController extends Controller
      *   spend_cached_at: ?string
      * }  $trialData
      * @param  array<string,mixed>|null  $inboxOverview
+     * @param  array<string,mixed>  $expiredTrialCustomerState
      * @return array<int, array<string, mixed>>
      */
-    private function healthRail(Tenant $tenant, array $agentContent, string $workspaceState, array $trialData, ?array $inboxOverview): array
+    private function healthRail(Tenant $tenant, array $agentContent, string $workspaceState, array $trialData, ?array $inboxOverview, array $expiredTrialCustomerState): array
     {
         $workspace = match ($workspaceState) {
             'running' => [
@@ -462,11 +493,17 @@ class DashboardController extends Controller
             ];
 
         $assistant = $trialData['is_expired']
-            ? [
-                'status' => 'expired',
-                'value' => 'Paused',
-                'note' => 'Reactivation is needed before customer replies can resume.',
-            ]
+            ? ($expiredTrialCustomerState['state'] === 'active'
+                ? [
+                    'status' => $agentContent['badge'],
+                    'value' => $agentContent['label'],
+                    'note' => 'Expired-trial access is enabled, so customer-facing assistant work is still live.',
+                ]
+                : [
+                    'status' => 'expired',
+                    'value' => 'Paused',
+                    'note' => 'Expired-trial access must be restored before customer replies can resume.',
+                ])
             : [
                 'status' => $agentContent['badge'],
                 'value' => $agentContent['label'],
@@ -479,6 +516,7 @@ class DashboardController extends Controller
                     'Watching your inbox' => 'healthy',
                     'Needs attention' => 'warning',
                     'Setup incomplete' => 'pending',
+                    'Paused while expired' => 'expired',
                     default => 'neutral',
                 },
                 'value' => $inboxOverview['status_label'],

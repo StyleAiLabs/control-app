@@ -3,6 +3,7 @@
         $monitor = is_array($inboxMonitorSummary ?? null) ? $inboxMonitorSummary : [];
         $counts = is_array($monitor['message_counts'] ?? null) ? $monitor['message_counts'] : [];
         $recentMessages = is_array($monitor['recent_messages'] ?? null) ? $monitor['recent_messages'] : [];
+        $expiredTrialPolicy = is_array($monitor['expired_trial_policy'] ?? null) ? $monitor['expired_trial_policy'] : [];
     @endphp
 
     <x-slot:actions>
@@ -10,6 +11,34 @@
             {{ $monitor['status_label'] ?? 'Pending' }}
         </x-ui.badge>
     </x-slot:actions>
+
+    @if (($expiredTrialPolicy['applies'] ?? false) && filled($expiredTrialPolicy['label'] ?? null))
+        <section class="sync-poc-subpanel" style="margin-bottom: 18px;">
+            <span class="eyebrow">Expired-trial Policy</span>
+            <div class="sync-poc-detail-grid" style="margin-top: 14px;">
+                <div class="sync-poc-field">
+                    <strong>Current state</strong>
+                    <div class="hint" style="margin-top: 6px;">{{ $expiredTrialPolicy['label'] }}</div>
+                </div>
+                <div class="sync-poc-field">
+                    <strong>Polling while expired</strong>
+                    <div class="hint" style="margin-top: 6px;">{{ ($expiredTrialPolicy['polling_allowed'] ?? false) ? 'allowed' : 'paused' }}</div>
+                </div>
+                <div class="sync-poc-field">
+                    <strong>Replies while expired</strong>
+                    <div class="hint" style="margin-top: 6px;">{{ ($expiredTrialPolicy['runtime_replies_allowed'] ?? false) ? 'allowed' : 'paused' }}</div>
+                </div>
+                <div class="sync-poc-field">
+                    <strong>LiteLLM while expired</strong>
+                    <div class="hint" style="margin-top: 6px;">{{ ($expiredTrialPolicy['litellm_allowed'] ?? false) ? 'active' : 'suspended' }}</div>
+                </div>
+            </div>
+
+            @if (! empty($expiredTrialPolicy['note']))
+                <div class="hint" style="margin-top: 14px;">{{ $expiredTrialPolicy['note'] }}</div>
+            @endif
+        </section>
+    @endif
 
     <section class="sync-poc-subpanel" style="margin-bottom: 18px;">
         <span class="eyebrow">Monitor State</span>

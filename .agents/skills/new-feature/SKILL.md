@@ -35,6 +35,9 @@ Treat the request as a framework initiative unless the user explicitly says it i
    - Create or reuse the GitHub initiative issue when the work is not yet tracked.
    - Create or reuse the initiative branch only after the user confirms implementation should begin.
    - Record the branch or worktree relationship on the initiative or slice card when possible.
+7. After implementation is committed and pushed, update the tracking issue.
+   - Post a concise issue comment with the branch name, commit summary, verification evidence, and any known blockers or follow-up notes.
+   - Treat the issue comment as part of the delivery handoff, not optional cleanup.
 
 ## Output Contract
 
@@ -54,6 +57,8 @@ Before implementation, ask for explicit confirmation to proceed.
 If confirmation is not given, stop after shaping and create or update the issue for later reference.
 
 When the user confirms implementation, implement only the first approved slice by default.
+
+After commit and push, update the issue comment before closing out the work.
 
 ## Branch Rule
 

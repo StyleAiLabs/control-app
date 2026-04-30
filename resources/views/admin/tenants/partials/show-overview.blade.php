@@ -270,6 +270,15 @@
         </label>
 
         <div class="sync-poc-detail-grid">
+            @if (($expiredTrialPolicySummary['applies'] ?? false) && filled($expiredTrialPolicySummary['label'] ?? null))
+                <div class="sync-poc-field">
+                    <span class="sync-poc-field__label">Current Policy</span>
+                    <strong class="sync-poc-field__value">{{ $expiredTrialPolicySummary['label'] }}</strong>
+                    @if (filled($expiredTrialPolicySummary['note'] ?? null))
+                        <div class="hint" style="margin-top:6px;">{{ $expiredTrialPolicySummary['note'] }}</div>
+                    @endif
+                </div>
+            @endif
             <div class="sync-poc-field">
                 <span class="sync-poc-field__label">Inbox Polling</span>
                 <strong class="sync-poc-field__value">{{ $tenant->allow_polling_when_trial_expired ? 'allowed while expired' : 'paused on expiry' }}</strong>

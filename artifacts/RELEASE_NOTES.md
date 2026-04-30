@@ -7,6 +7,22 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-30 — Customer/Admin UX: Clarify Expired-Trial Inbox Policy States
+
+Date: 2026-04-30
+Status: Implemented
+
+### Overview
+
+Clarified how expired-trial inbox behavior is presented so operators can see the exact override mix while customers get a simpler active-vs-paused message.
+
+### What Changed
+
+- added a shared `ExpiredTrialInboxPolicySurface` service to derive expired-trial inbox policy presentation from the three independent override flags
+- updated admin tenant Overview and Inbox Monitor surfaces to show explicit expired-trial policy states such as `Fully paused while expired`, `Monitoring only while expired`, and `Fully allowed while expired`
+- updated the customer dashboard and authenticated sidebar alerts so expired-trial customers only see two simplified states: normal live behavior when all three overrides are enabled, or paused-while-expired messaging when they are not
+- added regression coverage for the new shared policy derivation plus both customer-facing expired-trial paths
+
 ## 2026-04-30 — Billing: Reconcile Plan Entitlements On Downgrade And Cancellation
 
 Date: 2026-04-30

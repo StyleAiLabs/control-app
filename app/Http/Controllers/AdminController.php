@@ -18,6 +18,7 @@ use App\Models\TenantGoogleCredential;
 use App\Models\TenantSkillAssignment;
 use App\Models\User;
 use App\Services\ControlAppDeploymentService;
+use App\Services\ExpiredTrialInboxPolicySurface;
 use App\Services\ExpiredTrialAccessPolicy;
 use App\Services\SkillCatalogService;
 use App\Services\SystemHealthService;
@@ -84,6 +85,7 @@ class AdminController extends Controller
         private readonly TenantWorkspaceDependencyHealthService $dependencyHealth,
         private readonly LiteLlmTenantKeyService $liteLlmTenantKeys,
         private readonly ExpiredTrialAccessPolicy $expiredTrialAccess,
+        private readonly ExpiredTrialInboxPolicySurface $expiredTrialInboxPolicy,
         private readonly TenantAgentSyncService $tenantAgentSync,
     ) {}
 
@@ -253,6 +255,7 @@ class AdminController extends Controller
                 is_string($request->query('window')) ? $request->query('window') : '30d',
             ),
             'inboxMonitorSummary' => $this->inboxMonitorSummary($tenant),
+            'expiredTrialPolicySummary' => $this->expiredTrialInboxPolicy->adminState($tenant),
             'expiredTrialOverrideSummary' => [
                 'polling_allowed' => $tenant->allow_polling_when_trial_expired,
                 'runtime_replies_allowed' => $tenant->allow_runtime_replies_when_trial_expired,
@@ -1393,11 +1396,15 @@ class AdminController extends Controller
         };
 
         $stateLabel = $inboxHealth['health_label'] ?? 'Pending';
+        $expiredTrialPolicy = $this->expiredTrialInboxPolicy->adminState($tenant);
 
         return [
             'status' => $stateStatus,
             'status_label' => $stateLabel,
             'health_note' => $inboxHealth['health_note'] ?? null,
+            'policy_badge_label' => $expiredTrialPolicy['label'] ?? null,
+            'policy_badge_status' => $expiredTrialPolicy['status'] ?? null,
+            'expired_trial_policy' => $expiredTrialPolicy,
             'enabled' => $monitorState?->enabled ?? $assignedInboxSkill !== null,
             'last_checked_at' => $monitorState?->last_checked_at?->toDateTimeString(),
             'health_checked_at' => $monitorState?->health_checked_at?->toDateTimeString(),
