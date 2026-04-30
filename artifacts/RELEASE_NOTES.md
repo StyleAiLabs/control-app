@@ -56,6 +56,21 @@ Added three repo-local user-invocable skills so future sessions can enter the Sy
 - added `.agents/skills/architecture-refactor/SKILL.md` for spike-first architecture and refactor decisions
 - updated `artifacts/AGENTIC_DEVELOPMENT.md` and `artifacts/MEMORY.md` so the new local slash skills are part of the documented framework
 
+## 2026-04-30 — Docs: Tighten Framework Setup Rules And Add Project-Issue Skill
+
+Date: 2026-04-30
+Status: Implemented
+
+### Overview
+
+Tightened the repo-local framework skills so branch creation and issue creation happen explicitly before implementation, and added a dedicated slash skill for creating GitHub Project issues with the right workflow metadata.
+
+### What Changed
+
+- updated `.agents/skills/new-feature/SKILL.md`, `.agents/skills/bugfix/SKILL.md`, and `.agents/skills/architecture-refactor/SKILL.md` so they now require creating or confirming the tracking issue and branch before implementation begins
+- added `.agents/skills/create-project-issue/SKILL.md` for creating initiative, slice, and spike issues directly in the Sync360 GitHub Project
+- updated `artifacts/AGENTIC_DEVELOPMENT.md` and `artifacts/MEMORY.md` so the explicit setup rules and the new issue-creation skill are part of the documented framework
+
 ## 2026-04-30 — Docs: Add Kanban-First Agentic Development Framework
 
 Date: 2026-04-30

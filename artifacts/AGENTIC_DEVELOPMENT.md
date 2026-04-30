@@ -80,6 +80,7 @@ Repo-local helper skills are also available under `.agents/skills/`:
 - `/new-feature` for initiative shaping and first-slice execution
 - `/bugfix` for narrow slice-based fixes and regression work
 - `/architecture-refactor` for spike-first architecture and refactor decisions
+- `/create-project-issue` for creating initiative, slice, or spike issues directly in the Sync360 GitHub Project before implementation
 
 Every `Slice Ready` card must be decision complete before implementation starts.
 
@@ -120,6 +121,7 @@ Operational guidance:
 - the initiative branch is the default merge target for child slice branches or parallel worktrees
 - when a slice branches off for isolation, record that branch/worktree relationship on the card
 - when the initiative completes, archive the temporary planning artifact but keep the canonical behavior updates in code and core docs
+- before implementation starts, create or confirm both the tracking issue and the initiative branch explicitly; do not rely on the current branch accidentally being correct
 
 ## Full Delivery Loop
 

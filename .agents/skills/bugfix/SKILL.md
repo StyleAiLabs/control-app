@@ -28,6 +28,9 @@ Treat the request as a slice by default. Escalate to an initiative only when the
 5. Verify before claiming success.
    - Run the focused tests or checks that prove the bug is fixed.
    - Report the actual evidence, not confidence language.
+6. Before implementation starts, make the work container explicit.
+   - Attach the fix to the current initiative issue/branch when it clearly belongs there.
+   - Otherwise create or reuse a dedicated bug issue and branch before changing code.
 
 ## Output Contract
 
@@ -57,6 +60,12 @@ Promote the work from `Slice` to `Initiative` or `Spike` only when:
 - Put the bugfix on the current initiative branch when it clearly belongs to that initiative.
 - Use a dedicated bugfix branch only when the work is separate from current initiative work.
 - Split to a child branch or worktree if the fix becomes risky or needs parallel handling.
+- Do not implement on an arbitrary branch without first confirming where the fix belongs.
+
+## Issue Rule
+
+- Reuse the existing initiative issue when the bug is part of that initiative.
+- Create a dedicated bug issue when the fix is separate enough to stand on its own.
 
 ## Guardrails
 

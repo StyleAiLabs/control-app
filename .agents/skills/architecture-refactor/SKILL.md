@@ -28,6 +28,10 @@ Treat the request as a spike first unless the desired implementation path is alr
 5. Only move into implementation when the path is decision-complete.
    - Break the refactor into safe vertical slices.
    - Prefer boundary-preserving or behavior-preserving slices first.
+6. Before implementation starts, create the tracking container.
+   - Create or reuse the initiative issue for the chosen direction.
+   - Create or reuse the initiative branch before touching code.
+   - Split risky or parallel slices into child branches/worktrees only after the initiative branch exists.
 
 ## Output Contract
 
@@ -49,6 +53,12 @@ Do not jump straight into wide refactors without first making the decision expli
 - Use one branch per approved initiative after the architecture direction is chosen.
 - Keep multiple safe slices on that branch when they belong to the same refactor initiative.
 - Use child branches or separate worktrees only when risky or parallel slices need isolation.
+- Do not begin the refactor on the current branch unless that branch is already the approved initiative branch.
+
+## Issue Rule
+
+- The spike output should become a real initiative issue before refactor implementation starts.
+- If the issue already exists, link the recommended slices back to it instead of creating duplicate tracking.
 
 ## Guardrails
 

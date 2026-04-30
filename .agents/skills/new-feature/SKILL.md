@@ -29,6 +29,10 @@ Treat the request as a framework initiative unless the user explicitly says it i
 5. Recommend the first slice.
    - Explain why it is the safest or highest-leverage starting point.
    - Default to implementing only the first approved slice unless the user explicitly asks for more.
+6. Before implementation starts, make the implementation container explicit.
+   - Create or reuse the GitHub initiative issue when the work is not yet tracked.
+   - Create or reuse the initiative branch before changing code.
+   - Record the branch or worktree relationship on the initiative or slice card when possible.
 
 ## Output Contract
 
@@ -50,6 +54,12 @@ When the user asks to implement, implement only the first approved slice by defa
 - Default to one branch per approved initiative.
 - Multiple slices may live on that initiative branch when they belong together.
 - Split to a child branch or separate worktree only when a slice becomes risky, blocked, or needs parallel implementation.
+- Do not start implementation on the current branch by accident. Create or confirm the initiative branch first.
+
+## Issue Rule
+
+- Treat the GitHub issue or initiative card as part of the required setup, not optional after-the-fact bookkeeping.
+- If the feature is not yet represented in the project, create the issue before implementation or explicitly say why you are not doing so.
 
 ## Guardrails
 
