@@ -93,7 +93,6 @@ Historical/reference material only:
 
 - `artifacts/archive/`
 - `artifacts/walkthrough/`
-- `artifacts/founder_roadmap.md`
 
 If those files conflict with the codebase, trust:
 
