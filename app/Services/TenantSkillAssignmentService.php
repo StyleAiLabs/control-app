@@ -78,6 +78,53 @@ class TenantSkillAssignmentService
     }
 
     /**
+     * @param  list<string>  $enabledSkillKeys
+     * @param  list<string>  $managedSkillKeys
+     */
+    public function syncManagedAssignments(Tenant $tenant, User $actor, array $enabledSkillKeys, array $managedSkillKeys): void
+    {
+        DB::transaction(function () use ($tenant, $actor, $enabledSkillKeys, $managedSkillKeys): void {
+            $existing = $tenant->skillAssignments()->get()->keyBy('skill_key');
+
+            foreach ($enabledSkillKeys as $skillKey) {
+                $assignment = $existing->get($skillKey);
+                $publishedVersion = $this->catalog->activePublishedVersion($skillKey);
+
+                if (! $publishedVersion) {
+                    throw new RuntimeException(sprintf('Skill [%s] does not have an active published version.', $skillKey));
+                }
+
+                TenantSkillAssignment::query()->updateOrCreate(
+                    ['tenant_id' => $tenant->id, 'skill_key' => $skillKey],
+                    [
+                        'skill_catalog_version_id' => $assignment?->is_enabled
+                            ? ($assignment->skill_catalog_version_id ?: $publishedVersion->id)
+                            : $publishedVersion->id,
+                        'assigned_by' => $actor->id,
+                        'assigned_at' => $assignment?->is_enabled
+                            ? ($assignment->assigned_at ?: now())
+                            : now(),
+                        'is_enabled' => true,
+                    ],
+                );
+            }
+
+            $disabledSkillKeys = array_values(array_diff($managedSkillKeys, $enabledSkillKeys));
+
+            if ($disabledSkillKeys === []) {
+                return;
+            }
+
+            $tenant->skillAssignments()
+                ->whereIn('skill_key', $disabledSkillKeys)
+                ->update([
+                    'is_enabled' => false,
+                    'assigned_by' => $actor->id,
+                ]);
+        });
+    }
+
+    /**
      * @return Collection<int, TenantSkillAssignment>
      */
     public function enabledAssignments(Tenant $tenant): Collection

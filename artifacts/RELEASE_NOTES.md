@@ -7,6 +7,22 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-30 — Billing: Reconcile Plan Entitlements On Downgrade And Cancellation
+
+Date: 2026-04-30
+Status: Implemented
+
+### Overview
+
+Hardened Stripe subscription lifecycle reconciliation so portal-driven plan changes update the real Sync360 plan, preserve unrelated skill assignments, and clear stale plan state when a subscription is cancelled.
+
+### What Changed
+
+- updated `SubscriptionLifecycleService` to resolve the active Sync360 plan from the subscribed Stripe price during `customer.subscription.updated` instead of trusting stale `selected_plan` metadata
+- scoped billing entitlement sync to the billing-managed included-skill universe so upgrades/downgrades no longer disable unrelated customer/admin-selected modules
+- cleared stored `billing_plan`, `billing_cycle_anchor_at`, and `billing_cycle_ends_at` when Stripe later emits `customer.subscription.deleted`
+- added regression coverage for Stripe-driven upgrade, downgrade, and cancellation reconciliation paths
+
 ## 2026-04-30 — Safety: Make Inbox-Triage Expired-Trial Reply Policy Explicit
 
 Date: 2026-04-30

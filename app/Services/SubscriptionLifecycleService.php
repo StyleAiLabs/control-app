@@ -79,7 +79,10 @@ class SubscriptionLifecycleService
     {
         $tenant->forceFill([
             'billing_status' => BillingStatus::Cancelled,
+            'billing_plan' => null,
             'billing_grace_ends_at' => null,
+            'billing_cycle_anchor_at' => null,
+            'billing_cycle_ends_at' => null,
         ])->save();
 
         if ($tenant->litellm_virtual_key) {
@@ -161,9 +164,9 @@ class SubscriptionLifecycleService
         }
 
         $status = (string) ($subscription->status ?? '');
-        $planKey = (string) ($subscription->metadata->selected_plan ?? $tenant->billing_plan ?? '');
+        $planKey = $this->resolvePlanKeyFromStripeObject($subscription, $tenant);
 
-        if ($planKey !== '' && in_array($status, ['active', 'trialing'], true)) {
+        if ($planKey !== null && in_array($status, ['active', 'trialing'], true)) {
             $this->activateSubscription($tenant, $planKey, $tenant->user, [
                 'current_period_start' => $subscription->current_period_start ?? null,
                 'current_period_end' => $subscription->current_period_end ?? null,
@@ -226,10 +229,12 @@ class SubscriptionLifecycleService
             ->filter(fn (mixed $skillKey): bool => is_string($skillKey) && $this->skillCatalog->activePublishedVersion($skillKey) !== null)
             ->values()
             ->all();
+        $managedSkillKeys = collect($this->plans->includedSkillKeysAcrossPlans())
+            ->filter(fn (mixed $skillKey): bool => is_string($skillKey) && $this->skillCatalog->activePublishedVersion($skillKey) !== null)
+            ->values()
+            ->all();
 
-        if ($assignableSkillKeys !== []) {
-            $this->skillAssignments->saveDraftAssignments($tenant, $actor, $assignableSkillKeys);
-        }
+        $this->skillAssignments->syncManagedAssignments($tenant, $actor, $assignableSkillKeys, $managedSkillKeys);
     }
 
     private function tenantFromStripeObject(object $object): ?Tenant
@@ -264,6 +269,68 @@ class SubscriptionLifecycleService
     {
         if (is_numeric($value)) {
             return CarbonImmutable::createFromTimestamp((int) $value);
+        }
+
+        return null;
+    }
+
+    private function resolvePlanKeyFromStripeObject(object $object, ?Tenant $tenant = null): ?string
+    {
+        $priceId = $this->extractStripePriceId($object);
+
+        if ($priceId !== null) {
+            $plan = $this->plans->planForStripePriceId($priceId);
+
+            if ($plan !== null) {
+                return (string) $plan['key'];
+            }
+        }
+
+        $candidateKeys = [
+            $object->metadata->selected_plan ?? null,
+            $tenant?->billing_plan,
+        ];
+
+        foreach ($candidateKeys as $candidateKey) {
+            if (! is_string($candidateKey) || trim($candidateKey) === '') {
+                continue;
+            }
+
+            try {
+                return (string) $this->plans->plan(trim($candidateKey))['key'];
+            } catch (\RuntimeException) {
+                continue;
+            }
+        }
+
+        return null;
+    }
+
+    private function extractStripePriceId(object $object): ?string
+    {
+        $items = $object->items->data ?? null;
+
+        if (is_iterable($items)) {
+            foreach ($items as $item) {
+                $priceId = $this->normalizeStripePriceId($item->price ?? null);
+
+                if ($priceId !== null) {
+                    return $priceId;
+                }
+            }
+        }
+
+        return $this->normalizeStripePriceId($object->price ?? $object->plan ?? null);
+    }
+
+    private function normalizeStripePriceId(mixed $price): ?string
+    {
+        if (is_string($price) && trim($price) !== '') {
+            return trim($price);
+        }
+
+        if (is_object($price) && is_string($price->id ?? null) && trim($price->id) !== '') {
+            return trim($price->id);
         }
 
         return null;

@@ -35,6 +35,40 @@ class BillingPlanCatalog
     }
 
     /**
+     * @return array<string, mixed>|null
+     */
+    public function planForStripePriceId(?string $priceId): ?array
+    {
+        $normalizedPriceId = is_string($priceId) ? trim($priceId) : '';
+
+        if ($normalizedPriceId === '') {
+            return null;
+        }
+
+        foreach ($this->all() as $plan) {
+            if (($plan['stripe_price_id'] ?? null) === $normalizedPriceId) {
+                return $plan;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function includedSkillKeysAcrossPlans(): array
+    {
+        return collect($this->all())
+            ->flatMap(fn (array $plan): array => (array) ($plan['included_skill_keys'] ?? []))
+            ->filter(fn (mixed $skillKey): bool => is_string($skillKey) && trim($skillKey) !== '')
+            ->map(fn (string $skillKey): string => trim($skillKey))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
      * @param  array<string, mixed>  $plan
      * @return array<string, mixed>
      */
