@@ -54,7 +54,6 @@ Archived historical build notes:
 Historical/reference inputs:
 
 - `artifacts/walkthrough/`
-- [`artifacts/founder_roadmap.md`](artifacts/founder_roadmap.md)
 - [`artifacts/archive/README.md`](artifacts/archive/README.md)
 
 Working templates:

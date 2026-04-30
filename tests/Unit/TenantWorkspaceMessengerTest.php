@@ -128,6 +128,7 @@ class TenantWorkspaceMessengerTest extends TestCase
     {
         $tenant = $this->seedTenant([
             'trial_status' => TrialStatus::Expired,
+            'allow_litellm_when_trial_expired' => true,
         ]);
 
         $activation = \Mockery::mock(TenantRuntimeSkillActivationService::class);
@@ -142,6 +143,57 @@ class TenantWorkspaceMessengerTest extends TestCase
             'gmail_inbox_monitor',
             'sync360-inbox-monitor',
             'Internal Gmail inbox event.',
+        );
+    }
+
+    public function test_it_blocks_customer_facing_runtime_work_when_reply_override_is_on_but_litellm_override_is_off(): void
+    {
+        $tenant = $this->seedTenant([
+            'trial_status' => TrialStatus::Expired,
+            'allow_runtime_replies_when_trial_expired' => true,
+            'allow_litellm_when_trial_expired' => false,
+        ]);
+
+        $activation = \Mockery::mock(TenantRuntimeSkillActivationService::class);
+        $activation->shouldNotReceive('ensureRequiredSkillsReady');
+        $this->instance(TenantRuntimeSkillActivationService::class, $activation);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('AI-credit-consuming runtime work is paused because this tenant trial has expired. Enable the expired-trial LiteLLM override in admin to resume runtime execution.');
+
+        app(TenantWorkspaceMessenger::class)->send(
+            $tenant,
+            'gmail_inbox_monitor',
+            'sync360-inbox-monitor',
+            'Internal Gmail inbox event.',
+        );
+    }
+
+    public function test_it_blocks_operational_runtime_work_for_expired_trials_when_litellm_override_is_off(): void
+    {
+        $tenant = $this->seedTenant([
+            'trial_status' => TrialStatus::Expired,
+            'allow_polling_when_trial_expired' => true,
+            'allow_litellm_when_trial_expired' => false,
+        ]);
+
+        $activation = \Mockery::mock(TenantRuntimeSkillActivationService::class);
+        $activation->shouldNotReceive('ensureRequiredSkillsReady');
+        $this->instance(TenantRuntimeSkillActivationService::class, $activation);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('AI-credit-consuming runtime work is paused because this tenant trial has expired. Enable the expired-trial LiteLLM override in admin to resume runtime execution.');
+
+        app(TenantWorkspaceMessenger::class)->sendOperational(
+            $tenant,
+            'gmail_inbox_monitor',
+            'sync360-inbox-monitor',
+            'Internal Gmail inbox event.',
+            [],
+            [
+                'use_case' => TenantRuntimeUsageUseCase::InboxTriage,
+                'trigger_source' => 'sync360:poll-inbox-triage',
+            ],
         );
     }
 
@@ -176,6 +228,7 @@ class TenantWorkspaceMessengerTest extends TestCase
         $tenant = $this->seedTenant([
             'trial_status' => TrialStatus::Expired,
             'allow_runtime_replies_when_trial_expired' => true,
+            'allow_litellm_when_trial_expired' => true,
         ]);
         File::ensureDirectoryExists(config('sync360.runtime_root').'/'.$tenant->slug.'/config');
         File::put(config('sync360.runtime_root').'/'.$tenant->slug.'/config/openclaw.json', json_encode([

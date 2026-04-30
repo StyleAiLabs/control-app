@@ -181,6 +181,16 @@ class TenantInboxTriagePollingService
                 return 'skipped';
             }
 
+            if (! $this->commercialAccess->canDispatchAiRuntimeWork($tenant)) {
+                $record->forceFill([
+                    'status' => TenantInboxMonitorMessage::STATUS_SKIPPED,
+                    'skip_reason' => 'commercial_hold:ai_runtime_paused',
+                    'last_error' => null,
+                ])->save();
+
+                return 'skipped';
+            }
+
             if (! $this->claimDispatch($record)) {
                 return 'skipped';
             }
@@ -286,6 +296,7 @@ class TenantInboxTriagePollingService
         $deliveryPolicy = [
             'trial_status' => strtolower((string) $tenant->trial_status->value),
             'trial_expired' => $tenant->isTrialExpired(),
+            'ai_runtime_execution_allowed' => $this->commercialAccess->canDispatchAiRuntimeWork($tenant),
             'customer_facing_gmail_replies_allowed' => $customerFacingRepliesAllowed,
         ];
 

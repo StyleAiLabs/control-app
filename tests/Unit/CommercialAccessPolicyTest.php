@@ -28,9 +28,28 @@ class CommercialAccessPolicyTest extends TestCase
         $policy = app(CommercialAccessPolicy::class);
 
         $this->assertFalse($policy->canPollInbox($tenant));
+        $this->assertFalse($policy->canDispatchAiRuntimeWork($tenant));
         $this->assertFalse($policy->canSendCustomerFacingRuntimeWork($tenant));
         $this->assertFalse($policy->shouldEnableDirectCustomerChannels($tenant));
         $this->assertSame('trial_expired', $policy->runtimePauseReason($tenant));
+    }
+
+    public function test_it_allows_expired_trial_polling_override_without_reopening_ai_runtime_work(): void
+    {
+        $tenant = $this->makeTenant([
+            'trial_status' => TrialStatus::Expired,
+            'billing_status' => BillingStatus::Trialing,
+            'billing_first_paid_at' => null,
+            'allow_polling_when_trial_expired' => true,
+            'allow_runtime_replies_when_trial_expired' => false,
+            'allow_litellm_when_trial_expired' => false,
+        ]);
+
+        $policy = app(CommercialAccessPolicy::class);
+
+        $this->assertTrue($policy->canPollInbox($tenant));
+        $this->assertFalse($policy->canDispatchAiRuntimeWork($tenant));
+        $this->assertFalse($policy->canSendCustomerFacingRuntimeWork($tenant));
     }
 
     public function test_it_allows_paid_active_tenants_to_keep_runtime_paths_open(): void
@@ -48,6 +67,7 @@ class CommercialAccessPolicyTest extends TestCase
         $policy = app(CommercialAccessPolicy::class);
 
         $this->assertTrue($policy->canPollInbox($tenant));
+        $this->assertTrue($policy->canDispatchAiRuntimeWork($tenant));
         $this->assertTrue($policy->canSendCustomerFacingRuntimeWork($tenant));
         $this->assertTrue($policy->shouldEnableDirectCustomerChannels($tenant));
         $this->assertFalse($policy->shouldSuspendLiteLlm($tenant));
@@ -92,6 +112,7 @@ class CommercialAccessPolicyTest extends TestCase
 
         $this->assertTrue($tenant->hasReachedInteractionLimit());
         $this->assertFalse($policy->canPollInbox($tenant));
+        $this->assertFalse($policy->canDispatchAiRuntimeWork($tenant));
         $this->assertFalse($policy->canSendCustomerFacingRuntimeWork($tenant));
         $this->assertTrue($policy->shouldSuspendLiteLlm($tenant));
         $this->assertSame('interaction_limit_reached', $policy->runtimePauseReason($tenant));
