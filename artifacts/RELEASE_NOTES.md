@@ -71,6 +71,22 @@ Tightened the repo-local framework skills so branch creation and issue creation 
 - added `.agents/skills/create-project-issue/SKILL.md` for creating initiative, slice, and spike issues directly in the Sync360 GitHub Project
 - updated `artifacts/AGENTIC_DEVELOPMENT.md` and `artifacts/MEMORY.md` so the explicit setup rules and the new issue-creation skill are part of the documented framework
 
+## 2026-04-30 — Docs: Require Confirmation Before Branching And Add Framework Labels
+
+Date: 2026-04-30
+Status: Implemented
+
+### Overview
+
+Tightened the framework again so shaping skills must stop for explicit user confirmation before branching or coding, and standardized issue labeling so framework-created work items can be identified later in GitHub.
+
+### What Changed
+
+- updated the repo-local framework skills so they now ask for explicit confirmation before creating a branch or writing code
+- clarified that if confirmation is not given, the workflow should stop after shaping and create or update the issue for later pickup
+- updated `.agents/skills/create-project-issue/SKILL.md` so every framework-created issue must carry exactly one label: `/new-feature`, `/bugfix`, or `/architecture-refactor`
+- updated `artifacts/AGENTIC_DEVELOPMENT.md` and `artifacts/MEMORY.md` so the confirmation gate and issue-label rules are part of the documented framework
+
 ## 2026-04-30 — Docs: Add Kanban-First Agentic Development Framework
 
 Date: 2026-04-30

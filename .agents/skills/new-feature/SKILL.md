@@ -30,8 +30,10 @@ Treat the request as a framework initiative unless the user explicitly says it i
    - Explain why it is the safest or highest-leverage starting point.
    - Default to implementing only the first approved slice unless the user explicitly asks for more.
 6. Before implementation starts, make the implementation container explicit.
+   - Ask the user for explicit confirmation before creating a new branch or writing code.
+   - If the user is not ready to proceed, create or update the GitHub initiative issue for later pickup instead of implementing.
    - Create or reuse the GitHub initiative issue when the work is not yet tracked.
-   - Create or reuse the initiative branch before changing code.
+   - Create or reuse the initiative branch only after the user confirms implementation should begin.
    - Record the branch or worktree relationship on the initiative or slice card when possible.
 
 ## Output Contract
@@ -47,7 +49,11 @@ When shaping a feature, provide:
 - initial slice DAG
 - recommended first slice
 
-When the user asks to implement, implement only the first approved slice by default.
+Before implementation, ask for explicit confirmation to proceed.
+
+If confirmation is not given, stop after shaping and create or update the issue for later reference.
+
+When the user confirms implementation, implement only the first approved slice by default.
 
 ## Branch Rule
 
@@ -60,6 +66,7 @@ When the user asks to implement, implement only the first approved slice by defa
 
 - Treat the GitHub issue or initiative card as part of the required setup, not optional after-the-fact bookkeeping.
 - If the feature is not yet represented in the project, create the issue before implementation or explicitly say why you are not doing so.
+- Issues created from this skill should carry the `/new-feature` label.
 
 ## Guardrails
 

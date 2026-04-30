@@ -29,8 +29,10 @@ Treat the request as a slice by default. Escalate to an initiative only when the
    - Run the focused tests or checks that prove the bug is fixed.
    - Report the actual evidence, not confidence language.
 6. Before implementation starts, make the work container explicit.
+   - Ask the user for explicit confirmation before creating a new branch or writing code.
+   - If the user is not ready to proceed, create or update the bug issue for later pickup instead of implementing.
    - Attach the fix to the current initiative issue/branch when it clearly belongs there.
-   - Otherwise create or reuse a dedicated bug issue and branch before changing code.
+   - Otherwise create or reuse a dedicated bug issue and branch only after implementation is confirmed.
 
 ## Output Contract
 
@@ -43,6 +45,10 @@ When shaping a bugfix, provide:
 - constraints / invariants
 - likely code paths
 - required verification
+
+Before implementation, ask for explicit confirmation to proceed.
+
+If confirmation is not given, stop after shaping and create or update the issue for later reference.
 
 When implementing, keep the scope narrow and policy-aware.
 
@@ -66,6 +72,7 @@ Promote the work from `Slice` to `Initiative` or `Spike` only when:
 
 - Reuse the existing initiative issue when the bug is part of that initiative.
 - Create a dedicated bug issue when the fix is separate enough to stand on its own.
+- Issues created from this skill should carry the `/bugfix` label.
 
 ## Guardrails
 

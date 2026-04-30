@@ -122,6 +122,8 @@ Operational guidance:
 - when a slice branches off for isolation, record that branch/worktree relationship on the card
 - when the initiative completes, archive the temporary planning artifact but keep the canonical behavior updates in code and core docs
 - before implementation starts, create or confirm both the tracking issue and the initiative branch explicitly; do not rely on the current branch accidentally being correct
+- before creating a branch or writing code, ask the user for explicit confirmation to proceed; if they are not ready, create or update the issue for later pickup and stop there
+- project issues created through the framework should carry exactly one identifying label: `/new-feature`, `/bugfix`, or `/architecture-refactor`
 
 ## Full Delivery Loop
 

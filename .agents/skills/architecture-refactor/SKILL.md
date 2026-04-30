@@ -29,8 +29,10 @@ Treat the request as a spike first unless the desired implementation path is alr
    - Break the refactor into safe vertical slices.
    - Prefer boundary-preserving or behavior-preserving slices first.
 6. Before implementation starts, create the tracking container.
+   - Ask the user for explicit confirmation before creating a new branch or writing code.
+   - If the user is not ready to proceed, create or update the issue for later pickup instead of implementing.
    - Create or reuse the initiative issue for the chosen direction.
-   - Create or reuse the initiative branch before touching code.
+   - Create or reuse the initiative branch only after the user confirms implementation should begin.
    - Split risky or parallel slices into child branches/worktrees only after the initiative branch exists.
 
 ## Output Contract
@@ -46,6 +48,10 @@ When shaping architecture or refactor work, provide:
 - initiative draft
 - initial slice DAG
 
+Before implementation, ask for explicit confirmation to proceed.
+
+If confirmation is not given, stop after shaping and create or update the issue for later reference.
+
 Do not jump straight into wide refactors without first making the decision explicit.
 
 ## Branch Rule
@@ -59,6 +65,7 @@ Do not jump straight into wide refactors without first making the decision expli
 
 - The spike output should become a real initiative issue before refactor implementation starts.
 - If the issue already exists, link the recommended slices back to it instead of creating duplicate tracking.
+- Issues created from this skill should carry the `/architecture-refactor` label.
 
 ## Guardrails
 
