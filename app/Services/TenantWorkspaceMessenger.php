@@ -66,6 +66,17 @@ class TenantWorkspaceMessenger
         array $attribution = [],
     ): string
     {
+        if (! $this->commercialAccess->canDispatchAiRuntimeWork($tenant)) {
+            throw new RuntimeException(
+                match ($this->commercialAccess->runtimePauseReason($tenant)) {
+                    'interaction_limit_reached' => 'AI-credit-consuming runtime work is paused because this tenant has reached its monthly interaction limit.',
+                    'subscription_suspended' => 'AI-credit-consuming runtime work is paused because this tenant subscription is suspended.',
+                    'subscription_cancelled' => 'AI-credit-consuming runtime work is paused because this tenant subscription is cancelled.',
+                    default => 'AI-credit-consuming runtime work is paused because this tenant trial has expired. Enable the expired-trial LiteLLM override in admin to resume runtime execution.',
+                }
+            );
+        }
+
         if ($enforceCustomerFacingPolicy && ! $this->commercialAccess->canSendCustomerFacingRuntimeWork($tenant)) {
             $reason = $this->commercialAccess->runtimePauseReason($tenant);
 

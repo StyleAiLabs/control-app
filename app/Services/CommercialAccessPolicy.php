@@ -30,6 +30,15 @@ class CommercialAccessPolicy
         return $this->hasCommercialRuntimeAccess($tenant);
     }
 
+    public function canDispatchAiRuntimeWork(Tenant $tenant): bool
+    {
+        if (! $tenant->hasPaidActivation()) {
+            return $this->expiredTrialAccess->canDispatchAiRuntimeWork($tenant);
+        }
+
+        return $this->hasCommercialRuntimeAccess($tenant) && ! $this->shouldSuspendLiteLlm($tenant);
+    }
+
     public function shouldEnableDirectCustomerChannels(Tenant $tenant): bool
     {
         if (! $tenant->hasPaidActivation()) {
