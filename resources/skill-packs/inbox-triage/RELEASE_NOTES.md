@@ -1,5 +1,9 @@
 # Inbox Triage — Release Notes
 
+## 1.7.3
+- Clarified the expired-tenant commercial hold rule so inbox-triage must not execute side effects when Sync360 delivery policy says AI runtime execution is paused.
+- Narrowed the paused-reply rule to apply only when LiteLLM/runtime execution is still allowed but customer-facing Gmail replies remain blocked by policy.
+
 ## 1.7.2
 - Added an explicit expired-trial reply safety gate so Sync360-triggered inbox work must not send Gmail replies or drafts when delivery-policy context says customer-facing replies are paused.
 - Clarified that the workflow should still continue with classification, operator notification, Drive logging, Sheets logging, and analytics when customer-facing Gmail replies are blocked by policy.

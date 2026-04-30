@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-30 — Policy: Hold Expired Inbox-Triage AI Work Unless LiteLLM Override Is Enabled
+
+Date: 2026-04-30
+Status: Implemented
+
+### Overview
+
+Hardened the expired-tenant commercial hold policy so inbox polling can remain observable under its own override, but Sync360 no longer dispatches inbox-triage runtime work or other AI-credit-consuming side effects unless the LiteLLM override is also enabled.
+
+### What Changed
+
+- added an explicit `canDispatchAiRuntimeWork()` policy path so expired-trial LiteLLM access is evaluated separately from inbox polling and customer-facing reply permissions
+- updated `TenantWorkspaceMessenger` to block runtime execution early when AI-credit-consuming work is commercially paused
+- updated `TenantInboxTriagePollingService` so polling-only expired tenants record and skip inbox events with `commercial_hold:ai_runtime_paused` instead of dispatching them into the runtime
+- updated the `inbox-triage` skill contract to distinguish full AI-runtime hold from the narrower paused-reply case
+- added regression coverage for the new polling-without-runtime and LiteLLM-gated runtime paths
+
 ## 2026-04-30 — Billing: Reconcile Plan Entitlements On Downgrade And Cancellation
 
 Date: 2026-04-30
