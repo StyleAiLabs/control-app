@@ -36,6 +36,10 @@ Treat the request as a slice by default. Escalate to an initiative only when the
 7. After implementation is committed and pushed, update the issue.
    - Post a concise issue comment with the branch name, fix summary, verification evidence, and any remaining risk or follow-up.
    - Treat the comment as part of the fix handoff so the issue stays current without reading git history.
+8. After commit and push, create the pull request and cross-link the issue.
+   - Open or update a pull request for the pushed branch.
+   - Add the pull request link to the issue comment, or post a follow-up issue comment if needed.
+   - Include the issue link in the pull request body so the fix thread and review thread stay connected.
 
 ## Output Contract
 
@@ -56,6 +60,7 @@ If confirmation is not given, stop after shaping and create or update the issue 
 When implementing, keep the scope narrow and policy-aware.
 
 After commit and push, update the issue comment before closing out the work.
+Also create the pull request and link the issue to that pull request before closing out the work.
 
 ## Escalation Rule
 

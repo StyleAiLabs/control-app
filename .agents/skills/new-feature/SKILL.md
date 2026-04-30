@@ -38,6 +38,10 @@ Treat the request as a framework initiative unless the user explicitly says it i
 7. After implementation is committed and pushed, update the tracking issue.
    - Post a concise issue comment with the branch name, commit summary, verification evidence, and any known blockers or follow-up notes.
    - Treat the issue comment as part of the delivery handoff, not optional cleanup.
+8. After commit and push, create the pull request and cross-link the issue.
+   - Open or update a pull request for the pushed branch.
+   - Add the pull request link to the tracking issue comment, or post a follow-up issue comment if needed.
+   - Include the issue link in the pull request body so the implementation thread and review thread stay connected.
 
 ## Output Contract
 
@@ -59,6 +63,7 @@ If confirmation is not given, stop after shaping and create or update the issue 
 When the user confirms implementation, implement only the first approved slice by default.
 
 After commit and push, update the issue comment before closing out the work.
+Also create the pull request and link the issue to that pull request before closing out the work.
 
 ## Branch Rule
 
