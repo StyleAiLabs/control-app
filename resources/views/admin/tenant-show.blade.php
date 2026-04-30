@@ -89,8 +89,8 @@
             ],
             'inbox-monitor' => [
                 'label' => 'Inbox Monitor',
-                'badge_label' => $inboxMonitorSummary['status_label'] ?? null,
-                'badge_class' => $inboxMonitorSummary['status'] ?? null,
+                'badge_label' => $inboxMonitorSummary['policy_badge_label'] ?? ($inboxMonitorSummary['status_label'] ?? null),
+                'badge_class' => $inboxMonitorSummary['policy_badge_status'] ?? ($inboxMonitorSummary['status'] ?? null),
             ],
             'analytics' => [
                 'label' => 'Analytics',

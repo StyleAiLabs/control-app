@@ -695,6 +695,45 @@ class AdminTenantCustomizationFlowTest extends TestCase
             ->assertSee('invalid_grant: Token has been expired or revoked.');
     }
 
+    public function test_admin_surfaces_expired_trial_policy_state_in_overview_and_inbox_monitor(): void
+    {
+        [$admin, $tenant] = $this->seedAdminAndTenant();
+
+        $tenant->forceFill([
+            'trial_status' => TrialStatus::Expired,
+            'allow_polling_when_trial_expired' => true,
+            'allow_runtime_replies_when_trial_expired' => false,
+            'allow_litellm_when_trial_expired' => false,
+        ])->save();
+
+        TenantInboxMonitorState::query()->create([
+            'tenant_id' => $tenant->id,
+            'skill_key' => 'inbox-triage',
+            'is_enabled' => true,
+            'health_status' => TenantInboxMonitorState::HEALTH_HEALTHY,
+            'last_checked_at' => now()->subMinutes(5),
+            'health_checked_at' => now()->subMinutes(5),
+        ]);
+
+        $this->actingAs($admin);
+
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant]))
+            ->assertOk()
+            ->assertSee('Current Policy')
+            ->assertSee('Monitoring only while expired')
+            ->assertSee('Inbox polling can continue, but customer-facing replies remain paused while the trial is expired.');
+
+        $this->get(route('admin.tenants.show', ['tenant' => $tenant, 'tab' => 'inbox-monitor']))
+            ->assertOk()
+            ->assertSee('Expired-trial Policy')
+            ->assertSee('Current state')
+            ->assertSee('Monitoring only while expired')
+            ->assertSee('Polling while expired')
+            ->assertSee('allowed')
+            ->assertSee('Replies while expired')
+            ->assertSee('paused');
+    }
+
     public function test_admin_can_refresh_runtime_available_skills_from_skills_tab(): void
     {
         [$admin, $tenant] = $this->seedAdminAndTenant();

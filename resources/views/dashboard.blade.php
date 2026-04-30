@@ -3,19 +3,11 @@
         <div style="background: #7f1d1d; color: #fca5a5; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 0.92rem;">
             <span>
                 <strong style="color: #fef2f2;">Your trial has ended.</strong>
-                Your digital employee has been paused. Your data is safe.
+                {{ $expiredTrialCustomerState['note'] ?? 'Your digital employee has been paused. Your data is safe.' }}
             </span>
             <a href="mailto:hello@sync360.co.nz" style="background: #fca5a5; color: #7f1d1d; padding: 7px 16px; border-radius: 6px; font-weight: 600; text-decoration: none; white-space: nowrap;">Contact Us →</a>
         </div>
     @endif
-
-    @php
-        $dashboardSummary = $trialData['is_expired']
-            ? $tenant->business_name.' is paused until the account is reactivated.'
-            : ($setupWizard
-                ? $tenant->business_name.' is '.strtolower($provisioningContent['label']).' and step '.$setupWizard['current_step'].' is next.'
-                : $tenant->business_name.' is '.strtolower($agentContent['label']).' and your latest operating signals are below.');
-    @endphp
 
     <div class="customer-dashboard-shell">
         <header class="customer-dashboard-hero">

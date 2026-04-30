@@ -149,7 +149,8 @@ class DashboardFlowTest extends TestCase
         $this->get('/dashboard')
             ->assertOk()
             ->assertSee('Your trial has ended.')
-            ->assertSee('Acme Plumbing is paused until the account is reactivated.')
+            ->assertSee('Inbox monitoring, customer replies, and live assistant work stay paused until expired-trial access is fully restored.')
+            ->assertSee('Acme Plumbing is paused until expired-trial access is restored.')
             ->assertSee('Assistant')
             ->assertSee('Paused')
             ->assertSee('Trial')
@@ -159,6 +160,65 @@ class DashboardFlowTest extends TestCase
             ->assertDontSee('Contact us to reactivate your digital employee.')
             ->assertDontSee('Your trial has ended and the assistant is paused.')
             ->assertDontSee('Trial ended');
+    }
+
+    public function test_dashboard_keeps_customer_state_paused_when_expired_trial_only_allows_monitoring(): void
+    {
+        [$user, $tenant] = $this->seedTenant();
+
+        $this->makeInboxTriageEligible($tenant, [
+            'trial_status' => TrialStatus::Expired,
+            'allow_polling_when_trial_expired' => true,
+            'allow_runtime_replies_when_trial_expired' => false,
+            'allow_litellm_when_trial_expired' => false,
+        ]);
+
+        TenantInboxMonitorState::query()->create([
+            'tenant_id' => $tenant->id,
+            'enabled' => true,
+            'status' => TenantInboxMonitorState::STATUS_IDLE,
+            'last_checked_at' => now()->subMinutes(4),
+        ]);
+
+        $this->actingAs($user);
+
+        $this->get('/dashboard')
+            ->assertOk()
+            ->assertSee('Paused while expired')
+            ->assertSee('Inbox monitoring and customer replies are paused while expired-trial access is off.')
+            ->assertSee('No inbox reads or replies happen until expired-trial access is fully restored.')
+            ->assertDontSee('Watching your inbox');
+    }
+
+    public function test_dashboard_keeps_normal_inbox_and_assistant_states_when_all_expired_trial_overrides_are_enabled(): void
+    {
+        [$user, $tenant] = $this->seedTenant();
+
+        $this->makeInboxTriageEligible($tenant, [
+            'trial_status' => TrialStatus::Expired,
+            'allow_polling_when_trial_expired' => true,
+            'allow_runtime_replies_when_trial_expired' => true,
+            'allow_litellm_when_trial_expired' => true,
+        ]);
+
+        TenantInboxMonitorState::query()->create([
+            'tenant_id' => $tenant->id,
+            'enabled' => true,
+            'status' => TenantInboxMonitorState::STATUS_IDLE,
+            'last_checked_at' => now()->subMinutes(4),
+        ]);
+
+        $this->actingAs($user);
+
+        $this->get('/dashboard')
+            ->assertOk()
+            ->assertSee('Your trial has ended.')
+            ->assertSee('Expired-trial access is still enabled, so inbox monitoring and customer replies stay live for now.')
+            ->assertSee('Acme Plumbing is still active while expired-trial access remains enabled.')
+            ->assertSee('Assistant')
+            ->assertSee('Live')
+            ->assertSee('Watching your inbox')
+            ->assertDontSee('Paused while expired');
     }
 
     public function test_dashboard_shows_inbox_empty_state_when_inbox_triage_is_not_enabled(): void

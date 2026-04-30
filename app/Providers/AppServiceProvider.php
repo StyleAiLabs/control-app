@@ -10,6 +10,7 @@ use App\Services\LocalTenantProvisioningService;
 use App\Services\OpenClawProvisioner;
 use App\Services\SshDockerComposeRunner;
 use App\Services\TenantWorkspaceDependencyHealthService;
+use App\Services\ExpiredTrialInboxPolicySurface;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -83,6 +84,7 @@ class AppServiceProvider extends ServiceProvider
             $alerts = [];
             $dependencyAlerts = app(TenantWorkspaceDependencyHealthService::class)
                 ->evaluate($tenant)['customer_alerts'] ?? [];
+            $expiredTrialCustomerState = app(ExpiredTrialInboxPolicySurface::class)->customerState($tenant);
 
             // Trial expiry / urgency alert
             if (! $tenant->hasPaidActivation() && $tenant->isTrialExpired()) {
@@ -90,7 +92,9 @@ class AppServiceProvider extends ServiceProvider
                     'type'    => 'error',
                     'icon'    => '🔴',
                     'title'   => 'Trial expired',
-                    'message' => 'Your digital employee has been paused.',
+                    'message' => $expiredTrialCustomerState['state'] === 'active'
+                        ? 'Expired-trial access is still enabled, so inbox monitoring and customer replies remain live for now.'
+                        : 'Your digital employee is paused while expired-trial access is off.',
                     'cta'     => ['text' => 'Contact us', 'href' => 'mailto:hello@sync360.co.nz'],
                 ];
             } elseif (! $tenant->hasPaidActivation() && $tenant->trialUrgency() === 'critical') {

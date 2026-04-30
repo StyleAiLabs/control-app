@@ -34,6 +34,13 @@ Treat the request as a spike first unless the desired implementation path is alr
    - Create or reuse the initiative issue for the chosen direction.
    - Create or reuse the initiative branch only after the user confirms implementation should begin.
    - Split risky or parallel slices into child branches/worktrees only after the initiative branch exists.
+7. After implementation is committed and pushed, update the tracking issue.
+   - Post a concise issue comment with the branch name, refactor/spike outcome, verification evidence, and any remaining migration or rollout notes.
+   - Treat the issue comment as part of the architecture handoff, not optional bookkeeping.
+8. After commit and push, create the pull request and cross-link the issue.
+   - Open or update a pull request for the pushed branch.
+   - Add the pull request link to the tracking issue comment, or post a follow-up issue comment if needed.
+   - Include the issue link in the pull request body so the implementation, review, and architecture discussion stay connected.
 
 ## Output Contract
 
@@ -53,6 +60,9 @@ Before implementation, ask for explicit confirmation to proceed.
 If confirmation is not given, stop after shaping and create or update the issue for later reference.
 
 Do not jump straight into wide refactors without first making the decision explicit.
+
+After commit and push, update the issue comment before closing out the work.
+Also create the pull request and link the issue to that pull request before closing out the work.
 
 ## Branch Rule
 

@@ -33,6 +33,13 @@ Treat the request as a slice by default. Escalate to an initiative only when the
    - If the user is not ready to proceed, create or update the bug issue for later pickup instead of implementing.
    - Attach the fix to the current initiative issue/branch when it clearly belongs there.
    - Otherwise create or reuse a dedicated bug issue and branch only after implementation is confirmed.
+7. After implementation is committed and pushed, update the issue.
+   - Post a concise issue comment with the branch name, fix summary, verification evidence, and any remaining risk or follow-up.
+   - Treat the comment as part of the fix handoff so the issue stays current without reading git history.
+8. After commit and push, create the pull request and cross-link the issue.
+   - Open or update a pull request for the pushed branch.
+   - Add the pull request link to the issue comment, or post a follow-up issue comment if needed.
+   - Include the issue link in the pull request body so the fix thread and review thread stay connected.
 
 ## Output Contract
 
@@ -51,6 +58,9 @@ Before implementation, ask for explicit confirmation to proceed.
 If confirmation is not given, stop after shaping and create or update the issue for later reference.
 
 When implementing, keep the scope narrow and policy-aware.
+
+After commit and push, update the issue comment before closing out the work.
+Also create the pull request and link the issue to that pull request before closing out the work.
 
 ## Escalation Rule
 
