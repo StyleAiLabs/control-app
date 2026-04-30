@@ -33,6 +33,7 @@ For internal `sync360-inbox-monitor` events, complete all required side effects 
 - Minimal analytics payload for Gmail events: `{"event_id":"inbox-triage-<gmail_message_id>","occurred_at":"<ISO-8601 timestamp>","customer_label":"<company or contact>","outcome":{"lead_quality":"high","inquiry_category":"quote-request","suggested_action":"pdf-generation"}}`.
 - A Telegram success does not finish the workflow. Continue to Drive logging, Sheets logging, and analytics. A Telegram, Drive, or Sheets failure must not block analytics.
 - Basic enquiry reply gate: low-risk support and business-information enquiries must execute exactly one Gmail reply action when they enter this branch. Send exactly one direct Gmail reply when the answer is grounded, or send exactly one clarifying question when the answer is incomplete. Do not auto-reply to quotes, pricing, custom scope, timeline commitments, complaints, legal/payment disputes, or undocumented business policies.
+- Expired-trial reply safety gate: when the Sync360 trigger or delivery-policy context says customer-facing Gmail replies are not allowed, do not send a Gmail reply or create a Gmail draft in that run. Continue classification, operator notification, Drive logging, Sheets logging, and analytics as applicable, and report that customer-facing replies were paused by policy.
 - Planned reply language is invalid. Do not say a clarifying question or follow-up email will be sent later unless you have already executed `gog gmail send` or `gog gmail drafts create` successfully in the current run.
 
 ## Google Workspace Context
@@ -74,9 +75,10 @@ Use this branch only for low-risk support and business-information enquiries. Th
    - assigned skill files when relevant
    - the exact Gmail message and thread context
 4. If the answer is grounded and low-risk, send exactly one Gmail reply.
-5. If the enquiry is basic but the answer is missing from tenant material, send exactly one short clarifying question instead of guessing.
-6. If the enquiry is outside the allowed categories, do not auto-reply; continue with the normal lead/opportunity or human-follow-up path.
-7. For Sync360-triggered inbox work, default to direct send. Use draft-only flow only when the owner explicitly asked for a draft workflow.
+5. If customer-facing Gmail replies are paused by policy, do not reply or draft; continue the non-reply parts of the workflow and report the policy block clearly.
+6. If the enquiry is basic but the answer is missing from tenant material, send exactly one short clarifying question instead of guessing.
+7. If the enquiry is outside the allowed categories, do not auto-reply; continue with the normal lead/opportunity or human-follow-up path.
+8. For Sync360-triggered inbox work, default to direct send. Use draft-only flow only when the owner explicitly asked for a draft workflow and customer-facing Gmail replies are allowed by policy.
 
 ### Reply copy rules
 

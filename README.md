@@ -32,6 +32,8 @@ Start here when opening a new chat or trying to understand the repo:
 - [`artifacts/DESIGN_SYSTEM.md`](artifacts/DESIGN_SYSTEM.md) — canonical UI/design-system reference for Blade surfaces
 - [`artifacts/ARCHITECTURE.md`](artifacts/ARCHITECTURE.md) — canonical as-built technical architecture reference
 - [`artifacts/RELEASE_NOTES.md`](artifacts/RELEASE_NOTES.md) — canonical chronological engineering and product history
+- [`artifacts/AGENTIC_DEVELOPMENT.md`](artifacts/AGENTIC_DEVELOPMENT.md) — canonical repo workflow for kanban-first human + agent delivery
+- [`artifacts/PORTABLE_AGENTIC_PLAYBOOK.md`](artifacts/PORTABLE_AGENTIC_PLAYBOOK.md) — project-agnostic version of the workflow for new repos
 
 ## Doc Status
 
@@ -42,6 +44,8 @@ Canonical/core docs:
 - [`artifacts/DESIGN_SYSTEM.md`](artifacts/DESIGN_SYSTEM.md)
 - [`artifacts/ARCHITECTURE.md`](artifacts/ARCHITECTURE.md)
 - [`artifacts/RELEASE_NOTES.md`](artifacts/RELEASE_NOTES.md)
+- [`artifacts/AGENTIC_DEVELOPMENT.md`](artifacts/AGENTIC_DEVELOPMENT.md)
+- [`artifacts/PORTABLE_AGENTIC_PLAYBOOK.md`](artifacts/PORTABLE_AGENTIC_PLAYBOOK.md)
 
 Archived historical build notes:
 
@@ -52,6 +56,12 @@ Historical/reference inputs:
 - `artifacts/walkthrough/`
 - [`artifacts/founder_roadmap.md`](artifacts/founder_roadmap.md)
 - [`artifacts/archive/README.md`](artifacts/archive/README.md)
+
+Working templates:
+
+- [`templates/agentic-development/initiative-card.template.md`](templates/agentic-development/initiative-card.template.md)
+- [`templates/agentic-development/slice-card.template.md`](templates/agentic-development/slice-card.template.md)
+- [`templates/agentic-development/design-packet.template.md`](templates/agentic-development/design-packet.template.md)
 
 Local enforcement helpers:
 

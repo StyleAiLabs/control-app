@@ -7,6 +7,56 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-04-30 — Safety: Make Inbox-Triage Expired-Trial Reply Policy Explicit
+
+Date: 2026-04-30
+Status: Implemented
+
+### Overview
+
+Hardened the expired-trial inbox path so Sync360-triggered inbox-triage runs can continue operational non-reply work when polling is allowed, while explicitly forbidding Gmail replies and drafts when customer-facing runtime replies are commercially paused.
+
+### What Changed
+
+- updated `TenantInboxTriagePollingService` to include explicit delivery-policy context in the internal Gmail trigger, including whether customer-facing Gmail replies are allowed for the tenant
+- added trigger guidance for the expired-trial paused-reply case telling the skill not to send a Gmail reply or draft in that run
+- updated the `inbox-triage` skill contract so policy-blocked runs continue classification, operator notification, Drive logging, Sheets logging, and analytics without customer-facing Gmail output
+- added regression coverage for both the paused-reply and replies-allowed expired-trial branches
+- bumped the `inbox-triage` skill pack release metadata to `1.7.2`
+
+## 2026-04-30 — Docs: Add Repo-Local Slash Skills For The Agentic Framework
+
+Date: 2026-04-30
+Status: Implemented
+
+### Overview
+
+Added three repo-local user-invocable skills so future sessions can enter the Sync360 framework through explicit slash-command entrypoints instead of relying on ad hoc prompting.
+
+### What Changed
+
+- added `.agents/skills/new-feature/SKILL.md` for initiative shaping and first-slice execution of new feature work
+- added `.agents/skills/bugfix/SKILL.md` for narrow slice-based debugging and bugfix work
+- added `.agents/skills/architecture-refactor/SKILL.md` for spike-first architecture and refactor decisions
+- updated `artifacts/AGENTIC_DEVELOPMENT.md` and `artifacts/MEMORY.md` so the new local slash skills are part of the documented framework
+
+## 2026-04-30 — Docs: Add Kanban-First Agentic Development Framework
+
+Date: 2026-04-30
+Status: Implemented
+
+### Overview
+
+Added a canonical repo workflow for planning and delivering Sync360 work with humans and agents, plus reusable templates and a portable cross-project playbook.
+
+### What Changed
+
+- added `artifacts/AGENTIC_DEVELOPMENT.md` as the repo-specific operating model for kanban-first initiative and slice delivery
+- added `artifacts/PORTABLE_AGENTIC_PLAYBOOK.md` as the distilled project-agnostic version for reuse in future repos
+- added initiative-card, slice-card, and design-packet templates under `templates/agentic-development/`
+- updated `README.md`, `artifacts/MEMORY.md`, and `artifacts/ARCHITECTURE.md` so future sessions can discover the workflow and understand that the board is the live control surface while docs remain alignment artifacts
+- encoded the default branch/worktree rule into the framework and agent guardrails: one branch per initiative, multiple slices allowed on that branch, and child branches/worktrees only when a slice becomes risky, blocked, or needs parallel implementation
+
 ## 2026-04-29 — Fix: Harden Runtime Cost Sync For Large LiteLLM Spend Logs
 
 Date: 2026-04-29

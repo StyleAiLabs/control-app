@@ -268,6 +268,7 @@ class TenantInboxTriagePollingService
     private function triggerMessage(Tenant $tenant, array $summary, array $metadata, string $body, array $mechanicalHints): string
     {
         $from = (string) ($metadata['from'] ?? $summary['from'] ?? '');
+        $customerFacingRepliesAllowed = $this->commercialAccess->canSendCustomerFacingRuntimeWork($tenant);
         $payload = [
             'event_type' => 'business_plausible_gmail_message',
             'gmail_message_id' => (string) ($metadata['id'] ?? $summary['id'] ?? ''),
@@ -282,6 +283,21 @@ class TenantInboxTriagePollingService
         $notificationContext = [
             'telegram_default_chat_id' => $this->telegramDefaultChatId($tenant),
         ];
+        $deliveryPolicy = [
+            'trial_status' => strtolower((string) $tenant->trial_status->value),
+            'trial_expired' => $tenant->isTrialExpired(),
+            'customer_facing_gmail_replies_allowed' => $customerFacingRepliesAllowed,
+        ];
+
+        $replyPolicyLines = $customerFacingRepliesAllowed
+            ? [
+                'Customer-facing Gmail replies are currently allowed for this tenant.',
+            ]
+            : [
+                'Customer-facing Gmail replies are paused for this tenant because the trial is expired and the expired-trial runtime reply override is off.',
+                'Do not send a Gmail reply or draft to the customer in this run.',
+                'You may still classify the message, log triage details, emit analytics, and notify the operator when the skill requires it.',
+            ];
 
         return implode(PHP_EOL, [
             'Internal Gmail inbox event.',
@@ -301,8 +317,14 @@ class TenantInboxTriagePollingService
             'This trigger has not classified the email as high-value.',
             'The inbox-triage skill must decide the category, lead quality, and any next action.',
             '',
+            'Expired-trial delivery policy:',
+            ...$replyPolicyLines,
+            '',
             'Available notification context:',
             json_encode($notificationContext, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}',
+            '',
+            'Delivery policy context:',
+            json_encode($deliveryPolicy, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}',
             '',
             'Untrusted email metadata:',
             json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}',

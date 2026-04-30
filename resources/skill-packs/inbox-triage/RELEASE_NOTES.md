@@ -1,5 +1,9 @@
 # Inbox Triage — Release Notes
 
+## 1.7.2
+- Added an explicit expired-trial reply safety gate so Sync360-triggered inbox work must not send Gmail replies or drafts when delivery-policy context says customer-facing replies are paused.
+- Clarified that the workflow should still continue with classification, operator notification, Drive logging, Sheets logging, and analytics when customer-facing Gmail replies are blocked by policy.
+
 ## 1.7.1
 - Added the new workspace-content contract to the skill guidance so inbox-triage reads `BUSINESS_PROFILE.json` first, then `WORKSPACE_CONTENT_INDEX.json` and the referenced `knowledge/*` files before answering low-risk business-information emails.
 - Clarified that pinned pricing sheets, policy files, rate sheets, and reviewed website snapshots are part of the approved tenant workspace source material for grounded replies.

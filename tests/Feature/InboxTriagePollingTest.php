@@ -320,7 +320,11 @@ class InboxTriagePollingTest extends TestCase
                 && $channel === TenantInboxTriagePollingService::CHANNEL
                 && $from === TenantInboxTriagePollingService::FROM
                 && $requiredSkillIds === ['inbox-triage']
-                && str_contains($message, '"gmail_message_id": "msg-expired-001"'))
+                && str_contains($message, 'Customer-facing Gmail replies are paused for this tenant because the trial is expired and the expired-trial runtime reply override is off.')
+                && str_contains($message, 'Do not send a Gmail reply or draft to the customer in this run.')
+                && str_contains($message, '"gmail_message_id": "msg-expired-001"')
+                && str_contains($message, '"customer_facing_gmail_replies_allowed": false')
+                && str_contains($message, '"trial_status": "trial_expired"'))
             ->andReturn('routed');
 
         $this->instance(TenantInboxGmailRuntimeService::class, $gmail);
@@ -334,6 +338,54 @@ class InboxTriagePollingTest extends TestCase
             'gmail_message_id' => 'msg-expired-001',
             'status' => TenantInboxMonitorMessage::STATUS_SENT_TO_AGENT,
         ]);
+    }
+
+    public function test_expired_tenant_with_runtime_reply_override_receives_allowed_reply_policy_context(): void
+    {
+        $tenant = $this->seedInboxTenant('expired-replies-allowed-shop', tenantOverrides: [
+            'trial_status' => TrialStatus::Expired,
+            'allow_polling_when_trial_expired' => true,
+            'allow_runtime_replies_when_trial_expired' => true,
+        ]);
+        $gmail = Mockery::mock(TenantInboxGmailRuntimeService::class);
+        $messenger = Mockery::mock(TenantWorkspaceMessenger::class);
+
+        $gmail->shouldReceive('searchRecentInbox')->once()->andReturn([[
+            'id' => 'msg-expired-allowed-001',
+            'thread_id' => 'thread-expired-allowed-001',
+            'from' => 'Jane Buyer <jane@example.com>',
+            'subject' => 'Need a quote',
+            'labels' => ['INBOX'],
+        ]]);
+        $gmail->shouldReceive('getMessage')->once()->andReturn([
+            'raw' => "id\tmsg-expired-allowed-001\nthread_id\tthread-expired-allowed-001\nlabel_ids\tINBOX\nfrom\tJane Buyer <jane@example.com>\nsubject\tNeed a quote\n\nPlease quote this project.",
+            'metadata' => [
+                'id' => 'msg-expired-allowed-001',
+                'thread_id' => 'thread-expired-allowed-001',
+                'label_ids' => 'INBOX',
+                'from' => 'Jane Buyer <jane@example.com>',
+                'subject' => 'Need a quote',
+            ],
+            'body' => 'Please quote this project.',
+        ]);
+        $messenger->shouldReceive('sendOperational')
+            ->once()
+            ->withArgs(fn (Tenant $value, string $channel, string $from, string $message, array $requiredSkillIds): bool => $value->is($tenant)
+                && $channel === TenantInboxTriagePollingService::CHANNEL
+                && $from === TenantInboxTriagePollingService::FROM
+                && $requiredSkillIds === ['inbox-triage']
+                && str_contains($message, 'Customer-facing Gmail replies are currently allowed for this tenant.')
+                && ! str_contains($message, 'Do not send a Gmail reply or draft to the customer in this run.')
+                && str_contains($message, '"customer_facing_gmail_replies_allowed": true')
+                && str_contains($message, '"trial_status": "trial_expired"'))
+            ->andReturn('routed');
+
+        $this->instance(TenantInboxGmailRuntimeService::class, $gmail);
+        $this->instance(TenantWorkspaceMessenger::class, $messenger);
+
+        $result = app(TenantInboxTriagePollingService::class)->pollTenant($tenant);
+
+        $this->assertSame(['processed' => 1, 'delivered' => 1, 'skipped' => 0, 'failed' => 0], $result);
     }
 
     public function test_duplicate_messages_are_not_sent_to_the_skill_again(): void

@@ -1,0 +1,65 @@
+---
+name: bugfix
+description: Handle Sync360 bug reports as narrow slice work with reproduction, invariants, regression coverage, and focused verification. Use when the user reports incorrect behavior, a failure, regression, or safety issue that should be fixed as narrowly as possible.
+user-invocable: true
+argument-hint: "[bug report]"
+---
+
+Treat the request as a slice by default. Escalate to an initiative only when the bug clearly spans multiple independent fixes or unresolved product decisions.
+
+## Workflow
+
+1. Ground in repo truth first.
+   - Find the real code path, tests, and any existing canonical notes.
+   - Reproduce the bug or gather the strongest available evidence before changing code.
+2. Restate the bug as a slice.
+   - Why it matters
+   - Current behavior
+   - Desired behavior
+   - Constraints / invariants
+   - Narrow definition of done
+3. Keep the fix tight.
+   - Change the smallest safe surface.
+   - Preserve unrelated behavior.
+   - If the root cause points to a larger architecture issue, note it separately instead of silently expanding scope.
+4. Add or tighten regression coverage.
+   - Prefer direct tests around the broken path.
+   - If a test is not practical, provide an explicit manual verification path.
+5. Verify before claiming success.
+   - Run the focused tests or checks that prove the bug is fixed.
+   - Report the actual evidence, not confidence language.
+
+## Output Contract
+
+When shaping a bugfix, provide:
+
+- slice title
+- bug summary
+- why it matters
+- definition of done
+- constraints / invariants
+- likely code paths
+- required verification
+
+When implementing, keep the scope narrow and policy-aware.
+
+## Escalation Rule
+
+Promote the work from `Slice` to `Initiative` or `Spike` only when:
+
+- multiple independent fixes are required
+- the intended behavior is ambiguous
+- the fix depends on an architectural decision
+- the bug is really exposing a missing product rule rather than broken code
+
+## Branch Rule
+
+- Put the bugfix on the current initiative branch when it clearly belongs to that initiative.
+- Use a dedicated bugfix branch only when the work is separate from current initiative work.
+- Split to a child branch or worktree if the fix becomes risky or needs parallel handling.
+
+## Guardrails
+
+- Preserve expired-trial policy splits, runtime boundaries, and control-plane truth where relevant.
+- Do not broaden a bugfix into a refactor without explicitly naming that scope change.
+- Update canonical docs only if shipped behavior actually changes.
