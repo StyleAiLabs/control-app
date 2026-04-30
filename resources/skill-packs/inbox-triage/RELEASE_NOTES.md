@@ -3,6 +3,8 @@
 ## 1.7.3
 - Clarified the expired-tenant commercial hold rule so inbox-triage must not execute side effects when Sync360 delivery policy says AI runtime execution is paused.
 - Narrowed the paused-reply rule to apply only when LiteLLM/runtime execution is still allowed but customer-facing Gmail replies remain blocked by policy.
+- Moved qualified-lead analytics ahead of Telegram, Drive, and Sheets side effects so dashboard reporting is recorded before later runtime interruptions can abort the run.
+- Added an explicit runtime-budget/model-availability guard telling the agent to finish the analytics helper call before non-essential narration or remaining optional work when execution becomes constrained.
 
 ## 1.7.2
 - Added an explicit expired-trial reply safety gate so Sync360-triggered inbox work must not send Gmail replies or drafts when delivery-policy context says customer-facing replies are paused.

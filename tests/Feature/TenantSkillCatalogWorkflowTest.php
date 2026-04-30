@@ -99,6 +99,12 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $this->assertStringContainsString('For Gmail-triggered events, `<lead-id>` must be the Gmail message id when available, not the Sync360 Job ID', $skill);
         $this->assertStringNotContainsString('gog --json drive upload <localPath> --parent <folderId>', $skill);
         $this->assertStringContainsString('A Telegram, Drive, or Sheets failure must not block analytics', $skill);
+        $this->assertStringContainsString('For qualified leads, emit analytics immediately after classification and stable lead-id construction, before Telegram, Google Drive, or Google Sheets side effects.', $skill);
+        $this->assertStringContainsString('If runtime budget, token, or model availability becomes constrained mid-run, skip non-essential narration and execute the analytics helper before any remaining optional side effects.', $skill);
+        $this->assertTrue(
+            strpos($skill, '3. For qualified leads, emit analytics immediately after classification and stable lead-id construction.') <
+            strpos($skill, '4. If `lead_quality` is `high`, send exactly one Telegram notification using the Telegram Notifications section.')
+        );
     }
 
     public function test_custom_skill_authoring_prompt_requires_explicit_tool_contracts(): void

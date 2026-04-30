@@ -31,7 +31,9 @@ For internal `sync360-inbox-monitor` events, complete all required side effects 
 - Google Sheets qualified lead row: for every qualified lead where `lead_quality` is `high`, `medium`, or `ambiguous` and the message is not spam or low-intent, find or create spreadsheet `Sync360 Inbox Triage Qualified Leads`, tab `Qualified Leads`, verify `<lead-id>` is not already in the lead-id column, then append exactly one row.
 - Analytics: for every qualified lead where `lead_quality` is `high`, `medium`, or `ambiguous` and the message is not spam or low-intent, run `sh .sync360/bin/log-skill-conversion --skill inbox-triage --conversion-id <lead-id> --payload-json '<json>'`. For Gmail events, use the Gmail message id as `<lead-id>` and include required payload fields: `event_id`, `occurred_at`, `customer_label`, `outcome.lead_quality`, `outcome.inquiry_category`, and `outcome.suggested_action`.
 - Minimal analytics payload for Gmail events: `{"event_id":"inbox-triage-<gmail_message_id>","occurred_at":"<ISO-8601 timestamp>","customer_label":"<company or contact>","outcome":{"lead_quality":"high","inquiry_category":"quote-request","suggested_action":"pdf-generation"}}`.
-- A Telegram success does not finish the workflow. Continue to Drive logging, Sheets logging, and analytics. A Telegram, Drive, or Sheets failure must not block analytics.
+- For qualified leads, emit analytics immediately after classification and stable lead-id construction, before Telegram, Google Drive, or Google Sheets side effects.
+- A Telegram success does not finish the workflow. Continue through the remaining required side effects and final reporting. A Telegram, Drive, or Sheets failure must not block analytics.
+- If runtime budget, token, or model availability becomes constrained mid-run, skip non-essential narration and execute the analytics helper before any remaining optional side effects.
 - Basic enquiry reply gate: low-risk support and business-information enquiries must execute exactly one Gmail reply action when they enter this branch. Send exactly one direct Gmail reply when the answer is grounded, or send exactly one clarifying question when the answer is incomplete. Do not auto-reply to quotes, pricing, custom scope, timeline commitments, complaints, legal/payment disputes, or undocumented business policies.
 - Expired-trial hold gate: when the Sync360 trigger or delivery-policy context says AI runtime execution is paused, treat the run as commercially on hold and do not perform inbox-triage side effects for that event.
 - Expired-trial reply safety gate: when AI runtime execution is allowed but customer-facing Gmail replies are not allowed, do not send a Gmail reply or create a Gmail draft in that run. Continue only the non-reply side effects explicitly allowed by the delivery-policy context, and report that customer-facing replies were paused by policy.
@@ -130,11 +132,14 @@ Complete these steps in order for every delivered Gmail inquiry:
    - For Gmail-triggered events, use `gmail_message_id` as the primary lead id for Telegram `Lead ref`, Google Drive log naming, and analytics `conversion_id`.
    - Use the Sync360 `Job ID` only for internal traceability or when no Gmail message id exists.
    - Reuse this id for Telegram idempotency reasoning, Google Drive log naming, and analytics `conversion_id`.
-3. If `lead_quality` is `high`, send exactly one Telegram notification using the Telegram Notifications section.
+3. For qualified leads, emit analytics immediately after classification and stable lead-id construction.
+   - Use the Gmail message id as the analytics `conversion_id` when available.
+   - Do not leave analytics in a pending state while moving on to Telegram, Drive, or Sheets work.
+   - If runtime budget, token, or model availability becomes constrained, skip non-essential narration and complete the analytics helper call first.
+4. If `lead_quality` is `high`, send exactly one Telegram notification using the Telegram Notifications section.
    - The notification must include `Lead ref: <gmail_message_id>`.
    - Include `Thread ref: <gmail_thread_id>` when a thread id is available.
-4. Create or verify the Google Drive triage log using the Google Drive Triage Log section.
-5. Emit analytics independently when the lead meets the Analytics Contract. A Telegram or Google Drive failure must not block analytics.
+5. Create or verify the Google Drive triage log using the Google Drive Triage Log section.
 6. Write or verify a Google Sheets row when the lead meets the Google Sheets Qualified Lead Log threshold. A Google Sheets failure must not change or block the analytics result.
 7. Final response must summarize:
    - category
