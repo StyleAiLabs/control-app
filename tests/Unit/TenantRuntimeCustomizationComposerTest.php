@@ -285,6 +285,8 @@ class TenantRuntimeCustomizationComposerTest extends TestCase
 
         $this->assertStringContainsString('"suggested_action":"pdf-generation"', $composed->skillFiles['skills/inbox-triage/SKILL.md']);
         $this->assertStringContainsString('"suggested_action": "<pdf-generation|google-calendar-booking|human-review|follow-up>"', $composed->skillFiles['skills/inbox-triage/SKILL.md']);
+        $this->assertStringContainsString('owner-provided prices or line items are inputs to **pdf-generation**, not permission to send a plain-text Gmail quote reply directly from inbox-triage', $composed->skillFiles['skills/inbox-triage/SKILL.md']);
+        $this->assertStringContainsString('Do not treat them as permission to skip PDF generation and send a plain-text quote email first.', $composed->skillFiles['skills/pdf-generation/SKILL.md']);
         $this->assertStringContainsString('Render the template control blocks yourself before calling aPDF.io.', $composed->skillFiles['skills/pdf-generation/SKILL.md']);
         $this->assertStringContainsString('`{{#if field}}...{{/if}}` includes the enclosed HTML only when the field has a non-empty value', $composed->skillFiles['skills/pdf-generation/SKILL.md']);
         $this->assertStringContainsString('`{{#each line_items}}...{{/each}}` repeats the enclosed row once per item', $composed->skillFiles['skills/pdf-generation/SKILL.md']);

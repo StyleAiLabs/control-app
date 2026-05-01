@@ -1806,6 +1806,7 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('For normal Telegram notifications, do not mix poll fields into a send action', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('includes `Lead ref: <gmail_message_id>`', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('use `gog gmail get <gmail_message_id>` to reopen the exact email', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
+        $this->assertStringContainsString('If that owner follow-up is a quote or estimate request, or they provide quote pricing inline, route through the assigned `pdf-generation` skill first.', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('Do not guess with Gmail searches from company labels or notification summaries when an exact `Lead ref` is present', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('For internal workflow triggers, do not browse the public web or research companies unless the owner explicitly asks', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));
         $this->assertStringContainsString('Inbox Triage must execute exactly one Gmail send action for a low-risk basic support or business-information enquiry when that branch applies', File::get($localRuntimePath.'/.openclaw/workspace/HEARTBEAT.md'));

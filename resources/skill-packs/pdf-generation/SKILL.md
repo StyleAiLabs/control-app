@@ -74,6 +74,8 @@ When the owner replies to an inbox-triage Telegram notification with `Generate a
 - Job address (if not in the email)
 - Any special terms or conditions
 
+If the owner provides pricing inline while asking to send or reply with a quote, treat those prices as quote inputs for this skill. Do not treat them as permission to skip PDF generation and send a plain-text quote email first.
+
 **Provider ID rule:** use the Gmail message ID as the `source_reference` in the analytics payload. This links the generated quote PDF back to the original email enquiry for end-to-end traceability (inbox-triage lead → quote PDF → delivery).
 
 **Do not:** re-read the original email yourself. Use the context inbox-triage has already extracted. If critical details are missing, ask the owner — do not search Gmail.

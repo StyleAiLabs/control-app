@@ -54,6 +54,8 @@ class TenantSkillCatalogWorkflowTest extends TestCase
         $this->assertStringContainsString('must not write synonyms such as `Lead Reference`', $skill);
         $this->assertStringContainsString('use `gog gmail get <Lead ref>` before asking for email details', $skill);
         $this->assertStringContainsString('Do not fall back to guessed Gmail searches when the notification already contains a `Lead ref`', $skill);
+        $this->assertStringContainsString('asks you to reply with a quote, provides quote pricing, or otherwise instructs you to send quote/estimate pricing', $skill);
+        $this->assertStringContainsString('owner-provided prices or line items are inputs to **pdf-generation**, not permission to send a plain-text Gmail quote reply directly from inbox-triage', $skill);
         $this->assertStringContainsString('`action`: `send`', $skill);
         $this->assertStringContainsString('`channel`: `telegram`', $skill);
         $this->assertStringContainsString('`target`: `<telegram_default_chat_id>`', $skill);

@@ -7,6 +7,22 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-05-01 — Fix: Route Owner Quote Follow-Ups Through PDF Generation
+
+Date: 2026-05-01
+Status: Implemented
+
+### Overview
+
+Hardened the owner follow-up path for inbox-triage lead notifications so quote and estimate replies, including cases where the owner provides pricing inline, must go through the `pdf-generation` skill instead of being sent as a plain-text Gmail quote directly from inbox-triage.
+
+### What Changed
+
+- updated the shipped `inbox-triage` skill contract so owner requests like `reply with a quote` or inline quote pricing are treated as `pdf-generation` handoff triggers
+- updated the shipped `pdf-generation` skill contract so inline owner pricing is treated as quote input data, not a reason to skip PDF creation
+- updated composed tenant `HEARTBEAT.md` guidance so the runtime explicitly routes quote/estimate owner follow-ups through `pdf-generation` before any customer-facing quote email
+- added regression coverage for the shipped skill text and composed runtime guidance that enforce the quote-to-PDF routing rule
+
 ## 2026-04-30 — Customer/Admin UX: Clarify Expired-Trial Inbox Policy States
 
 Date: 2026-04-30
