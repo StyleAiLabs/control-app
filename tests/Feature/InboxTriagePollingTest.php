@@ -166,6 +166,86 @@ class InboxTriagePollingTest extends TestCase
         ]);
     }
 
+    public function test_marketing_digest_without_gmail_noise_labels_is_skipped(): void
+    {
+        $tenant = $this->seedInboxTenant('digest-shop');
+        $gmail = Mockery::mock(TenantInboxGmailRuntimeService::class);
+        $messenger = Mockery::mock(TenantWorkspaceMessenger::class);
+
+        $gmail->shouldReceive('searchRecentInbox')->once()->andReturn([[
+            'id' => 'digest-001',
+            'thread_id' => 'thread-digest-001',
+            'from' => 'Elfsight Digest <hello@elfsightdigest.com>',
+            'subject' => '3 Things Worth Checking in the Community This Week',
+            'labels' => ['INBOX'],
+        ]]);
+        $gmail->shouldReceive('getMessage')->once()->andReturn([
+            'raw' => "id\tdigest-001\nthread_id\tthread-digest-001\nlabel_ids\tINBOX\nfrom\tElfsight Digest <hello@elfsightdigest.com>\nsubject\t3 Things Worth Checking in the Community This Week\n\nView in browser\nManage preferences",
+            'metadata' => [
+                'id' => 'digest-001',
+                'thread_id' => 'thread-digest-001',
+                'label_ids' => 'INBOX',
+                'from' => 'Elfsight Digest <hello@elfsightdigest.com>',
+                'subject' => '3 Things Worth Checking in the Community This Week',
+            ],
+            'body' => 'View in browser'.PHP_EOL.'Manage preferences',
+        ]);
+        $messenger->shouldNotReceive('sendOperational');
+
+        $this->instance(TenantInboxGmailRuntimeService::class, $gmail);
+        $this->instance(TenantWorkspaceMessenger::class, $messenger);
+
+        $result = app(TenantInboxTriagePollingService::class)->pollTenant($tenant);
+
+        $this->assertSame(['processed' => 1, 'delivered' => 0, 'skipped' => 1, 'failed' => 0], $result);
+        $this->assertDatabaseHas('tenant_inbox_monitor_messages', [
+            'tenant_id' => $tenant->id,
+            'gmail_message_id' => 'digest-001',
+            'status' => TenantInboxMonitorMessage::STATUS_SKIPPED,
+            'skip_reason' => 'noise_marketing_broadcast',
+        ]);
+    }
+
+    public function test_product_broadcast_without_gmail_noise_labels_is_skipped(): void
+    {
+        $tenant = $this->seedInboxTenant('broadcast-shop');
+        $gmail = Mockery::mock(TenantInboxGmailRuntimeService::class);
+        $messenger = Mockery::mock(TenantWorkspaceMessenger::class);
+
+        $gmail->shouldReceive('searchRecentInbox')->once()->andReturn([[
+            'id' => 'broadcast-001',
+            'thread_id' => 'thread-broadcast-001',
+            'from' => 'Gumloop Mail <team@gumloopmail.com>',
+            'subject' => 'Email your agents',
+            'labels' => ['INBOX'],
+        ]]);
+        $gmail->shouldReceive('getMessage')->once()->andReturn([
+            'raw' => "id\tbroadcast-001\nthread_id\tthread-broadcast-001\nlabel_ids\tINBOX\nfrom\tGumloop Mail <team@gumloopmail.com>\nsubject\tEmail your agents\n\nLatest updates from Gumloop.",
+            'metadata' => [
+                'id' => 'broadcast-001',
+                'thread_id' => 'thread-broadcast-001',
+                'label_ids' => 'INBOX',
+                'from' => 'Gumloop Mail <team@gumloopmail.com>',
+                'subject' => 'Email your agents',
+            ],
+            'body' => 'Latest updates from Gumloop.',
+        ]);
+        $messenger->shouldNotReceive('sendOperational');
+
+        $this->instance(TenantInboxGmailRuntimeService::class, $gmail);
+        $this->instance(TenantWorkspaceMessenger::class, $messenger);
+
+        $result = app(TenantInboxTriagePollingService::class)->pollTenant($tenant);
+
+        $this->assertSame(['processed' => 1, 'delivered' => 0, 'skipped' => 1, 'failed' => 0], $result);
+        $this->assertDatabaseHas('tenant_inbox_monitor_messages', [
+            'tenant_id' => $tenant->id,
+            'gmail_message_id' => 'broadcast-001',
+            'status' => TenantInboxMonitorMessage::STATUS_SKIPPED,
+            'skip_reason' => 'noise_marketing_broadcast',
+        ]);
+    }
+
     public function test_sent_messages_are_skipped_without_invoking_gateway(): void
     {
         $tenant = $this->seedInboxTenant('sent-skip-shop');

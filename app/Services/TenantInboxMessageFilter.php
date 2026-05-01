@@ -26,6 +26,7 @@ class TenantInboxMessageFilter
         }
 
         $localPart = $this->senderLocalPart($from);
+        $senderDomain = $this->senderDomain($from) ?? '';
 
         if (in_array($localPart, ['no-reply', 'noreply', 'donotreply', 'do-not-reply', 'mailer-daemon', 'postmaster'], true)) {
             return ['skip' => true, 'reason' => 'noise_sender:'.$localPart, 'hints' => []];
@@ -46,8 +47,18 @@ class TenantInboxMessageFilter
             }
         }
 
-        if (str_contains($bodyHead, 'list-unsubscribe:') || str_contains($bodyHead, 'auto-submitted: auto-generated')) {
+        if (
+            str_contains($bodyHead, 'list-unsubscribe:')
+            || str_contains($bodyHead, 'list-id:')
+            || str_contains($bodyHead, 'precedence: bulk')
+            || str_contains($bodyHead, 'precedence: list')
+            || str_contains($bodyHead, 'auto-submitted: auto-generated')
+        ) {
             return ['skip' => true, 'reason' => 'noise_auto_generated', 'hints' => []];
+        }
+
+        if ($this->looksLikeMarketingBroadcast($lowerSubject, $bodyHead, $localPart, $senderDomain)) {
+            return ['skip' => true, 'reason' => 'noise_marketing_broadcast', 'hints' => []];
         }
 
         $hints = [];
@@ -122,5 +133,68 @@ class TenantInboxMessageFilter
         }
 
         return trim($from);
+    }
+
+    private function looksLikeMarketingBroadcast(string $lowerSubject, string $bodyHead, string $localPart, string $senderDomain): bool
+    {
+        $score = 0;
+
+        foreach ([
+            'newsletter',
+            'digest',
+            'community edition',
+            'email your agents',
+            'product update',
+            'feature update',
+            'weekly update',
+            'worth checking',
+        ] as $needle) {
+            if (str_contains($lowerSubject, $needle)) {
+                $score += 2;
+            }
+        }
+
+        foreach ([
+            'introducing',
+            'community',
+            'announcement',
+            'roundup',
+            'this week',
+        ] as $needle) {
+            if (str_contains($lowerSubject, $needle)) {
+                $score += 1;
+            }
+        }
+
+        foreach ([
+            'unsubscribe',
+            'manage preferences',
+            'view in browser',
+            'read our update',
+            'latest updates',
+            'community edition',
+            'email your agents',
+        ] as $needle) {
+            if (str_contains($bodyHead, $needle)) {
+                $score += 1;
+            }
+        }
+
+        foreach ([
+            'newsletter',
+            'digest',
+            'updates',
+            'community',
+        ] as $needle) {
+            if ($localPart !== '' && str_contains($localPart, $needle)) {
+                $score += 1;
+            }
+
+            if ($senderDomain !== '' && str_contains($senderDomain, $needle)) {
+                $score += 1;
+            }
+        }
+
+        return $score >= 2;
     }
 }

@@ -7,6 +7,22 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-05-01 — Fix: Skip Non-Customer Broadcast Mail In Inbox Monitor
+
+Date: 2026-05-01
+Status: Implemented
+
+### Overview
+
+Hardened inbox monitoring so general broadcast mail without obvious Gmail promotion/social labels is filtered out before it can be routed into `inbox-triage` as if it were a customer enquiry.
+
+### What Changed
+
+- extended `TenantInboxMessageFilter` to skip bulk/list markers such as `list-id` and `precedence: bulk`
+- added a narrow marketing-broadcast detection pass that scores subject, body, sender local-part, and sender domain for digest/newsletter/product-blast patterns
+- kept the legitimate customer enquiry path unchanged while blocking examples such as community digests and product emails that previously slipped through as `sent_to_agent`
+- added regression coverage for unlabeled digest/product broadcast examples in the inbox polling flow
+
 ## 2026-05-01 — Fix: Route Owner Quote Follow-Ups Through PDF Generation
 
 Date: 2026-05-01
