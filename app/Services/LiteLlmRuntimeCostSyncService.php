@@ -57,7 +57,7 @@ class LiteLlmRuntimeCostSyncService
                     'occurred_at' => $normalized['occurred_at'],
                     'litellm_call_id' => $normalized['litellm_call_id'],
                     'litellm_spend_log_id' => $normalized['litellm_spend_log_id'],
-                    'litellm_key_alias' => $normalized['litellm_key_alias'],
+                    'litellm_key_alias' => $normalized['litellm_key_alias'] ?? $tenant?->litellm_key_alias,
                     'raw_payload_json' => $normalized['raw_payload_json'],
                 ]);
 
@@ -130,11 +130,31 @@ class LiteLlmRuntimeCostSyncService
         $promptTokens = (int) ($row['prompt_tokens'] ?? $row['input_tokens'] ?? 0);
         $completionTokens = (int) ($row['completion_tokens'] ?? $row['output_tokens'] ?? 0);
         $totalTokens = (int) ($row['total_tokens'] ?? ($promptTokens + $completionTokens));
-        $occurredAt = $row['startTime'] ?? $row['created_at'] ?? $row['endTime'] ?? null;
+        $occurredAt = $row['startTime']
+            ?? $row['start_time']
+            ?? $row['created_at']
+            ?? $row['createdAt']
+            ?? $row['endTime']
+            ?? $row['end_time']
+            ?? $row['timestamp']
+            ?? null;
 
         return [
-            'tenant_external_id' => $this->nullableString(data_get($row, 'metadata.tenant_id')),
-            'litellm_key_alias' => $this->nullableString($row['api_key_alias'] ?? $row['key_alias'] ?? $row['user_api_key_alias'] ?? null),
+            'tenant_external_id' => $this->firstNonEmptyString([
+                data_get($row, 'metadata.tenant_id'),
+                data_get($row, 'metadata.tenantId'),
+                data_get($row, 'metadata.tenant'),
+                $row['tenant_id'] ?? null,
+                $row['tenantId'] ?? null,
+            ]),
+            'litellm_key_alias' => $this->firstNonEmptyString([
+                $row['api_key_alias'] ?? null,
+                $row['key_alias'] ?? null,
+                $row['user_api_key_alias'] ?? null,
+                data_get($row, 'metadata.api_key_alias'),
+                data_get($row, 'metadata.key_alias'),
+                data_get($row, 'metadata.user_api_key_alias'),
+            ]),
             'litellm_call_id' => $this->nullableString($row['request_id'] ?? $row['call_id'] ?? $row['litellm_call_id'] ?? null),
             'litellm_spend_log_id' => $this->nullableString($row['id'] ?? $row['spend_log_id'] ?? null),
             'effective_model' => $this->nullableString($row['model'] ?? $row['model_name'] ?? null),
@@ -201,5 +221,21 @@ class LiteLlmRuntimeCostSyncService
         $value = is_string($value) ? trim($value) : '';
 
         return $value !== '' ? $value : null;
+    }
+
+    /**
+     * @param  array<int, mixed>  $candidates
+     */
+    private function firstNonEmptyString(array $candidates): ?string
+    {
+        foreach ($candidates as $candidate) {
+            $value = $this->nullableString($candidate);
+
+            if ($value !== null) {
+                return $value;
+            }
+        }
+
+        return null;
     }
 }

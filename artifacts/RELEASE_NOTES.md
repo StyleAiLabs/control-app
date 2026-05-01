@@ -7,6 +7,22 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-05-01 — Fix: Restore Tenant Runtime Cost Attribution From Live LiteLLM Spend Rows
+
+Date: 2026-05-01
+Status: Implemented
+
+### Overview
+
+Hardened LiteLLM runtime cost import so tenant spend rows are still attributed and reportable when the live `/spend/logs` payload uses nested metadata tenant/alias fields or snake_case timestamps instead of the narrower original fixture shape.
+
+### What Changed
+
+- extended `LiteLlmRuntimeCostSyncService` normalization to accept nested metadata tenant identifiers plus nested alias fields such as `user_api_key_alias`
+- added support for additional timestamp field variants including `start_time`
+- persisted the resolved tenant key alias onto imported usage rows when the live row does not expose a top-level alias
+- added regression coverage for a live-style nested metadata payload so tenant cost observability keeps working for imported spend
+
 ## 2026-05-01 — Fix: Skip Non-Customer Broadcast Mail In Inbox Monitor
 
 Date: 2026-05-01

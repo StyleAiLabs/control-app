@@ -199,6 +199,43 @@ class TenantRuntimeCostSyncTest extends TestCase
         $this->assertSame(1, TenantRuntimeUsageEvent::query()->where('litellm_call_id', 'call-windowed-1')->count());
     }
 
+    public function test_runtime_cost_sync_resolves_tenant_from_nested_alias_and_snake_case_timestamp_fields(): void
+    {
+        config()->set('services.litellm.base_url', 'https://litellm.stylesoftware.co.nz');
+        config()->set('services.litellm.master_key', 'litellm-master');
+        config()->set('sync360.litellm.cost_sync_lookback_days', 1);
+
+        $tenant = $this->tenant('runtime-cost-nested-alias-shape');
+
+        Http::fake([
+            'https://litellm.stylesoftware.co.nz/spend/logs*' => Http::response([
+                'data' => [
+                    [
+                        'request_id' => 'call-nested-alias-shape-1',
+                        'model' => 'gpt-4o-mini',
+                        'spend' => 0.0064,
+                        'prompt_tokens' => 640,
+                        'completion_tokens' => 120,
+                        'total_tokens' => 760,
+                        'start_time' => '2026-05-01T04:10:00Z',
+                        'metadata' => [
+                            'tenantId' => $tenant->tenant_id,
+                            'user_api_key_alias' => $tenant->litellm_key_alias,
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        Artisan::call('sync360:sync-runtime-costs');
+
+        $row = TenantRuntimeUsageEvent::query()->where('litellm_call_id', 'call-nested-alias-shape-1')->sole();
+        $this->assertSame($tenant->id, $row->tenant_id);
+        $this->assertSame($tenant->litellm_key_alias, $row->litellm_key_alias);
+        $this->assertSame('0.006400', $row->cost_amount);
+        $this->assertSame('2026-05-01 04:10:00', $row->occurred_at?->utc()->toDateTimeString());
+    }
+
     private function tenant(string $tenantId): Tenant
     {
         $user = User::query()->create([
