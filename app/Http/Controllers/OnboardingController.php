@@ -70,7 +70,7 @@ class OnboardingController extends Controller
             );
 
         try {
-            $result = $this->businessExtraction->extractFromUrl($validated['url']);
+            $result = $this->businessExtraction->extractFromUrl($tenant, $validated['url']);
         } catch (ExtractionFailedException $exception) {
             return response()->json([
                 'success' => false,
@@ -238,7 +238,7 @@ class OnboardingController extends Controller
         $this->onboardingSkills->syncFeaturedAssignments($tenant, $validated['featured_skill_keys'] ?? [], $request->user()?->id);
         $tenant->load('skillAssignments.catalogVersion.item');
         $modules = $this->onboardingSkills->enabledModules($tenant);
-        $generated = $this->businessExtraction->generateAgentFiles($profile, $tenant->tone, $modules);
+        $generated = $this->businessExtraction->generateAgentFiles($tenant, $profile, $tenant->tone, $modules);
 
         $tenant->forceFill([
             'onboarding_status' => $tenant->onboarding_status === 'complete' ? 'complete' : 'in_progress',

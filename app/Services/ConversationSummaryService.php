@@ -2,21 +2,19 @@
 
 namespace App\Services;
 
+use App\Models\Tenant;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 use Throwable;
 
 /**
  * Generates a concise, human-readable summary of a conversation session
- * via the platform's own LiteLLM virtual key.
+ * via the tenant's own LiteLLM credential boundary.
  *
  * LiteLLM exposes an OpenAI-compatible /chat/completions endpoint.
  * Summaries are stored in ConversationLog.ai_summary (same value for all
- * records in a session) and surfaced in the Conversations dashboard.
- *
- * Config keys used (services.litellm.*):
- *   LITELLM_BASE_URL    — e.g. https://litellm.stylesoftware.co.nz
- *   LITELLM_VIRTUAL_KEY — platform-level virtual key (NOT a tenant key)
+ * records in a session and are available for internal Sync360 operational use.
  */
 class ConversationSummaryService
 {
@@ -29,21 +27,28 @@ class ConversationSummaryService
      */
     private const MAX_ASSISTANT_TURN_CHARS = 250;
 
+    public function __construct(
+        private readonly TenantRuntimeCapabilityService $runtimeCapabilities,
+    ) {
+    }
+
     /**
      * Generate a 1–2 sentence summary for a conversation session.
      *
      * @param  list<array{message_in: string, message_out: string|null}>  $messages  Chronological turns.
      * @param  string|null  $senderName  Customer display name for context.
-     * @return string|null  The summary, or null if the call fails or is unconfigured.
+     * @return string|null  The summary, or null if the call fails or tenant credentials are unavailable.
      */
-    public function summarise(array $messages, ?string $senderName = null): ?string
+    public function summarise(Tenant $tenant, array $messages, ?string $senderName = null): ?string
     {
         try {
-            $baseUrl    = rtrim((string) config('services.litellm.base_url', ''), '/');
-            $virtualKey = (string) config('services.litellm.virtual_key', '');
-
-            if ($baseUrl === '' || $virtualKey === '') {
-                Log::warning('[ConversationSummaryService] LITELLM_BASE_URL or LITELLM_VIRTUAL_KEY not configured — skipping summary.');
+            try {
+                $credentials = $this->runtimeCapabilities->resolveRuntimeCredentials($tenant->fresh(['agentCustomization']));
+            } catch (RuntimeException $exception) {
+                Log::warning('[ConversationSummaryService] Tenant runtime credentials unavailable — skipping summary.', [
+                    'tenant_id' => $tenant->tenant_id,
+                    'error' => $exception->getMessage(),
+                ]);
 
                 return null;
             }
@@ -73,9 +78,9 @@ class ConversationSummaryService
 
             $userPrompt = "{$customerLabel}\n\nConversation transcript:\n{$transcript}\n\nWrite the CRM note:";
 
-            $response = Http::withToken($virtualKey)
+            $response = Http::withToken($credentials['api_key'])
                 ->timeout(20)
-                ->post("{$baseUrl}/chat/completions", [
+                ->post(rtrim($credentials['base_url'], '/').'/chat/completions', [
                     'model'      => self::MODEL,
                     'max_tokens' => self::MAX_TOKENS,
                     'messages'   => [
@@ -86,6 +91,7 @@ class ConversationSummaryService
 
             if (! $response->successful()) {
                 Log::warning('[ConversationSummaryService] LiteLLM API error.', [
+                    'tenant_id' => $tenant->tenant_id,
                     'status' => $response->status(),
                     'body'   => $response->body(),
                 ]);
@@ -98,6 +104,7 @@ class ConversationSummaryService
             return $summary !== '' ? $summary : null;
         } catch (Throwable $e) {
             Log::warning('[ConversationSummaryService] Exception during summary generation.', [
+                'tenant_id' => $tenant->tenant_id,
                 'error' => $e->getMessage(),
             ]);
 
