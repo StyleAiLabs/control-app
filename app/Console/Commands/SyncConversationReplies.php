@@ -213,7 +213,7 @@ class SyncConversationReplies extends Command
             ])->all();
 
             $senderName = $entries->first()['sender_name'] ?? null;
-            $summary    = $summariser->summarise($messages, $senderName ?: null);
+            $summary    = $summariser->summarise($tenant, $messages, $senderName ?: null);
 
             if ($summary === null) {
                 continue;

@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-05-03 — Runtime Boundary: Use Tenant LiteLLM Credentials For Customer-Triggered Control-Plane Calls
+
+Date: 2026-05-03
+Status: Implemented
+
+### Overview
+
+Hardened the LiteLLM credential boundary so customer-triggered control-plane helpers now charge the tenant’s own LiteLLM key or explicit tenant runtime override instead of using the Sync360 control-app virtual key.
+
+### What Changed
+
+- updated `BusinessExtractionService` so onboarding website extraction uses tenant-scoped LiteLLM credentials resolved through `TenantRuntimeCapabilityService`
+- updated onboarding file generation and `TenantProfileSyncService` regeneration to use that same tenant-scoped credential path
+- updated `ConversationSummaryService` and the `sync360:sync-replies` command so session summaries use tenant credentials and respect tenant runtime API-key overrides
+- made the summary path fail closed when tenant runtime credentials are unavailable instead of silently falling back to the control-app virtual key
+- added regression coverage proving onboarding extraction, onboarding file generation, tenant override handling, and missing-credential behavior all follow the tenant boundary
+
 ## 2026-05-01 — Fix: Restore Tenant Runtime Cost Attribution From Live LiteLLM Spend Rows
 
 Date: 2026-05-01

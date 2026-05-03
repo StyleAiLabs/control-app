@@ -40,6 +40,7 @@ class TenantProfileSyncService
         }
 
         $generated = $this->businessExtraction->generateAgentFiles(
+            $tenant,
             $profile,
             (string) $tenant->tone,
             $modules,

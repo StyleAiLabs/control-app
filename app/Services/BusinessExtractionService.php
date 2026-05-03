@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Exceptions\ExtractionFailedException;
+use App\Models\Tenant;
 use App\Exceptions\WebScrapingFailedException;
 use App\Models\BusinessProfile;
 use Illuminate\Http\Client\Factory as HttpFactory;
+use RuntimeException;
 use Throwable;
 
 class BusinessExtractionService
@@ -78,13 +80,14 @@ PROMPT;
     public function __construct(
         private readonly HttpFactory $http,
         private readonly WebScraperService $scraper,
+        private readonly TenantRuntimeCapabilityService $runtimeCapabilities,
     ) {
     }
 
     /**
      * @return array<string, mixed>
      */
-    public function extractFromUrl(string $url): array
+    public function extractFromUrl(Tenant $tenant, string $url): array
     {
         // Stage 1: scrape the site — homepage + up to 5 scored internal pages.
         try {
@@ -94,17 +97,16 @@ PROMPT;
         }
 
         // Stage 2: send scraped text to Claude for structured JSON extraction.
-        $token = $this->token();
-        $baseUrl = rtrim((string) config('services.litellm.base_url', ''), '/');
-
-        if ($baseUrl === '' || $token === '') {
-            throw new ExtractionFailedException('AI extraction is not configured yet. You can still fill in your business details manually.');
+        try {
+            $credentials = $this->tenantCredentials($tenant);
+        } catch (RuntimeException) {
+            throw new ExtractionFailedException('AI extraction is not configured for this workspace yet. You can still fill in your business details manually.');
         }
 
         $response = $this->http
-            ->baseUrl($baseUrl)
+            ->baseUrl($credentials['base_url'])
             ->acceptJson()
-            ->withToken($token)
+            ->withToken($credentials['api_key'])
             ->post('/chat/completions', [
                 'model' => self::MODEL,
                 'temperature' => 0.3,
@@ -163,21 +165,20 @@ PROMPT;
      * @param  array<int, array{skill_key:string,label:string,description:?string,onboarding_role?:string}>  $modules
      * @return array{identity:string,soul:string,user:string,bootstrap:string}
      */
-    public function generateAgentFiles(BusinessProfile $profile, string $tone, array $modules): array
+    public function generateAgentFiles(Tenant $tenant, BusinessProfile $profile, string $tone, array $modules): array
     {
         $payload = $this->profilePayload($profile);
-        $token = $this->token();
-        $baseUrl = rtrim((string) config('services.litellm.base_url', ''), '/');
-
-        if ($baseUrl === '' || $token === '') {
+        try {
+            $credentials = $this->tenantCredentials($tenant);
+        } catch (RuntimeException) {
             return $this->fallbackFiles($payload, $tone, $modules);
         }
 
         try {
             $response = $this->http
-                ->baseUrl($baseUrl)
+                ->baseUrl($credentials['base_url'])
                 ->acceptJson()
-                ->withToken($token)
+                ->withToken($credentials['api_key'])
                 ->post('/chat/completions', [
                     'model' => self::MODEL,
                     'temperature' => 0.4,
@@ -232,9 +233,12 @@ PROMPT;
         }
     }
 
-    private function token(): string
+    /**
+     * @return array{api_key:string, base_url:string}
+     */
+    private function tenantCredentials(Tenant $tenant): array
     {
-        return (string) config('services.litellm.virtual_key', '');
+        return $this->runtimeCapabilities->resolveRuntimeCredentials($tenant->fresh(['agentCustomization']));
     }
 
     private function cleanJson(string $content): string

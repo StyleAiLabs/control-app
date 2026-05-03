@@ -411,6 +411,10 @@ class OnboardingFlowTest extends TestCase
     {
         [$user, $tenant] = $this->seedTenantWithProfile();
 
+        $tenant->forceFill([
+            'litellm_virtual_key' => 'sk-tenant-acme',
+        ])->save();
+
         $homepageMarkdown = implode("\n", [
             '# Acme Plumbing',
             'Auckland plumbers you can trust.',
@@ -480,6 +484,57 @@ class OnboardingFlowTest extends TestCase
         $this->assertSame('https://acme.example', $tenant->businessProfile->website_url);
         $this->assertSame('Fast local plumbing help', $tenant->businessProfile->tagline);
         $this->assertSame(['Emergency plumbing', 'Hot water repairs'], $tenant->businessProfile->services);
+    }
+
+    public function test_extract_business_uses_tenant_litellm_key_instead_of_platform_virtual_key(): void
+    {
+        [$user, $tenant] = $this->seedTenantWithProfile();
+
+        $tenant->forceFill([
+            'litellm_virtual_key' => 'sk-tenant-acme',
+        ])->save();
+
+        Http::fake([
+            'https://r.jina.ai/https://acme.example' => Http::response('Homepage content', 200),
+            'https://r.jina.ai/*' => Http::response('Additional page content.', 200),
+            'https://litellm.stylesoftware.co.nz/chat/completions' => Http::response([
+                'choices' => [[
+                    'message' => [
+                        'content' => json_encode([
+                            'business_name' => 'Acme Plumbing',
+                            'trading_name' => null,
+                            'tagline' => null,
+                            'description' => 'Acme Plumbing helps homeowners with urgent repairs.',
+                            'industry' => 'Trades',
+                            'services' => ['Emergency plumbing'],
+                            'target_customers' => null,
+                            'tone_hint' => 'friendly',
+                            'contact_email' => 'hello@acme.example',
+                            'contact_phone' => '+64 21 000 0000',
+                            'contact_mobile' => null,
+                            'physical_address' => null,
+                            'city' => 'Auckland',
+                            'country' => 'New Zealand',
+                            'pricing_notes' => null,
+                        ]),
+                    ],
+                ]],
+            ], 200),
+        ]);
+
+        config()->set('services.litellm.base_url', 'https://litellm.stylesoftware.co.nz');
+        config()->set('services.litellm.virtual_key', 'sk-sync360-control-app-test');
+
+        $this->actingAs($user);
+
+        $this->postJson('/onboarding/extract-business', [
+            'url' => 'https://acme.example',
+        ])->assertOk();
+
+        Http::assertSent(function ($request): bool {
+            return $request->url() === 'https://litellm.stylesoftware.co.nz/chat/completions'
+                && $request->hasHeader('Authorization', 'Bearer sk-tenant-acme');
+        });
     }
 
     public function test_save_business_info_updates_profile_tenant_and_step_two(): void
@@ -632,6 +687,58 @@ class OnboardingFlowTest extends TestCase
         $this->assertStringContainsString('Acme Plumbing', $files->identity_markdown);
         $this->assertStringContainsString('Communication Style', $files->soul_markdown);
         $this->assertStringContainsString('Inbox Triage', $files->soul_markdown);
+    }
+
+    public function test_save_modules_uses_tenant_litellm_key_for_ai_file_generation(): void
+    {
+        [$user, $tenant, $profile, $files] = $this->seedTenantWithProfile();
+
+        $tenant->forceFill([
+            'onboarding_status' => 'in_progress',
+            'onboarding_step' => 3,
+            'tone' => 'friendly',
+            'litellm_virtual_key' => 'sk-tenant-acme',
+        ])->save();
+
+        $profile->forceFill([
+            'website_url' => 'https://acme.example',
+            'description' => 'Acme Plumbing helps homeowners with urgent repairs and scheduled installs.',
+            'services' => ['Emergency plumbing', 'Hot water cylinder installs'],
+        ])->save();
+
+        config()->set('services.litellm.base_url', 'https://litellm.stylesoftware.co.nz');
+        config()->set('services.litellm.virtual_key', 'sk-sync360-control-app-test');
+
+        Http::fake([
+            'https://litellm.stylesoftware.co.nz/chat/completions' => Http::response([
+                'choices' => [[
+                    'message' => [
+                        'content' => json_encode([
+                            'identity' => "# Identity\nAcme Plumbing",
+                            'soul' => "# Soul\nFriendly and practical.",
+                            'user' => "# User\nUse Inbox Triage.",
+                            'bootstrap' => "# Bootstrap\nStart here.",
+                        ]),
+                    ],
+                ]],
+            ], 200),
+        ]);
+
+        $this->actingAs($user);
+
+        $this->postJson('/onboarding/modules', [
+            'featured_skill_keys' => [],
+        ])->assertOk();
+
+        $files->refresh();
+
+        $this->assertSame("# Identity\nAcme Plumbing", $files->identity_markdown);
+        $this->assertSame("# Soul\nFriendly and practical.", $files->soul_markdown);
+
+        Http::assertSent(function ($request): bool {
+            return $request->url() === 'https://litellm.stylesoftware.co.nz/chat/completions'
+                && $request->hasHeader('Authorization', 'Bearer sk-tenant-acme');
+        });
     }
 
     public function test_save_channel_persists_telegram_configuration_and_marks_step_five_complete(): void
