@@ -7,6 +7,23 @@ This file tracks product and engineering changes for the Sync360 Control App.
 
 Newest updates appear first.
 
+## 2026-05-03 — Customer Portal: Remove Conversations Surface
+
+Date: 2026-05-03
+Status: Implemented
+
+### Overview
+
+Removed the customer-facing `Conversations` destination from the authenticated control-app portal because raw session-history browsing is no longer a required customer feature.
+
+### What Changed
+
+- removed the customer `/conversations` route from the authenticated workspace-access surface
+- removed the customer `Conversations` sidebar link from both desktop and mobile navigation in the shared app layout
+- deleted the dedicated customer `ConversationsController` and `resources/views/conversations/index.blade.php` page
+- replaced the old browser-flow coverage with regression tests that prove customers no longer see the navigation item and now receive `404` on direct route access
+- kept the underlying conversation-log sync and summary pipeline intact for internal and operational use
+
 ## 2026-05-01 — Fix: Restore Tenant Runtime Cost Attribution From Live LiteLLM Spend Rows
 
 Date: 2026-05-01

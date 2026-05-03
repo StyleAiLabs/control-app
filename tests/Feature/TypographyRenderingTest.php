@@ -35,7 +35,7 @@ class TypographyRenderingTest extends TestCase
 
         $this->actingAs($user);
 
-        $this->get('/conversations')
+        $this->get('/profile')
             ->assertOk()
             ->assertSee('family=DM+Sans', false)
             ->assertSee('family=JetBrains+Mono', false)

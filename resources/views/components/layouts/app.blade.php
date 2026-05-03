@@ -864,10 +864,6 @@
                 Dashboard
             </a>
             @if (auth()->user()->tenant)
-                <a href="{{ route('conversations.index') }}"
-                   class="nav-link {{ request()->routeIs('conversations.*') ? 'active' : '' }}">
-                    Conversations
-                </a>
                 <a href="{{ route('profile.show') }}"
                    class="nav-link {{ request()->routeIs('profile.*') ? 'active' : '' }}">
                     Profile
@@ -951,10 +947,6 @@
                 Dashboard
             </a>
             @if (auth()->user()->tenant)
-                <a href="{{ route('conversations.index') }}"
-                   class="nav-link {{ request()->routeIs('conversations.*') ? 'active' : '' }}">
-                    Conversations
-                </a>
                 <a href="{{ route('profile.show') }}"
                    class="nav-link {{ request()->routeIs('profile.*') ? 'active' : '' }}">
                     Profile
