@@ -1,10 +1,12 @@
 # Sync360 Design System
 
-Last verified: `2026-04-28`
+Last verified: `2026-05-03`
 
 This document is the canonical design-system reference for the Sync360 Control App. It describes the current code-backed UI system used by the Blade surfaces in this repo.
 
 If this document conflicts with the code, trust the code first, then update this document. Historical design artifacts such as `ui-redesign-plan.html` are reference material only and are not normative design truth.
+
+**2026-05-03 Customer conversations destination removal:** authenticated customer navigation no longer includes `Conversations` as a first-class destination. Customer product IA should center on `Dashboard`, `Profile`, `Billing`, `Workspace Content`, and `Setup`; raw session-history browsing is not part of the current customer control-app contract. If conversation evidence is needed later, treat it as an explicitly re-approved surface rather than a default customer nav item.
 
 ## 1. Source Of Truth
 
@@ -71,7 +73,7 @@ The Admin Overview System Health panel uses the existing `.panel`, `.meta`, `.me
 
 ### Customer UI
 
-Customer UI includes landing, auth, signup, onboarding, dashboard, profile, conversations, tenant setup, and workspace-ready screens.
+Customer UI includes landing, auth, signup, onboarding, dashboard, profile, billing, workspace content, tenant setup, and workspace-ready screens.
 
 Customer UI may be more expressive:
 

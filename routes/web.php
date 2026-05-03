@@ -6,7 +6,6 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\BillingController;
-use App\Http\Controllers\ConversationsController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GoogleOAuthController;
 use App\Http\Controllers\LandingController;
@@ -39,7 +38,6 @@ Route::middleware('auth')->group(function (): void {
     Route::middleware('workspace.access')->group(function (): void {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::post('/dashboard/refresh-trial-usage', [DashboardController::class, 'refreshTrialUsage'])->name('dashboard.refresh-trial-usage');
-        Route::get('/conversations', [ConversationsController::class, 'index'])->name('conversations.index');
         Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
         Route::get('/profile/logo', [ProfileController::class, 'showLogo'])->name('profile.logo.show');
